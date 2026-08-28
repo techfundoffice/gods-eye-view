@@ -643,6 +643,60 @@
     </div>
   </div>
 
+  <!-- YouTube Live read-only connector workspace -->
+  <div id="youtube-panel" class="panel-collapsible collapsed" data-panel-id="youtube-panel" aria-label="YouTube Live workspace">
+    <div class="panel-glow"></div>
+    <div class="youtube-panel-inner">
+      <div class="panel-header">
+        <span class="panel-title">YOUTUBE LIVE</span>
+        <span id="youtube-connection-state" class="youtube-connection-state">OFFLINE</span>
+        <span class="panel-divider"></span>
+        <button class="panel-collapse-btn" data-collapse-target="youtube-panel" title="Collapse panel">+</button>
+      </div>
+      <div class="youtube-connection-row">
+        <span id="youtube-feed-status" class="youtube-feed-status" role="status" aria-live="polite">CONNECT TO LOAD CHANNEL</span>
+        <button id="youtube-refresh-btn" class="scene-btn" type="button">REFRESH</button>
+      </div>
+      <label class="youtube-field" for="youtube-channel-select">
+        <span>CHANNEL</span>
+        <select id="youtube-channel-select" aria-label="YouTube channel"></select>
+      </label>
+      <div id="youtube-channel-summary" class="youtube-summary">Connect YouTube to load your channel</div>
+      <label class="youtube-field" for="youtube-video-select">
+        <span>VIDEO / BROADCAST</span>
+        <select id="youtube-video-select" aria-label="YouTube video or broadcast" disabled></select>
+      </label>
+      <div id="youtube-video-summary" class="youtube-summary">Select a video to inspect comments and live state</div>
+      <div class="youtube-controls">
+        <button id="youtube-chat-toggle" class="scene-btn" type="button" aria-pressed="false" disabled>START CHAT</button>
+        <label class="youtube-poll-label" for="youtube-poll-select">POLL
+          <select id="youtube-poll-select" aria-label="Live chat polling interval">
+            <option value="5000">5S</option>
+            <option value="10000" selected>10S</option>
+            <option value="20000">20S</option>
+            <option value="30000">30S</option>
+          </select>
+        </label>
+      </div>
+      <div class="youtube-tabs" role="tablist" aria-label="YouTube data view">
+        <button id="youtube-chat-tab" type="button" role="tab" aria-selected="true" class="active">CHAT</button>
+        <button id="youtube-comments-tab" type="button" role="tab" aria-selected="false">COMMENTS</button>
+        <button id="youtube-api-tab" type="button" role="tab" aria-selected="false">API READ</button>
+      </div>
+      <div id="youtube-feed-view">
+        <ol id="youtube-feed-list" class="youtube-feed-list" aria-live="polite"></ol>
+        <button id="youtube-comments-next" class="scene-btn youtube-comments-next" type="button" disabled>NEXT COMMENTS</button>
+      </div>
+      <div id="youtube-api-view" class="youtube-api-view" hidden>
+        <div class="youtube-api-controls">
+          <select id="youtube-resource-select" aria-label="YouTube read resource"></select>
+          <button id="youtube-api-load-btn" class="scene-btn" type="button">LOAD</button>
+        </div>
+        <pre id="youtube-api-output" class="youtube-api-output" aria-live="polite">Choose a resource and load it.</pre>
+      </div>
+    </div>
+  </div>
+
   <!-- Scene Director Panel -->
   <div id="scene-panel" class="panel-collapsible collapsed" data-panel-id="scene-panel">
     <div class="panel-glow"></div>

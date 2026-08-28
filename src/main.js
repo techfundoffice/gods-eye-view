@@ -23,6 +23,7 @@ import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
 import { initLogoGaze } from './logoGaze.js';
 import { initCockpitCloudEffects } from './cockpitCloudEffects.js';
+import { initYouTubePanel } from './youtubeLive.js';
 import {
   installRenderGovernor,
   getRenderGovernorDiagnostics,
@@ -74,6 +75,50 @@ function describeError(error) {
     }
   }
   return String(error);
+}
+
+/** @constant {string} Governor hold owner for 3D Tiles streaming. */
+const TILESET_STREAM_HOLD = 'tileset-stream';
+
+/**
+ * Keep frames flowing while a 3D tileset is still streaming.
+ *
+ * The render governor puts the scene into Cesium's `requestRenderMode` when
+ * nothing animates, and in that mode a frame happens only when something asks
+ * for one. `Globe` participates in this — its quadtree raises
+ * `tileLoadProgressEvent` and the scene keeps rendering while imagery streams
+ * — but `Cesium3DTileset` does not: there is not one `requestRender` call in
+ * the whole of Cesium's `Cesium3DTileset.js`.
+ *
+ * A tileset therefore gets whatever frames happen to occur. It fetches
+ * `root.json` on its first traversal, and if the scene goes idle before that
+ * response lands, the traversal that would request the root's children never
+ * runs — one manifest fetch, no child tiles, and a black globe on the shipped
+ * default basemap while OSM (a Globe stack) renders normally.
+ *
+ * Holding continuous render until the tileset reports itself loaded closes
+ * that. The hold is released as soon as streaming settles, so an idle
+ * photoreal scene still costs nothing.
+ *
+ * @param {object} tileset - The Cesium3DTileset just added to the scene.
+ * @returns {void}
+ */
+function keepTilesetStreaming(tileset) {
+  if (!tileset) return;
+  // Held from the moment it is added: the first traversal has not run yet, so
+  // "no pending requests" does not yet mean "nothing to load".
+  holdContinuousRender(TILESET_STREAM_HOLD);
+  tileset.allTilesLoaded?.addEventListener?.(() => {
+    releaseContinuousRender(TILESET_STREAM_HOLD);
+  });
+  // Re-arm whenever the camera moves somewhere new and streaming resumes.
+  tileset.loadProgress?.addEventListener?.((pendingRequests, tilesProcessing) => {
+    if ((pendingRequests || 0) + (tilesProcessing || 0) > 0) {
+      holdContinuousRender(TILESET_STREAM_HOLD);
+    } else {
+      releaseContinuousRender(TILESET_STREAM_HOLD);
+    }
+  });
 }
 
 /**
@@ -267,6 +312,7 @@ async function init() {
         onlyUsingWithGoogleGeocoder: true,
       });
       viewer.scene.primitives.add(tileset);
+      keepTilesetStreaming(tileset);
       // NOTE: Cesium World Terrain intentionally disabled — conflicts with Google 3D Tiles at high zoom.
       // Google Photorealistic 3D Tiles provide their own terrain/elevation.
       viewer.scene.globe.show = false;
@@ -298,6 +344,7 @@ async function init() {
 
     // Initialize the style manager (post-processing, HUD, locations, share links)
     const styleManager = new StyleManager(viewer, { mapStackController });
+    const youtubePanel = initYouTubePanel();
     // The previous multi-canvas weather compositor remains disabled. Cockpit
     // clouds use a separate, capped low-resolution GPU pass that never attaches
     // Cesium fog or post-process stages and is fully stopped in map mode.
@@ -427,6 +474,7 @@ async function init() {
       annotations,
       weatherEffects,
       cockpitCloudEffects,
+      youtubePanel,
       getRenderGovernorDiagnostics,
       requestRender: governorRequestRender,
     };

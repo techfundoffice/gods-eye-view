@@ -1477,6 +1477,7 @@ body.ui-clean-view #control-panel,
 body.ui-clean-view #location-bar,
 body.ui-clean-view #data-panel,
 body.ui-clean-view #cctv-panel,
+body.ui-clean-view #youtube-panel,
 body.ui-clean-view #radio-panel,
 body.ui-clean-view #global-context-panel,
 body.ui-clean-view #scene-panel {
@@ -3915,7 +3916,7 @@ body.cockpit-mode #left-panel-stack {
   max-height: none;
   transition: none;
 }
-body.cockpit-mode #left-panel-stack > #scene-panel { display: none !important; }
+body.cockpit-mode #left-panel-stack > :is(#scene-panel, #youtube-panel) { display: none !important; }
 body.cockpit-mode #right-context-rail {
   display: none !important;
 }
@@ -6395,6 +6396,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 
 #left-panel-stack > #data-panel,
 #left-panel-stack > #cctv-panel,
+#left-panel-stack > #youtube-panel,
 #left-panel-stack > #global-context-panel,
 #left-panel-stack > #scene-panel {
   position: relative;
@@ -6417,6 +6419,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   order: 2;
 }
 
+#left-panel-stack > #youtube-panel { order: 3; }
 #left-panel-stack > #scene-panel { order: 4; }
 
 /*
@@ -6430,6 +6433,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 
 #left-panel-stack > #data-panel:not(.collapsed),
 #left-panel-stack > #cctv-panel:not(.collapsed),
+#left-panel-stack > #youtube-panel:not(.collapsed),
 #left-panel-stack > #scene-panel:not(.collapsed) {
   box-sizing: border-box;
   flex: 0 1 var(--left-panel-allocated-height, auto);
@@ -6441,7 +6445,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
  * When an expanded panel and its collapsed siblings fit together, preserve
  * the canonical control order and center their combined stack at 50vh.
  */
-#left-panel-stack.layout-tail > :is(#data-panel, #cctv-panel, #scene-panel):not(.collapsed) {
+#left-panel-stack.layout-tail > :is(#data-panel, #cctv-panel, #youtube-panel, #scene-panel):not(.collapsed) {
   box-sizing: border-box;
   flex: 0 0 var(--left-panel-allocated-height);
   height: var(--left-panel-allocated-height);
@@ -6450,6 +6454,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 
 #left-panel-stack > #data-panel:not(.collapsed) .data-panel-inner,
 #left-panel-stack > #cctv-panel:not(.collapsed) .cctv-panel-inner,
+#left-panel-stack > #youtube-panel:not(.collapsed) .youtube-panel-inner,
 #left-panel-stack > #scene-panel:not(.collapsed) .scene-panel-inner {
   height: 100%;
   max-height: 100%;
@@ -6460,6 +6465,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 }
 
 #left-panel-stack > #cctv-panel:not(.collapsed) .cctv-panel-inner,
+#left-panel-stack > #youtube-panel:not(.collapsed) .youtube-panel-inner,
 #left-panel-stack > #scene-panel:not(.collapsed) .scene-panel-inner {
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -6489,6 +6495,213 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   filter: blur(16px);
   opacity: 0.25;
   pointer-events: none;
+}
+
+.youtube-panel-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 0;
+  max-height: calc(100vh - 24px);
+  padding: 14px;
+  overflow: hidden;
+  color: var(--text-primary);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--panel-radius);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+}
+
+#youtube-panel {
+  --panel-expanded-width: 390px;
+  width: var(--panel-expanded-width);
+}
+
+#youtube-panel .panel-glow {
+  position: absolute;
+  inset: -18px;
+  pointer-events: none;
+  opacity: 0.22;
+  filter: blur(16px);
+  background: radial-gradient(ellipse at center, rgba(255, 32, 64, 0.2) 0%, transparent 65%);
+}
+
+.youtube-connection-state,
+.youtube-feed-status {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.2px;
+  color: #ff8c9c;
+}
+
+.youtube-connection-row,
+.youtube-controls,
+.youtube-api-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.youtube-connection-row .youtube-feed-status {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.youtube-connection-row .scene-btn,
+.youtube-controls .scene-btn,
+.youtube-api-controls .scene-btn {
+  flex: 0 0 auto;
+}
+
+.youtube-field {
+  display: grid;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.4px;
+  color: var(--text-dim);
+}
+
+.youtube-field select,
+.youtube-poll-label select,
+#youtube-resource-select {
+  min-width: 0;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  padding: 7px 8px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+
+.youtube-summary {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  line-height: 1.45;
+  letter-spacing: 0.7px;
+}
+
+.youtube-poll-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.2px;
+}
+
+.youtube-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.youtube-tabs button {
+  padding: 7px 5px;
+  cursor: pointer;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.1px;
+}
+
+.youtube-tabs button.active {
+  color: #ffd7de;
+  background: rgba(255, 42, 75, 0.12);
+  border-color: rgba(255, 72, 98, 0.55);
+}
+
+#youtube-feed-view,
+.youtube-api-view {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.youtube-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 88px;
+  max-height: 250px;
+  margin: 0;
+  padding: 2px 2px 4px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.youtube-feed-item {
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  background: rgba(255, 255, 255, 0.035);
+  border-left: 2px solid rgba(255, 64, 94, 0.55);
+  border-radius: 4px;
+}
+
+.youtube-feed-meta {
+  color: #ff9cab;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.65px;
+}
+
+.youtube-feed-text {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.youtube-feed-empty {
+  padding: 18px 8px;
+  text-align: center;
+  color: var(--text-dim);
+  border: 1px dashed rgba(255, 255, 255, 0.13);
+  border-radius: 7px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.1px;
+}
+
+.youtube-comments-next {
+  width: 100%;
+  margin-top: 7px;
+}
+
+#youtube-resource-select {
+  flex: 1;
+}
+
+.youtube-api-output {
+  box-sizing: border-box;
+  max-height: 230px;
+  margin: 7px 0 0;
+  padding: 8px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #b8f5ff;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  line-height: 1.45;
 }
 
 .scene-panel-inner {
@@ -6742,6 +6955,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 #scene-panel.collapsed .scene-shot-list,
 #scene-panel.collapsed .scene-progress,
 #scene-panel.collapsed #scene-status,
+#youtube-panel.collapsed .youtube-panel-inner > :not(.panel-header),
 #param-slider-panel.collapsed #param-sliders,
 #location-bar.collapsed .poi-row-container,
 #location-bar.collapsed .location-bar-divider,
@@ -6751,6 +6965,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 
 #data-panel.collapsed,
 #cctv-panel.collapsed,
+#youtube-panel.collapsed,
 #scene-panel.collapsed {
   width: var(--left-collapsed-width);
 }
@@ -6759,6 +6974,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 
 #data-panel.collapsed .panel-title,
 #cctv-panel.collapsed .panel-title,
+#youtube-panel.collapsed .panel-title,
 #radio-panel.collapsed .panel-title,
 #scene-panel.collapsed .panel-title {
   font-size: 8px;
@@ -6768,6 +6984,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 #control-panel.collapsed .panel-inner,
 #data-panel.collapsed .data-panel-inner,
 #cctv-panel.collapsed .cctv-panel-inner,
+#youtube-panel.collapsed .youtube-panel-inner,
 #radio-panel.collapsed .radio-panel-inner,
 #scene-panel.collapsed .scene-panel-inner,
 #param-slider-panel.collapsed,
@@ -6778,6 +6995,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 #control-panel.collapsed .panel-header,
 #data-panel.collapsed .panel-header,
 #cctv-panel.collapsed .panel-header,
+#youtube-panel.collapsed .panel-header,
 #radio-panel.collapsed .panel-header,
 #global-context-panel.collapsed .panel-header,
 #scene-panel.collapsed .panel-header,
@@ -6799,6 +7017,7 @@ body.recording-mode #control-panel,
 body.recording-mode #location-bar,
 body.recording-mode #data-panel,
 body.recording-mode #cctv-panel,
+body.recording-mode #youtube-panel,
 body.recording-mode #radio-panel,
 body.recording-mode #global-context-panel,
 body.recording-mode #gev-voice-control,
@@ -6966,6 +7185,11 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
     width: auto;
   }
 
+  #youtube-panel,
+  #youtube-panel.collapsed {
+    width: auto;
+  }
+
   #left-panel-stack {
     top: 70px;
     right: 16px;
@@ -7013,10 +7237,12 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
 
   #left-panel-stack > #data-panel,
   #left-panel-stack > #cctv-panel,
+  #left-panel-stack > #youtube-panel,
   #left-panel-stack > #global-context-panel,
   #left-panel-stack > #scene-panel,
   #left-panel-stack > #data-panel.collapsed,
   #left-panel-stack > #cctv-panel.collapsed,
+  #left-panel-stack > #youtube-panel.collapsed,
   #left-panel-stack > #global-context-panel.collapsed,
   #left-panel-stack > #scene-panel.collapsed {
     position: relative;

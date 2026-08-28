@@ -44,6 +44,8 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { defineConfig, loadEnv } from 'vite';
 import cesium from 'vite-plugin-cesium';
+import { ReplitConnectors } from '@replit/connectors-sdk';
+import { createYoutubeProxyMiddleware } from './src/youtubeProxy.js';
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
   normalizeRegionalArticles,
@@ -7324,6 +7326,31 @@ function normalizeAisTimestamp(value) {
 }
 
 /**
+ * Authenticated, read-only YouTube Data API proxy. The connector object is
+ * intentionally created inside the request callback so token refresh state is
+ * never held as a process-wide client.
+ */
+function youtubeProxy() {
+  const middleware = createYoutubeProxyMiddleware({
+    proxy: (connectorName, requestPath) => (
+      new ReplitConnectors().proxy(connectorName, requestPath, { method: 'GET' })
+    ),
+  });
+  function install(middlewares) {
+    middlewares.use('/api/youtube', middleware);
+  }
+  return {
+    name: 'gev-youtube-proxy',
+    configureServer(server) {
+      install(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      install(server.middlewares);
+    },
+  };
+}
+
+/**
  * Main Vite configuration factory.
  *
  * Loads .env files via Vite's loadEnv, registers Cesium + local proxy
@@ -7341,6 +7368,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       cesium(),
+      youtubeProxy(),
       openSkyProxy(),
       celestrakProxy(),
       tomtomProxy(),
