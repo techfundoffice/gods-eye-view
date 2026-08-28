@@ -8,6 +8,7 @@ import {
   classifyCesiumStartupError,
   classifyWebGLLimits,
   isWebGLInitializationError,
+  readCesiumContextLimits,
   readSceneContextLimits,
   validateSceneContext,
   probeWebGLCapability,
@@ -399,7 +400,7 @@ test('the real Cesium context is validated before its render loop starts', () =>
   const main = fs.readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8');
   const viewerIndex = main.indexOf("new Cesium.Viewer('cesiumContainer'");
   const pausedIndex = main.indexOf('useDefaultRenderLoop: false', viewerIndex);
-  const validationIndex = main.indexOf('validateSceneContext(viewer.scene)', viewerIndex);
+  const validationIndex = main.indexOf('validateSceneContext(viewer.scene, Cesium.ContextLimits)', viewerIndex);
   const renderErrorIndex = main.indexOf('viewer.scene.renderError.addEventListener', validationIndex);
   const resumedIndex = main.indexOf('viewer.useDefaultRenderLoop = true', renderErrorIndex);
 
@@ -434,60 +435,120 @@ function sceneWith(limits, { contextLost = false, canvas = undefined } = {}) {
   };
 }
 
-test("the viewer's own context is accepted when it is healthy", () => {
-  const verdict = validateSceneContext(sceneWith({}));
+/** Cesium's ContextLimits as it reads on healthy hardware. */
+const HEALTHY_CESIUM_LIMITS = Object.freeze({
+  maximumVertexTextureImageUnits: 32,
+  maximumTextureSize: 8192,
+  maximumCubeMapSize: 16384,
+  maximumRenderbufferSize: 8192,
+  maximumTextureImageUnits: 32,
+  maximumVertexAttributes: 16,
+  minimumAliasedLineWidth: 1,
+  maximumAliasedLineWidth: 1,
+  maximumViewportWidth: 8192,
+  maximumViewportHeight: 8192,
+});
+
+test('a healthy viewer passes both sources', () => {
+  const verdict = validateSceneContext(sceneWith({}), HEALTHY_CESIUM_LIMITS);
   assert.equal(verdict.reason, null);
-  assert.equal(verdict.limits.maxTextureSize, 16384);
+  assert.equal(verdict.limits.maxTextureSize, 8192);
+  assert.equal(verdict.source, 'cesium-context-limits');
 });
 
-test('the zeroed texture size Cesium would cache is rejected before a frame', () => {
-  // The production failure: Cesium caches the limit into ContextLimits at
-  // Context construction and Scene.render then throws "Width must be less than
-  // or equal to the maximum texture size (0)" every frame.
-  const verdict = validateSceneContext(sceneWith({ maxTextureSize: 0 }));
-  assert.equal(verdict.reason, WEBGL_COMPATIBILITY_REASONS.insufficientTextureSize);
-  assert.equal(verdict.limits.maxTextureSize, 0, 'the report carries the rejected number');
-});
-
-test("a zeroed vertex-texture or line-width limit on the viewer's context is rejected", () => {
-  assert.equal(
-    validateSceneContext(sceneWith({ maxVertexTextureImageUnits: 0 })).reason,
-    WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures,
+test("a zero vertex-texture limit in Cesium's own table is rejected before a frame", () => {
+  // This is the exact value Primitive.update branches on:
+  //   if (ContextLimits.maximumVertexTextureImageUnits === 0) throw RuntimeError
+  // so rejecting on it is not a prediction — it is the throw, one frame early.
+  const verdict = validateSceneContext(
+    sceneWith({}),
+    { ...HEALTHY_CESIUM_LIMITS, maximumVertexTextureImageUnits: 0 },
   );
-  assert.equal(
-    validateSceneContext(sceneWith({ aliasedLineWidthRange: [0, 0] })).reason,
-    WEBGL_COMPATIBILITY_REASONS.invalidLineWidthRange,
-  );
+  assert.equal(verdict.reason, WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures);
+  assert.equal(verdict.source, 'cesium-context-limits');
+  assert.equal(verdict.limits.maxVertexTextureImageUnits, 0);
 });
 
-test('an unreadable context fails OPEN rather than blocking a working GPU', () => {
-  // A check that cannot see the GPU must never be the thing that stops it.
-  // This is the regression that matters: reading Cesium.ContextLimits through
-  // the bundled namespace yields a zero snapshot and condemned a browser that
-  // renders the globe perfectly.
-  for (const scene of [
-    undefined,
-    null,
-    {},
-    { canvas: null },
-    { canvas: {} },
-    sceneWith({}, { canvas: { getContext: () => null } }),
+test("Cesium's table is decisive even when a fresh canvas still looks healthy", () => {
+  // The regression that shipped the render error: a page that has already
+  // spent several WebGL contexts hands Cesium a degraded one, while the
+  // canvas read comes back fine. Cesium acts on ITS table, so that wins.
+  for (const bad of [
+    ['maximumVertexTextureImageUnits', 0, WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures],
+    ['maximumTextureSize', 0, WEBGL_COMPATIBILITY_REASONS.insufficientTextureSize],
+    ['maximumAliasedLineWidth', 0, WEBGL_COMPATIBILITY_REASONS.invalidLineWidthRange],
   ]) {
-    const verdict = validateSceneContext(scene);
-    assert.equal(verdict.reason, null, 'an unreadable context must not condemn startup');
-    assert.equal(verdict.limits, null);
+    const [key, value, reason] = bad;
+    const verdict = validateSceneContext(
+      sceneWith({}), // healthy canvas
+      { ...HEALTHY_CESIUM_LIMITS, [key]: value },
+    );
+    assert.equal(verdict.reason, reason, `${key} must be decisive`);
   }
 });
 
-test('a lost viewer context is not mistaken for zeroed limits', () => {
-  // Reported by the render-error backstop instead, which names it as lost.
-  const verdict = validateSceneContext(sceneWith({ maxTextureSize: 0 }, { contextLost: true }));
+test("a degraded canvas is decisive even when Cesium's table looks healthy", () => {
+  const verdict = validateSceneContext(
+    sceneWith({ maxTextureSize: 0 }),
+    HEALTHY_CESIUM_LIMITS,
+  );
+  assert.equal(verdict.reason, WEBGL_COMPATIBILITY_REASONS.insufficientTextureSize);
+  assert.equal(verdict.source, 'viewer-canvas-context');
+});
+
+test('the canvas still guards when the limit table is unavailable', () => {
+  assert.equal(
+    validateSceneContext(sceneWith({ maxVertexTextureImageUnits: 0 }), null).reason,
+    WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures,
+  );
+});
+
+test("the limit table still guards when the canvas can't be re-read", () => {
+  // getContext returning null for every id is the case that previously made
+  // the whole check fail open and let the render error through.
+  const blindScene = { canvas: { getContext: () => null } };
+  assert.equal(
+    validateSceneContext(blindScene, { ...HEALTHY_CESIUM_LIMITS, maximumVertexTextureImageUnits: 0 }).reason,
+    WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures,
+  );
+});
+
+test('the check fails open only when NEITHER source can be read', () => {
+  for (const scene of [undefined, null, {}, { canvas: null }, { canvas: {} }]) {
+    const verdict = validateSceneContext(scene, null);
+    assert.equal(verdict.reason, null, 'a blind check must not condemn startup');
+    assert.equal(verdict.limits, null);
+    assert.equal(verdict.source, null);
+  }
+});
+
+test('a lost viewer context is left to the render-error backstop', () => {
+  const verdict = validateSceneContext(
+    sceneWith({ maxTextureSize: 0 }, { contextLost: true }),
+    null,
+  );
   assert.equal(verdict.reason, null);
 });
 
+test('a zeroed Cesium minimum line width does not falsely reject healthy hardware', () => {
+  // Cesium leaves the range minimum at its 0 initializer on some drivers.
+  const verdict = validateSceneContext(
+    sceneWith({}),
+    { ...HEALTHY_CESIUM_LIMITS, minimumAliasedLineWidth: 0 },
+  );
+  assert.equal(verdict.reason, null);
+});
+
+test('readCesiumContextLimits maps every limit Cesium exposes', () => {
+  const limits = readCesiumContextLimits(HEALTHY_CESIUM_LIMITS);
+  assert.equal(limits.maxVertexTextureImageUnits, 32);
+  assert.equal(limits.maxCubeMapTextureSize, 16384);
+  assert.deepEqual(limits.aliasedLineWidthRange, [1, 1]);
+  assert.deepEqual(limits.maxViewportDimensions, [8192, 8192]);
+  assert.equal(readCesiumContextLimits(null), null);
+});
+
 test('readSceneContextLimits reuses the canvas context rather than making one', () => {
-  // canvas.getContext returns the SAME context for a canvas that already has
-  // one of that type, which is what makes this the viewer's real context.
   const gl = context({ limits: { maxTextureSize: 4096 } });
   let calls = 0;
   const limits = readSceneContextLimits({
@@ -500,15 +561,21 @@ test('readSceneContextLimits reuses the canvas context rather than making one', 
   });
   assert.equal(calls, 1, 'webgl2 is asked for first and answers');
   assert.equal(limits.maxTextureSize, 4096);
-  assert.deepEqual(limits.aliasedLineWidthRange, [1, 1]);
 });
 
 test('a WebGL1-only viewer context is still read', () => {
-  const gl = context({ limits: { maxTextureSize: 2048 } });
+  // getContext('webgl2') returns null on a canvas already bound to WebGL1,
+  // and WebGL1 permits MAX_VERTEX_TEXTURE_IMAGE_UNITS of 0 — the exact shape
+  // behind the reported RuntimeError.
+  const gl = context({ limits: { maxVertexTextureImageUnits: 0 } });
   const limits = readSceneContextLimits({
     canvas: { getContext: (name) => (name === 'webgl' ? gl : null) },
   });
-  assert.equal(limits.maxTextureSize, 2048);
+  assert.equal(limits.maxVertexTextureImageUnits, 0);
+  assert.equal(
+    classifyWebGLLimits(limits),
+    WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures,
+  );
 });
 
 test('a Cesium startup failure names the limit it actually rejected', () => {
@@ -539,7 +606,7 @@ test('a Cesium startup failure names the limit it actually rejected', () => {
 test("the viewer's own context is validated before the render loop can run", () => {
   const main = fs.readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8');
   const viewerIndex = main.indexOf("new Cesium.Viewer('cesiumContainer'");
-  const checkIndex = main.indexOf('validateSceneContext(viewer.scene)');
+  const checkIndex = main.indexOf('validateSceneContext(viewer.scene, Cesium.ContextLimits)');
   assert.ok(checkIndex > viewerIndex, 'the check must read the constructed context');
   // Everything that could start a frame, a timer, or a poll comes after it.
   for (const [label, pattern] of [
@@ -575,10 +642,16 @@ test('a terminal GPU verdict is reported once, naming the stage and the limits',
   // "Unsupported browser" alone is not actionable; the report must say which
   // limit was rejected and where it was caught.
   assert.match(main, /function reportGpuIncompatibility\(stage, reason, limits\)/);
-  for (const stage of ['probe', 'cesium-context', 'render']) {
+  for (const stage of ['probe', 'render']) {
     assert.ok(
       main.includes(`reportGpuIncompatibility('${stage}'`),
       `the ${stage} path must report its verdict`,
     );
   }
+  // The post-construction path names WHICH source rejected the GPU, so the
+  // report distinguishes Cesium's own limit table from the canvas context.
+  assert.match(
+    main,
+    /reportGpuIncompatibility\(sceneContext\.source, sceneContext\.reason, sceneContext\.limits\)/,
+  );
 });

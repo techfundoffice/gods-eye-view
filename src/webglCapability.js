@@ -325,23 +325,62 @@ export function isWebGLInitializationError(error) {
 }
 
 /**
- * Read the limits of the context the VIEWER is actually rendering with.
+ * Read the limit table CESIUM ITSELF consults at render time.
  *
- * Not `Cesium.ContextLimits`: that object carries accessor properties, and the
- * bundler's namespace interop hands the app a plain snapshot of their values
- * taken at module-init time — i.e. all zeros, forever, no matter what the GPU
- * reports. Reading it produced a confident "unsupported GPU" verdict on a
- * browser that runs the globe perfectly. Verified against a bare
- * `CesiumWidget` in the same browser: raw context 8192/32/[1,1], live
- * `ContextLimits` 8192/32/1, the app's imported namespace 0/0/0.
+ * This is the authoritative source, because it is literally the object Cesium
+ * branches on. `Primitive.update`:
  *
- * `canvas.getContext` returns the SAME context object for a canvas that
- * already has one of that type (HTML spec), so this is the viewer's own
- * context, reached through public API only.
+ * ```js
+ * if (ContextLimits.maximumVertexTextureImageUnits === 0) {
+ *   throw new RuntimeError("Vertex texture fetch support is required ...");
+ * }
+ * ```
+ *
+ * and `Texture` compares against `ContextLimits.maximumTextureSize`. Whatever
+ * this table says is what Cesium will act on, so a bad value here is not a
+ * prediction of a failure — it IS the failure, one frame early.
+ *
+ * The table is populated synchronously by the `Context` constructor (which
+ * `new Viewer()` runs), so it is valid the moment the viewer returns.
+ *
+ * @param {object} contextLimits - `Cesium.ContextLimits`.
+ * @returns {object|null} Limits in `classifyWebGLLimits` shape, or null when
+ *   the table is absent.
+ */
+export function readCesiumContextLimits(contextLimits) {
+  if (!contextLimits) return null;
+  const minimumLineWidth = Number(contextLimits.minimumAliasedLineWidth);
+  return {
+    maxVertexTextureImageUnits: contextLimits.maximumVertexTextureImageUnits,
+    maxTextureSize: contextLimits.maximumTextureSize,
+    maxCubeMapTextureSize: contextLimits.maximumCubeMapSize,
+    maxRenderbufferSize: contextLimits.maximumRenderbufferSize,
+    maxTextureImageUnits: contextLimits.maximumTextureImageUnits,
+    maxVertexAttributes: contextLimits.maximumVertexAttributes,
+    aliasedLineWidthRange: [
+      // Cesium stores the range's ends separately and leaves the minimum at
+      // its 0 initializer on some drivers; a 0 there is not a bad range.
+      Number.isFinite(minimumLineWidth) && minimumLineWidth > 0 ? minimumLineWidth : 1,
+      contextLimits.maximumAliasedLineWidth,
+    ],
+    maxViewportDimensions: [
+      contextLimits.maximumViewportWidth,
+      contextLimits.maximumViewportHeight,
+    ],
+  };
+}
+
+/**
+ * Read the limits of the WebGL context bound to the viewer's canvas.
+ *
+ * A second, independent look at the same GPU. `canvas.getContext` returns the
+ * SAME context object for a canvas that already has one of that type (HTML
+ * spec), so this reaches the viewer's own context through public API — useful
+ * when the limit table cannot be read, and as corroboration when it can.
  *
  * @param {object} scene - `viewer.scene`.
  * @returns {object|null} Limits in `classifyWebGLLimits` shape, or null when
- *   the context cannot be reached (caller should fail open).
+ *   the context cannot be reached.
  */
 export function readSceneContextLimits(scene) {
   const canvas = scene?.canvas;
@@ -374,26 +413,33 @@ export function readSceneContextLimits(scene) {
 }
 
 /**
- * Verdict on the context the viewer actually holds, checked after construction
- * and before the first frame.
+ * Verdict on the viewer Cesium just built, taken before the first frame.
  *
- * The pre-viewer probe tests a throwaway canvas; this tests the real one, and
- * the two can disagree — a page that has already spent several contexts can be
- * handed a degraded one. Cesium caches whatever it is given and then throws
- * from inside `Scene.render` every frame ("Rendering has stopped").
+ * Consults BOTH sources and rejects if EITHER is unusable. They can disagree:
+ * a page that has already spent several WebGL contexts can hand Cesium a
+ * degraded one while a freshly created canvas still reports healthy numbers.
+ * Cesium acts on its own table, so a bad table is decisive on its own; a bad
+ * canvas context is decisive too, since that is the surface being drawn to.
  *
- * Fails OPEN: when the context cannot be read at all, startup continues and
- * the render-error handler remains the backstop. A check that cannot see the
- * GPU must not be the thing that blocks a working one.
+ * Fails open only when NEITHER source can be read — a check blind to the GPU
+ * must not be the thing that stops a working one.
  *
  * @param {object} scene - `viewer.scene`.
- * @returns {{reason: string|null, limits: object|null}} Verdict plus the
- *   numbers it was based on, for the diagnostic report.
+ * @param {object} contextLimits - `Cesium.ContextLimits`.
+ * @returns {{reason: string|null, limits: object|null, source: string|null}}
+ *   Verdict, the numbers behind it, and which source produced it.
  */
-export function validateSceneContext(scene) {
-  const limits = readSceneContextLimits(scene);
-  if (!limits) return { reason: null, limits: null };
-  return { reason: classifyWebGLLimits(limits), limits };
+export function validateSceneContext(scene, contextLimits) {
+  const sources = [
+    ['cesium-context-limits', readCesiumContextLimits(contextLimits)],
+    ['viewer-canvas-context', readSceneContextLimits(scene)],
+  ].filter(([, limits]) => limits);
+  if (!sources.length) return { reason: null, limits: null, source: null };
+  for (const [source, limits] of sources) {
+    const reason = classifyWebGLLimits(limits);
+    if (reason) return { reason, limits, source };
+  }
+  return { reason: null, limits: sources[0][1], source: sources[0][0] };
 }
 
 /**

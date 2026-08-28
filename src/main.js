@@ -189,13 +189,14 @@ async function init() {
       return;
     }
 
-    // The probe above tested a throwaway canvas; this reads the context the
-    // viewer actually holds, before the first frame and before any data
-    // layer, timer, or poll exists. Fails open when the context cannot be
-    // read — see validateSceneContext.
-    const sceneContext = validateSceneContext(viewer.scene);
+    // The probe above tested a throwaway canvas. This reads the limit table
+    // Cesium itself branches on (Primitive.update throws outright when
+    // maximumVertexTextureImageUnits is 0) plus the viewer's own canvas
+    // context, before the first frame and before any data layer, timer, or
+    // poll exists. See validateSceneContext.
+    const sceneContext = validateSceneContext(viewer.scene, Cesium.ContextLimits);
     if (sceneContext.reason) {
-      reportGpuIncompatibility('cesium-context', sceneContext.reason, sceneContext.limits);
+      reportGpuIncompatibility(sceneContext.source, sceneContext.reason, sceneContext.limits);
       try { viewer.destroy(); } catch { /* nothing usable to tear down */ }
       document.getElementById('cesiumContainer')?.replaceChildren();
       showWebGLCompatibilityState({
