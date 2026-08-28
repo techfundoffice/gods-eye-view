@@ -7364,6 +7364,10 @@ export default defineConfig(({ mode }) => {
     server: {
       host: env.HOST || 'localhost',
       port: parseInt(env.PORT, 10) || 5173,
+      // A Replit webview waits specifically for port 5000. Silently moving to
+      // 5001 when a stale process owns the port makes a healthy Vite process
+      // look like a workflow timeout; fail loudly so the owner is diagnosable.
+      strictPort: true,
       // When binding to all interfaces, allow any host; otherwise restrict to local names
       allowedHosts: (env.HOST === '0.0.0.0' || env.HOST === '::')
         ? true

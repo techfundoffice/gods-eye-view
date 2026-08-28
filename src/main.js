@@ -138,6 +138,11 @@ async function init() {
     let viewer;
     try {
       viewer = new Cesium.Viewer('cesiumContainer', {
+        // The viewer's own context can report different limits from the
+        // throwaway probe context. Keep Cesium's animation loop paused until
+        // that real context has been validated below; otherwise its first
+        // requestAnimationFrame can enter Scene.render with zeroed limits.
+        useDefaultRenderLoop: false,
         timeline: false,
         animation: false,
         baseLayerPicker: false,
@@ -206,6 +211,9 @@ async function init() {
     // error. Cesium has already stopped its render loop by this point.
     viewer.scene.renderError.addEventListener((_scene, renderError) => {
       if (!isWebGLInitializationError(renderError)) return;
+      // Cesium normally stops its loop after a render error, but set the flag
+      // synchronously as well so no queued frame can repeat the failure.
+      viewer.useDefaultRenderLoop = false;
       reportGpuIncompatibility('render', classifyCesiumStartupError(renderError), {
         message: describeError(renderError),
       });
@@ -215,6 +223,10 @@ async function init() {
         reason: classifyCesiumStartupError(renderError),
       });
     });
+
+    // The throwaway probe and the viewer's real context have both passed, and
+    // the render-error backstop is installed. Only now may frames begin.
+    viewer.useDefaultRenderLoop = true;
 
     // Cap the default render loop at 60 fps. Cesium's loop otherwise runs at
     // the display's refresh rate — 120 Hz on ProMotion panels — doubling GPU

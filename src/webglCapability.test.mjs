@@ -395,6 +395,35 @@ test('the capability gate runs before any startup timer or data layer', () => {
   }
 });
 
+test('the real Cesium context is validated before its render loop starts', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8');
+  const viewerIndex = main.indexOf("new Cesium.Viewer('cesiumContainer'");
+  const pausedIndex = main.indexOf('useDefaultRenderLoop: false', viewerIndex);
+  const validationIndex = main.indexOf('validateSceneContext(viewer.scene)', viewerIndex);
+  const renderErrorIndex = main.indexOf('viewer.scene.renderError.addEventListener', validationIndex);
+  const resumedIndex = main.indexOf('viewer.useDefaultRenderLoop = true', renderErrorIndex);
+
+  assert.ok(viewerIndex >= 0, 'viewer construction must still exist');
+  assert.ok(pausedIndex > viewerIndex, 'viewer must be constructed with its render loop paused');
+  assert.ok(validationIndex > pausedIndex, 'the real context must be validated after construction');
+  assert.ok(renderErrorIndex > validationIndex, 'the render-error backstop must follow validation');
+  assert.ok(resumedIndex > renderErrorIndex, 'rendering may resume only after validation and the backstop');
+});
+
+test('a GPU render failure synchronously disables queued Cesium frames', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8');
+  const handlerIndex = main.indexOf('viewer.scene.renderError.addEventListener');
+  const handlerEnd = main.indexOf('\\n    });', handlerIndex);
+  const handler = main.slice(handlerIndex, handlerEnd);
+
+  assert.match(handler, /viewer\.useDefaultRenderLoop = false;/);
+  assert.ok(
+    handler.indexOf('viewer.useDefaultRenderLoop = false')
+      < handler.indexOf('showWebGLCompatibilityState'),
+    'queued frames must stop before compatibility UI work begins',
+  );
+});
+
 /** A scene whose canvas hands back a context reporting `limits`. */
 function sceneWith(limits, { contextLost = false, canvas = undefined } = {}) {
   const gl = context({ limits, contextLost });
@@ -534,11 +563,11 @@ test("the viewer's own context is validated before the render loop can run", () 
 
 test('a GPU capability error raised while rendering reaches the compatibility state', () => {
   const main = fs.readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8');
-  assert.match(
-    main,
-    /viewer\.scene\.renderError\.addEventListener\([\s\S]{0,400}?showWebGLCompatibilityState/,
-    'Cesium stops its render loop on a render error; the UI must say why',
-  );
+  const handlerIndex = main.indexOf('viewer.scene.renderError.addEventListener');
+  const resumeIndex = main.indexOf('viewer.useDefaultRenderLoop = true', handlerIndex);
+  const handler = main.slice(handlerIndex, resumeIndex);
+  assert.ok(handlerIndex >= 0, 'the Cesium render-error listener must still exist');
+  assert.match(handler, /showWebGLCompatibilityState/, 'the UI must explain a terminal render error');
 });
 
 test('a terminal GPU verdict is reported once, naming the stage and the limits', () => {
