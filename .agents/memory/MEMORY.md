@@ -1,1 +1,2 @@
 - [Cesium preview WebGL](cesium-preview-webgl.md) — automated preview browsers may expose WebGL but fail to initialize Cesium without GPU support.
+- [Workspace connector authorization](workspace-connector-authorization.md) — app code cannot launch Replit connector OAuth; account-backed features stay preview-only without app auth.

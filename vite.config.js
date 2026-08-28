@@ -7330,11 +7330,29 @@ function normalizeAisTimestamp(value) {
  * intentionally created inside the request callback so token refresh state is
  * never held as a process-wide client.
  */
-function youtubeProxy() {
+function youtubeProxy(expectedPreviewHost = '') {
   const middleware = createYoutubeProxyMiddleware({
     proxy: (connectorName, requestPath) => (
       new ReplitConnectors().proxy(connectorName, requestPath, { method: 'GET' })
     ),
+    enabled: process.env.REPLIT_DEPLOYMENT !== '1' && Boolean(expectedPreviewHost),
+    allowRequest: (request) => {
+      const host = String(request.headers?.host || '').split(':')[0].toLowerCase();
+      const configuredHost = String(expectedPreviewHost || '').toLowerCase();
+      const isWorkspacePreview = host === 'localhost'
+        || host === '127.0.0.1'
+        || (configuredHost && host === configuredHost);
+      if (!isWorkspacePreview) return false;
+      const fetchSite = String(request.headers?.['sec-fetch-site'] || '').toLowerCase();
+      if (fetchSite === 'cross-site') return false;
+      const origin = String(request.headers?.origin || '');
+      if (!origin) return true;
+      try {
+        return new URL(origin).host === String(request.headers?.host || '');
+      } catch {
+        return false;
+      }
+    },
   });
   function install(middlewares) {
     middlewares.use('/api/youtube', middleware);
@@ -7368,7 +7386,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       cesium(),
-      youtubeProxy(),
+      youtubeProxy(env.REPLIT_DEV_DOMAIN),
       openSkyProxy(),
       celestrakProxy(),
       tomtomProxy(),

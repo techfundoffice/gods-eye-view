@@ -10,6 +10,8 @@ export const YOUTUBE_API_PREFIX = '/youtube/v3';
 export const YOUTUBE_PROXY_PREFIX = '/api/youtube';
 export const YOUTUBE_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 export const YOUTUBE_CACHE_MS = 5_000;
+export const YOUTUBE_MAX_CACHE_ENTRIES = 100;
+export const YOUTUBE_UPSTREAM_TIMEOUT_MS = 15_000;
 
 const SAFE_RESOURCE_PATH = /^\/youtube\/v3\/[a-z][a-z0-9]*(?:\/[a-z][a-z0-9]*)?$/i;
 const BLOCKED_QUERY_KEYS = new Set([
@@ -103,9 +105,14 @@ export function classifyYoutubeError(status, payload) {
     ? error.errors.map((entry) => String(entry?.reason || entry?.message || '').trim()).filter(Boolean)
     : [];
   const text = String(error.message || payload?.message || '').trim();
+  const normalizedText = text.toLowerCase();
   const normalizedReasons = reasons.map((reason) => reason.toLowerCase());
   let kind = 'upstream';
-  if (status === 401 || normalizedReasons.some((reason) => /auth|token|login|credential/.test(reason))) {
+  if (
+    status === 401
+    || /invalid_grant|reauthori[sz]|auth|token|credential/.test(normalizedText)
+    || normalizedReasons.some((reason) => /auth|token|login|credential/.test(reason))
+  ) {
     kind = 'authentication';
   } else if (normalizedReasons.some((reason) => /quota|rate.?limit|daily.?limit/.test(reason))) {
     kind = 'quota';
@@ -133,8 +140,8 @@ export function classifyYoutubeError(status, payload) {
   return {
     kind,
     code: Number.isFinite(Number(status)) ? Number(status) : 502,
-    message: text || fallback[kind] || fallback.upstream,
-    reasons,
+    message: fallback[kind] || fallback.upstream,
+    reasons: [],
   };
 }
 
@@ -147,9 +154,19 @@ function sendJson(res, status, payload, headers = {}) {
   res.end(body);
 }
 
-async function readResponseText(response, maxBytes = YOUTUBE_MAX_RESPONSE_BYTES) {
+async function readResponseText(
+  response,
+  maxBytes = YOUTUBE_MAX_RESPONSE_BYTES,
+  timeoutMs = YOUTUBE_UPSTREAM_TIMEOUT_MS,
+) {
   if (!response?.body?.getReader) {
-    const text = await response.text();
+    const text = await Promise.race([
+      response.text(),
+      new Promise((_, reject) => {
+        const timer = setTimeout(() => reject(new Error('YouTube response timed out')), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
     if (Buffer.byteLength(text, 'utf8') > maxBytes) throw new Error('YouTube response exceeds size cap');
     return text;
   }
@@ -157,16 +174,28 @@ async function readResponseText(response, maxBytes = YOUTUBE_MAX_RESPONSE_BYTES)
   const chunks = [];
   let total = 0;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value?.byteLength || 0;
-      if (total > maxBytes) {
-        try { await reader.cancel(); } catch { /* best effort */ }
-        throw new Error('YouTube response exceeds size cap');
-      }
-      chunks.push(value);
+    await Promise.race([
+      (async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value?.byteLength || 0;
+          if (total > maxBytes) throw new Error('YouTube response exceeds size cap');
+          chunks.push(value);
+        }
+      })(),
+      new Promise((_, reject) => {
+        const timer = setTimeout(() => reject(new Error('YouTube response timed out')), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+  } catch (error) {
+    try {
+      await reader.cancel();
+    } catch {
+      // Best-effort cancellation; preserve the original size/timeout error.
     }
+    throw error;
   } finally {
     reader.releaseLock?.();
   }
@@ -213,37 +242,61 @@ export function createYoutubeProxyMiddleware({
   now = () => Date.now(),
   allow = makeLimiter(),
   cacheMs = YOUTUBE_CACHE_MS,
+  maxCacheEntries = YOUTUBE_MAX_CACHE_ENTRIES,
+  upstreamTimeoutMs = YOUTUBE_UPSTREAM_TIMEOUT_MS,
+  enabled = true,
+  allowRequest = () => true,
 } = {}) {
   if (typeof proxy !== 'function') throw new TypeError('YouTube proxy requires a proxy function');
   const inFlight = new Map();
   return async function youtubeProxy(req, res, next) {
+    if (!enabled) {
+      sendJson(res, 403, { error: { kind: 'forbidden', message: 'YouTube account access is unavailable in public deployments.' } });
+      return;
+    }
     if (req.method !== 'GET') {
       sendJson(res, 405, { error: { kind: 'method-not-allowed', message: 'YouTube proxy is read-only.' } });
       return;
     }
-    if (!allow(clientKey(req))) {
-      res.setHeader('Retry-After', '10');
-      sendJson(res, 429, { error: { kind: 'rate-limit', message: 'Too many YouTube requests. Try again shortly.' } });
+    if (!allowRequest(req)) {
+      sendJson(res, 403, { error: { kind: 'forbidden', message: 'YouTube account access is limited to the workspace preview.' } });
       return;
     }
     try {
       const incoming = new URL(req.url || '/', 'http://localhost');
       const request = normalizeYoutubeRequest(incoming.pathname, incoming.searchParams);
-      const cached = cache.get(request.cacheKey);
+      const identityKey = clientKey(req);
+      const scopedCacheKey = `${identityKey}:${request.cacheKey}`;
+      const timestamp = now();
+      for (const [key, entry] of cache) {
+        if (timestamp - entry.cachedAt >= cacheMs) cache.delete(key);
+      }
+      const cached = cache.get(scopedCacheKey);
       if (cached && now() - cached.cachedAt < cacheMs) {
-        sendJson(res, cached.status, cached.payload, cached.headers);
+        sendJson(res, cached.status, cached.payload, { ...cached.headers, 'X-YouTube-Cache': 'HIT' });
         return;
       }
-      const pending = inFlight.get(request.cacheKey);
+      const pending = inFlight.get(scopedCacheKey);
       if (pending) {
         const result = await pending;
         sendJson(res, result.status, result.payload, result.headers);
         return;
       }
+      if (!allow(identityKey)) {
+        res.setHeader('Retry-After', '10');
+        sendJson(res, 429, { error: { kind: 'rate-limit', message: 'Too many YouTube requests. Try again shortly.' } });
+        return;
+      }
       const operation = (async () => {
         let upstream;
         try {
-          upstream = await proxy('youtube', `${request.path}?${request.search}`);
+          upstream = await Promise.race([
+            proxy('youtube', `${request.path}?${request.search}`),
+            new Promise((_, reject) => {
+              const timer = setTimeout(() => reject(new Error('YouTube request timed out')), upstreamTimeoutMs);
+              timer.unref?.();
+            }),
+          ]);
         } catch (error) {
           return {
             status: 502,
@@ -253,7 +306,7 @@ export function createYoutubeProxyMiddleware({
         }
         let text;
         try {
-          text = await readResponseText(upstream);
+          text = await readResponseText(upstream, YOUTUBE_MAX_RESPONSE_BYTES, upstreamTimeoutMs);
         } catch (error) {
           return {
             status: 502,
@@ -279,10 +332,13 @@ export function createYoutubeProxyMiddleware({
           },
         };
       })();
-      inFlight.set(request.cacheKey, operation);
+      inFlight.set(scopedCacheKey, operation);
       const result = await operation;
-      inFlight.delete(request.cacheKey);
-      if (result.status === 200) cache.set(request.cacheKey, { ...result, cachedAt: now() });
+      inFlight.delete(scopedCacheKey);
+      if (result.status === 200) {
+        while (cache.size >= maxCacheEntries) cache.delete(cache.keys().next().value);
+        cache.set(scopedCacheKey, { ...result, cachedAt: now() });
+      }
       sendJson(res, result.status, result.payload, result.headers);
     } catch (error) {
       sendJson(res, 400, {

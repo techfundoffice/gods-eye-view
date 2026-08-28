@@ -195,6 +195,16 @@ export class YouTubePanelController {
 
   _bind() {
     if (!this.root) return;
+    const collapseButton = this.root.querySelector('.panel-collapse-btn[data-collapse-target="youtube-panel"]');
+    if (collapseButton && collapseButton.dataset.collapseBound !== 'true') {
+      collapseButton.dataset.collapseBound = 'true';
+      collapseButton.addEventListener('click', () => {
+        const collapsed = this.root.classList.toggle('collapsed');
+        collapseButton.textContent = collapsed ? '+' : '−';
+        collapseButton.setAttribute('aria-expanded', String(!collapsed));
+        collapseButton.setAttribute('aria-label', collapsed ? 'Expand YouTube settings' : 'Collapse YouTube settings');
+      });
+    }
     this._el('youtube-connect-btn')?.addEventListener('click', () => {
       this._setStatus('OPEN REPLIT INTEGRATIONS TO CONNECT');
       this._el('youtube-connect-btn')?.setAttribute('aria-label', 'Connect YouTube in Replit workspace integrations, then refresh');
@@ -219,7 +229,7 @@ export class YouTubePanelController {
       this.state.pollMs = Math.max(5_000, Math.min(60_000, number(this._el('youtube-poll-select').value)));
       writeStoredState(this.state);
       if (this.state.enabled) {
-        this._stopChat();
+        this._stopChat({ preserveEnabled: true });
         void this._startChat(true);
       }
     });
@@ -390,13 +400,16 @@ export class YouTubePanelController {
     }
     const poll = async () => {
       if (!this.state.enabled || generation !== this.state.generation) return;
+      const controller = new AbortController();
+      this.state.abortController = controller;
       try {
         const payload = await this.client.get('liveChatMessages', {
           part: 'snippet,authorDetails',
           liveChatId: this.state.liveChatId,
           maxResults: 200,
           pageToken: this.state.chatPageToken,
-        });
+        }, controller.signal);
+        if (this.state.abortController === controller) this.state.abortController = null;
         if (!this.state.enabled || generation !== this.state.generation) return;
         this.state.chat = mergeUniqueById(this.state.chat, (payload?.items || []).map(normalizeLiveChatMessage));
         this.state.chatPageToken = text(payload?.nextPageToken);
@@ -406,6 +419,8 @@ export class YouTubePanelController {
         const delay = Math.max(this.state.pollMs, computePollDelay(payload?.pollingIntervalMillis));
         this.state.pollTimer = setTimeout(poll, delay);
       } catch (error) {
+        if (this.state.abortController === controller) this.state.abortController = null;
+        if (error?.name === 'AbortError') return;
         if (!this.state.enabled || generation !== this.state.generation) return;
         this.state.backoffMs = Math.min(60_000, Math.max(5_000, this.state.backoffMs ? this.state.backoffMs * 2 : 5_000));
         this._setStatus(this._friendlyError(error));
@@ -418,8 +433,15 @@ export class YouTubePanelController {
 
   _stopChat({ preserveEnabled = false } = {}) {
     if (this.state.pollTimer) clearTimeout(this.state.pollTimer);
+    this.state.abortController?.abort();
+    this.state.abortController = null;
     this.state.pollTimer = null;
     if (!preserveEnabled) this.state.enabled = false;
+  }
+
+  destroy() {
+    this.state.generation += 1;
+    this._stopChat();
   }
 
   async _loadResource() {

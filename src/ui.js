@@ -3924,6 +3924,8 @@ export class StyleManager {
   _initPanelChrome() {
     const targets = new Set();
     document.querySelectorAll('.panel-collapse-btn[data-collapse-target]').forEach((btn) => {
+      if (btn.dataset.collapseBound === 'true') return;
+      btn.dataset.collapseBound = 'true';
       const targetId = btn.dataset.collapseTarget;
       if (targetId) targets.add(targetId);
       btn.addEventListener('click', () => {
