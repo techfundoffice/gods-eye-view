@@ -185,6 +185,7 @@ export class YouTubePanelController {
     this.state.videoId = text(this._stored.videoId);
     this.state.resource = text(this._stored.resource, 'videos');
     this.state.pollMs = Math.max(5_000, Math.min(60_000, number(this._stored.pollMs, YOUTUBE_DEFAULT_POLL_MS)));
+    this.state.connection = 'disconnected';
     this._bind();
     this._populateResources();
     this._render();
@@ -194,6 +195,10 @@ export class YouTubePanelController {
 
   _bind() {
     if (!this.root) return;
+    this._el('youtube-connect-btn')?.addEventListener('click', () => {
+      this._setStatus('OPEN REPLIT INTEGRATIONS TO CONNECT');
+      this._el('youtube-connect-btn')?.setAttribute('aria-label', 'Connect YouTube in Replit workspace integrations, then refresh');
+    });
     this._el('youtube-refresh-btn')?.addEventListener('click', () => void this.refresh());
     this._el('youtube-chat-toggle')?.addEventListener('click', () => {
       this.state.enabled = !this.state.enabled;
@@ -246,6 +251,7 @@ export class YouTubePanelController {
   }
 
   async refresh() {
+    this.state.connection = 'connecting';
     setText(this._el('youtube-connection-state'), 'SYNCING');
     this._setStatus('SYNCING CHANNEL');
     this._setBusy(true);
@@ -266,6 +272,7 @@ export class YouTubePanelController {
         return;
       }
       this.state.channel = channel;
+      this.state.connection = 'connected';
       this.state.uploadsId = text(channel?.contentDetails?.relatedPlaylists?.uploads);
       this._render();
       await this._loadVideos();
@@ -273,6 +280,7 @@ export class YouTubePanelController {
       this._setStatus('CONNECTED');
     } catch (error) {
       this.state.channel = null;
+      this.state.connection = error?.kind === 'authentication' ? 'reconnect' : 'unavailable';
       setText(this._el('youtube-connection-state'), error?.kind === 'authentication' ? 'RECONNECT' : 'UNAVAILABLE');
       this._setStatus(this._friendlyError(error));
     } finally {
@@ -505,6 +513,13 @@ export class YouTubePanelController {
       chatToggle.textContent = this.state.enabled ? 'STOP CHAT' : 'START CHAT';
       chatToggle.disabled = !this.state.liveChatId;
       chatToggle.setAttribute('aria-pressed', String(this.state.enabled));
+    }
+    const connectButton = this._el('youtube-connect-btn');
+    if (connectButton) {
+      const connected = this.state.connection === 'connected';
+      connectButton.textContent = connected ? 'CONNECTED' : this.state.connection === 'reconnect' ? 'RECONNECT' : 'CONNECT YOUTUBE';
+      connectButton.disabled = connected;
+      connectButton.setAttribute('aria-label', connected ? 'YouTube is connected' : 'Connect YouTube in Replit workspace integrations');
     }
     const poll = this._el('youtube-poll-select');
     if (poll) poll.value = String(this.state.pollMs);
