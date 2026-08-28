@@ -1,0 +1,1 @@
+- [Cesium preview WebGL](cesium-preview-webgl.md) — automated preview browsers may expose WebGL but fail to initialize Cesium without GPU support.

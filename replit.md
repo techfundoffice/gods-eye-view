@@ -22,6 +22,11 @@ AISStream vessels, NASA FIRMS fires, and TomTom traffic are optional and remain
 disabled or use their documented fallback behavior when their credentials are
 not configured.
 
+The globe requires a browser with working WebGL/GPU support. Some automated
+preview or screenshot browsers expose WebGL but cannot initialize a Cesium
+context; in that environment Cesium shows its standard WebGL error even though
+the dev server and application configuration are healthy.
+
 ## Checks
 
 ```bash
