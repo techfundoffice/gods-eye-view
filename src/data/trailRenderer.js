@@ -21,6 +21,7 @@
  */
 import * as Cesium from 'cesium';
 import { registerPickOwner } from './pickRegistry.js';
+import { colorMaterial, normalizeLineWidth, toCesiumColor } from './cesiumMaterials.js';
 
 // Round 6: trail ENTITIES are pickable (the old Primitive had
 // allowPicking:false). A trail hugs its aircraft, so an unclaimed pick would
@@ -53,7 +54,11 @@ const MIN_SEGMENT_DISTANCE_SQ = 0.01;
  *   the entity permanently.
  */
 export function createTrail(viewer, { color, width = 2.5 }) {
-  const baseColor = Cesium.Color.fromCssColorString(color);
+  // Explicit material types + a normalized width: an unparseable hue or a
+  // computed NaN width must not throw "Unable to infer material type" out of
+  // a poll callback. See src/data/cesiumMaterials.js.
+  const baseColor = toCesiumColor(color);
+  const lineWidth = normalizeLineWidth(width, 2.5);
   /** @type {Cesium.Cartesian3[]} Current deduped positions (owned copy). */
   let current = [];
   let destroyed = false;
@@ -70,11 +75,11 @@ export function createTrail(viewer, { color, width = 2.5 }) {
         // CallbackProperty so a positions swap never rebuilds the entity —
         // Cesium re-reads on change; `false` marks it non-constant.
         positions: new Cesium.CallbackProperty(() => current, false),
-        width,
-        material: baseColor.withAlpha(TRAIL_ALPHA),
+        width: lineWidth,
+        material: colorMaterial(baseColor, TRAIL_ALPHA),
         // The locked rule (round 6): a segment below the photoreal
         // mesh renders dimmed — it must never disappear into the ground.
-        depthFailMaterial: baseColor.withAlpha(TRAIL_OCCLUDED_ALPHA),
+        depthFailMaterial: colorMaterial(baseColor, TRAIL_OCCLUDED_ALPHA),
         // Round 8: NONE draws straight 3D chords between waypoints — over a
         // sparse trans-oceanic trace a single segment spans hundreds of km
         // and tunnels through the planet. GEODESIC subdivides each segment

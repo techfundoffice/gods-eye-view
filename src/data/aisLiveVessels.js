@@ -45,6 +45,11 @@ import {
 } from './focusDeemphasis.js';
 import { requestWorldFocus } from '../worldFocus.js';
 import { holdContinuousRender, releaseContinuousRender } from '../renderGovernor.js';
+import {
+  classifyFeedError,
+  createRateLimitedLogger,
+  isTerminalFeedErrorKind,
+} from './feedDiagnostics.js';
 
 const FOCUS_EVIDENCE_DEV = import.meta.env?.DEV === true;
 
@@ -123,6 +128,22 @@ const AIS_STATUS_REASON = {
  * disagree about health.
  */
 const AIS_HEALTHY_STATUSES = new Set(['live', 'open']);
+
+/**
+ * Server statuses that no amount of polling can change within this process.
+ * 'missing-key' means AISSTREAM_API_KEY is absent (the server's own watchdog
+ * has already stopped attempting to connect and logs nothing); 'unsupported'
+ * means the `ws` dependency could not be loaded. Both are settled
+ * configuration facts, not outages, so the layer stops requesting and shows a
+ * deterministic unavailable chip instead of warning once per 60 s forever.
+ */
+const AIS_TERMINAL_STATUSES = new Set(['missing-key', 'unsupported']);
+
+/** One diagnostic line per five minutes per distinct reason. */
+const _aisLogger = createRateLimitedLogger({
+  prefix: '[Data:ais-live-vessels]',
+  intervalMs: 300_000,
+});
 
 /**
  * Server statuses meaning "the feed is not delivering right now". These are
@@ -655,6 +676,9 @@ const aisLiveVesselsLayer = {
       error: state.error,
       stale: state.stale,
       status: state.firstConnectPhase === 'unavailable' ? 'unavailable' : undefined,
+      // Consumed by src/loadingFeedback.js: a deliberately unconfigured
+      // optional provider is a terminal row, not a failed mission.
+      keyRequired: state.keyRequired,
       transportStatus: state.transportStatus,
       lastMessageAt: state.lastMessageAt,
       rawRowCount: state.rawRowCount,
@@ -674,6 +698,8 @@ const state = {
   loaded: false,
   stale: false,
   error: null,
+  /** Terminal: the server reports AIS is not configured on this deployment. */
+  keyRequired: false,
   loadingLabel: '',
   lastUpdate: null,
   count: 0,
@@ -789,6 +815,10 @@ function beginAisSession() {
   state.firstConnectStartedAt = startedAt;
   state.firstConnectDeadline = startedAt + AIS_FIRST_CONNECT_GRACE_MS;
   state.error = null;
+  // A credential added between toggles must be picked up: the terminal latch
+  // and its log suppression are both scoped to one enable/disable cycle.
+  state.keyRequired = false;
+  _aisLogger.reset();
   state.loadingLabel = AIS_FIRST_CONNECT_LABEL;
   scheduleFirstConnectExpiry(sessionId, AIS_FIRST_CONNECT_GRACE_MS);
 }
@@ -835,8 +865,33 @@ function markAisUnavailable(reason) {
   state.stale = state.count > 0;
 }
 
+/**
+ * Enter the terminal "AIS is not configured here" state.
+ *
+ * Deterministic and non-fatal: the chip keeps owning its own copy (the
+ * loading-feedback aggregator treats `keyRequired` as a settled row, not a
+ * failed mission — see src/loadingFeedback.js), no further request is issued
+ * for the life of the session, and the reason is logged once. Re-enabling the
+ * layer clears it, so a key added mid-session is picked up on the next toggle.
+ * @param {string} reason - Surfaced chip text.
+ * @returns {void}
+ */
+function latchAisUnavailable(reason) {
+  const settled = reason || 'AIS live feed is not configured';
+  if (state.keyRequired && state.error === settled) return;
+  state.keyRequired = true;
+  settleFirstConnectPhase('unavailable');
+  state.error = settled;
+  state.stale = false;
+  _aisLogger.warn(
+    `${settled} — live vessels disabled; no further requests.`,
+    `ais:terminal:${settled}`,
+  );
+}
+
 async function loadLivePositions(viewer) {
-  if (!viewer || state.loading) return;
+  // Terminal configuration state: the poll is over, not merely failing.
+  if (!viewer || state.loading || state.keyRequired) return;
   state.loading = true;
   state.loadingLabel = state.loaded ? 'refreshing...' : 'loading...';
   const requestController = new AbortController();
@@ -859,13 +914,30 @@ async function loadLivePositions(viewer) {
       // The 503 key-absent / 502 stream-error bodies still carry {status,error}.
       // Prefer a clean surfaced reason over a cryptic "AIS live HTTP 503".
       let reason = `AIS live HTTP ${response.status}`;
+      let serverStatus = null;
+      let serverDetail = '';
       try {
         const errPayload = await response.json();
         if (!ownsAisRequest(requestController, requestSessionId)) return;
-        reason = deriveAisFeedError(errPayload, 0)
-          || (typeof errPayload?.error === 'string' && errPayload.error.trim()) || reason;
+        serverStatus = typeof errPayload?.status === 'string' ? errPayload.status : null;
+        serverDetail = typeof errPayload?.error === 'string' ? errPayload.error.trim() : '';
+        reason = deriveAisFeedError(errPayload, 0) || serverDetail || reason;
       } catch { /* non-JSON body — keep the HTTP status reason */ }
-      throw new Error(reason);
+      // A missing credential is a settled fact, not a failed request: latch and
+      // return instead of throwing into the retry-and-warn path below.
+      const terminalByStatus = serverStatus && AIS_TERMINAL_STATUSES.has(serverStatus);
+      const failure = new Error(reason);
+      failure.status = response.status;
+      failure.detail = serverDetail;
+      if (terminalByStatus
+        || isTerminalFeedErrorKind(classifyFeedError(failure, {
+          status: response.status,
+          detail: serverDetail,
+        }))) {
+        latchAisUnavailable(reason);
+        return;
+      }
+      throw failure;
     }
 
     const payload = await response.json();
@@ -873,8 +945,14 @@ async function loadLivePositions(viewer) {
     applyAisFeedSnapshot(viewer, payload);
   } catch (error) {
     if (ownsAisRequest(requestController, requestSessionId) && error?.name !== 'AbortError') {
+      const kind = classifyFeedError(error, {
+        status: error?.status,
+        detail: error?.detail,
+      });
       markAisUnavailable(error?.message || 'AIS live load failed');
-      console.warn('[Data:ais-live-vessels]', state.error, error);
+      // Keyed on the failure KIND: a feed that flips from timeout to auth
+      // reports immediately, while an hour of identical timeouts is one line.
+      _aisLogger.warn(`${state.error} (${kind})`, `ais:${kind}`);
     }
   } finally {
     if (state.abort === requestController && state.sessionId === requestSessionId) {
@@ -1937,6 +2015,7 @@ function resetState() {
   state.loaded = false;
   state.stale = false;
   state.error = null;
+  state.keyRequired = false;
   state.loadingLabel = '';
   state.lastUpdate = null;
   state.count = 0;

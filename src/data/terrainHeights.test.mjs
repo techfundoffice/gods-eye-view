@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import {
   resolveEllipsoidalGround,
   cachedEllipsoidalGround,
+  _resetTerrainHeightsDegradationForTest,
 } from './terrainHeights.js';
 
 const AUSTIN = { lat: 30.2672, lon: -97.7431 };
@@ -28,6 +29,10 @@ const AUSTIN_GEOID_N = -26.9; // Cross-checked against Re:Earth reference data.
 async function withFakeFetch(fakeFetch, fn) {
   const original = globalThis.fetch;
   globalThis.fetch = fakeFetch;
+  // The module now carries a FEED-WIDE cooldown alongside the per-key one, so
+  // a failure simulated by one case would otherwise suppress the next case's
+  // network path. Each case starts from a healthy feed.
+  _resetTerrainHeightsDegradationForTest();
   try {
     return await fn();
   } finally {

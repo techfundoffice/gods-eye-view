@@ -5,6 +5,7 @@ import {
   orbitFrameModelMatrix,
 } from './satellites.js';
 import { getKeyholeGeometry } from '../celestialRing.js';
+import { colorMaterial, normalizeLineWidth } from './cesiumMaterials.js';
 import {
   clearOverlaySource,
   setOverlayEntries,
@@ -2902,8 +2903,8 @@ function addLaunchEntity(launch, activeTleText = _activeTleText) {
         id: `rocket-trajectory:${launch.id}:${index}`,
         polyline: {
           positions: surfaceSafePath(segment.positions),
-          width: 2,
-          material: Cesium.Color.fromCssColorString(TRAJECTORY_STAGE_COLORS[index % TRAJECTORY_STAGE_COLORS.length]).withAlpha(0.8),
+          width: normalizeLineWidth(2),
+          material: colorMaterial(TRAJECTORY_STAGE_COLORS[index % TRAJECTORY_STAGE_COLORS.length], 0.8),
           clampToGround: false,
           arcType: Cesium.ArcType.NONE,
         },

@@ -47,6 +47,7 @@
  */
 import * as Cesium from 'cesium';
 import { registerSpriteCollection, restoreSpriteOrder } from './spriteOrder.js';
+import { colorMaterial, normalizeLineWidth } from './cesiumMaterials.js';
 import {
   CCTV_ACTIVATION_RESULT,
   activateCctvCameraFromWorldClick,
@@ -1614,7 +1615,10 @@ function createProjectionPlane(record, runtime, geometry, positions) {
     plane: {
       plane: new Cesium.Plane(Cesium.Cartesian3.UNIT_Z, 0.0),
       dimensions: new Cesium.Cartesian2(geometry.halfW * 2, geometry.halfH * 2),
-      material: runtime.planeMaterial,
+      // planeMaterial is an Image/ColorMaterialProperty by construction; the
+      // guard keeps a torn-down runtime from handing Cesium a null, which its
+      // material-type inference turns into a throw rather than a no-op.
+      material: runtime.planeMaterial || colorMaterial(Cesium.Color.WHITE),
       outline: true,
       outlineColor: PLANE_OUTLINE_COLOR,
     },
@@ -3824,8 +3828,8 @@ function buildCoverageEntities(record) {
     properties: { cctvCameraId: camera.id },
     polyline: {
       positions: linePositions,
-      width: 1.2,
-      material: IDLE_COVERAGE_COLOR,
+      width: normalizeLineWidth(1.2),
+      material: colorMaterial(IDLE_COVERAGE_COLOR),
     },
   });
 

@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import { governorRequestRender } from '../renderGovernor.js';
+import { colorMaterial } from './cesiumMaterials.js';
 import {
   clearSelectedEntityContextForLayer,
   registerEntityContext,
@@ -264,7 +265,7 @@ function renderRecords() {
       },
       polygon: record.footprint ? {
         hierarchy: new Cesium.PolygonHierarchy(record.footprint.map(([longitude, latitude]) => Cesium.Cartesian3.fromDegrees(longitude, latitude))),
-        material: color.withAlpha(0.12),
+        material: colorMaterial(color, 0.12),
         outline: true,
         outlineColor: color.withAlpha(0.65),
         height: surfaceHeightM,

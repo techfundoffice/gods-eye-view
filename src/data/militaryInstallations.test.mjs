@@ -17,6 +17,7 @@ import {
   setMeshFloorPreferred,
 } from './groundFloor.js';
 import { _resetFireAnchorsForTest } from './fireAnchors.js';
+import { _resetTerrainHeightsDegradationForTest } from './terrainHeights.js';
 import {
   _resetRenderGovernorForTest,
   getRenderGovernorDiagnostics,
@@ -494,6 +495,10 @@ test('a floor that lands after the render deadline lifts the dots off the ellips
   setMeshFloorPreferred(false);
   _clearMeshFloorCellsForTest();
   _resetFireAnchorsForTest();
+  // An earlier case in this file answers /api/terrain/heights with a malformed
+  // body, which arms terrainHeights.js's module-wide outage cooldown. This case
+  // is about a SLOW proxy, not a dead one, so it starts from a healthy feed.
+  _resetTerrainHeightsDegradationForTest();
   globalThis.document = { addEventListener() {}, removeEventListener() {} };
   globalThis.window = { dispatchEvent() {} };
   globalThis.fetch = async (url) => {

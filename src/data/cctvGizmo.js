@@ -24,6 +24,7 @@
  * invariant is untouched.
  */
 import * as Cesium from 'cesium';
+import { colorMaterial, normalizeLineWidth } from './cesiumMaterials.js';
 
 // Grazing guard (spec §5): reject plane intersections when the view ray is
 // nearly parallel to the constraint plane — the hit point races to infinity
@@ -236,12 +237,12 @@ export function createCalibrationGizmo({ viewer, getActiveRecord, applyPatch, en
       } : {}),
       polyline: {
         positions: [],
-        width,
-        material: arrow ? new Cesium.PolylineArrowMaterialProperty(color) : color.withAlpha(0.9),
+        width: normalizeLineWidth(width),
+        material: arrow ? new Cesium.PolylineArrowMaterialProperty(color) : colorMaterial(color, 0.9),
         // Standard gizmo convention: parts behind geometry stay clearly
         // visible, just dimmed (a street-level mount buries half the heading
         // ring in sloped photogrammetry tiles — smoke-tested 2026-07-05).
-        depthFailMaterial: color.withAlpha(0.45),
+        depthFailMaterial: colorMaterial(color, 0.45),
       },
     });
   }

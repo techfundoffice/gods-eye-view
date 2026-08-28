@@ -29,12 +29,77 @@
 //      from a fresh page load, a different camera batch, etc.) consistently
 //      hit the same warm proxy cache entry.
 import { ensureGeoidReady, geoidHeight } from './geoid.js';
+import {
+  classifyFeedError,
+  createBoundedBackoff,
+  createRateLimitedLogger,
+  describeFeedError,
+} from './feedDiagnostics.js';
 
 /** Max points per outgoing request to `/api/terrain/heights` (see file header, point 1). */
 const CHUNK_SIZE = 200;
 
 /** Avoid repeatedly hitting a known-failing proxy from warm fallback reads. */
 const GEOID_FALLBACK_COOLDOWN_MS = 60_000;
+
+/**
+ * The per-key `retryAt` cooldown above bounds re-requests for ONE coordinate.
+ * It does not bound the feed: during a proxy outage every fresh coordinate the
+ * camera reaches is a first request, so a moving camera keeps a dead endpoint
+ * saturated. This feed-wide cooldown closes that — while it is armed the
+ * resolver skips the network entirely and takes the geoid fallback path it
+ * would have taken anyway, so callers see identical results for less traffic.
+ * @constant {number}
+ */
+const TERRAIN_BACKOFF_BASE_MS = 60_000;
+/** @constant {number} Ceiling on the feed-wide cooldown. */
+const TERRAIN_BACKOFF_MAX_MS = 300_000;
+/** @constant {number} One terrain diagnostic per five minutes per failure kind. */
+const TERRAIN_LOG_INTERVAL_MS = 300_000;
+
+const _terrainBackoff = createBoundedBackoff({
+  baseMs: TERRAIN_BACKOFF_BASE_MS,
+  maxMs: TERRAIN_BACKOFF_MAX_MS,
+  // No jitter: this is a single client against one proxy, not a thundering
+  // herd, and the first step lining up exactly with GEOID_FALLBACK_COOLDOWN_MS
+  // keeps the two cooldowns from disagreeing about when a point may retry.
+  jitter: 0,
+});
+
+/**
+ * A terrain outage used to be completely invisible: the chunk `catch` was
+ * bare, so every floor in the app silently dropped to sea-level geoid math
+ * with nothing in the console to explain it. One classified line per kind per
+ * five minutes makes that diagnosable without becoming the spam it replaced.
+ */
+const _terrainLogger = createRateLimitedLogger({
+  prefix: '[Data:TerrainHeights]',
+  intervalMs: TERRAIN_LOG_INTERVAL_MS,
+});
+
+/** @type {string|null} Kind of the most recent terrain proxy failure. */
+let _lastFailureKind = null;
+
+/**
+ * Health of the terrain-height proxy, for status surfaces and regression tests.
+ * @returns {{degraded: boolean, kind: string|null, retryInMs: number,
+ *   consecutiveFailures: number}} Non-fatal degradation status.
+ */
+export function terrainHeightsStatus() {
+  return {
+    degraded: _terrainBackoff.consecutiveFailures() > 0,
+    kind: _lastFailureKind,
+    retryInMs: _terrainBackoff.blockedFor(),
+    consecutiveFailures: _terrainBackoff.consecutiveFailures(),
+  };
+}
+
+/** Test seam: forget the feed-wide cooldown and its log suppression. */
+export function _resetTerrainHeightsDegradationForTest() {
+  _terrainBackoff.succeed();
+  _terrainLogger.reset();
+  _lastFailureKind = null;
+}
 
 /**
  * In-memory cache: `"lat.toFixed(5),lon.toFixed(5)"` -> `{ellipsoid, source}`.
@@ -101,7 +166,11 @@ async function fetchChunk(chunk) {
   const pointsParam = chunk.map(({ lat, lon }) => `${lon.toFixed(5)},${lat.toFixed(5)}`).join(';');
   const url = `/api/terrain/heights?points=${encodeURIComponent(pointsParam)}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
-  if (!res.ok) throw new Error(`terrain heights proxy HTTP ${res.status}`);
+  if (!res.ok) {
+    const failure = new Error(`terrain heights proxy HTTP ${res.status}`);
+    failure.status = res.status;
+    throw failure;
+  }
   const body = await res.json();
   if (!Array.isArray(body?.results)) throw new Error('malformed terrain heights response (no results array)');
   if (body.results.length !== chunk.length) {
@@ -136,6 +205,25 @@ async function fetchChunk(chunk) {
 function geoidFallback(lat, lon, sourceOrthometricM) {
   const n = geoidHeight(lat, lon);
   return Number.isFinite(sourceOrthometricM) ? sourceOrthometricM + n : n;
+}
+
+/**
+ * Cache the geoid-math fallback for every point in a chunk the proxy could not
+ * answer. `ensureGeoidReady()` is awaited lazily, only here, so the common
+ * (proxy healthy) case never pays for the geoid grid's dynamic import.
+ * @param {Array<{key: string, lat: number, lon: number, sourceOrthometricM?: number}>} chunk
+ * @returns {Promise<void>}
+ */
+async function applyGeoidFallbackChunk(chunk) {
+  await ensureGeoidReady();
+  for (const item of chunk) {
+    const ellipsoid = geoidFallback(item.lat, item.lon, item.sourceOrthometricM);
+    cache.set(item.key, {
+      ellipsoid,
+      source: 'geoid-fallback',
+      retryAt: Date.now() + GEOID_FALLBACK_COOLDOWN_MS,
+    });
+  }
 }
 
 /**
@@ -199,6 +287,13 @@ export async function resolveEllipsoidalGround(coords) {
   // bad chunk doesn't lose results for the rest of a large batch.
   for (let i = 0; i < uncached.length; i += CHUNK_SIZE) {
     const chunk = uncached.slice(i, i + CHUNK_SIZE);
+    // Feed-wide cooldown: take the fallback path without spending a request.
+    // Cached 'reearth' entries are untouched, so everything already resolved
+    // keeps its real height.
+    if (_terrainBackoff.isBlocked()) {
+      await applyGeoidFallbackChunk(chunk);
+      continue;
+    }
     try {
       const resolved = await fetchChunk(chunk);
       for (const item of chunk) {
@@ -213,20 +308,25 @@ export async function resolveEllipsoidalGround(coords) {
           cache.set(item.key, { ellipsoid, source: 'reearth' });
         }
       }
-    } catch {
-      // Proxy down (or cold cache had nothing to serve-stale) — fall back to
-      // geoid math for every point in this chunk. `ensureGeoidReady()` is
-      // awaited lazily, only on the fallback path, so the common (proxy
-      // healthy) case never pays for the geoid grid's dynamic import.
-      await ensureGeoidReady();
-      for (const item of chunk) {
-        const ellipsoid = geoidFallback(item.lat, item.lon, item.sourceOrthometricM);
-        cache.set(item.key, {
-          ellipsoid,
-          source: 'geoid-fallback',
-          retryAt: Date.now() + GEOID_FALLBACK_COOLDOWN_MS,
-        });
+      // A good chunk ends the outage: clear the cooldown so the very next
+      // batch goes back to real heights.
+      if (_terrainBackoff.consecutiveFailures() > 0) {
+        _terrainBackoff.succeed();
+        _terrainLogger.reset();
+        _lastFailureKind = null;
       }
+    } catch (error) {
+      // Proxy down (or cold cache had nothing to serve-stale) — fall back to
+      // geoid math for every point in this chunk.
+      const kind = classifyFeedError(error, { status: error?.status });
+      _lastFailureKind = kind;
+      const retryInSec = Math.max(1, Math.round(_terrainBackoff.fail() / 1000));
+      _terrainLogger.warn(
+        `${describeFeedError(kind, 'terrain heights')} — ${chunk.length} points fell back to geoid math; `
+        + `next request in ${retryInSec}s`,
+        `terrain:${kind}`,
+      );
+      await applyGeoidFallbackChunk(chunk);
     }
   }
 

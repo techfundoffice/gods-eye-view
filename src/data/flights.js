@@ -33,6 +33,14 @@ import {
   isTrackingSelectionGesture,
 } from './trackingClickGesture.js';
 import { createTrail } from './trailRenderer.js';
+import { colorMaterial, normalizeLineWidth } from './cesiumMaterials.js';
+import {
+  FEED_ERROR_KINDS,
+  classifyFeedError,
+  createBoundedBackoff,
+  createRateLimitedLogger,
+  describeFeedError,
+} from './feedDiagnostics.js';
 import { isExplicitLayerStateOrigin } from './layerState.js';
 import {
   screenProjectedRotation,
@@ -274,8 +282,19 @@ const API_URL = '/api/opensky';
 const SOURCE_STALE_MS = 120_000;
 /** @constant {number} BACKOFF_INTERVAL - Cooldown (ms) after 429 / auth errors */
 const BACKOFF_INTERVAL = 45000; // 45s on rate limit
-/** @constant {number} ERROR_BACKOFF_INTERVAL - Cooldown (ms) after transient errors */
+/** @constant {number} ERROR_BACKOFF_INTERVAL - First cooldown (ms) after a transient error */
 const ERROR_BACKOFF_INTERVAL = 20000; // transient error retry
+/**
+ * @constant {number} FEED_BACKOFF_MAX_MS - Ceiling on the OpenSky cooldown.
+ * The old flat cooldown meant an outage lasting an hour still produced a
+ * request every 20-45 s for that whole hour. Doubling to a 5-minute ceiling
+ * keeps a long outage cheap while still recovering within one poll of the
+ * feed coming back — the server's own cache and adsb.lol regional fallback
+ * (see openSkyProxy in vite.config.js) keep serving contacts throughout.
+ */
+const FEED_BACKOFF_MAX_MS = 300_000;
+/** @constant {number} One OpenSky diagnostic line per five minutes per kind. */
+const FEED_LOG_INTERVAL_MS = 300_000;
 /** @constant {number} POSITION_HISTORY_LIMIT - Max position samples kept per aircraft for dead reckoning */
 const POSITION_HISTORY_LIMIT = 5; // keep last N positions per aircraft
 
@@ -307,6 +326,48 @@ let _lastUpdate = null;
 let _backoff = false;
 /** @type {number} Epoch ms — earliest time the next fetch is allowed */
 let _retryAt = 0;
+/** Bounded exponential cooldown shared by every OpenSky failure kind. */
+const _feedBackoff = createBoundedBackoff({
+  baseMs: ERROR_BACKOFF_INTERVAL,
+  maxMs: FEED_BACKOFF_MAX_MS,
+});
+/** Rate-limited console sink — one line per failure kind per interval. */
+const _feedLogger = createRateLimitedLogger({
+  prefix: '[Data:Flights]',
+  intervalMs: FEED_LOG_INTERVAL_MS,
+});
+
+/**
+ * Arm the bounded cooldown after a failed poll and mirror it into the stats
+ * fields the chip reads.
+ * @param {number} [floorMs] - Minimum cooldown for this failure kind.
+ * @returns {number} Seconds until the next attempt, for the diagnostic line.
+ */
+function _armFeedBackoff(floorMs) {
+  _backoff = true;
+  const delayMs = _feedBackoff.fail(floorMs);
+  _retryAt = Date.now() + delayMs;
+  return Math.max(1, Math.round(delayMs / 1000));
+}
+
+/** Clear the cooldown and re-arm diagnostics so recovery reports immediately. */
+function _clearFeedBackoff() {
+  _feedBackoff.succeed();
+  _feedLogger.reset();
+  _retryAt = 0;
+}
+
+/**
+ * Test seam: forget the OpenSky cooldown ladder and its log suppression.
+ * The ladder is deliberately NOT time-based — only a served response resets it
+ * — so a regression test cannot clear it by advancing a clock.
+ * @returns {void}
+ */
+export function _resetFeedDegradationForTest() {
+  _clearFeedBackoff();
+  _backoff = false;
+  _lastError = null;
+}
 /** @type {string|null} Human-readable error string shown in stats chip */
 let _lastError = null;
 const _activeUpdateControllers = new Set();
@@ -3016,11 +3077,11 @@ function _startTrail(icao24) {
           if (!from) return [];
           return [from, Cesium.Cartesian3.clone(head)];
         }, false),
-        width: 2.5,
-        material: Cesium.Color.fromCssColorString(TRAIL_COLOR).withAlpha(0.9),
+        width: normalizeLineWidth(2.5),
+        material: colorMaterial(TRAIL_COLOR, 0.9),
         // Round 4: the head must never vanish into the mesh either (dimmed
         // when occluded so depth still reads).
-        depthFailMaterial: Cesium.Color.fromCssColorString(TRAIL_COLOR).withAlpha(0.45),
+        depthFailMaterial: colorMaterial(TRAIL_COLOR, 0.45),
         arcType: Cesium.ArcType.GEODESIC, // round 8: consistent with the trail body (no chords)
       },
     });
@@ -3409,7 +3470,7 @@ export function _setTrackedFlightRefreshStateForTest({
   // and clearing them here would mask exactly the deselect→re-track hole this
   // seam is used to test.
   _backoff = false;
-  _retryAt = 0;
+  _clearFeedBackoff();
 }
 
 /** Seed the authoritative snapshot outcome used by share-Follow tests. */
@@ -3931,7 +3992,7 @@ const flightsLayer = {
     _count = 0;
     _lastUpdate = null;
     _backoff = false;
-    _retryAt = 0;
+    _clearFeedBackoff();
     _lastError = null;
     _lastStatus = null;
     _lastSource = 'OpenSky Network';
@@ -4061,7 +4122,6 @@ const flightsLayer = {
    * @returns {Promise<void>}
    */
   async update(viewer, { signal = null } = {}) {
-    const nowMs = Date.now();
     const trackingRefreshEpoch = ++_trackingRefreshEpoch;
     _lastTrackingRefreshOutcome = {
       epoch: trackingRefreshEpoch,
@@ -4070,7 +4130,7 @@ const flightsLayer = {
       source: _lastSource,
       coverage: _lastCoverage,
     };
-    if (_retryAt && nowMs < _retryAt) {
+    if (_feedBackoff.isBlocked()) {
       _backoff = true;
       return;
     }
@@ -4092,19 +4152,19 @@ const flightsLayer = {
       const authReason = _toLowerText(response.headers.get('x-opensky-auth-reason'));
 
       if (response.status === 429) {
-        console.warn('[Data:Flights] Rate limited, backing off to 30s');
-        _backoff = true;
-        _retryAt = nowMs + BACKOFF_INTERVAL;
+        const retryInSec = _armFeedBackoff(BACKOFF_INTERVAL);
         _lastError = authMode && authMode !== 'anon'
           ? 'OpenSky rate limited'
           : 'OpenSky rate limited (anonymous)';
+        _feedLogger.warn(
+          `quota exhausted — ${_lastError}; next attempt in ${retryInSec}s`,
+          'flights:quota',
+        );
         return;
       }
 
       if (response.status === 401 || response.status === 403) {
-        console.warn(`[Data:Flights] OpenSky unavailable (${response.status}), backing off`);
-        _backoff = true;
-        _retryAt = nowMs + BACKOFF_INTERVAL;
+        const retryInSec = _armFeedBackoff(BACKOFF_INTERVAL);
         let detail = '';
         try {
           const body = await response.json();
@@ -4118,13 +4178,15 @@ const flightsLayer = {
           authMode,
           authReason,
         });
+        _feedLogger.warn(
+          `authentication rejected (HTTP ${response.status}) — ${_lastError}; next attempt in ${retryInSec}s`,
+          `flights:auth:${response.status}`,
+        );
         return;
       }
 
       if (!response.ok) {
-        console.warn(`[Data:Flights] API returned ${response.status}`);
-        _backoff = true;
-        _retryAt = nowMs + ERROR_BACKOFF_INTERVAL;
+        const retryInSec = _armFeedBackoff();
         let detail = '';
         try {
           const body = await response.json();
@@ -4133,24 +4195,35 @@ const flightsLayer = {
         } catch {
           detail = '';
         }
-        _lastError = detail || `OpenSky HTTP ${response.status}`;
+        const kind = classifyFeedError(null, { status: response.status, detail });
+        _lastError = detail || describeFeedError(kind, 'OpenSky');
+        _feedLogger.warn(
+          `${kind} response (HTTP ${response.status})${detail ? ` — ${detail}` : ''}; next attempt in ${retryInSec}s`,
+          `flights:http:${response.status}`,
+        );
         return;
       }
 
       const data = await response.json();
       updateSignal.throwIfAborted();
       if (!data || !Array.isArray(data.states)) {
-        _backoff = true;
-        _retryAt = nowMs + ERROR_BACKOFF_INTERVAL;
+        const retryInSec = _armFeedBackoff();
         _lastError = 'Malformed OpenSky response';
+        _feedLogger.warn(
+          `${FEED_ERROR_KINDS.malformed} payload — no states array; next attempt in ${retryInSec}s`,
+          'flights:malformed',
+        );
         return;
       }
 
       const usableStates = data.states.filter(_isUsableOpenSkyState);
       if (data.states.length > 0 && usableStates.length === 0) {
-        _backoff = true;
-        _retryAt = nowMs + ERROR_BACKOFF_INTERVAL;
+        const retryInSec = _armFeedBackoff();
         _lastError = 'Malformed OpenSky aircraft rows';
+        _feedLogger.warn(
+          `${FEED_ERROR_KINDS.malformed} payload — ${data.states.length} rows, none usable; next attempt in ${retryInSec}s`,
+          'flights:malformed-rows',
+        );
         return;
       }
 
@@ -4159,8 +4232,10 @@ const flightsLayer = {
         : null;
       const sourceAgeMs = sourceEpochMs == null ? 0 : Math.max(0, Date.now() - sourceEpochMs);
       const sourceStale = sourceAgeMs > SOURCE_STALE_MS;
+      // A served response — live, cached, or the adsb.lol regional fallback —
+      // is a success: the cooldown clears even when the snapshot is stale.
+      _clearFeedBackoff();
       _backoff = sourceStale;
-      _retryAt = 0;
       _lastError = sourceStale
         ? `Source snapshot ${Math.max(2, Math.round(sourceAgeMs / 60_000))} min old`
         : null;
@@ -4626,10 +4701,14 @@ const flightsLayer = {
       if (updateSignal.aborted || e?.name === 'AbortError') {
         throw new DOMException('Flights update aborted', 'AbortError');
       }
-      console.warn('[Data:Flights] Fetch error:', e);
-      _backoff = true;
-      _retryAt = Date.now() + ERROR_BACKOFF_INTERVAL;
-      _lastError = 'OpenSky network error';
+      const kind = classifyFeedError(e);
+      const retryInSec = _armFeedBackoff();
+      _lastError = describeFeedError(kind, 'OpenSky');
+      _feedLogger.warn(
+        `${_lastError}; next attempt in ${retryInSec}s`,
+        `flights:${kind}`,
+        e,
+      );
     } finally {
       _activeUpdateControllers.delete(resourceController);
     }

@@ -19,6 +19,12 @@ import { CITY_POIS } from './locations.js';
 import { composeLocalityTag } from './hudLocality.js';
 import { ellipsoidalToMslDisplayM, ensureGeoidReady, geoidHeight } from './data/geoid.js';
 import { getBasemapLabelContext } from './voice/gevActions.js';
+import {
+  FEED_ERROR_KINDS,
+  classifyFeedError,
+  createRateLimitedLogger,
+  isTerminalFeedErrorKind,
+} from './data/feedDiagnostics.js';
 
 /** Color palettes keyed by shader mode; applied as CSS custom properties. */
 const HUD_COLORS = {
@@ -35,6 +41,22 @@ const MILITARY_STYLES = new Set(['retro', 'surveillance', 'thermal']);
 const HUD_VARIANTS = new Set(['tactical', 'operator', 'minimal']);
 const HUD_SUMMARY_INTERVAL_MS = 15000;
 const HUD_SUMMARY_URL = '/api/openai/hud-summary';
+
+/**
+ * The AI summary is an OPTIONAL enrichment of a line the HUD can already
+ * compose locally (`_composeSummary`). When `OPENAI_API_KEY` is absent the
+ * proxy answers 503 "OPENAI_API_KEY is not set" — a permanent condition for the
+ * life of the process, not an outage. Retrying it every 15 s produced a
+ * forever-repeating console warning, a pointless request per tick, and a
+ * re-typed summary that kept the render loop awake.
+ *
+ * So a configuration-missing answer latches: the periodic tick is cleared, the
+ * deterministic telemetry line becomes the permanent summary, and the state is
+ * reported once. Transient failures keep retrying, with the warning rate
+ * limited to one line per five minutes.
+ * @constant {number}
+ */
+const HUD_SUMMARY_WARN_INTERVAL_MS = 300_000;
 
 /**
  * Cell size (degrees) for the ALT readout's geoid-undulation cache. N changes
@@ -85,6 +107,18 @@ export class IntelHUD {
     this._summaryRequest = null;
     this._lastSummarySignature = '';
     this._summaryRevision = 0;
+    /**
+     * Terminal, non-fatal state: the server has told us the optional AI
+     * credential is not configured. Latched, never retried.
+     * @type {boolean}
+     */
+    this._summaryUnavailable = false;
+    /** @type {string|null} Why the AI summary is unavailable, for status readers. */
+    this._summaryUnavailableReason = null;
+    this._summaryLogger = createRateLimitedLogger({
+      prefix: '[HUD]',
+      intervalMs: HUD_SUMMARY_WARN_INTERVAL_MS,
+    });
     // One-shot guards so the very first summary lands immediately instead of
     // waiting for the 15s interval tick: B) swap the "Awaiting telemetry..."
     // placeholder for the deterministic line as soon as metrics exist, then
@@ -231,9 +265,10 @@ export class IntelHUD {
       this._updateCameraData();
     }, 250);
 
-    // Semantic summary refresh cadence
+    // Semantic summary refresh cadence. Stops itself the moment the server
+    // reports the optional AI credential is absent — see _latchSummaryUnavailable.
     this._summaryInterval = setInterval(() => {
-      if (!this._visible) return;
+      if (!this._visible || this._summaryUnavailable) return;
       void this._updateSummary(true);
     }, HUD_SUMMARY_INTERVAL_MS);
   }
@@ -620,6 +655,13 @@ export class IntelHUD {
    */
   async _updateSummary(animate = false, force = false) {
     const fallbackText = this._composeSummary();
+    // The optional enrichment is off for this deployment: paint the
+    // deterministic line and make no request. Checked before the metrics guard
+    // so a forced kick cannot slip a futile fetch through.
+    if (this._summaryUnavailable) {
+      this._setSummaryText(fallbackText, animate);
+      return;
+    }
     if (!this._latestMetrics) {
       this._setSummaryText(fallbackText, animate);
       return;
@@ -666,23 +708,74 @@ export class IntelHUD {
       });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.summary) {
-        throw new Error(data?.error || `HTTP ${response.status}`);
+        const failure = new Error(data?.error || `HTTP ${response.status}`);
+        failure.status = response.status;
+        failure.detail = data?.error || '';
+        throw failure;
       }
       if (revision !== this._summaryRevision) return;
       this._setSummaryText(data.summary, animate);
     } catch (error) {
       if (error?.name !== 'AbortError') {
-        console.warn('[HUD] AI summary unavailable:', error);
-        // Invalidate the committed signature so the next periodic tick
-        // retries instead of sticking on the fallback line forever.
-        this._lastSummarySignature = null;
-        this._summaryDirty = true;
+        const kind = classifyFeedError(error, {
+          status: error?.status,
+          detail: error?.detail,
+        });
+        if (isTerminalFeedErrorKind(kind)) {
+          this._latchSummaryUnavailable(error?.detail || error?.message || '');
+        } else {
+          // Invalidate the committed signature so the next periodic tick
+          // retries instead of sticking on the fallback line forever.
+          this._lastSummarySignature = null;
+          this._summaryDirty = true;
+          this._summaryLogger.warn(
+            `AI summary ${kind === FEED_ERROR_KINDS.timeout ? 'timed out' : `unavailable (${kind})`} — using local telemetry line`,
+            `summary:${kind}`,
+          );
+        }
       }
       this._setSummaryText(fallbackText, animate);
     } finally {
       window.clearTimeout(timeout);
       if (this._summaryRequest === controller) this._summaryRequest = null;
     }
+  }
+
+  /**
+   * Enter the terminal "AI summary not configured" state.
+   *
+   * Non-fatal by construction: the HUD keeps its deterministic
+   * `_composeSummary()` line, which carries the same telemetry the AI line
+   * decorated. What stops is the asking — the 15 s interval is cleared, any
+   * in-flight request is abandoned, and exactly one console line is written.
+   * @param {string} detail - Server-supplied reason, used verbatim in status.
+   * @returns {void}
+   */
+  _latchSummaryUnavailable(detail) {
+    if (this._summaryUnavailable) return;
+    this._summaryUnavailable = true;
+    this._summaryUnavailableReason = String(detail || '').trim() || 'AI summary is not configured';
+    this._summaryDirty = false;
+    this._lastSummarySignature = '';
+    if (this._summaryInterval) {
+      clearInterval(this._summaryInterval);
+      this._summaryInterval = null;
+    }
+    this._summaryLogger.warn(
+      `AI summary disabled — ${this._summaryUnavailableReason}. Using the local telemetry line; no further requests.`,
+      'summary:configuration-missing',
+    );
+  }
+
+  /**
+   * Whether the optional AI summary is configured, for status surfaces and QA.
+   * @returns {{available: boolean, reason: string|null}} Non-fatal status.
+   */
+  getSummaryServiceStatus() {
+    return {
+      available: !this._summaryUnavailable,
+      reason: this._summaryUnavailableReason,
+    };
   }
 
   _setSummaryText(text, animate) {

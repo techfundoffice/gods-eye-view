@@ -8,6 +8,14 @@ import {
   isTrackingSelectionGesture,
 } from './trackingClickGesture.js';
 import { createTrail } from './trailRenderer.js';
+import { colorMaterial, normalizeLineWidth } from './cesiumMaterials.js';
+import {
+  FEED_ERROR_KINDS,
+  classifyFeedError,
+  createBoundedBackoff,
+  createRateLimitedLogger,
+  describeFeedError,
+} from './feedDiagnostics.js';
 import { isExplicitLayerStateOrigin } from './layerState.js';
 import {
   screenProjectedRotation,
@@ -85,6 +93,10 @@ const API_URL = '/api/adsblol/mil';
 const ERROR_BACKOFF_INTERVAL = 20000;
 /** @constant {number} Longer cooldown (ms) after a 429 rate-limit, mirroring flights.js */
 const BACKOFF_INTERVAL = 45000;
+/** @constant {number} Ceiling on the adsb.lol cooldown — parity with flights.js. */
+const FEED_BACKOFF_MAX_MS = 300_000;
+/** @constant {number} One adsb.lol diagnostic line per five minutes per kind. */
+const FEED_LOG_INTERVAL_MS = 300_000;
 /** @constant {number} Max position samples retained per aircraft for dead reckoning */
 const POSITION_HISTORY_LIMIT = 5;
 /** @constant {number} Base billboard display scale */
@@ -259,6 +271,52 @@ let _lastUpdate = null;
 let _backoff = false;
 /** @type {number} Epoch ms after which the next retry is allowed */
 let _retryAt = 0;
+/**
+ * Bounded exponential cooldown shared by every adsb.lol failure kind. The
+ * server proxy keeps serving its 12 s memory cache (and serve-stale on error)
+ * throughout, so backing off further costs no contacts.
+ */
+const _feedBackoff = createBoundedBackoff({
+  baseMs: ERROR_BACKOFF_INTERVAL,
+  maxMs: FEED_BACKOFF_MAX_MS,
+});
+/** Rate-limited console sink — one line per failure kind per interval. */
+const _feedLogger = createRateLimitedLogger({
+  prefix: '[Data:Military]',
+  intervalMs: FEED_LOG_INTERVAL_MS,
+});
+
+/**
+ * Arm the bounded cooldown after a failed poll and mirror it into the stats
+ * fields the chip reads.
+ * @param {number} [floorMs] - Minimum cooldown for this failure kind.
+ * @returns {number} Seconds until the next attempt, for the diagnostic line.
+ */
+function _armFeedBackoff(floorMs) {
+  _backoff = true;
+  const delayMs = _feedBackoff.fail(floorMs);
+  _retryAt = Date.now() + delayMs;
+  return Math.max(1, Math.round(delayMs / 1000));
+}
+
+/** Clear the cooldown and re-arm diagnostics so recovery reports immediately. */
+function _clearFeedBackoff() {
+  _feedBackoff.succeed();
+  _feedLogger.reset();
+  _retryAt = 0;
+}
+
+/**
+ * Test seam: forget the adsb.lol cooldown ladder and its log suppression.
+ * The ladder is deliberately NOT time-based — only a served response resets it
+ * — so a regression test cannot clear it by advancing a clock.
+ * @returns {void}
+ */
+export function _resetFeedDegradationForTest() {
+  _clearFeedBackoff();
+  _backoff = false;
+  _lastError = null;
+}
 /** @type {string|null} Human-readable description of the last error */
 let _lastError = null;
 const _activeUpdateControllers = new Set();
@@ -834,7 +892,7 @@ export function _setTrackedMilitaryRefreshStateForTest({
   // and clearing them here would mask exactly the deselect→re-track hole this
   // seam is used to test.
   _backoff = false;
-  _retryAt = 0;
+  _clearFeedBackoff();
 }
 
 /** Seed the authoritative snapshot outcome used by share-Follow tests. */
@@ -2165,11 +2223,11 @@ function _startTrail(icao24) {
           if (!from) return [];
           return [from, end];
         }, false),
-        width: 2.5,
-        material: Cesium.Color.fromCssColorString(TRAIL_COLOR).withAlpha(0.9),
+        width: normalizeLineWidth(2.5),
+        material: colorMaterial(TRAIL_COLOR, 0.9),
         // Round 4: the head must never vanish into the mesh either (dimmed
         // when occluded so depth still reads).
-        depthFailMaterial: Cesium.Color.fromCssColorString(TRAIL_COLOR).withAlpha(0.45),
+        depthFailMaterial: colorMaterial(TRAIL_COLOR, 0.45),
         arcType: Cesium.ArcType.GEODESIC, // round 8: consistent with the trail body (no chords)
       },
     });
@@ -2641,7 +2699,7 @@ const militaryFlightsLayer = {
     _count = 0;
     _lastUpdate = null;
     _backoff = false;
-    _retryAt = 0;
+    _clearFeedBackoff();
     _lastError = null;
     _lastStatus = null;
     _trackedIcao = null;
@@ -2765,7 +2823,6 @@ const militaryFlightsLayer = {
    * @returns {Promise<void>}
    */
   async update(viewer, { signal = null } = {}) {
-    const nowMs = Date.now();
     const trackingRefreshEpoch = ++_trackingRefreshEpoch;
     _lastTrackingRefreshOutcome = {
       epoch: trackingRefreshEpoch,
@@ -2773,7 +2830,7 @@ const militaryFlightsLayer = {
       ids: new Set(),
       source: 'adsb.lol',
     };
-    if (_retryAt && nowMs < _retryAt) {
+    if (_feedBackoff.isBlocked()) {
       _backoff = true;
       return;
     }
@@ -2789,16 +2846,19 @@ const militaryFlightsLayer = {
       _lastStatus = response.status;
 
       if (!response.ok) {
-        _backoff = true;
-        // Parity with flights.js: a 429 gets the LONGER cooldown + a friendly
-        // rate-limit label instead of the generic transient backoff, so we don't
-        // hammer the upstream and the UI reads honestly.
+        // Parity with flights.js: a 429 gets the LONGER cooldown floor + a
+        // friendly rate-limit label instead of the generic transient backoff,
+        // so we don't hammer the upstream and the UI reads honestly.
         if (response.status === 429) {
-          _retryAt = nowMs + BACKOFF_INTERVAL;
+          const retryInSec = _armFeedBackoff(BACKOFF_INTERVAL);
           _lastError = 'adsb.lol rate limited';
+          _feedLogger.warn(
+            `quota exhausted — ${_lastError}; next attempt in ${retryInSec}s`,
+            'military:quota',
+          );
           return;
         }
-        _retryAt = nowMs + ERROR_BACKOFF_INTERVAL;
+        const retryInSec = _armFeedBackoff();
         let detail = '';
         try {
           const body = await response.json();
@@ -2807,7 +2867,12 @@ const militaryFlightsLayer = {
         } catch {
           detail = '';
         }
-        _lastError = detail || `adsb.lol HTTP ${response.status}`;
+        const kind = classifyFeedError(null, { status: response.status, detail });
+        _lastError = detail || describeFeedError(kind, 'adsb.lol');
+        _feedLogger.warn(
+          `${kind} response (HTTP ${response.status})${detail ? ` — ${detail}` : ''}; next attempt in ${retryInSec}s`,
+          `military:http:${response.status}`,
+        );
         return;
       }
 
@@ -2815,22 +2880,28 @@ const militaryFlightsLayer = {
       const data = await response.json();
       updateSignal.throwIfAborted();
       if (!data || !Array.isArray(data.ac)) {
-        _backoff = true;
-        _retryAt = nowMs + ERROR_BACKOFF_INTERVAL;
+        const retryInSec = _armFeedBackoff();
         _lastError = 'Malformed adsb.lol response';
+        _feedLogger.warn(
+          `${FEED_ERROR_KINDS.malformed} payload — no aircraft array; next attempt in ${retryInSec}s`,
+          'military:malformed',
+        );
         return;
       }
 
       const usableAircraft = data.ac.filter(_isUsableMilitaryAircraft);
       if (data.ac.length > 0 && usableAircraft.length === 0) {
-        _backoff = true;
-        _retryAt = nowMs + ERROR_BACKOFF_INTERVAL;
+        const retryInSec = _armFeedBackoff();
         _lastError = 'Malformed adsb.lol aircraft rows';
+        _feedLogger.warn(
+          `${FEED_ERROR_KINDS.malformed} payload — ${data.ac.length} rows, none usable; next attempt in ${retryInSec}s`,
+          'military:malformed-rows',
+        );
         return;
       }
 
       _backoff = false;
-      _retryAt = 0;
+      _clearFeedBackoff();
       _lastError = null;
       const currentIcaos = new Set();
       const receiptNowMs = Date.now();
@@ -3229,10 +3300,14 @@ const militaryFlightsLayer = {
       if (updateSignal.aborted || e?.name === 'AbortError') {
         throw new DOMException('Military update aborted', 'AbortError');
       }
-      console.warn('[Data:Military] Fetch error:', e);
-      _backoff = true;
-      _retryAt = Date.now() + ERROR_BACKOFF_INTERVAL;
-      _lastError = 'adsb.lol network error';
+      const kind = classifyFeedError(e);
+      const retryInSec = _armFeedBackoff();
+      _lastError = describeFeedError(kind, 'adsb.lol');
+      _feedLogger.warn(
+        `${_lastError}; next attempt in ${retryInSec}s`,
+        `military:${kind}`,
+        e,
+      );
     } finally {
       _activeUpdateControllers.delete(resourceController);
     }

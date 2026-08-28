@@ -33,13 +33,22 @@ import {
 import { installScopeMask } from './scopeMask.js';
 import { initFirstRunExperience } from './firstRunExperience.js';
 import {
-  WEBGL_COMPATIBILITY_REASONS,
+  classifyCesiumStartupError,
   isWebGLInitializationError,
   probeWebGLCapability,
   showWebGLCompatibilityState,
+  validateSceneContext,
 } from './webglCapability.js';
 
-initLogoGaze();
+/**
+ * GPU capability gate — evaluated at module scope, before ANY startup side
+ * effect. `initLogoGaze()` installs animation timers and the viewer opens
+ * network polls, so both sit behind this verdict: an unsupported browser
+ * reaches the compatibility screen having started no timer, no data layer, and
+ * no upstream request.
+ * @type {{supported: boolean, reason: string|null, contextType: string|null, limits: object}}
+ */
+const webglCapability = probeWebGLCapability();
 
 /**
  * Extract a human-readable error message from any thrown value.
@@ -68,6 +77,23 @@ function describeError(error) {
 }
 
 /**
+ * Report a terminal GPU incompatibility exactly once, naming the stage that
+ * caught it and the numbers it rejected. The compatibility screen tells the
+ * user what to do; this line is what makes a support report actionable —
+ * "unsupported browser" alone never says which limit was wrong.
+ * @param {'probe'|'cesium-context'|'render'} stage - Where it was detected.
+ * @param {string} reason - A `WEBGL_COMPATIBILITY_REASONS` value.
+ * @param {object} [limits] - The observed values, for the report.
+ * @returns {void}
+ */
+function reportGpuIncompatibility(stage, reason, limits) {
+  const diagnostics = { stage, reason, limits: limits || null };
+  // Readable by a support script without reproducing the console.
+  window.__gevGpuCompatibility = diagnostics;
+  console.warn(`[GPU] 3D globe unavailable (${reason}, detected at ${stage})`, limits || '');
+}
+
+/**
  * GOD'S EYE VIEW — Main Entry Point
  * Initializes CesiumJS with Google Photorealistic 3D Tiles,
  * style system, intelligence HUD, location presets, and share links.
@@ -76,18 +102,21 @@ async function init() {
   const loadingScreen = document.getElementById('loading-screen');
   const loaderStatus = loadingScreen.querySelector('.loader-status');
 
+  if (!webglCapability.supported) {
+    reportGpuIncompatibility('probe', webglCapability.reason, webglCapability.limits);
+    showWebGLCompatibilityState({
+      loadingScreen,
+      loaderStatus,
+      reason: webglCapability.reason,
+    });
+    return;
+  }
+
+  // Past the gate: decorative animation timers may start.
+  initLogoGaze();
+
   try {
     loaderStatus.textContent = 'Configuring viewer...';
-
-    const webglCapability = probeWebGLCapability();
-    if (!webglCapability.supported) {
-      showWebGLCompatibilityState({
-        loadingScreen,
-        loaderStatus,
-        reason: webglCapability.reason,
-      });
-      return;
-    }
 
     // Set Cesium Ion token for World Terrain
     const cesiumToken = import.meta.env.CESIUM_ION_TOKEN;
@@ -142,15 +171,50 @@ async function init() {
         },
       });
     } catch (viewerError) {
+      // Every equivalent Cesium GPU capability failure collapses into the one
+      // compatibility state — the operator's action is the same for all of them
+      // — but the copy still names which limit Cesium actually rejected.
       if (!isWebGLInitializationError(viewerError)) throw viewerError;
       document.getElementById('cesiumContainer')?.replaceChildren();
       showWebGLCompatibilityState({
         loadingScreen,
         loaderStatus,
-        reason: WEBGL_COMPATIBILITY_REASONS.unavailable,
+        reason: classifyCesiumStartupError(viewerError),
       });
       return;
     }
+
+    // The probe above tested a throwaway canvas; this reads the context the
+    // viewer actually holds, before the first frame and before any data
+    // layer, timer, or poll exists. Fails open when the context cannot be
+    // read — see validateSceneContext.
+    const sceneContext = validateSceneContext(viewer.scene);
+    if (sceneContext.reason) {
+      reportGpuIncompatibility('cesium-context', sceneContext.reason, sceneContext.limits);
+      try { viewer.destroy(); } catch { /* nothing usable to tear down */ }
+      document.getElementById('cesiumContainer')?.replaceChildren();
+      showWebGLCompatibilityState({
+        loadingScreen,
+        loaderStatus,
+        reason: sceneContext.reason,
+      });
+      return;
+    }
+
+    // Backstop: a limit that only goes bad once rendering starts (a lost
+    // context mid-session) surfaces here instead of as a repeating uncaught
+    // error. Cesium has already stopped its render loop by this point.
+    viewer.scene.renderError.addEventListener((_scene, renderError) => {
+      if (!isWebGLInitializationError(renderError)) return;
+      reportGpuIncompatibility('render', classifyCesiumStartupError(renderError), {
+        message: describeError(renderError),
+      });
+      showWebGLCompatibilityState({
+        loadingScreen,
+        loaderStatus,
+        reason: classifyCesiumStartupError(renderError),
+      });
+    });
 
     // Cap the default render loop at 60 fps. Cesium's loop otherwise runs at
     // the display's refresh rate — 120 Hz on ProMotion panels — doubling GPU
