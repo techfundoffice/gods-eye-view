@@ -437,53 +437,114 @@ function sceneWith(limits, { contextLost = false, canvas = undefined } = {}) {
 
 /** Cesium's ContextLimits as it reads on healthy hardware. */
 const HEALTHY_CESIUM_LIMITS = Object.freeze({
+  maximumCombinedTextureImageUnits: 32,
   maximumVertexTextureImageUnits: 32,
   maximumTextureSize: 8192,
+  maximum3DTextureSize: 2048,
   maximumCubeMapSize: 16384,
   maximumRenderbufferSize: 8192,
   maximumTextureImageUnits: 32,
+  maximumFragmentUniformVectors: 224,
+  maximumVaryingVectors: 15,
   maximumVertexAttributes: 16,
+  maximumVertexUniformVectors: 256,
   minimumAliasedLineWidth: 1,
   maximumAliasedLineWidth: 1,
+  minimumAliasedPointSize: 1,
+  maximumAliasedPointSize: 1024,
   maximumViewportWidth: 8192,
   maximumViewportHeight: 8192,
+  maximumTextureFilterAnisotropy: 16,
+  maximumDrawBuffers: 8,
+  maximumColorAttachments: 8,
+  maximumSamples: 4,
+  highpFloatSupported: true,
+  highpIntSupported: true,
 });
 
-test('a healthy viewer passes both sources', () => {
+function mutableCesiumLimits(overrides = {}) {
+  const values = { ...HEALTHY_CESIUM_LIMITS, ...overrides };
+  const fields = {
+    maximumCombinedTextureImageUnits: '_maximumCombinedTextureImageUnits',
+    maximumVertexTextureImageUnits: '_maximumVertexTextureImageUnits',
+    maximumTextureSize: '_maximumTextureSize',
+    maximum3DTextureSize: '_maximum3DTextureSize',
+    maximumCubeMapSize: '_maximumCubeMapSize',
+    maximumRenderbufferSize: '_maximumRenderbufferSize',
+    maximumTextureImageUnits: '_maximumTextureImageUnits',
+    maximumFragmentUniformVectors: '_maximumFragmentUniformVectors',
+    maximumVaryingVectors: '_maximumVaryingVectors',
+    maximumVertexAttributes: '_maximumVertexAttributes',
+    maximumVertexUniformVectors: '_maximumVertexUniformVectors',
+    minimumAliasedLineWidth: '_minimumAliasedLineWidth',
+    maximumAliasedLineWidth: '_maximumAliasedLineWidth',
+    minimumAliasedPointSize: '_minimumAliasedPointSize',
+    maximumAliasedPointSize: '_maximumAliasedPointSize',
+    maximumViewportWidth: '_maximumViewportWidth',
+    maximumViewportHeight: '_maximumViewportHeight',
+    maximumTextureFilterAnisotropy: '_maximumTextureFilterAnisotropy',
+    maximumDrawBuffers: '_maximumDrawBuffers',
+    maximumColorAttachments: '_maximumColorAttachments',
+    maximumSamples: '_maximumSamples',
+    highpFloatSupported: '_highpFloatSupported',
+    highpIntSupported: '_highpIntSupported',
+  };
+  const result = {};
+  for (const [publicName, backingName] of Object.entries(fields)) {
+    result[backingName] = values[publicName];
+    Object.defineProperty(result, publicName, {
+      get: () => result[backingName],
+    });
+  }
+  return result;
+}
+
+test('a healthy viewer is decided by its live canvas', () => {
   const verdict = validateSceneContext(sceneWith({}), HEALTHY_CESIUM_LIMITS);
   assert.equal(verdict.reason, null);
-  assert.equal(verdict.limits.maxTextureSize, 8192);
-  assert.equal(verdict.source, 'cesium-context-limits');
+  assert.equal(verdict.limits.maxTextureSize, 16384);
+  assert.equal(verdict.source, 'viewer-canvas-context');
+  assert.equal(verdict.diagnostics.cesiumContextLimits.maxTextureSize, 8192);
 });
 
-test("a zero vertex-texture limit in Cesium's own table is rejected before a frame", () => {
-  // This is the exact value Primitive.update branches on:
-  //   if (ContextLimits.maximumVertexTextureImageUnits === 0) throw RuntimeError
-  // so rejecting on it is not a prediction — it is the throw, one frame early.
+test("a zero Cesium singleton is reconciled from a healthy live viewer", () => {
+  const zeroSingleton = mutableCesiumLimits({
+    maximumVertexTextureImageUnits: 0,
+    maximumTextureSize: 0,
+    maximumCubeMapSize: 0,
+    maximumRenderbufferSize: 0,
+    maximumTextureImageUnits: 0,
+    maximumVertexAttributes: 0,
+    minimumAliasedLineWidth: 0,
+    maximumAliasedLineWidth: 0,
+    maximumViewportWidth: 0,
+    maximumViewportHeight: 0,
+  });
   const verdict = validateSceneContext(
     sceneWith({}),
-    { ...HEALTHY_CESIUM_LIMITS, maximumVertexTextureImageUnits: 0 },
+    zeroSingleton,
   );
-  assert.equal(verdict.reason, WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures);
-  assert.equal(verdict.source, 'cesium-context-limits');
-  assert.equal(verdict.limits.maxVertexTextureImageUnits, 0);
+  assert.equal(verdict.reason, null);
+  assert.equal(verdict.source, 'viewer-canvas-context-reconciled');
+  assert.equal(verdict.limits.maxVertexTextureImageUnits, 16);
+  assert.equal(verdict.diagnostics.cesiumContextLimits.maxVertexTextureImageUnits, 0);
+  assert.equal(zeroSingleton.maximumVertexTextureImageUnits, 16);
+  assert.equal(zeroSingleton.maximumTextureSize, 16384);
 });
 
-test("Cesium's table is decisive even when a fresh canvas still looks healthy", () => {
-  // The regression that shipped the render error: a page that has already
-  // spent several WebGL contexts hands Cesium a degraded one, while the
-  // canvas read comes back fine. Cesium acts on ITS table, so that wins.
+test("each invalid Cesium renderer limit is reconciled before rendering", () => {
   for (const bad of [
-    ['maximumVertexTextureImageUnits', 0, WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures],
-    ['maximumTextureSize', 0, WEBGL_COMPATIBILITY_REASONS.insufficientTextureSize],
-    ['maximumAliasedLineWidth', 0, WEBGL_COMPATIBILITY_REASONS.invalidLineWidthRange],
+    ['maximumVertexTextureImageUnits', 0],
+    ['maximumTextureSize', 0],
+    ['maximumAliasedLineWidth', 0],
   ]) {
-    const [key, value, reason] = bad;
+    const [key, value] = bad;
     const verdict = validateSceneContext(
-      sceneWith({}), // healthy canvas
-      { ...HEALTHY_CESIUM_LIMITS, [key]: value },
+      sceneWith({}),
+      mutableCesiumLimits({ [key]: value }),
     );
-    assert.equal(verdict.reason, reason, `${key} must be decisive`);
+    assert.equal(verdict.reason, null, `${key} must reconcile from the live canvas`);
+    assert.equal(verdict.source, 'viewer-canvas-context-reconciled');
   }
 });
 
@@ -503,14 +564,15 @@ test('the canvas still guards when the limit table is unavailable', () => {
   );
 });
 
-test("the limit table still guards when the canvas can't be re-read", () => {
-  // getContext returning null for every id is the case that previously made
-  // the whole check fail open and let the render error through.
+test("an unreadable canvas keeps Cesium's renderer table decisive", () => {
   const blindScene = { canvas: { getContext: () => null } };
-  assert.equal(
-    validateSceneContext(blindScene, { ...HEALTHY_CESIUM_LIMITS, maximumVertexTextureImageUnits: 0 }).reason,
-    WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures,
+  const verdict = validateSceneContext(
+    blindScene,
+    { ...HEALTHY_CESIUM_LIMITS, maximumVertexTextureImageUnits: 0 },
   );
+  assert.equal(verdict.reason, WEBGL_COMPATIBILITY_REASONS.insufficientVertexTextures);
+  assert.equal(verdict.source, 'cesium-context-limits');
+  assert.equal(verdict.diagnostics.cesiumContextLimits.maxVertexTextureImageUnits, 0);
 });
 
 test('the check fails open only when NEITHER source can be read', () => {

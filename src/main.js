@@ -189,11 +189,12 @@ async function init() {
       return;
     }
 
-    // The probe above tested a throwaway canvas. This reads the limit table
-    // Cesium itself branches on (Primitive.update throws outright when
-    // maximumVertexTextureImageUnits is 0) plus the viewer's own canvas
-    // context, before the first frame and before any data layer, timer, or
-    // poll exists. See validateSceneContext.
+    // The probe above tested a throwaway canvas. Validate the viewer's actual
+    // WebGL context before the first frame and before any data layer or poll.
+    // Cesium.ContextLimits is the renderer-consumed singleton. If it remains at
+    // its zero initializer while this canvas is healthy, validation reconciles
+    // that exact writable singleton from the live context and verifies it
+    // before allowing the first frame.
     const sceneContext = validateSceneContext(viewer.scene, Cesium.ContextLimits);
     if (sceneContext.reason) {
       reportGpuIncompatibility(sceneContext.source, sceneContext.reason, sceneContext.limits);

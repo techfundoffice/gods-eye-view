@@ -1,7 +1,7 @@
 /**
  * @module webglCapability
- * @description The GPU capability boundary that runs BEFORE any viewer, data
- * layer, timer, or network poll starts.
+ * @description The GPU capability boundary that runs before data layers,
+ * timers, or network polling starts.
  *
  * Cesium reads its whole `ContextLimits` table once, at `Context` construction,
  * straight out of `gl.getParameter` (see
@@ -119,6 +119,11 @@ function readScalar(gl, parameter) {
   } catch {
     return Number.NaN;
   }
+}
+
+function readScalarOr(gl, parameter, fallback) {
+  const value = readScalar(gl, parameter);
+  return Number.isFinite(value) ? value : fallback;
 }
 
 /**
@@ -325,23 +330,10 @@ export function isWebGLInitializationError(error) {
 }
 
 /**
- * Read the limit table CESIUM ITSELF consults at render time.
+ * Read Cesium's exported limit snapshot for diagnostics.
  *
- * This is the authoritative source, because it is literally the object Cesium
- * branches on. `Primitive.update`:
- *
- * ```js
- * if (ContextLimits.maximumVertexTextureImageUnits === 0) {
- *   throw new RuntimeError("Vertex texture fetch support is required ...");
- * }
- * ```
- *
- * and `Texture` compares against `ContextLimits.maximumTextureSize`. Whatever
- * this table says is what Cesium will act on, so a bad value here is not a
- * prediction of a failure — it IS the failure, one frame early.
- *
- * The table is populated synchronously by the `Context` constructor (which
- * `new Viewer()` runs), so it is valid the moment the viewer returns.
+ * This is the singleton Cesium's renderer consumes. It remains decisive unless
+ * it can be safely reconciled from the same viewer canvas before rendering.
  *
  * @param {object} contextLimits - `Cesium.ContextLimits`.
  * @returns {object|null} Limits in `classifyWebGLLimits` shape, or null when
@@ -351,12 +343,17 @@ export function readCesiumContextLimits(contextLimits) {
   if (!contextLimits) return null;
   const minimumLineWidth = Number(contextLimits.minimumAliasedLineWidth);
   return {
+    maxCombinedTextureImageUnits: contextLimits.maximumCombinedTextureImageUnits,
     maxVertexTextureImageUnits: contextLimits.maximumVertexTextureImageUnits,
     maxTextureSize: contextLimits.maximumTextureSize,
+    max3DTextureSize: contextLimits.maximum3DTextureSize,
     maxCubeMapTextureSize: contextLimits.maximumCubeMapSize,
     maxRenderbufferSize: contextLimits.maximumRenderbufferSize,
     maxTextureImageUnits: contextLimits.maximumTextureImageUnits,
+    maxFragmentUniformVectors: contextLimits.maximumFragmentUniformVectors,
+    maxVaryingVectors: contextLimits.maximumVaryingVectors,
     maxVertexAttributes: contextLimits.maximumVertexAttributes,
+    maxVertexUniformVectors: contextLimits.maximumVertexUniformVectors,
     aliasedLineWidthRange: [
       // Cesium stores the range's ends separately and leaves the minimum at
       // its 0 initializer on some drivers; a 0 there is not a bad range.
@@ -367,7 +364,76 @@ export function readCesiumContextLimits(contextLimits) {
       contextLimits.maximumViewportWidth,
       contextLimits.maximumViewportHeight,
     ],
+    aliasedPointSizeRange: [
+      contextLimits.minimumAliasedPointSize,
+      contextLimits.maximumAliasedPointSize,
+    ],
+    maxTextureFilterAnisotropy: contextLimits.maximumTextureFilterAnisotropy,
+    maxDrawBuffers: contextLimits.maximumDrawBuffers,
+    maxColorAttachments: contextLimits.maximumColorAttachments,
+    maxSamples: contextLimits.maximumSamples,
+    highpFloatSupported: contextLimits.highpFloatSupported,
+    highpIntSupported: contextLimits.highpIntSupported,
   };
+}
+
+const CESIUM_LIMIT_BACKING_FIELDS = Object.freeze({
+  maxCombinedTextureImageUnits: ['maximumCombinedTextureImageUnits', '_maximumCombinedTextureImageUnits'],
+  maxVertexTextureImageUnits: '_maximumVertexTextureImageUnits',
+  maxTextureSize: '_maximumTextureSize',
+  max3DTextureSize: ['maximum3DTextureSize', '_maximum3DTextureSize'],
+  maxCubeMapTextureSize: '_maximumCubeMapSize',
+  maxRenderbufferSize: '_maximumRenderbufferSize',
+  maxTextureImageUnits: '_maximumTextureImageUnits',
+  maxFragmentUniformVectors: ['maximumFragmentUniformVectors', '_maximumFragmentUniformVectors'],
+  maxVaryingVectors: ['maximumVaryingVectors', '_maximumVaryingVectors'],
+  maxVertexAttributes: '_maximumVertexAttributes',
+  maxVertexUniformVectors: ['maximumVertexUniformVectors', '_maximumVertexUniformVectors'],
+  maxTextureFilterAnisotropy: ['maximumTextureFilterAnisotropy', '_maximumTextureFilterAnisotropy'],
+  maxDrawBuffers: ['maximumDrawBuffers', '_maximumDrawBuffers'],
+  maxColorAttachments: ['maximumColorAttachments', '_maximumColorAttachments'],
+  maxSamples: ['maximumSamples', '_maximumSamples'],
+  highpFloatSupported: ['highpFloatSupported', '_highpFloatSupported'],
+  highpIntSupported: ['highpIntSupported', '_highpIntSupported'],
+});
+
+/**
+ * Reconcile Cesium's renderer-consumed singleton from the viewer's live WebGL
+ * context. This only succeeds when every required backing field is writable
+ * and the public table reads back as healthy after the update.
+ */
+function reconcileCesiumContextLimits(contextLimits, liveLimits) {
+  if (!contextLimits || classifyWebGLLimits(liveLimits)) return null;
+  const scalarEntries = Object.entries(CESIUM_LIMIT_BACKING_FIELDS).map(
+    ([key, field]) => [key, ...(Array.isArray(field) ? field : [
+      key === 'maxCubeMapTextureSize' ? 'maximumCubeMapSize'
+        : key.replace(/^max/, 'maximum').replace(/^highp/, 'highp'),
+      field,
+    ])],
+  );
+  const pairEntries = [
+    ['minimumAliasedLineWidth', '_minimumAliasedLineWidth', liveLimits.aliasedLineWidthRange?.[0]],
+    ['maximumAliasedLineWidth', '_maximumAliasedLineWidth', liveLimits.aliasedLineWidthRange?.[1]],
+    ['minimumAliasedPointSize', '_minimumAliasedPointSize', liveLimits.aliasedPointSizeRange?.[0]],
+    ['maximumAliasedPointSize', '_maximumAliasedPointSize', liveLimits.aliasedPointSizeRange?.[1]],
+    ['maximumViewportWidth', '_maximumViewportWidth', liveLimits.maxViewportDimensions?.[0]],
+    ['maximumViewportHeight', '_maximumViewportHeight', liveLimits.maxViewportDimensions?.[1]],
+  ];
+  const writes = [
+    ...scalarEntries.map(([key, publicName, field]) => [publicName, field, liveLimits[key]]),
+    ...pairEntries,
+  ];
+  if (writes.some(([, field]) => {
+    const descriptor = Object.getOwnPropertyDescriptor(contextLimits, field);
+    return !descriptor?.writable;
+  })) return null;
+
+  for (const [, field, value] of writes) contextLimits[field] = value;
+  if (writes.some(([publicName, , value]) => !Object.is(contextLimits[publicName], value))) {
+    return null;
+  }
+  const reconciled = readCesiumContextLimits(contextLimits);
+  return reconciled && !classifyWebGLLimits(reconciled) ? reconciled : null;
 }
 
 /**
@@ -400,46 +466,116 @@ export function readSceneContextLimits(scene) {
   } catch {
     return null;
   }
+  const maxVertexTextureImageUnits = readScalar(gl, 'MAX_VERTEX_TEXTURE_IMAGE_UNITS');
+  const maxTextureImageUnits = readScalar(gl, 'MAX_TEXTURE_IMAGE_UNITS');
+  let pointRange = readPair(gl, 'ALIASED_POINT_SIZE_RANGE');
+  if (!pointRange) pointRange = [1, 1];
+  let anisotropy = 1;
+  try {
+    const extension = gl.getExtension?.('EXT_texture_filter_anisotropic')
+      || gl.getExtension?.('WEBKIT_EXT_texture_filter_anisotropic');
+    if (extension?.MAX_TEXTURE_MAX_ANISOTROPY_EXT !== undefined) {
+      anisotropy = Number(gl.getParameter(extension.MAX_TEXTURE_MAX_ANISOTROPY_EXT));
+    }
+  } catch {
+    anisotropy = 1;
+  }
+  const precisionSupported = (precision, field) => {
+    try {
+      const format = gl.getShaderPrecisionFormat?.(gl.FRAGMENT_SHADER, gl[precision]);
+      return Boolean(format) && Number(format[field]) !== 0;
+    } catch {
+      return false;
+    }
+  };
   return {
-    maxVertexTextureImageUnits: readScalar(gl, 'MAX_VERTEX_TEXTURE_IMAGE_UNITS'),
+    maxCombinedTextureImageUnits: readScalarOr(
+      gl,
+      'MAX_COMBINED_TEXTURE_IMAGE_UNITS',
+      Number(maxVertexTextureImageUnits) + Number(maxTextureImageUnits),
+    ),
+    maxVertexTextureImageUnits,
     maxTextureSize: readScalar(gl, 'MAX_TEXTURE_SIZE'),
+    max3DTextureSize: readScalarOr(gl, 'MAX_3D_TEXTURE_SIZE', 0),
     maxCubeMapTextureSize: readScalar(gl, 'MAX_CUBE_MAP_TEXTURE_SIZE'),
     maxRenderbufferSize: readScalar(gl, 'MAX_RENDERBUFFER_SIZE'),
-    maxTextureImageUnits: readScalar(gl, 'MAX_TEXTURE_IMAGE_UNITS'),
+    maxTextureImageUnits,
+    maxFragmentUniformVectors: readScalarOr(gl, 'MAX_FRAGMENT_UNIFORM_VECTORS', 16),
+    maxVaryingVectors: readScalarOr(gl, 'MAX_VARYING_VECTORS', 8),
     maxVertexAttributes: readScalar(gl, 'MAX_VERTEX_ATTRIBS'),
+    maxVertexUniformVectors: readScalarOr(gl, 'MAX_VERTEX_UNIFORM_VECTORS', 128),
     aliasedLineWidthRange: readPair(gl, 'ALIASED_LINE_WIDTH_RANGE'),
+    aliasedPointSizeRange: pointRange,
     maxViewportDimensions: readPair(gl, 'MAX_VIEWPORT_DIMS'),
+    maxTextureFilterAnisotropy: Number.isFinite(anisotropy) ? anisotropy : 1,
+    maxDrawBuffers: readScalarOr(gl, 'MAX_DRAW_BUFFERS', 1),
+    maxColorAttachments: readScalarOr(gl, 'MAX_COLOR_ATTACHMENTS', 1),
+    maxSamples: readScalarOr(gl, 'MAX_SAMPLES', 0),
+    highpFloatSupported: precisionSupported('HIGH_FLOAT', 'precision'),
+    highpIntSupported: precisionSupported('HIGH_INT', 'rangeMax'),
   };
 }
 
 /**
  * Verdict on the viewer Cesium just built, taken before the first frame.
  *
- * Consults BOTH sources and rejects if EITHER is unusable. They can disagree:
- * a page that has already spent several WebGL contexts can hand Cesium a
- * degraded one while a freshly created canvas still reports healthy numbers.
- * Cesium acts on its own table, so a bad table is decisive on its own; a bad
- * canvas context is decisive too, since that is the surface being drawn to.
- *
- * Fails open only when NEITHER source can be read — a check blind to the GPU
- * must not be the thing that stops a working one.
+ * Both the live viewer canvas and Cesium's renderer-consumed singleton must be
+ * usable. When the canvas is healthy but the singleton is still at its writable
+ * zero initializer, reconcile that exact singleton from the same context and
+ * verify it before rendering. If reconciliation cannot be proven, fail closed.
  *
  * @param {object} scene - `viewer.scene`.
  * @param {object} contextLimits - `Cesium.ContextLimits`.
- * @returns {{reason: string|null, limits: object|null, source: string|null}}
- *   Verdict, the numbers behind it, and which source produced it.
+ * @returns {{reason: string|null, limits: object|null, source: string|null,
+ *   diagnostics: {cesiumContextLimits: object|null}}}
+ *   Verdict, the live numbers behind it, and non-authoritative diagnostics.
  */
 export function validateSceneContext(scene, contextLimits) {
-  const sources = [
-    ['cesium-context-limits', readCesiumContextLimits(contextLimits)],
-    ['viewer-canvas-context', readSceneContextLimits(scene)],
-  ].filter(([, limits]) => limits);
-  if (!sources.length) return { reason: null, limits: null, source: null };
-  for (const [source, limits] of sources) {
-    const reason = classifyWebGLLimits(limits);
-    if (reason) return { reason, limits, source };
+  const cesiumLimits = readCesiumContextLimits(contextLimits);
+  const diagnostics = {
+    cesiumContextLimits: cesiumLimits,
+  };
+  const limits = readSceneContextLimits(scene);
+  if (limits) {
+    const liveReason = classifyWebGLLimits(limits);
+    if (liveReason) {
+      return {
+        reason: liveReason, limits, source: 'viewer-canvas-context', diagnostics,
+      };
+    }
   }
-  return { reason: null, limits: sources[0][1], source: sources[0][0] };
+
+  const cesiumReason = cesiumLimits && classifyWebGLLimits(cesiumLimits);
+  if (cesiumReason) {
+    const reconciled = limits
+      ? reconcileCesiumContextLimits(contextLimits, limits)
+      : null;
+    if (!reconciled) {
+      return {
+        reason: cesiumReason,
+        limits: cesiumLimits,
+        source: 'cesium-context-limits',
+        diagnostics,
+      };
+    }
+    diagnostics.reconciledCesiumContextLimits = reconciled;
+    return {
+      reason: null,
+      limits,
+      source: 'viewer-canvas-context-reconciled',
+      diagnostics,
+    };
+  }
+
+  if (!limits && !cesiumLimits) {
+    return { reason: null, limits: null, source: null, diagnostics };
+  }
+  return {
+    reason: null,
+    limits: limits || cesiumLimits,
+    source: limits ? 'viewer-canvas-context' : 'cesium-context-limits',
+    diagnostics,
+  };
 }
 
 /**
