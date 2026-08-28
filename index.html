@@ -890,7 +890,17 @@
     <div class="loader-content">
       <span class="loader-logo brand-logo" data-logo-gaze data-logo-src="/logo.svg" aria-hidden="true"><img src="/logo.svg" alt="" /></span>
       <h2>GOD'S EYE <span class="title-accent">VIEW</span></h2>
-      <p class="loader-status">Initializing photorealistic world...</p>
+      <p class="loader-status" role="status" aria-live="polite">Initializing photorealistic world...</p>
+      <section class="webgl-compatibility" aria-labelledby="webgl-compatibility-title" hidden>
+        <h3 id="webgl-compatibility-title">HARDWARE-ACCELERATED WEBGL REQUIRED</h3>
+        <p>This experience renders a live 3D Earth with Cesium and needs GPU features that are unavailable in this browser session.</p>
+        <ol>
+          <li>Open the preview in a current desktop browser.</li>
+          <li>Enable hardware acceleration in the browser settings.</li>
+          <li>Update the graphics driver, then reload the page.</li>
+        </ol>
+        <a href="https://get.webgl.org/" target="_blank" rel="noopener">CHECK WEBGL SUPPORT</a>
+      </section>
     </div>
   </div>
 

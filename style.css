@@ -835,6 +835,7 @@ body.cockpit-mode #cockpit-cloud-effects.active {
 }
 
 .loader-content {
+  width: min(520px, calc(100vw - 40px));
   text-align: center;
 }
 
@@ -867,6 +868,66 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   letter-spacing: 2px;
   color: var(--text-dim);
   animation: pulse 2s ease-in-out infinite;
+}
+
+#loading-screen.compatibility-error .loader-logo,
+#loading-screen.compatibility-error .loader-status {
+  animation: none;
+}
+
+#loading-screen.compatibility-error .loader-logo {
+  opacity: 0.9;
+}
+
+#loading-screen.compatibility-error .loader-status {
+  color: #ff8d82;
+  line-height: 1.65;
+  letter-spacing: 0.08em;
+}
+
+.webgl-compatibility[hidden] {
+  display: none;
+}
+
+.webgl-compatibility {
+  max-width: 460px;
+  margin: 24px auto 0;
+  padding: 22px 24px;
+  border: 1px solid rgba(0, 212, 255, 0.28);
+  border-radius: 8px;
+  color: rgba(235, 249, 255, 0.78);
+  background: rgba(2, 13, 19, 0.88);
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  text-align: left;
+}
+
+.webgl-compatibility h3 {
+  margin: 0 0 12px;
+  color: #7feaff;
+  font: 600 12px/1.4 var(--font-mono);
+  letter-spacing: 0.13em;
+}
+
+.webgl-compatibility p,
+.webgl-compatibility ol {
+  margin: 0 0 14px;
+  font: 400 12px/1.65 var(--font-mono);
+}
+
+.webgl-compatibility ol {
+  padding-left: 20px;
+}
+
+.webgl-compatibility a {
+  color: #7feaff;
+  font: 600 11px/1.4 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-underline-offset: 3px;
+}
+
+.webgl-compatibility a:focus-visible {
+  outline: 2px solid #7feaff;
+  outline-offset: 4px;
 }
 
 @keyframes pulse {

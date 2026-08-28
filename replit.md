@@ -23,9 +23,10 @@ disabled or use their documented fallback behavior when their credentials are
 not configured.
 
 The globe requires a browser with working WebGL/GPU support. Some automated
-preview or screenshot browsers expose WebGL but cannot initialize a Cesium
-context; in that environment Cesium shows its standard WebGL error even though
-the dev server and application configuration are healthy.
+preview or screenshot browsers cannot initialize the WebGL features Cesium
+requires. In that environment the app stops before globe startup and presents a
+compatibility screen with browser/GPU troubleshooting steps. Open the preview
+in a hardware-accelerated desktop browser for the full globe.
 
 ## Checks
 

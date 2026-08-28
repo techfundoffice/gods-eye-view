@@ -4,14 +4,13 @@ description: Environment-specific behavior when validating the Cesium globe in a
 ---
 
 Automated preview or screenshot browsers can report WebGL support while still
-failing to create the WebGL context Cesium needs. Treat Cesium's
-`Error constructing CesiumWidget` / `WebGL initialization failed` screen as a
-preview-environment limitation when the dev server is healthy and application
-configuration is otherwise valid.
+failing to provide the capabilities Cesium needs. The app intentionally gates
+startup on a usable context with vertex texture fetch support and shows a
+compatibility screen when that gate fails.
 
 **Why:** The preview browser may not have a usable GPU-backed WebGL context,
 even though a normal user browser can render the globe.
 
-**How to apply:** Verify the workflow and HTTP response separately, and
-validate the full globe in a GPU-enabled browser rather than changing app
-logic solely to accommodate the automated screenshot browser.
+**How to apply:** Treat the compatibility screen as the expected automated
+preview result, verify the workflow and HTTP response separately, and validate
+the full globe in a GPU-enabled browser.

@@ -32,6 +32,12 @@ import {
 } from './renderGovernor.js';
 import { installScopeMask } from './scopeMask.js';
 import { initFirstRunExperience } from './firstRunExperience.js';
+import {
+  WEBGL_COMPATIBILITY_REASONS,
+  isWebGLInitializationError,
+  probeWebGLCapability,
+  showWebGLCompatibilityState,
+} from './webglCapability.js';
 
 initLogoGaze();
 
@@ -73,6 +79,16 @@ async function init() {
   try {
     loaderStatus.textContent = 'Configuring viewer...';
 
+    const webglCapability = probeWebGLCapability();
+    if (!webglCapability.supported) {
+      showWebGLCompatibilityState({
+        loadingScreen,
+        loaderStatus,
+        reason: webglCapability.reason,
+      });
+      return;
+    }
+
     // Set Cesium Ion token for World Terrain
     const cesiumToken = import.meta.env.CESIUM_ION_TOKEN;
     if (cesiumToken) {
@@ -90,39 +106,51 @@ async function init() {
     window.__GOOGLE_MAPS_API_KEY__ = googleApiKey;
 
     // Create the Cesium viewer with minimal chrome
-    const viewer = new Cesium.Viewer('cesiumContainer', {
-      timeline: false,
-      animation: false,
-      baseLayerPicker: false,
-      geocoder: false,
-      homeButton: false,
-      sceneModePicker: false,
-      navigationHelpButton: false,
-      fullscreenButton: false,
-      vrButton: false,
-      selectionIndicator: false,
-      infoBox: false,
-      baseLayer: false,
-      // Visible attribution container — Google Maps / 3D Tiles credits are
-      // required by Google's Terms of Service, so they must be shown (styled
-      // subtly via #cesium-credits). The credit line stays visible in
-      // clean-view AND recording modes too (ToS requires attribution while the
-      // content is displayed — those are the exact modes used to record
-      // demos), including the "Data attribution" link that opens the per-layer
-      // license popover.
-      creditContainer: (() => {
-        const el = document.createElement('div');
-        el.id = 'cesium-credits';
-        document.body.appendChild(el);
-        return el;
-      })(),
-      msaaSamples: 4,
-      contextOptions: {
-        webgl: {
-          preserveDrawingBuffer: true,
+    let viewer;
+    try {
+      viewer = new Cesium.Viewer('cesiumContainer', {
+        timeline: false,
+        animation: false,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        sceneModePicker: false,
+        navigationHelpButton: false,
+        fullscreenButton: false,
+        vrButton: false,
+        selectionIndicator: false,
+        infoBox: false,
+        baseLayer: false,
+        // Visible attribution container — Google Maps / 3D Tiles credits are
+        // required by Google's Terms of Service, so they must be shown (styled
+        // subtly via #cesium-credits). The credit line stays visible in
+        // clean-view AND recording modes too (ToS requires attribution while the
+        // content is displayed — those are the exact modes used to record
+        // demos), including the "Data attribution" link that opens the per-layer
+        // license popover.
+        creditContainer: (() => {
+          const el = document.createElement('div');
+          el.id = 'cesium-credits';
+          document.body.appendChild(el);
+          return el;
+        })(),
+        msaaSamples: 4,
+        contextOptions: {
+          webgl: {
+            preserveDrawingBuffer: true,
+          },
         },
-      },
-    });
+      });
+    } catch (viewerError) {
+      if (!isWebGLInitializationError(viewerError)) throw viewerError;
+      document.getElementById('cesiumContainer')?.replaceChildren();
+      showWebGLCompatibilityState({
+        loadingScreen,
+        loaderStatus,
+        reason: WEBGL_COMPATIBILITY_REASONS.unavailable,
+      });
+      return;
+    }
 
     // Cap the default render loop at 60 fps. Cesium's loop otherwise runs at
     // the display's refresh rate — 120 Hz on ProMotion panels — doubling GPU
