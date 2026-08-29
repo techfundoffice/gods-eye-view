@@ -7431,6 +7431,11 @@ export default defineConfig(({ mode }) => {
         ? true
         : ['localhost', '127.0.0.1', '.local'],
     },
+    // `vite preview` does not inherit `server.allowedHosts`. The published
+    // Replit hostname must be accepted by the production preview server.
+    preview: {
+      allowedHosts: true,
+    },
     // Expose selected API keys to the browser via import.meta.env.*
     define: {
       'import.meta.env.GOOGLE_MAPS_API_KEY': JSON.stringify(env.GOOGLE_MAPS_API_KEY),
