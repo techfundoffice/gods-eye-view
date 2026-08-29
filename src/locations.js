@@ -430,6 +430,8 @@ export async function searchAndFlyTo(viewer, query, options = {}) {
         label,
         navigationMode: 'natural-region-swath',
         rangeM: swath.rangeM,
+        latitude: swath.centerLat,
+        longitude: swath.centerLng,
       };
     }
     // An administrative geocode can carry a viewport far larger than the place
@@ -463,6 +465,8 @@ export async function searchAndFlyTo(viewer, query, options = {}) {
         label,
         navigationMode,
         rangeM: null,
+        latitude: lat,
+        longitude: lng,
       };
     }
   }
@@ -490,6 +494,8 @@ export async function searchAndFlyTo(viewer, query, options = {}) {
       ? 'explicit-range'
       : (options.forceClose ? navigationMode.replace('-overview', '-close') : navigationMode),
     rangeM: Math.round(flight.range),
+    latitude: buildingBounds?.lat ?? lat,
+    longitude: buildingBounds?.lon ?? lng,
   };
 }
 

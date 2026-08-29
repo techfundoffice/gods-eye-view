@@ -43,6 +43,21 @@ test('a free-text search records its destination for the LOCATION mini-status', 
   assert.match(handler, /this\._updateLocationMiniStatus\(\);/);
 });
 
+test('a typed location search requests close photoreal framing', () => {
+  const handler = locationSearchHandler();
+  assert.match(
+    handler,
+    /searchAndFlyTo\(this\.viewer, query, \{[\s\S]{0,500}?forceClose: true,/,
+    'typed city searches must not stop at a broad city viewport',
+  );
+});
+
+test('a successful location search opens the in-app Street View preview', () => {
+  const handler = locationSearchHandler();
+  assert.match(handler, /this\._showLocationStreetView\(destination\);/);
+  assert.match(ui, /\/api\/cctv\/frame\/location-search\?\$\{params\}/);
+});
+
 test('failed location search preserves the query and shows an actionable error', () => {
   const handler = locationSearchHandler();
   assert.match(ui, /let clearSearch = false;/);

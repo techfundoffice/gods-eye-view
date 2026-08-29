@@ -2372,6 +2372,9 @@ export class StyleManager {
     this._toast = document.getElementById('toast');
     this._locationSearch = document.getElementById('location-search');
     this._searchToggle = document.getElementById('search-toggle');
+    this._locationStreetView = document.getElementById('location-streetview');
+    this._locationStreetViewImage = document.getElementById('location-streetview-image');
+    this._locationStreetViewLabel = document.getElementById('location-streetview-label');
     this._locationPills = document.getElementById('location-pills');
     this._poiRow = document.getElementById('poi-row');
     this._locationBarDivider = document.getElementById('location-bar-divider');
@@ -9325,6 +9328,12 @@ export class StyleManager {
         try {
           const destination = await searchAndFlyTo(this.viewer, query, {
             beforeFly: () => this._reassertNavigationHandoff(generation),
+            // The visible search box is the user's direct "take me there"
+            // control. City viewport framing leaves places such as Ensenada
+            // kilometers away, so Google never reaches useful street-level
+            // photoreal LOD. Keep broad framing available to explicit voice
+            // "overview" requests, but make typed searches land close.
+            forceClose: true,
           });
           if (this._disposed || generation !== this._navigationGeneration) return;
           if (destination?.cancelled) {
@@ -9344,6 +9353,7 @@ export class StyleManager {
             this._currentPoi = null;
             this._collapsePOIRow();
             this._updateLocationMiniStatus();
+            this._showLocationStreetView(destination);
             clearSearch = true;
           } else {
             this._showToast(`Location not found: ${query}`);
@@ -9357,6 +9367,30 @@ export class StyleManager {
         }
       }
     });
+  }
+
+  _showLocationStreetView(destination) {
+    const latitude = Number(destination?.latitude);
+    const longitude = Number(destination?.longitude);
+    if (!this._locationStreetView || !this._locationStreetViewImage
+        || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return;
+    }
+    const params = new URLSearchParams({
+      lat: String(latitude),
+      lon: String(longitude),
+      heading: '30',
+      fov: '80',
+      pitch: '0',
+      label: destination?.label || 'Location',
+      city: destination?.label || '',
+    });
+    this._locationStreetView.hidden = false;
+    this._locationStreetViewImage.alt = `Street View near ${destination?.label || 'searched location'}`;
+    this._locationStreetViewImage.src = `/api/cctv/frame/location-search?${params}`;
+    if (this._locationStreetViewLabel) {
+      this._locationStreetViewLabel.textContent = destination?.label || 'GOOGLE STREET VIEW';
+    }
   }
 
   /**

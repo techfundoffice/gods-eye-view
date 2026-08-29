@@ -1963,6 +1963,46 @@ body.ui-clean-view #scene-runtime.active {
   opacity: 0.5;
 }
 
+.location-streetview {
+  width: min(360px, calc(100vw - 48px));
+  margin: 10px 0 0;
+  overflow: hidden;
+  border: 1px solid rgba(0, 212, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.94);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42);
+}
+
+.location-streetview[hidden] {
+  display: none;
+}
+
+.location-streetview img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.location-streetview figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 9px;
+  color: var(--text-dim);
+  font: 500 9px/1.3 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#location-streetview-label {
+  overflow: hidden;
+  color: var(--accent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Top-center Globe Actions ────────────────── */
 #top-center-actions {
   position: fixed;

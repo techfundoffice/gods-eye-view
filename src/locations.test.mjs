@@ -632,5 +632,7 @@ test('Ensenada-shaped geocoder result produces one safe viewport flight', async 
     },
   });
   assert.equal(result.navigationMode, 'city-overview');
+  assert.equal(result.latitude, 31.8557021);
+  assert.equal(result.longitude, -116.6057392);
   assert.equal(viewer.flights.length, 1);
 });
