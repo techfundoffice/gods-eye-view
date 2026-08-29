@@ -293,7 +293,10 @@ class AdminConsoleController {
       plugins: [],
       activePluginId: '',
       activePlugin: null,
+      // Placeholder until `_loadMcp` answers; `mcpLoaded` is what says whether
+      // `mcp` describes the server or is still this default.
       mcp: { enabled: false, endpoint: '/api/admin/mcp', keys: [] },
+      mcpLoaded: false,
       freshToken: '',
       live: { status: 'idle', log: [], framesSent: 0, target: '', error: null },
       liveWatchUrl: '',
@@ -444,6 +447,10 @@ class AdminConsoleController {
     this.state.activePlugin = null;
     this.state.activePluginId = '';
     this.state.freshToken = '';
+    // The next operator to sign in must re-read the endpoint's real state
+    // rather than inherit this session's last view of it.
+    this.state.mcp = { enabled: false, endpoint: '/api/admin/mcp', keys: [] };
+    this.state.mcpLoaded = false;
     this._render();
   }
 
@@ -658,14 +665,28 @@ class AdminConsoleController {
   async _loadMcp() {
     try {
       this.state.mcp = await this.client.mcpSettings();
+      this.state.mcpLoaded = true;
     } catch (error) {
       this.state.message = error.message;
     }
     this._render();
   }
 
-  /** @returns {Promise<void>} */
+  /**
+   * Flip the endpoint on or off.
+   *
+   * The new value is derived from `state.mcp.enabled`, which is only the
+   * server's answer once `_loadMcp` has landed. Opening the pane starts that
+   * request without awaiting it, so a click that arrives first would otherwise
+   * be computed from the placeholder `enabled: false` — sending `true` at an
+   * endpoint that is already on, or worse, reading as ONLINE on screen while
+   * the server was just told to switch off. The control stays disabled until
+   * the real state is in hand.
+   *
+   * @returns {Promise<void>}
+   */
   async _toggleMcp() {
+    if (!this.state.mcpLoaded) return;
     try {
       this.state.mcp = await this.client.setMcpEnabled(!this.state.mcp.enabled);
       this.state.session = { ...this.state.session, mcpEnabled: this.state.mcp.enabled };
@@ -1002,9 +1023,16 @@ class AdminConsoleController {
     if (toggle) {
       toggle.textContent = this.state.mcp.enabled ? 'DISABLE MCP SERVER' : 'ENABLE MCP SERVER';
       toggle.setAttribute('aria-pressed', String(Boolean(this.state.mcp.enabled)));
+      toggle.disabled = !this.state.mcpLoaded;
     }
     const state = this._el('admin-mcp-state');
-    if (state) state.textContent = this.state.mcp.enabled ? 'ONLINE' : 'OFF';
+    if (state) {
+      // Until the settings land, say so rather than claiming the endpoint is
+      // off — the placeholder and a genuinely disabled endpoint look identical.
+      state.textContent = this.state.mcpLoaded
+        ? (this.state.mcp.enabled ? 'ONLINE' : 'OFF')
+        : 'CHECKING';
+    }
 
     const snippet = this._el('admin-mcp-snippet');
     if (snippet) {

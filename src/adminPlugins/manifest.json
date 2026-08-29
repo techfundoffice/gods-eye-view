@@ -1,0 +1,17 @@
+[
+  {
+    "id": "escapes",
+    "label": "Escapes",
+    "module": "../main.js"
+  },
+  {
+    "id": "remote",
+    "label": "Remote",
+    "module": "https://example.com/evil.js"
+  },
+  {
+    "id": "good",
+    "label": "Good",
+    "module": "./good.js"
+  }
+]

@@ -162,3 +162,24 @@ test('a failure with an unreadable body still rejects with a usable message', as
   const { fetchImpl } = fakeFetch([{ ok: false, status: 500, invalidJson: true }]);
   await assert.rejects(() => createAdminClient({ fetchImpl }).session(), /Admin request failed/);
 });
+
+test('the MCP toggle is not derivable from client state until settings load', async () => {
+  // Reproduces the race the browser harness caught: opening the pane starts
+  // `GET /mcp/settings` without awaiting it, so a toggle computed from the
+  // placeholder `enabled: false` could tell an already-online endpoint to go
+  // online — or, with the placeholder stale in the other direction, switch off
+  // an endpoint the screen still labelled ONLINE.
+  const { fetchImpl, calls } = fakeFetch([
+    { body: { enabled: true, endpoint: '/api/admin/mcp', keys: [] } },
+  ]);
+  const client = createAdminClient({ fetchImpl });
+
+  const placeholder = { enabled: false, endpoint: '/api/admin/mcp', keys: [] };
+  const loaded = await client.mcpSettings();
+  assert.notEqual(loaded.enabled, placeholder.enabled,
+    'the server disagrees with the placeholder, which is what makes the race visible');
+
+  // Deriving from the loaded value asks for the correct transition.
+  await client.setMcpEnabled(!loaded.enabled);
+  assert.deepEqual(JSON.parse(calls[1].options.body), { enabled: false });
+});
