@@ -7430,6 +7430,14 @@ export default defineConfig(({ mode }) => {
       allowedHosts: (env.HOST === '0.0.0.0' || env.HOST === '::')
         ? true
         : ['localhost', '127.0.0.1', '.local'],
+      // Keep Replit's workspace tooling and runtime caches from triggering
+      // Vite restarts while the preview is open. Source files remain watched.
+      watch: {
+        ignored: [
+          '**/.local/**',
+          '**/.gev-cache/**',
+        ],
+      },
     },
     // `vite preview` does not inherit `server.allowedHosts`. The published
     // Replit hostname must be accepted by the production preview server.
