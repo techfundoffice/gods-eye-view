@@ -136,6 +136,7 @@ const ADSBLOL_POINT_CACHE_MS = 12000;
 const ADSBLOL_POINT_CACHE_MAX = 80;
 const ADSBLOL_POINT_RADIUS_NM = 250;
 const ADSBLOL_POINT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+const OPENSKY_REQUEST_TIMEOUT_MS = 6000;
 // A 200 response can still contain an old OpenSky snapshot. Past this point
 // the viewport-scoped adsb.lol source is more honest and keeps local motion
 // current instead of coasting a stale worldwide frame indefinitely.
@@ -3009,7 +3010,10 @@ function openSkyProxy() {
             }
           }
 
-          let upstream = await fetch('https://opensky-network.org/api/states/all?extended=1', { headers });
+          let upstream = await fetch('https://opensky-network.org/api/states/all?extended=1', {
+            headers,
+            signal: AbortSignal.timeout(OPENSKY_REQUEST_TIMEOUT_MS),
+          });
           // Auto-mode fallback: if OAuth was rejected, retry with Basic credentials
           if (
             (upstream.status === 401 || upstream.status === 403) &&
@@ -3021,7 +3025,10 @@ function openSkyProxy() {
               Accept: 'application/json',
               Authorization: `Basic ${Buffer.from(`${basicUser}:${basicPass}`).toString('base64')}`,
             };
-            upstream = await fetch('https://opensky-network.org/api/states/all?extended=1', { headers: retryHeaders });
+            upstream = await fetch('https://opensky-network.org/api/states/all?extended=1', {
+              headers: retryHeaders,
+              signal: AbortSignal.timeout(OPENSKY_REQUEST_TIMEOUT_MS),
+            });
             usedMode = 'basic';
             reason = 'oauth_rejected_fallback_basic';
           }
