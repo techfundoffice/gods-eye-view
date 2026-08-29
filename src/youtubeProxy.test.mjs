@@ -104,3 +104,25 @@ test('deployment-disabled middleware denies forged preview headers before connec
   }
   assert.equal(calls, 0);
 });
+
+test('authenticated sessions isolate response caches even behind the same IP', async () => {
+  let calls = 0;
+  const middleware = createYoutubeProxyMiddleware({
+    authorizeRequest: async (request) => ({ sessionId: request.headers['x-session'] }),
+    proxy: async (_name, _path, _request, authorization) => {
+      calls += 1;
+      return new Response(JSON.stringify({ session: authorization.sessionId }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+  const first = await invokeMiddleware(middleware, { headers: { 'x-session': 'user-a' } });
+  const second = await invokeMiddleware(middleware, { headers: { 'x-session': 'user-b' } });
+  const cached = await invokeMiddleware(middleware, { headers: { 'x-session': 'user-a' } });
+  assert.equal(first.body.session, 'user-a');
+  assert.equal(second.body.session, 'user-b');
+  assert.equal(cached.body.session, 'user-a');
+  assert.equal(calls, 2);
+  assert.equal(cached.headers['X-YouTube-Cache'], 'HIT');
+});

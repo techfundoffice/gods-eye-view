@@ -61,7 +61,7 @@ The live layers are grounded in public feeds: the airliner crossing your screen 
 - **🌐 Global Context:** Stage the full situational picture with one switch — and get your exact view back when you leave.
 - **🎥 Scene director:** Capture cinematic camera tours for clips and demos.
 - **🔗 Share Links:** Camera, style, layers, and even one tracked target serialize into a URL — a live target is a handoff, not a bookmark.
-- **▶️ YouTube Settings:** Connect a YouTube account through Replit Integrations, then inspect channel videos, broadcasts, live chat, comments, playlists, and other read-only Data API resources from the console.
+- **▶️ YouTube Settings:** Sign in with your own Google/YouTube account, then inspect channel videos, broadcasts, live chat, comments, playlists, and other read-only Data API resources from the console. No Replit account is required.
 - **🏠 Reset Globe:** One control — or one sentence — back to the full Earth.
 
 ---
@@ -257,7 +257,11 @@ Some of the engineering that makes it feel real rather than like a tech demo:
 - **Sits on the real ground.** Entity heights run through a real vertical datum — geoid-aware, sampled against the *rendered* terrain mesh — so aircraft park on aprons and cameras stand on street corners instead of floating.
 - **Spends your quota like it's its own.** The paid feeds run behind cached, budget-governed proxies — an OpenSky credit governor, a TomTom daily tile budget, disk-cached TLEs — so an afternoon of exploring doesn't torch an API allowance.
 - **Local-first key handling.** Secret-bearing providers such as OpenAI, AISStream, OpenSky OAuth, TomTom, and FIRMS are brokered server-side. Proxy destinations are fixed or allowlisted, and the higher-risk paths add bounded requests, timeouts, response caps, and sanitized errors as appropriate. The only provider credentials intentionally exposed to the browser are Google Maps and Cesium ion; restrict both at the provider.
-- **Workspace-managed YouTube OAuth.** The YouTube Settings panel uses Replit's YouTube connector. Authorization happens in the workspace Integrations UI; the app receives only server-proxied Data API responses and never handles the OAuth token.
+- **Per-user YouTube OAuth.** The YouTube Settings panel uses Google OAuth 2.0 with PKCE and the read-only YouTube scope. Each app user signs in with their own account; access and refresh tokens remain in the server-side session store and are never returned to browser code.
+
+  Configure a Google OAuth 2.0 **Web application** client, enable **YouTube Data API v3**, and register `https://YOUR_HOST/api/youtube/auth/callback` as an authorized redirect URI. Set `YOUTUBE_OAUTH_CLIENT_ID`, `YOUTUBE_OAUTH_CLIENT_SECRET`, and a long random `SESSION_SECRET`. Set `YOUTUBE_OAUTH_REDIRECT_URI` when the public callback URL cannot be inferred from forwarded request headers.
+
+  Sessions are process-local by default, so a server restart signs users out. Multi-instance deployments should replace the in-memory session store with a shared durable store before scaling horizontally.
 - **No framework.** Vanilla JavaScript, **CesiumJS**, and **Vite** — plus **Google Photorealistic 3D Tiles** for the planet and the **OpenAI Realtime API** for voice. Fast to read, fast to hack on.
 
 ```

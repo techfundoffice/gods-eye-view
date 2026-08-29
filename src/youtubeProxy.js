@@ -1,9 +1,9 @@
 /**
  * Server-side YouTube Data API proxy.
  *
- * The browser only sees /api/youtube. ReplitConnectors injects the bound
- * YouTube OAuth identity for every upstream request; no token or API key is
- * accepted from query parameters or request headers.
+ * The browser only sees /api/youtube. The server injects the signed-in user's
+ * OAuth token for every upstream request; no token or API key is accepted from
+ * query parameters or request headers.
  */
 
 export const YOUTUBE_API_PREFIX = '/youtube/v3';
@@ -246,6 +246,7 @@ export function createYoutubeProxyMiddleware({
   upstreamTimeoutMs = YOUTUBE_UPSTREAM_TIMEOUT_MS,
   enabled = true,
   allowRequest = () => true,
+  authorizeRequest = null,
 } = {}) {
   if (typeof proxy !== 'function') throw new TypeError('YouTube proxy requires a proxy function');
   const inFlight = new Map();
@@ -262,10 +263,19 @@ export function createYoutubeProxyMiddleware({
       sendJson(res, 403, { error: { kind: 'forbidden', message: 'YouTube account access is limited to the workspace preview.' } });
       return;
     }
+    const authorization = typeof authorizeRequest === 'function'
+      ? await authorizeRequest(req)
+      : true;
+    if (!authorization) {
+      sendJson(res, 401, { error: { kind: 'authentication', message: 'Sign in to YouTube to continue.' } });
+      return;
+    }
     try {
       const incoming = new URL(req.url || '/', 'http://localhost');
       const request = normalizeYoutubeRequest(incoming.pathname, incoming.searchParams);
-      const identityKey = clientKey(req);
+      // Never key account data by IP alone: two users on the same network must
+      // not share cached channel/video responses or in-flight requests.
+      const identityKey = authorization?.sessionId || clientKey(req);
       const scopedCacheKey = `${identityKey}:${request.cacheKey}`;
       const timestamp = now();
       for (const [key, entry] of cache) {
@@ -291,7 +301,7 @@ export function createYoutubeProxyMiddleware({
         let upstream;
         try {
           upstream = await Promise.race([
-            proxy('youtube', `${request.path}?${request.search}`),
+            proxy('youtube', `${request.path}?${request.search}`, req, authorization),
             new Promise((_, reject) => {
               const timer = setTimeout(() => reject(new Error('YouTube request timed out')), upstreamTimeoutMs);
               timer.unref?.();
@@ -299,8 +309,12 @@ export function createYoutubeProxyMiddleware({
           ]);
         } catch (error) {
           return {
-            status: 502,
-            payload: { error: { kind: 'upstream', message: 'Unable to reach YouTube right now.' } },
+            status: error?.youtubeAuth ? 401 : 502,
+            payload: {
+              error: error?.youtubeAuth
+                ? { kind: 'authentication', message: 'YouTube sign-in has expired. Reconnect to continue.' }
+                : { kind: 'upstream', message: 'Unable to reach YouTube right now.' },
+            },
             headers: {},
           };
         }

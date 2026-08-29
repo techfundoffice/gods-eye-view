@@ -6570,6 +6570,15 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   letter-spacing: 0.75px;
 }
 
+.youtube-account {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  line-height: 1.45;
+  letter-spacing: 0.75px;
+  overflow-wrap: anywhere;
+}
+
 .youtube-connect-btn:not(:disabled) {
   color: #ffd7de;
   border-color: rgba(255, 72, 98, 0.55);

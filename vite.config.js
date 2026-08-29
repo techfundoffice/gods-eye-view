@@ -44,8 +44,8 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { defineConfig, loadEnv } from 'vite';
 import cesium from 'vite-plugin-cesium';
-import { ReplitConnectors } from '@replit/connectors-sdk';
 import { createYoutubeProxyMiddleware } from './src/youtubeProxy.js';
+import { createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
   normalizeRegionalArticles,
@@ -7326,35 +7326,17 @@ function normalizeAisTimestamp(value) {
 }
 
 /**
- * Authenticated, read-only YouTube Data API proxy. The connector object is
- * intentionally created inside the request callback so token refresh state is
- * never held as a process-wide client.
+ * Authenticated, read-only YouTube Data API proxy. Each browser session gets
+ * its own Google OAuth credentials; no workspace connector identity is used.
  */
-function youtubeProxy(expectedPreviewHost = '') {
+function youtubeProxy() {
+  const oauth = createYoutubeOAuthMiddleware();
   const middleware = createYoutubeProxyMiddleware({
-    proxy: (connectorName, requestPath) => (
-      new ReplitConnectors().proxy(connectorName, requestPath, { method: 'GET' })
-    ),
-    enabled: process.env.REPLIT_DEPLOYMENT !== '1' && Boolean(expectedPreviewHost),
-    allowRequest: (request) => {
-      const host = String(request.headers?.host || '').split(':')[0].toLowerCase();
-      const configuredHost = String(expectedPreviewHost || '').toLowerCase();
-      const isWorkspacePreview = host === 'localhost'
-        || host === '127.0.0.1'
-        || (configuredHost && host === configuredHost);
-      if (!isWorkspacePreview) return false;
-      const fetchSite = String(request.headers?.['sec-fetch-site'] || '').toLowerCase();
-      if (fetchSite === 'cross-site') return false;
-      const origin = String(request.headers?.origin || '');
-      if (!origin) return true;
-      try {
-        return new URL(origin).host === String(request.headers?.host || '');
-      } catch {
-        return false;
-      }
-    },
+    proxy: oauth.proxy,
+    authorizeRequest: oauth.authorizeRequest,
   });
   function install(middlewares) {
+    middlewares.use('/api/youtube/auth', oauth.middleware);
     middlewares.use('/api/youtube', middleware);
   }
   return {
@@ -7386,7 +7368,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       cesium(),
-      youtubeProxy(env.REPLIT_DEV_DOMAIN),
+      youtubeProxy(),
       openSkyProxy(),
       celestrakProxy(),
       tomtomProxy(),

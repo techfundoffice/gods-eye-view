@@ -126,6 +126,19 @@ export function createYoutubeClient({ fetchImpl = globalThis.fetch } = {}) {
   return { get };
 }
 
+async function getYoutubeAuthStatus(fetchImpl = globalThis.fetch) {
+  const response = await fetchImpl('/api/youtube/auth/status', {
+    headers: { Accept: 'application/json' },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload?.error?.message || 'YouTube sign-in status unavailable');
+    error.kind = payload?.error?.kind || 'upstream';
+    throw error;
+  }
+  return payload;
+}
+
 function formatTime(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -180,6 +193,7 @@ export class YouTubePanelController {
       pollTimer: null,
       abortController: null,
       backoffMs: 0,
+      account: null,
     };
     this._stored = readStoredState();
     this.state.videoId = text(this._stored.videoId);
@@ -206,9 +220,9 @@ export class YouTubePanelController {
       });
     }
     this._el('youtube-connect-btn')?.addEventListener('click', () => {
-      this._setStatus('OPEN REPLIT INTEGRATIONS TO CONNECT');
-      this._el('youtube-connect-btn')?.setAttribute('aria-label', 'Connect YouTube in Replit workspace integrations, then refresh');
+      window.location.assign('/api/youtube/auth/start');
     });
+    this._el('youtube-signout-btn')?.addEventListener('click', () => void this.signOut());
     this._el('youtube-refresh-btn')?.addEventListener('click', () => void this.refresh());
     this._el('youtube-chat-toggle')?.addEventListener('click', () => {
       this.state.enabled = !this.state.enabled;
@@ -261,6 +275,24 @@ export class YouTubePanelController {
   }
 
   async refresh() {
+    try {
+      const auth = await getYoutubeAuthStatus();
+      this.state.account = auth.account || null;
+      if (!auth.authenticated) {
+        this.state.connection = auth.configured ? 'disconnected' : 'unavailable';
+        this.state.channel = null;
+        this.state.videos = [];
+        this.state.liveChatId = '';
+        this._setStatus(auth.configured ? 'SIGN IN TO LOAD CHANNEL' : 'YOUTUBE SIGN-IN NOT CONFIGURED');
+        this._render();
+        return;
+      }
+    } catch (error) {
+      this.state.connection = 'unavailable';
+      this._setStatus('SIGN-IN STATUS UNAVAILABLE');
+      this._render();
+      return;
+    }
     this.state.connection = 'connecting';
     setText(this._el('youtube-connection-state'), 'SYNCING');
     this._setStatus('SYNCING CHANNEL');
@@ -294,6 +326,24 @@ export class YouTubePanelController {
       setText(this._el('youtube-connection-state'), error?.kind === 'authentication' ? 'RECONNECT' : 'UNAVAILABLE');
       this._setStatus(this._friendlyError(error));
     } finally {
+      this._setBusy(false);
+      this._render();
+    }
+  }
+
+  async signOut() {
+    this._setBusy(true);
+    try {
+      await fetch('/api/youtube/auth/signout', { method: 'POST', headers: { Accept: 'application/json' } });
+    } finally {
+      this._stopChat();
+      this.state.account = null;
+      this.state.channel = null;
+      this.state.videos = [];
+      this.state.videoId = '';
+      this.state.liveChatId = '';
+      this.state.connection = 'disconnected';
+      this._setStatus('SIGNED OUT · SIGN IN TO LOAD CHANNEL');
       this._setBusy(false);
       this._render();
     }
@@ -539,9 +589,21 @@ export class YouTubePanelController {
     const connectButton = this._el('youtube-connect-btn');
     if (connectButton) {
       const connected = this.state.connection === 'connected';
-      connectButton.textContent = connected ? 'CONNECTED' : this.state.connection === 'reconnect' ? 'RECONNECT' : 'CONNECT YOUTUBE';
-      connectButton.disabled = connected;
-      connectButton.setAttribute('aria-label', connected ? 'YouTube is connected' : 'Connect YouTube in Replit workspace integrations');
+      connectButton.textContent = connected ? 'CONNECTED' : this.state.connection === 'reconnect' ? 'RECONNECT' : 'SIGN IN WITH YOUTUBE';
+      connectButton.disabled = false;
+      connectButton.setAttribute('aria-label', connected ? 'Reconnect YouTube account' : 'Sign in with your YouTube account');
+    }
+    const signoutButton = this._el('youtube-signout-btn');
+    if (signoutButton) {
+      signoutButton.hidden = !this.state.account;
+      signoutButton.disabled = !this.state.account;
+    }
+    const account = this._el('youtube-account');
+    if (account) {
+      account.hidden = !this.state.account;
+      account.textContent = this.state.account
+        ? `ACCOUNT · ${this.state.account.name}${this.state.account.email ? ` · ${this.state.account.email}` : ''}`
+        : '';
     }
     const poll = this._el('youtube-poll-select');
     if (poll) poll.value = String(this.state.pollMs);
