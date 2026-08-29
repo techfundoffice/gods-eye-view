@@ -8,6 +8,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const browser = await puppeteer.launch({
   headless: 'new',
   executablePath: process.env.CHROME_PATH,
+  protocolTimeout: 180000,
   args: ['--no-sandbox', '--disable-setuid-sandbox', '--use-gl=swiftshader',
     '--enable-unsafe-swiftshader', '--disable-dev-shm-usage', '--window-size=1440,900'],
 });
