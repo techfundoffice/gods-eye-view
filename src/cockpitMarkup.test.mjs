@@ -14,6 +14,12 @@ const manager = fs.readFileSync(path.join(ROOT, 'src', 'data', 'manager.js'), 'u
 const contextLayer = fs.readFileSync(path.join(ROOT, 'src', 'data', 'militaryAwareness.js'), 'utf8');
 const voiceActions = fs.readFileSync(path.join(ROOT, 'src', 'voice', 'gevActions.js'), 'utf8');
 
+test('command dock reserves separate non-overlapping search and microphone columns', () => {
+  assert.match(css, /grid-template-areas:\s*'locations voice presets'/);
+  assert.match(css, /#command-dock > #gev-voice-control \{[\s\S]*?grid-area:\s*voice;[\s\S]*?margin:\s*0;/);
+  assert.match(css, /#command-dock \.location-search-wrap \{[\s\S]*?min-width:\s*0;[\s\S]*?max-width:\s*190px;[\s\S]*?overflow:\s*hidden;/);
+});
+
 test('Cockpit has one reset action beside its bottom exit path', () => {
   assert.doesNotMatch(html, /id="cockpit-quick-entry"/);
   assert.doesNotMatch(html, /id="cockpit-exit"/);

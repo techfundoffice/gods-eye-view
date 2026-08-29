@@ -1,0 +1,190 @@
+An error occurred while rendering. Rendering has stopped.
+TypeError: Failed to fetch dynamically imported module: https://a817ba63-1ea5-4a13-9272-1bd6626c553c-00-10itb3c1ns6wn.janeway.replit.dev/cesium/Workers/createEllipseGeometry.js
+
+TypeError: Failed to fetch dynamically imported module: https://a817ba63-1ea5-4a13-9272-1bd6626c553c-00-10itb3c1ns6wn.janeway.replit.dev/cesium/Workers/createEllipseGeometry.js
+
+
+ADMIN
+
+layers_clear
+
+🔗
+
+public
+LOADING LIVE DATA
+Military Flights · CCTV
+syncing road network
+loading frames
+0/0
+LOCATION
+OFF
+STD
+~$0.00
+
+
+ON/OFF
+VOICE STANDBY
+
+VISUAL PRESETS
+DATA LAYERS
+−
+✈️
+Live Flights
+—
+OFF
+OpenSky Network · never
+🎖️
+Military Flights
+32
+ON
+adsb.lol · 16s ago
+🌋
+Earthquakes (24h)
+57
+ON
+USGS · 16s ago
+🛰️
+Satellites
+11.6K
+ON
+CelesTrak · 15s ago
+🚀
+Space Missions (30d)
+26
+ON
+Launch Library 2 · 9s ago
+🚗
+Street Traffic
+—
+OFF
+OpenStreetMap · never
+📹
+CCTV
+—
+ENABLING
+ENABLING · CCTV + Street View fallback
+◉
+Radio
+—
+OFF
+Radio Browser · never
+🚲
+Bikeshare
+—
+OFF
+GBFS · never
+◭
+Live AIS Vessels
+—
+OFF
+AISStream · never
+⌖
+Mapped Installations
+—
+OFF
+OpenStreetMap + optional Google Maps Places · never
+▣
+Datacenters
+—
+OFF
+Local · never
+▰
+Dams
+—
+OFF
+USACE · never
+≋
+Submarine Cables
+—
+OFF
+TeleGeography · never
+▲
+FIRMS Active Fires
+—
+OFF
+NASA FIRMS · LIVE · never
+SCENES
+−
+
+Global Flights Radar
+NEW
+DEL
+CAPTURE SHOT
+UPDATE SHOT
+Shot 1
+LOAD
+DEL
+RETRO · OFF · 6.0s + 1.0s
+Shot 2
+LOAD
+DEL
+RETRO · OFF · 5.0s + 1.0s
+Shot 3
+LOAD
+DEL
+RETRO · OFF · 5.0s + 1.0s
+Shot 4
+LOAD
+DEL
+RETRO · OFF · 5.0s + 1.0s
+Shot 5
+LOAD
+DEL
+RETRO · OFF · 4.0s + 0.0s
+START
+STOP
+NEXT
+EXPORT PRESETS
+IMPORT
+RUN LOG
+0%
+Ready
+DISPLAY
+▶
+
+◎
+HUD
+
+▣
+DENSE
+Density
+
+75%
+Allocation
+Elastic
+Weighted
+Fade
+
+7%
+Outside
+
+1%
+
+✈
+3D
+Models
+Proximity
+All
+
+adjust
+Scope
+Feather
+
+11%
+
+flare
+Celestial
+
+□
+Clean UI
+
+✨
+Bloom
+
+🔍
+Sharpen
+
+49%
+●
+
+Cesium ionData attribution

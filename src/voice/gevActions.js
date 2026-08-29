@@ -2276,7 +2276,7 @@ async function flyToRequestedLocation(viewer, args, {
     }));
     if (result === false) return cancelled(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
     const response = {
-      ok: true,
+      ok: Boolean(result),
       action: 'fly_to_location',
       latitude,
       longitude,

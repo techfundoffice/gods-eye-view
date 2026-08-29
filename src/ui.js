@@ -2647,6 +2647,15 @@ export class StyleManager {
       ? new Promise((resolve) => { this._resolveInitialShareRestore = resolve; })
       : Promise.resolve({ status: 'not-requested', share: null, layers: [] });
     if (savedState) {
+      this._initialShareRestoreWatchdog = window.setTimeout(() => {
+        this.shareLinkManager.completeInitialRestore();
+        this._settleInitialShareRestore({
+          status: 'timed-out',
+          error: 'Shared view restoration exceeded the startup deadline',
+          share: null,
+          layers: [],
+        });
+      }, 12_000);
       this._hasShareState = true;
       // Reserve camera authority now; the delayed mesh-friendly flight may
       // run only if no newer user, voice, or tracking navigation has won.
@@ -2806,11 +2815,11 @@ export class StyleManager {
   }
 
   /** Settle only the search generation that still owns the shared input UI. */
-  _settleLocationSearchUi(generation) {
+  _settleLocationSearchUi(generation, { clear = true } = {}) {
     if (this._activeLocationSearchGeneration !== generation) return;
     this._activeLocationSearchGeneration = null;
     this._locationSearch?.classList.remove('searching', 'expanded');
-    if (this._locationSearch) this._locationSearch.value = '';
+    if (clear && this._locationSearch) this._locationSearch.value = '';
     this._locationSearch?.blur();
   }
 
@@ -3943,10 +3952,9 @@ export class StyleManager {
         allowStored: !this._initialShareState,
       });
     }
-    // The command dock always starts compact; either wing reveals on hover,
-    // focus, or click and collapses again after the interaction moves away.
-    this.setPanelCollapsed('control-panel', true, { syncShare: false, persist: false });
-    this.setPanelCollapsed('location-bar', true, { syncShare: false, persist: false });
+    // Respect markup defaults, persisted choices, and shared panel state.
+    // Auto-hover provides compact transient behavior without overwriting the
+    // state that the collapse buttons report.
     this._initAutoHoverPanel('control-panel', { openDelayMs: 140, closeDelayMs: 420 });
     this._initAutoHoverPanel('location-bar', { openDelayMs: 140, closeDelayMs: 420 });
     this._initCommandDockPins();
@@ -4508,13 +4516,23 @@ export class StyleManager {
           onTrackingRestoreStatus: (result) => this._handleShareTrackingRestoreStatus(result),
         },
       );
-      this._layerStateRestorePromise = this._layerStateCoordinator.start({
+      const layerRestore = this._layerStateCoordinator.start({
         shareLayerState: this._initialShareState?.layerState || null,
         shareCreatedAtMs: this._initialShareState?.sharedAtMs ?? null,
         // Any valid camera/style share isolates recipient-local preferences,
         // including legacy and malformed-v2 layer payloads.
         allowLocalState: !this._initialShareState,
       });
+      this._layerStateRestorePromise = Promise.race([
+        layerRestore,
+        new Promise((resolve) => window.setTimeout(
+          () => resolve([{ status: 'timed-out', error: 'Layer restoration exceeded the startup deadline' }]),
+          10_000,
+        )),
+      ]).catch((error) => [{
+        status: 'failed',
+        error: String(error?.message || error),
+      }]);
       if (this._initialShareSelectionSuperseded) {
         this._layerStateCoordinator.cancelPendingShareTracking(
           'superseded-before-layer-coordinator-start',
@@ -9303,6 +9321,7 @@ export class StyleManager {
         }
         this._activeLocationSearchGeneration = generation;
         this._locationSearch.classList.add('searching');
+        let clearSearch = false;
         try {
           const destination = await searchAndFlyTo(this.viewer, query, {
             beforeFly: () => this._reassertNavigationHandoff(generation),
@@ -9310,6 +9329,7 @@ export class StyleManager {
           if (this._disposed || generation !== this._navigationGeneration) return;
           if (destination?.cancelled) {
             // Authority changed while the lookup was resolving; remain inert.
+            clearSearch = true;
           } else if (destination) {
             // The ACTIVE STYLE indicator reports the STYLE and nothing else.
             // Writing the searched city here made the top-right corner read
@@ -9324,15 +9344,16 @@ export class StyleManager {
             this._currentPoi = null;
             this._collapsePOIRow();
             this._updateLocationMiniStatus();
+            clearSearch = true;
           } else {
-            this._showToast('Location not found');
+            this._showToast(`Location not found: ${query}`);
           }
         } catch (err) {
           console.error('[Search] Geocoding failed:', err);
           if (this._disposed || generation !== this._navigationGeneration) return;
-          this._showToast('Search failed');
+          this._showToast(`Search failed for "${query}". Try a city and country.`);
         } finally {
-          this._settleLocationSearchUi(generation);
+          this._settleLocationSearchUi(generation, { clear: clearSearch });
         }
       }
     });
@@ -10098,6 +10119,10 @@ export class StyleManager {
 
   _settleInitialShareRestore(result) {
     if (!this._resolveInitialShareRestore) return;
+    if (this._initialShareRestoreWatchdog) {
+      clearTimeout(this._initialShareRestoreWatchdog);
+      this._initialShareRestoreWatchdog = null;
+    }
     const resolve = this._resolveInitialShareRestore;
     this._resolveInitialShareRestore = null;
     resolve(result);

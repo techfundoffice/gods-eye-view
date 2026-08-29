@@ -41,6 +41,7 @@ import {
   showWebGLCompatibilityState,
   validateSceneContext,
 } from './webglCapability.js';
+import { isTransientCesiumWorkerImportError } from './cesiumWorkerRecovery.js';
 
 /**
  * GPU capability gate — evaluated at module scope, before ANY startup side
@@ -80,6 +81,7 @@ function describeError(error) {
 
 /** @constant {string} Governor hold owner for 3D Tiles streaming. */
 const TILESET_STREAM_HOLD = 'tileset-stream';
+const TILESET_BOOTSTRAP_HOLD_MS = 10000;
 
 /**
  * Keep frames flowing while a 3D tileset is still streaming.
@@ -106,17 +108,29 @@ const TILESET_STREAM_HOLD = 'tileset-stream';
  */
 function keepTilesetStreaming(tileset) {
   if (!tileset) return;
+  let bootstrapComplete = false;
+  let tilesPending = true;
   // Held from the moment it is added: the first traversal has not run yet, so
   // "no pending requests" does not yet mean "nothing to load".
   holdContinuousRender(TILESET_STREAM_HOLD);
+  // Google root.json can finish during one frame and briefly report no pending
+  // work before the next traversal selects its descendants. Releasing here
+  // deadlocks request-render mode at exactly "root fetched, zero child tiles".
+  // Keep traversal alive through a bounded bootstrap window.
+  setTimeout(() => {
+    bootstrapComplete = true;
+    if (!tilesPending) releaseContinuousRender(TILESET_STREAM_HOLD);
+  }, TILESET_BOOTSTRAP_HOLD_MS);
   tileset.allTilesLoaded?.addEventListener?.(() => {
-    releaseContinuousRender(TILESET_STREAM_HOLD);
+    tilesPending = false;
+    if (bootstrapComplete) releaseContinuousRender(TILESET_STREAM_HOLD);
   });
   // Re-arm whenever the camera moves somewhere new and streaming resumes.
   tileset.loadProgress?.addEventListener?.((pendingRequests, tilesProcessing) => {
-    if ((pendingRequests || 0) + (tilesProcessing || 0) > 0) {
+    tilesPending = (pendingRequests || 0) + (tilesProcessing || 0) > 0;
+    if (tilesPending) {
       holdContinuousRender(TILESET_STREAM_HOLD);
-    } else {
+    } else if (bootstrapComplete) {
       releaseContinuousRender(TILESET_STREAM_HOLD);
     }
   });
@@ -263,19 +277,35 @@ async function init() {
     // Backstop: a limit that only goes bad once rendering starts (a lost
     // context mid-session) surfaces here instead of as a repeating uncaught
     // error. Cesium has already stopped its render loop by this point.
+    let workerImportRecoveryAttempts = 0;
     viewer.scene.renderError.addEventListener((_scene, renderError) => {
-      if (!isWebGLInitializationError(renderError)) return;
-      // Cesium normally stops its loop after a render error, but set the flag
-      // synchronously as well so no queued frame can repeat the failure.
-      viewer.useDefaultRenderLoop = false;
-      reportGpuIncompatibility('render', classifyCesiumStartupError(renderError), {
-        message: describeError(renderError),
-      });
-      showWebGLCompatibilityState({
-        loadingScreen,
-        loaderStatus,
-        reason: classifyCesiumStartupError(renderError),
-      });
+      if (isWebGLInitializationError(renderError)) {
+        // Cesium normally stops its loop after a render error, but set the flag
+        // synchronously as well so no queued frame can repeat the failure.
+        viewer.useDefaultRenderLoop = false;
+        reportGpuIncompatibility('render', classifyCesiumStartupError(renderError), {
+          message: describeError(renderError),
+        });
+        showWebGLCompatibilityState({
+          loadingScreen,
+          loaderStatus,
+          reason: classifyCesiumStartupError(renderError),
+        });
+        return;
+      }
+
+      if (!isTransientCesiumWorkerImportError(renderError) || workerImportRecoveryAttempts >= 3) return;
+      workerImportRecoveryAttempts += 1;
+      const attempt = workerImportRecoveryAttempts;
+      console.warn(`[Cesium] Geometry worker import was interrupted; resuming render loop (${attempt}/3).`);
+      // CesiumWidget disables its loop after raising renderError. Resume on a
+      // later task, once that catch path has completed and the preview proxy
+      // has had a chance to reconnect.
+      setTimeout(() => {
+        if (viewer.isDestroyed?.()) return;
+        viewer.useDefaultRenderLoop = true;
+        viewer.scene.requestRender();
+      }, 1200 * attempt);
     });
 
     // The throwaway probe and the viewer's real context have both passed, and
@@ -316,6 +346,7 @@ async function init() {
     try {
       // Load Google Photorealistic 3D Tiles
       tileset = await Cesium.createGooglePhotorealistic3DTileset({
+        key: googleApiKey,
         onlyUsingWithGoogleGeocoder: true,
       });
       viewer.scene.primitives.add(tileset);
@@ -410,7 +441,13 @@ async function init() {
     // Keep startup chrome truthful: a share is not restored until camera,
     // visual/map/panel lanes, and every requested layer have terminated.
     void Promise.all([
-      styleManager.initialRestorePromise,
+      Promise.race([
+        styleManager.initialRestorePromise,
+        new Promise((resolve) => setTimeout(
+          () => resolve({ status: 'timed-out' }),
+          12_000,
+        )),
+      ]),
       new Promise((resolve) => setTimeout(resolve, 1000)),
     ]).finally(() => {
       loadingScreen.classList.add('hidden');

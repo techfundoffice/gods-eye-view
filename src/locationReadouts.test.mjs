@@ -43,6 +43,22 @@ test('a free-text search records its destination for the LOCATION mini-status', 
   assert.match(handler, /this\._updateLocationMiniStatus\(\);/);
 });
 
+test('failed location search preserves the query and shows an actionable error', () => {
+  const handler = locationSearchHandler();
+  assert.match(ui, /let clearSearch = false;/);
+  assert.match(handler, /Search failed for "\$\{query\}"\. Try a city and country\./);
+  assert.match(handler, /_settleLocationSearchUi\(generation, \{ clear: clearSearch \}\)/);
+  assert.match(ui, /if \(clear && this\._locationSearch\) this\._locationSearch\.value = '';/);
+});
+
+test('command-dock initialization respects restored LOCATION collapse state', () => {
+  const start = ui.indexOf('  _initPanelChrome() {');
+  const end = ui.indexOf('\n  _initCommandDockPins()', start);
+  const init = ui.slice(start, end);
+  assert.doesNotMatch(init, /setPanelCollapsed\('location-bar', true/);
+  assert.match(init, /_restorePanelCollapsedState\(targetId/);
+});
+
 test('the mini-status reads its copy from the shared formatter', () => {
   assert.match(ui, /import \{ locationMiniStatus \} from '\.\/locationStatus\.js';/);
   const start = ui.indexOf('  _updateLocationMiniStatus() {');

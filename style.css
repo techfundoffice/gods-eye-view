@@ -7476,8 +7476,8 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
   align-self: stretch;
   justify-content: center;
   min-width: 0;
-  margin: -14px 0;
-  padding: 19px 14px 12px;
+  margin: 0;
+  padding: 12px 14px;
   border-color: rgba(0, 212, 255, 0.36);
   border-radius: 12px;
   background: rgba(8, 31, 42, 0.94);
@@ -7596,7 +7596,9 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
 #command-dock .location-search-wrap {
   order: -1;
   flex: 0 1 190px;
-  min-width: 132px;
+  min-width: 0;
+  max-width: 190px;
+  overflow: hidden;
   padding-right: 8px;
   border-right: 1px solid rgba(123, 189, 211, 0.14);
 }

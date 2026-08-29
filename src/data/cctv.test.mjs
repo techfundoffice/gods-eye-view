@@ -29,6 +29,7 @@ import cctvLayer, {
   _setCctvOverlayHostForTest,
   activationProbeClampRange,
   bindCctvWorldClickGesture,
+  buildCatalogFromSources,
   clearProbeClampOnDeactivation,
   computeFrustumGeometry,
   cctvCycleIndex,
@@ -61,6 +62,16 @@ import cctvLayer, {
   setCctvCardPresentationOptions,
   setActiveCamera,
 } from './cctv.js';
+
+test('camera catalog drops duplicate provider IDs deterministically', () => {
+  const catalog = buildCatalogFromSources([
+    { id: 'duplicate-camera', name: 'First', lat: 31.85, lon: -116.6 },
+    { id: 'duplicate-camera', name: 'Second', lat: 31.86, lon: -116.61 },
+  ]);
+  assert.equal(catalog.length, 1);
+  assert.equal(catalog[0].name, 'First');
+  assert.equal(catalog[0].id, 'duplicate-camera');
+});
 import {
   CCTV_ACTIVATION_RESULT,
   CCTV_FOCUS_REQUEST_EVENT,

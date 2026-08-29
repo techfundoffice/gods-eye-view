@@ -597,3 +597,40 @@ test('search without an authority hook preserves the existing caller contract', 
   assert.equal(result.navigationMode, 'city-overview');
   assert.equal(viewer.flights.length, 1);
 });
+
+test('search rejects invalid geocoder coordinates before calling Cesium', async () => {
+  const viewer = stubViewer();
+  const result = await runSearch(viewer, {}, {
+    query: 'broken place',
+    result: {
+      formatted_address: 'Broken Place',
+      types: ['locality', 'political'],
+      geometry: {
+        location: { lat: Number.NaN, lng: -116.6057 },
+        viewport: AUSTIN_RESULT.geometry.viewport,
+      },
+    },
+  });
+  assert.equal(result, null);
+  assert.equal(viewer.flights.length, 0);
+});
+
+test('Ensenada-shaped geocoder result produces one safe viewport flight', async () => {
+  const viewer = stubViewer();
+  const result = await runSearch(viewer, {}, {
+    query: 'Ensenada',
+    result: {
+      formatted_address: 'Ensenada, Baja California, Mexico',
+      types: ['locality', 'political'],
+      geometry: {
+        location: { lat: 31.8557021, lng: -116.6057392 },
+        viewport: {
+          southwest: { lat: 31.7664928, lng: -116.6697139 },
+          northeast: { lat: 31.9200154, lng: -116.505938 },
+        },
+      },
+    },
+  });
+  assert.equal(result.navigationMode, 'city-overview');
+  assert.equal(viewer.flights.length, 1);
+});

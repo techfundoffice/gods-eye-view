@@ -383,6 +383,22 @@ export async function searchAndFlyTo(viewer, query, options = {}) {
     return null;
   }
 
+  // Never hand invalid geocoder geometry to Cesium. Its camera helpers throw a
+  // DeveloperError synchronously for NaN/out-of-range coordinates, which used
+  // to turn an otherwise recoverable search result into a broken UI state.
+  lat = Number(lat);
+  lng = Number(lng);
+  if (
+    !Number.isFinite(lat)
+    || !Number.isFinite(lng)
+    || lat < -90
+    || lat > 90
+    || lng < -180
+    || lng > 180
+  ) {
+    return null;
+  }
+
   const requestedRange = finitePositive(options.range);
   const duration = finitePositive(options.duration) || 3.0;
   const navigationMode = geocodeNavigationMode(types);
@@ -755,6 +771,15 @@ function flyToViewportBounds(viewer, viewport, options = {}) {
     || !Number.isFinite(southwest?.lng)
     || !Number.isFinite(northeast?.lat)
     || !Number.isFinite(northeast?.lng)
+  ) {
+    return false;
+  }
+  if (
+    southwest.lat < -90 || southwest.lat > 90
+    || northeast.lat < -90 || northeast.lat > 90
+    || southwest.lng < -180 || southwest.lng > 180
+    || northeast.lng < -180 || northeast.lng > 180
+    || northeast.lat <= southwest.lat
   ) {
     return false;
   }

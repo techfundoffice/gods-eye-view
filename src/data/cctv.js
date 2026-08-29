@@ -1111,7 +1111,7 @@ async function loadCameraSources() {
  * @param {Object[]} rawSources - Raw source objects from the backend.
  * @returns {Object[]} Array of fully-initialized camera objects.
  */
-function buildCatalogFromSources(rawSources) {
+export function buildCatalogFromSources(rawSources) {
   const sources = Array.isArray(rawSources) ? rawSources : [];
   if (!sources.length) return [];
 
@@ -1119,10 +1119,15 @@ function buildCatalogFromSources(rawSources) {
   const seedById = new Map(seeded.map((camera) => [camera.id, camera]));
 
   const catalog = [];
+  const seenIds = new Set();
   for (const source of sources) {
     if (!source || typeof source !== 'object') continue;
     const id = String(source.id || '').trim();
     if (!id) continue;
+    // Cesium collections require unique IDs. Provider feeds occasionally
+    // repeat a camera row; keep the first deterministic occurrence.
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
     const seed = seedById.get(id);
     const cityId = String(source.cityId || '').trim() || cityIdByName(source.city) || seed?.cityId || '';
     const city = cityId && CITY_POIS[cityId] ? CITY_POIS[cityId] : null;

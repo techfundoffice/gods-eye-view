@@ -245,89 +245,16 @@ const TRAJECTORY_STAGE_COLORS = [
 
 const _pathDistanceCache = new WeakMap();
 
-/** @constant {string} Cesium material type for the selected-orbit pattern. */
-const MISSION_ORBIT_MATERIAL_TYPE = 'GevMissionOrbitTactical';
-
-/**
- * Fabric for the selected-orbit tactical material. Each group begins with one
- * compact round dot followed by one hundred short dashes.
- * @returns {object} A fresh fabric object (Cesium mutates what it is handed).
- */
-function missionOrbitPatternFabric() {
-  return {
-    type: MISSION_ORBIT_MATERIAL_TYPE,
-    uniforms: {
-      color: Cesium.Color.CYAN,
-      groupCount: MISSION_ORBIT_PATTERN_GROUPS,
-      dashCount: MISSION_ORBIT_DASHES_PER_GROUP,
-    },
-    source: `
-        czm_material czm_getMaterial(czm_materialInput materialInput) {
-          czm_material material = czm_getDefaultMaterial(materialInput);
-          float groupPosition = fract(materialInput.st.s * groupCount);
-          float markPosition = groupPosition * (dashCount + 1.0);
-          float markIndex = floor(markPosition);
-          float localPosition = fract(markPosition);
-          float centerDistance = abs(localPosition - 0.5);
-          float edge = max(fwidth(localPosition) * 1.35, 0.012);
-          float dashAlong = 1.0 - smoothstep(0.27 - edge, 0.27 + edge, centerDistance);
-          float dashAcross = 1.0 - smoothstep(0.12, 0.24, abs(materialInput.st.t - 0.5));
-          float dash = dashAlong * dashAcross;
-          float dotAlong = (localPosition - 0.5) / 0.32;
-          float dotAcross = (materialInput.st.t - 0.5) / 0.5;
-          float dot = 1.0 - smoothstep(0.78, 1.0, length(vec2(dotAlong, dotAcross)));
-          float isDot = 1.0 - step(0.5, markIndex);
-          float visible = mix(dash, dot, isDot);
-          material.diffuse = color.rgb;
-          material.emission = color.rgb * mix(0.07, 0.65, isDot);
-          material.alpha = color.a * visible * mix(0.58, 1.0, isDot);
-          return material;
-        }`,
-  };
-}
-
-/**
- * Register the orbit material in Cesium's material cache.
- *
- * Registration goes through `Material._materialCache.addMaterial` — the same
- * call Cesium uses for its own built-ins — rather than relying on the side
- * effect of `new Material({fabric})`. Two reasons:
- *
- *  1. It is a pure cache write with no GL or DOM dependency, so it is safe to
- *     run at module load, before any viewer exists.
- *  2. It is idempotent and order-independent. The old code registered lazily
- *     from two call sites behind a module-level `_registered` flag, and any
- *     path that produced an orbit polyline without going through one of them
- *     left the entity referencing a type Cesium had never heard of. Cesium's
- *     `MaterialProperty.getValue` then called `Material.fromType` on it and
- *     threw `DeveloperError: material with type 'GevMissionOrbitTactical' does
- *     not exist` from inside `Scene.render` — which halts the render loop for
- *     the whole app, not just this layer.
- *
- * @returns {void}
- */
-function ensureMissionOrbitPatternRegistered() {
-  if (Cesium.Material._materialCache.getMaterial(MISSION_ORBIT_MATERIAL_TYPE)) return;
-  Cesium.Material._materialCache.addMaterial(MISSION_ORBIT_MATERIAL_TYPE, {
-    fabric: missionOrbitPatternFabric(),
-    // Matches what `new Material({fabric})` derived before: the fabric declares
-    // no translucency function, so Cesium treated it as translucent. The dashed
-    // mask writes alpha 0 between marks, so this must stay true or the gaps
-    // render as opaque black.
-    translucent: true,
-  });
-}
-
-// Registered at module load: by the time any orbit polyline can exist, the
-// type is already known to Cesium, whatever order the layer's paths run in.
-ensureMissionOrbitPatternRegistered();
-
 function createMissionOrbitPatternMaterial(color) {
-  ensureMissionOrbitPatternRegistered();
-  return Cesium.Material.fromType(MISSION_ORBIT_MATERIAL_TYPE, {
+  // Use a Cesium built-in rather than a process-global custom material cache
+  // entry. If Vite reloads one side of the Cesium module graph, an entity can
+  // otherwise retain a custom type that the active renderer no longer knows;
+  // Material.fromType then throws during Scene.render and stops the whole app.
+  return Cesium.Material.fromType(Cesium.Material.PolylineDashType, {
     color,
-    groupCount: MISSION_ORBIT_PATTERN_GROUPS,
-    dashCount: MISSION_ORBIT_DASHES_PER_GROUP,
+    gapColor: Cesium.Color.TRANSPARENT,
+    dashLength: 12,
+    dashPattern: 0b1111111100000000,
   });
 }
 
@@ -387,37 +314,6 @@ function addMissionOrbitPrimitive(launch, orbitPath, satelliteTrack) {
   });
   return true;
 }
-
-function MissionOrbitPatternMaterialProperty(color) {
-  ensureMissionOrbitPatternRegistered();
-  this._color = color;
-  this._definitionChanged = new Cesium.Event();
-}
-
-Object.defineProperties(MissionOrbitPatternMaterialProperty.prototype, {
-  isConstant: { get() { return true; } },
-  definitionChanged: { get() { return this._definitionChanged; } },
-});
-
-MissionOrbitPatternMaterialProperty.prototype.getType = function getType() {
-  // Cesium calls getType() immediately before Material.fromType(type) in
-  // MaterialProperty.getValue, so re-asserting registration here closes the
-  // window for good — even if this property outlives a cache reset.
-  ensureMissionOrbitPatternRegistered();
-  return MISSION_ORBIT_MATERIAL_TYPE;
-};
-
-MissionOrbitPatternMaterialProperty.prototype.getValue = function getValue(time, result) {
-  if (!Cesium.defined(result)) result = {};
-  result.color = this._color;
-  result.groupCount = MISSION_ORBIT_PATTERN_GROUPS;
-  result.dashCount = MISSION_ORBIT_DASHES_PER_GROUP;
-  return result;
-};
-
-MissionOrbitPatternMaterialProperty.prototype.equals = function equals(other) {
-  return this === other;
-};
 
 /**
  * Decide whether the selected launch-pad zone belongs in the current view.
@@ -3201,9 +3097,12 @@ function addLaunchEntity(launch, activeTleText = _activeTleText) {
           // The 3 px canvas gives the periodic dot room to read as round; the
           // shader masks the ten intervening dashes down to a thin center stroke.
           width: 3,
-          material: new MissionOrbitPatternMaterialProperty(
-            Cesium.Color.fromCssColorString('#c084fc').withAlpha(0.95),
-          ),
+          material: new Cesium.PolylineDashMaterialProperty({
+            color: Cesium.Color.fromCssColorString('#c084fc').withAlpha(0.95),
+            gapColor: Cesium.Color.TRANSPARENT,
+            dashLength: 12,
+            dashPattern: 0b1111111100000000,
+          }),
           arcType: Cesium.ArcType.NONE,
         },
         properties: {

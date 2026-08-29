@@ -256,7 +256,7 @@ test('deferred search releases only after its final authority check', () => {
     'generation !== this._navigationGeneration',
     'destination?.cancelled',
     'finally',
-    'this._settleLocationSearchUi(generation)',
+    'this._settleLocationSearchUi(generation, { clear: clearSearch })',
   ], 'deferred search');
   assert.doesNotMatch(handler.slice(0, handler.indexOf('searchAndFlyTo')), /_releaseFollowCamera/);
 });

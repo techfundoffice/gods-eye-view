@@ -73,6 +73,14 @@ test('share-follow failures use the universal top-center status instead of the b
   assert.match(handler, /result\.classification === 'followed' \|\| result\.classification === 'cancelled'/);
 });
 
+test('startup and layer restoration have bounded deadlines', () => {
+  const ui = readFileSync(new URL('./ui.js', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
+  assert.match(ui, /Shared view restoration exceeded the startup deadline/);
+  assert.match(ui, /Layer restoration exceeded the startup deadline/);
+  assert.match(main, /styleManager\.initialRestorePromise[\s\S]*?12_000/);
+});
+
 test('universal notice masks active loading only for its own fixed dwell', () => {
   const summary = aggregateLayerLoading([{ id: 'satellites', name: 'Satellites', lifecycleState: 'enabling' }]);
   let loading = reduceLoadingFeedback(createLoadingFeedbackState(), summary, 0);
