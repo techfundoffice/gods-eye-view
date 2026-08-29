@@ -46,6 +46,7 @@ import { defineConfig, loadEnv } from 'vite';
 import cesium from 'vite-plugin-cesium';
 import { createYoutubeProxyMiddleware } from './src/youtubeProxy.js';
 import { createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
+import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.js';
 import { createAdminMiddleware } from './src/adminServer.js';
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
@@ -7361,6 +7362,16 @@ function youtubeProxy() {
   };
 }
 
+function youtubeViewAgentApi() {
+  const middleware = createYoutubeViewAgentMiddleware();
+  const install = (middlewares) => middlewares.use('/api/youtube-view-agent', middleware);
+  return {
+    name: 'gev-youtube-view-agent',
+    configureServer(server) { install(server.middlewares); },
+    configurePreviewServer(server) { install(server.middlewares); },
+  };
+}
+
 /**
  * ADMIN console API — password-gated dashboard, the plugin-builder agent, and
  * the API-key-authenticated MCP endpoint for clients outside the app.
@@ -7405,6 +7416,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       cesium(),
       adminConsoleApi(),
+      youtubeViewAgentApi(),
       youtubeProxy(),
       openSkyProxy(),
       celestrakProxy(),

@@ -687,6 +687,7 @@
       <div id="youtube-video-summary" class="youtube-summary">Select a video to inspect comments and live state</div>
       <div class="youtube-controls">
         <button id="youtube-chat-toggle" class="scene-btn" type="button" aria-pressed="false" disabled>START CHAT</button>
+        <button id="youtube-view-agent-toggle" class="scene-btn" type="button" aria-pressed="false" disabled>VIEW AGENT OFF</button>
         <label class="youtube-poll-label" for="youtube-poll-select">POLL
           <select id="youtube-poll-select" aria-label="Live chat polling interval">
             <option value="5000">5S</option>
@@ -696,6 +697,7 @@
           </select>
         </label>
       </div>
+      <div id="youtube-view-agent-status" class="youtube-view-agent-status" role="status" aria-live="polite">VIEW AGENT OFF</div>
       <div class="youtube-tabs" role="tablist" aria-label="YouTube data view">
         <button id="youtube-chat-tab" type="button" role="tab" aria-selected="true" class="active">CHAT</button>
         <button id="youtube-comments-tab" type="button" role="tab" aria-selected="false">COMMENTS</button>

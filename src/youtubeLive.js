@@ -7,6 +7,7 @@ export const YOUTUBE_API_PREFIX = '/youtube/v3';
 export const YOUTUBE_STORAGE_KEY = 'gev:youtube-live:v1';
 export const YOUTUBE_DEFAULT_POLL_MS = 10_000;
 export const YOUTUBE_MAX_FEED_ITEMS = 100;
+import { ViewerCommentAgentController, createViewAgentClient } from './youtubeViewAgent.js';
 
 export const YOUTUBE_RESOURCE_REGISTRY = Object.freeze([
   { id: 'channels', label: 'Channels', part: 'snippet,statistics,contentDetails', params: () => ({ mine: 'true' }) },
@@ -305,7 +306,7 @@ export class YouTubeCommentsPanelView {
  * not become coupled to globe rendering or share-link state.
  */
 export class YouTubePanelController {
-  constructor(root, { client = createYoutubeClient(), commentsPanel = null } = {}) {
+  constructor(root, { client = createYoutubeClient(), commentsPanel = null, viewAgentClient = createViewAgentClient() } = {}) {
     this.root = root;
     this.client = client;
     this.state = {
@@ -328,6 +329,8 @@ export class YouTubePanelController {
       backoffMs: 0,
       account: null,
       commentsLoading: false,
+      viewAgentEnabled: false,
+      viewAgentStatus: 'VIEW AGENT OFF',
     };
     this._stored = readStoredState();
     this.state.videoId = text(this._stored.videoId);
@@ -341,6 +344,13 @@ export class YouTubePanelController {
         onLoadMore: () => void this._loadComments(false),
       })
       : null;
+    this.viewAgent = new ViewerCommentAgentController({
+      client: viewAgentClient,
+      onStatus: (status) => {
+        this.state.viewAgentStatus = status;
+        this._render();
+      },
+    });
     this._bind();
     this._populateResources();
     this._render();
@@ -369,6 +379,15 @@ export class YouTubePanelController {
       this.state.enabled = !this.state.enabled;
       if (this.state.enabled) void this._startChat(true);
       else this._stopChat();
+      this._render();
+    });
+    this._el('youtube-view-agent-toggle')?.addEventListener('click', () => {
+      this.state.viewAgentEnabled = !this.state.viewAgentEnabled;
+      if (this.state.viewAgentEnabled) {
+        this.viewAgent.seed(this.state.comments, 'comment');
+        this.viewAgent.seed(this.state.chat, 'chat');
+      }
+      this.viewAgent.setEnabled(this.state.viewAgentEnabled);
       this._render();
     });
     this._el('youtube-channel-select')?.addEventListener('change', () => {
@@ -569,6 +588,7 @@ export class YouTubePanelController {
       if (generation !== this.state.generation) return;
       const items = (payload?.items || []).map(normalizeCommentThread);
       this.state.comments = mergeUniqueById(this.state.comments, items);
+      void this.viewAgent.ingest(items, 'comment', this._viewAgentContext());
       this.state.commentsNextPageToken = text(payload?.nextPageToken);
       status = 'COMMENTS READY';
     } catch (error) {
@@ -608,7 +628,9 @@ export class YouTubePanelController {
         }, controller.signal);
         if (this.state.abortController === controller) this.state.abortController = null;
         if (!this.state.enabled || generation !== this.state.generation) return;
-        this.state.chat = mergeUniqueById(this.state.chat, (payload?.items || []).map(normalizeLiveChatMessage));
+        const incoming = (payload?.items || []).map(normalizeLiveChatMessage);
+        this.state.chat = mergeUniqueById(this.state.chat, incoming);
+        void this.viewAgent.ingest(incoming, 'chat', this._viewAgentContext());
         this.state.chatPageToken = text(payload?.nextPageToken);
         this.state.backoffMs = 0;
         this._setStatus('LIVE CHAT · ' + this.state.chat.length);
@@ -639,6 +661,21 @@ export class YouTubePanelController {
   destroy() {
     this.state.generation += 1;
     this._stopChat();
+    this.viewAgent.cancel();
+  }
+
+  setActionRunner(runner) {
+    this.viewAgent.setRunner(runner);
+    this._render();
+  }
+
+  _viewAgentContext() {
+    const video = this.state.videos.find((item) => item.id === this.state.videoId);
+    return {
+      videoId: this.state.videoId,
+      videoTitle: text(video?.snippet?.title, ''),
+      source: this.state.enabled ? 'live-chat' : 'comments',
+    };
   }
 
   async _loadResource() {
@@ -733,6 +770,13 @@ export class YouTubePanelController {
       chatToggle.disabled = !this.state.liveChatId;
       chatToggle.setAttribute('aria-pressed', String(this.state.enabled));
     }
+    const agentToggle = this._el('youtube-view-agent-toggle');
+    if (agentToggle) {
+      agentToggle.textContent = this.state.viewAgentEnabled ? 'VIEW AGENT ON' : 'VIEW AGENT OFF';
+      agentToggle.disabled = !this.state.videoId || !this.viewAgent.runner;
+      agentToggle.setAttribute('aria-pressed', String(this.state.viewAgentEnabled));
+    }
+    setText(this._el('youtube-view-agent-status'), this.state.viewAgentStatus);
     const connectButton = this._el('youtube-connect-btn');
     if (connectButton) {
       const connected = this.state.connection === 'connected';
@@ -802,11 +846,13 @@ export function initYouTubePanel({
   root = document.getElementById('youtube-panel'),
   commentsPanel = document.getElementById('youtube-comments-panel'),
   client,
+  viewAgentClient,
 } = {}) {
   if (!root) return null;
   const controller = new YouTubePanelController(root, {
     client: client || createYoutubeClient(),
     commentsPanel,
+    viewAgentClient: viewAgentClient || createViewAgentClient(),
   });
   void controller.refresh();
   return controller;

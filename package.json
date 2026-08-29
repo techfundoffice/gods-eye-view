@@ -43,6 +43,8 @@
     "qa:admin-console": "node scripts/qa-admin-console.mjs"
   },
   "dependencies": {
+    "@ai-sdk/harness": "^1.0.93",
+    "@ai-sdk/harness-cursor": "^1.0.6",
     "@anthropic-ai/claude-code": "^2.1.250",
     "@mapbox/vector-tile": "^3.0.0",
     "cesium": "^1.124.0",

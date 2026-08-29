@@ -523,6 +523,7 @@ async function init() {
       requestRender: governorRequestRender,
     };
     window.__godsEyeView.voiceCommands = initGevVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
+    youtubePanel?.setActionRunner(window.__godsEyeView.voiceCommands.runner);
 
   } catch (error) {
     console.error("God's Eye View initialization failed:", error);
