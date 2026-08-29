@@ -435,6 +435,7 @@ export class YouTubePanelController {
   }
 
   async refresh() {
+    this.viewAgent.reset();
     try {
       const auth = await getYoutubeAuthStatus();
       this.state.account = auth.account || null;
@@ -492,6 +493,8 @@ export class YouTubePanelController {
   }
 
   async signOut() {
+    this.viewAgent.cancel('VIEW AGENT OFF');
+    this.state.viewAgentEnabled = false;
     this._setBusy(true);
     try {
       await fetch('/api/youtube/auth/signout', { method: 'POST', headers: { Accept: 'application/json' } });
@@ -548,6 +551,7 @@ export class YouTubePanelController {
   }
 
   async _selectVideo() {
+    this.viewAgent.reset();
     this._stopChat({ preserveEnabled: true });
     this.state.generation += 1;
     const video = this.state.videos.find((candidate) => candidate.id === this.state.videoId);

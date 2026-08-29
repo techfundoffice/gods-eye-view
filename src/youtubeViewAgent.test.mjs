@@ -110,6 +110,8 @@ test('server independently rejects a Cursor code-edit intent', async () => {
   const session = { destroy: async () => {} };
   const middleware = createYoutubeViewAgentMiddleware({
     configured: true,
+    supportsToolIsolation: true,
+    authorizeRequest: async () => ({ sessionId: 'session-a' }),
     createAgent: () => ({
       createSession: async () => session,
       generate: async () => ({ text: '{"action":"edit_file","args":{"path":"src/main.js"}}' }),
@@ -120,4 +122,47 @@ test('server independently rejects a Cursor code-edit intent', async () => {
   });
   assert.equal(response.status, 422);
   assert.equal(response.body.error.kind, 'invalid-intent');
+});
+
+test('server refuses configured Cursor while ACP cannot enforce tool isolation', async () => {
+  let created = false;
+  const middleware = createYoutubeViewAgentMiddleware({
+    configured: true,
+    authorizeRequest: async () => ({ sessionId: 'session-a' }),
+    createAgent: () => { created = true; return {}; },
+  });
+  const response = await invoke(middleware, {
+    body: { request: { comment: 'Fly to Ensenada' } },
+  });
+  assert.equal(response.status, 503);
+  assert.equal(response.body.error.kind, 'unsafe-adapter');
+  assert.equal(created, false);
+});
+
+test('server requires an authenticated YouTube session before safe harness use', async () => {
+  const middleware = createYoutubeViewAgentMiddleware({
+    configured: true,
+    supportsToolIsolation: true,
+  });
+  const response = await invoke(middleware, {
+    body: { request: { comment: 'Fly to Ensenada' } },
+  });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.error.kind, 'authentication');
+});
+
+test('a stale interpretation cannot dispatch after controller reset', async () => {
+  let resolveIntent;
+  const calls = [];
+  const controller = new ViewerCommentAgentController({
+    client: { interpret: () => new Promise((resolve) => { resolveIntent = resolve; }) },
+    runner: async (...args) => { calls.push(args); return { ok: true }; },
+    now: () => 10_000,
+  });
+  controller.setEnabled(true);
+  const pending = controller.ingest([{ id: 'one', text: 'Fly to Austin' }], 'comment');
+  controller.reset();
+  resolveIntent({ intent: { action: 'zoom_to_globe', args: {}, reason: 'Reset' } });
+  await pending;
+  assert.equal(calls.length, 0);
 });

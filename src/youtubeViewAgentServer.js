@@ -45,6 +45,8 @@ function parseAgentJson(text) {
 
 export function createYoutubeViewAgentMiddleware({
   configured = Boolean(process.env.CURSOR_API_KEY),
+  supportsToolIsolation = false,
+  authorizeRequest = async () => { throw Object.assign(new Error('YouTube sign-in required'), { status: 401 }); },
   createAgent = () => new HarnessAgent({
     id: 'gev-youtube-view-agent',
     harness: cursor,
@@ -52,7 +54,7 @@ export function createYoutubeViewAgentMiddleware({
     activeTools: [],
   }),
 } = {}) {
-  let lastRequestAt = 0;
+  const lastRequestBySession = new Map();
   return async function youtubeViewAgentMiddleware(req, res) {
     if (req.method !== 'POST' || String(req.url || '').split('?')[0] !== '/interpret') {
       return send(res, 404, { error: { kind: 'not-found', message: 'View agent route not found' } });
@@ -60,10 +62,26 @@ export function createYoutubeViewAgentMiddleware({
     if (!configured) {
       return send(res, 503, { error: { kind: 'unconfigured', message: 'Cursor view agent is not configured' } });
     }
-    if (Date.now() - lastRequestAt < 2_000) {
+    // Cursor ACP 1.0.31 rejects builtin filtering and non-allow-all permission
+    // modes. Never start a coding-agent session until the adapter can enforce
+    // a tool-less runtime; prompt text alone is not a security boundary.
+    if (!supportsToolIsolation) {
+      return send(res, 503, { error: { kind: 'unsafe-adapter', message: 'Cursor adapter cannot yet enforce a tool-less session' } });
+    }
+    let authorization;
+    try {
+      authorization = await authorizeRequest(req);
+    } catch (error) {
+      return send(res, error?.status || 401, { error: { kind: 'authentication', message: 'YouTube sign-in required' } });
+    }
+    const sessionId = String(authorization?.sessionId || authorization?.id || '');
+    if (!sessionId) return send(res, 401, { error: { kind: 'authentication', message: 'YouTube sign-in required' } });
+    const priorRequestAt = lastRequestBySession.get(sessionId) || 0;
+    if (Date.now() - priorRequestAt < 2_000) {
       return send(res, 429, { error: { kind: 'rate-limit', message: 'View agent is cooling down' } });
     }
-    lastRequestAt = Date.now();
+    lastRequestBySession.set(sessionId, Date.now());
+    if (lastRequestBySession.size > 1_000) lastRequestBySession.delete(lastRequestBySession.keys().next().value);
     let session;
     try {
       const body = await readBody(req);

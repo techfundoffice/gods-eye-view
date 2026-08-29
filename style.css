@@ -9722,6 +9722,16 @@ body.cockpit-mode .admin-launch {
 
 .admin-console[hidden] { display: none; }
 
+/*
+ * `hidden` is the only thing standing between a LOCKED console and the
+ * dashboard behind it, so it has to beat every `display` an admin class sets —
+ * including whatever a generated plugin brings with it. Without this,
+ * `.admin-dashboard`'s own `display: flex` outranked the UA's `[hidden]` rule
+ * and the whole admin section painted for a visitor who never typed the
+ * password.
+ */
+.admin-console [hidden] { display: none !important; }
+
 .admin-console-scrim {
   position: absolute;
   inset: 0;

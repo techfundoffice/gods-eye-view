@@ -7347,8 +7347,12 @@ function youtubeProxy() {
     authorizeRequest: oauth.authorizeRequest,
     writeEnabled: oauth.writeEnabled,
   });
+  const viewAgentMiddleware = createYoutubeViewAgentMiddleware({
+    authorizeRequest: oauth.authorizeRequest,
+  });
   function install(middlewares) {
     middlewares.use('/api/youtube/auth', oauth.middleware);
+    middlewares.use('/api/youtube-view-agent', viewAgentMiddleware);
     middlewares.use('/api/youtube', middleware);
   }
   return {
@@ -7359,16 +7363,6 @@ function youtubeProxy() {
     configurePreviewServer(server) {
       install(server.middlewares);
     },
-  };
-}
-
-function youtubeViewAgentApi() {
-  const middleware = createYoutubeViewAgentMiddleware();
-  const install = (middlewares) => middlewares.use('/api/youtube-view-agent', middleware);
-  return {
-    name: 'gev-youtube-view-agent',
-    configureServer(server) { install(server.middlewares); },
-    configurePreviewServer(server) { install(server.middlewares); },
   };
 }
 
@@ -7416,7 +7410,6 @@ export default defineConfig(({ mode }) => {
     plugins: [
       cesium(),
       adminConsoleApi(),
-      youtubeViewAgentApi(),
       youtubeProxy(),
       openSkyProxy(),
       celestrakProxy(),

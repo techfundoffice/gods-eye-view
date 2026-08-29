@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   ADMIN_MENU_ITEMS,
   ADMIN_REQUEST_HEADER,
@@ -7,9 +10,15 @@ import {
   createAdminClient,
   describeSessionState,
   hasRunningBuild,
+  isAdminUnlocked,
   pluginStatusLabel,
   transcriptRoleLabel,
 } from './adminConsole.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const css = fs.readFileSync(path.join(ROOT, 'style.css'), 'utf8');
+const consoleSource = fs.readFileSync(path.join(ROOT, 'src', 'adminConsole.js'), 'utf8');
 
 /** Record every call and answer with a scripted response. */
 function fakeFetch(responses = []) {
@@ -182,4 +191,58 @@ test('the MCP toggle is not derivable from client state until settings load', as
   // Deriving from the loaded value asks for the correct transition.
   await client.setMcpEnabled(!loaded.enabled);
   assert.deepEqual(JSON.parse(calls[1].options.body), { enabled: false });
+});
+
+test('only a signed-in session on a configured server counts as unlocked', () => {
+  assert.equal(isAdminUnlocked({ configured: true, authenticated: true }), true);
+  assert.equal(isAdminUnlocked({ configured: true, authenticated: false }), false);
+  // An unconfigured server refuses every admin route, so a dashboard painted
+  // there would offer controls that cannot work.
+  assert.equal(isAdminUnlocked({ configured: false, authenticated: true }), false);
+  assert.equal(isAdminUnlocked({}), false);
+  assert.equal(isAdminUnlocked(null), false);
+});
+
+test('the admin dashboard ships hidden and stays hidden until the password lands', () => {
+  const dashboard = html.match(/<div id="admin-dashboard"[^>]*>/);
+  assert.ok(dashboard, 'the dashboard is missing from index.html');
+  assert.match(dashboard[0], /\bhidden\b/, 'the dashboard must be hidden before any session check');
+
+  // The gate the console actually draws: `hidden` decides, and `_render`
+  // derives it from the session rather than from anything the page can set.
+  assert.match(consoleSource, /dashboard\.hidden = !unlocked;/);
+  assert.match(consoleSource, /gate\.hidden = unlocked;/);
+  assert.match(consoleSource, /pane\.hidden = !unlocked \|\| /);
+});
+
+test('`hidden` outranks every display an admin class sets', () => {
+  // The regression this pins: `.admin-dashboard { display: flex }` is a class
+  // selector and the UA's `[hidden] { display: none }` is not, so without an
+  // admin-scoped `[hidden]` rule the dashboard painted in full for a visitor
+  // who never typed the password — plugin builder, MCP keys, and the Go Live
+  // pane whose YouTube provisioning rides on the operator's own sign-in.
+  assert.match(css, /\.admin-console \[hidden\] \{ display: none !important; \}/);
+  assert.match(css, /\.admin-dashboard \{[\s\S]*?display: flex;/,
+    'the dashboard still sets a display, which is what makes the rule necessary');
+});
+
+test('every operator action refuses to run while the console is locked', () => {
+  assert.match(consoleSource, /_requireUnlocked\(\) \{\n {4}if \(isAdminUnlocked\(this\.state\.session\)\) return true;/);
+  for (const method of [
+    '_setView',
+    '_openPlugin',
+    '_submitPluginTurn',
+    '_toggleMcp',
+    '_createKey',
+    '_revokeKey',
+    '_provisionLive',
+    '_startLive',
+    '_stopLive',
+  ]) {
+    // Anchor on the method definition, not on a call site inside `_bind`.
+    const definition = new RegExp(`\\n  (?:async )?${method}\\(`).exec(consoleSource);
+    assert.ok(definition, `${method} is missing from the console`);
+    const body = consoleSource.slice(definition.index, definition.index + 240);
+    assert.match(body, /_requireUnlocked\(\)/, `${method} must check the gate first`);
+  }
 });

@@ -187,6 +187,21 @@ export function transcriptRoleLabel(role) {
 }
 
 /**
+ * Whether the console may show, or act on, anything past the password gate.
+ *
+ * Both halves matter. `authenticated` is the signed-in session, and
+ * `configured` is the server admitting an admin password exists at all — an
+ * unconfigured deployment refuses every route, so a console that painted its
+ * dashboard there would offer controls that cannot work.
+ *
+ * @param {object} state Payload from `GET /api/admin/session`.
+ * @returns {boolean}
+ */
+export function isAdminUnlocked(state) {
+  return Boolean(state?.configured && state?.authenticated);
+}
+
+/**
  * Headline describing the console's readiness.
  *
  * @param {object} state Payload from `GET /api/admin/session`.
@@ -398,10 +413,15 @@ class AdminConsoleController {
 
   /** Open the console, refreshing session state first. @returns {Promise<void>} */
   async open() {
+    // Locked is the assumption the console opens on. `_refreshSession` is a
+    // round trip, and a session that expired between visits would otherwise
+    // leave the last operator's dashboard on screen until it answered.
+    this.state.session = { ...this.state.session, authenticated: false };
+    this._render();
     this.root.hidden = false;
     document.body.classList.add('admin-console-open');
     await this._refreshSession();
-    if (this.state.session.authenticated) {
+    if (isAdminUnlocked(this.state.session)) {
       await this._loadPlugins();
       await this._loadMenu();
       this._el('admin-plugin-name')?.focus();
@@ -417,6 +437,25 @@ class AdminConsoleController {
     this._stopPolling();
     this._unmountPluginView();
     document.getElementById('admin-launch')?.focus();
+  }
+
+  /**
+   * Refuse an operator action while the console is locked.
+   *
+   * The gate is drawn in CSS and in `_render`, but neither prevents a click
+   * that reaches a handler anyway — through a stylesheet regression, a stale
+   * DOM, or a generated plugin's own markup. The server refuses these calls
+   * too; this stops them being made at all, including the YouTube provisioning
+   * that rides on the operator's own Google sign-in rather than on the admin
+   * session.
+   *
+   * @returns {boolean} Whether the caller may proceed.
+   */
+  _requireUnlocked() {
+    if (isAdminUnlocked(this.state.session)) return true;
+    this.state.message = 'Sign in with the admin password first.';
+    this._render();
+    return false;
   }
 
   /** @returns {Promise<void>} */
@@ -489,6 +528,7 @@ class AdminConsoleController {
    * @returns {Promise<void>}
    */
   async _openPlugin(id) {
+    if (!this._requireUnlocked()) return;
     this.state.activePluginId = id;
     try {
       const payload = await this.client.getPlugin(id);
@@ -505,6 +545,7 @@ class AdminConsoleController {
    * @returns {Promise<void>}
    */
   async _submitPluginTurn() {
+    if (!this._requireUnlocked()) return;
     const nameInput = this._el('admin-plugin-name');
     const messageInput = this._el('admin-plugin-message');
     const name = String(nameInput?.value || '').trim();
@@ -545,7 +586,7 @@ class AdminConsoleController {
    * @returns {void}
    */
   _setView(view) {
-    if (!view) return;
+    if (!view || !this._requireUnlocked()) return;
     this._unmountPluginView();
     this.state.view = view;
     this.state.message = '';
@@ -706,7 +747,7 @@ class AdminConsoleController {
    * @returns {Promise<void>}
    */
   async _toggleMcp() {
-    if (!this.state.mcpLoaded) return;
+    if (!this._requireUnlocked() || !this.state.mcpLoaded) return;
     try {
       this.state.mcp = await this.client.setMcpEnabled(!this.state.mcp.enabled);
       this.state.session = { ...this.state.session, mcpEnabled: this.state.mcp.enabled };
@@ -753,6 +794,7 @@ class AdminConsoleController {
    * @returns {Promise<void>}
    */
   async _provisionLive() {
+    if (!this._requireUnlocked()) return;
     const title = this._liveValue('admin-live-title');
     if (!title) {
       this.state.message = 'Enter a broadcast title first.';
@@ -786,6 +828,7 @@ class AdminConsoleController {
 
   /** @returns {Promise<void>} */
   async _startLive() {
+    if (!this._requireUnlocked()) return;
     this.state.busy = true;
     this.state.message = '';
     this._render();
@@ -818,6 +861,7 @@ class AdminConsoleController {
 
   /** @returns {Promise<void>} */
   async _stopLive() {
+    if (!this._requireUnlocked()) return;
     this.state.busy = true;
     this._render();
     try {
@@ -876,6 +920,7 @@ class AdminConsoleController {
 
   /** @returns {Promise<void>} */
   async _createKey() {
+    if (!this._requireUnlocked()) return;
     const input = this._el('admin-mcp-key-label');
     try {
       const payload = await this.client.createMcpKey(String(input?.value || ''));
@@ -893,6 +938,7 @@ class AdminConsoleController {
    * @returns {Promise<void>}
    */
   async _revokeKey(id) {
+    if (!this._requireUnlocked()) return;
     try {
       this.state.mcp = await this.client.revokeMcpKey(id);
       this.state.freshToken = '';
@@ -951,10 +997,11 @@ class AdminConsoleController {
     const status = this._el('admin-status');
     if (status) status.textContent = describeSessionState(session);
 
+    const unlocked = isAdminUnlocked(session);
     const gate = this._el('admin-gate');
     const dashboard = this._el('admin-dashboard');
-    if (gate) gate.hidden = Boolean(session.authenticated);
-    if (dashboard) dashboard.hidden = !session.authenticated;
+    if (gate) gate.hidden = unlocked;
+    if (dashboard) dashboard.hidden = !unlocked;
 
     const unconfigured = this._el('admin-unconfigured');
     if (unconfigured) unconfigured.hidden = Boolean(session.configured);
@@ -972,8 +1019,11 @@ class AdminConsoleController {
       button.classList.toggle('active', active);
       button.setAttribute('aria-current', active ? 'page' : 'false');
     });
+    // Panes are hidden on their own account, not only by virtue of sitting
+    // inside a hidden dashboard: one stylesheet slip upstream must not be
+    // enough to paint the admin section for a locked visitor.
     this.root.querySelectorAll('[data-admin-pane]').forEach((pane) => {
-      pane.hidden = pane.dataset.adminPane !== this.state.view;
+      pane.hidden = !unlocked || pane.dataset.adminPane !== this.state.view;
     });
 
     this._renderMenu();
