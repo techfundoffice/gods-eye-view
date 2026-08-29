@@ -24,6 +24,7 @@ import { initAnnotations } from './annotations/index.js';
 import { initLogoGaze } from './logoGaze.js';
 import { initCockpitCloudEffects } from './cockpitCloudEffects.js';
 import { initYouTubePanel } from './youtubeLive.js';
+import { initAdminConsole } from './adminConsole.js';
 import {
   installRenderGovernor,
   getRenderGovernorDiagnostics,
@@ -144,6 +145,10 @@ function reportGpuIncompatibility(stage, reason, limits) {
  * style system, intelligence HUD, location presets, and share links.
  */
 const youtubePanel = initYouTubePanel();
+// The ADMIN console is deliberately outside the WebGL gate: an operator must be
+// able to sign in and drive the plugin builder even on a machine that cannot
+// render the globe at all.
+const adminConsole = initAdminConsole();
 
 async function init() {
   const loadingScreen = document.getElementById('loading-screen');
@@ -476,6 +481,7 @@ async function init() {
       weatherEffects,
       cockpitCloudEffects,
       youtubePanel,
+      adminConsole,
       getRenderGovernorDiagnostics,
       requestRender: governorRequestRender,
     };

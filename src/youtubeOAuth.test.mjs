@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createYoutubeOAuthMiddleware } from './youtubeOAuth.js';
+import {
+  YOUTUBE_MANAGE_SCOPE,
+  createYoutubeOAuthMiddleware,
+  hasYoutubeManageScope,
+  resolveYoutubeScopes,
+  youtubeWriteEnabledFromEnv,
+} from './youtubeOAuth.js';
 
 function invoke(middleware, {
   method = 'GET',
@@ -42,7 +48,13 @@ test('OAuth status is minimal and reports configuration without exposing credent
   });
   const response = await invoke(oauth.middleware);
   assert.equal(response.status, 200);
-  assert.deepEqual(response.json, { authenticated: false, account: null, configured: true });
+  assert.deepEqual(response.json, {
+    authenticated: false,
+    account: null,
+    configured: true,
+    writeEnabled: true,
+    canWrite: false,
+  });
   assert.doesNotMatch(response.body, /client-secret|session-secret|access_token|refresh_token/);
 });
 
@@ -163,4 +175,104 @@ test('OAuth callback stores tokens server-side and exposes only account identity
   const tokenRequest = requests.find((request) => request.url.includes('/token'));
   assert.match(String(tokenRequest.options.body), /code_verifier=/);
   assert.match(String(tokenRequest.options.body), /redirect_uri=https%3A%2F%2Fapp\.example%2Fapi%2Fyoutube%2Fauth%2Fcallback/);
+});
+
+test('live control adds the manage scope and read-only mode withholds it', () => {
+  assert.deepEqual(resolveYoutubeScopes(false), [
+    'openid',
+    'email',
+    'profile',
+    'https://www.googleapis.com/auth/youtube.readonly',
+  ]);
+  assert.ok(resolveYoutubeScopes(true).includes(YOUTUBE_MANAGE_SCOPE));
+  assert.ok(hasYoutubeManageScope([YOUTUBE_MANAGE_SCOPE]));
+  assert.equal(hasYoutubeManageScope(['https://www.googleapis.com/auth/youtube.readonly']), false);
+  assert.equal(hasYoutubeManageScope(undefined), false);
+});
+
+test('write mode is on unless explicitly disabled', () => {
+  assert.equal(youtubeWriteEnabledFromEnv({}), true);
+  assert.equal(youtubeWriteEnabledFromEnv({ YOUTUBE_WRITE_ENABLED: '1' }), true);
+  for (const value of ['0', 'false', 'off', 'no', 'OFF']) {
+    assert.equal(youtubeWriteEnabledFromEnv({ YOUTUBE_WRITE_ENABLED: value }), false, value);
+  }
+});
+
+test('OAuth start requests the manage scope only when live control is enabled', async () => {
+  const options = {
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async () => { throw new Error('not expected'); },
+  };
+  const writable = await invoke(
+    createYoutubeOAuthMiddleware({ ...options, writeEnabled: true }).middleware,
+    { url: '/start' },
+  );
+  const scope = new URL(writable.headers.location).searchParams.get('scope');
+  assert.ok(scope.split(' ').includes(YOUTUBE_MANAGE_SCOPE));
+
+  const readOnly = await invoke(
+    createYoutubeOAuthMiddleware({ ...options, writeEnabled: false }).middleware,
+    { url: '/start' },
+  );
+  const readOnlyScope = new URL(readOnly.headers.location).searchParams.get('scope');
+  assert.equal(readOnlyScope.split(' ').includes(YOUTUBE_MANAGE_SCOPE), false);
+  assert.match(readOnlyScope, /youtube\.readonly/);
+});
+
+test('a read-only grant cannot write even when live control is enabled', async () => {
+  const sessions = new Map([['session-1', {
+    googleSub: 'sub-1',
+    accessToken: 'token',
+    tokenExpiresAt: Date.now() + 600_000,
+    expiresAt: Date.now() + 600_000,
+    scopes: ['https://www.googleapis.com/auth/youtube.readonly'],
+  }]]);
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async () => { throw new Error('not expected'); },
+    sessions,
+    writeEnabled: true,
+  });
+  const authorization = await oauth.authorizeRequest({
+    headers: { cookie: 'gev_youtube_session=session-1' },
+  });
+  assert.equal(authorization.canWrite, false);
+
+  sessions.get('session-1').scopes = [YOUTUBE_MANAGE_SCOPE];
+  const upgraded = await oauth.authorizeRequest({
+    headers: { cookie: 'gev_youtube_session=session-1' },
+  });
+  assert.equal(upgraded.canWrite, true);
+});
+
+test('the OAuth proxy forwards live-control method and JSON body', async () => {
+  const calls = [];
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+  const auth = { getAccessToken: async () => 'token-abc' };
+  await oauth.proxy('youtube', '/youtube/v3/liveBroadcasts?part=snippet', {}, auth, {
+    method: 'POST',
+    body: { snippet: { title: 'God\u2019s Eye View' } },
+  });
+  const [call] = calls;
+  assert.equal(call.init.method, 'POST');
+  assert.equal(call.init.headers.Authorization, 'Bearer token-abc');
+  assert.equal(call.init.headers['Content-Type'], 'application/json');
+  assert.deepEqual(JSON.parse(call.init.body), { snippet: { title: 'God\u2019s Eye View' } });
+
+  calls.length = 0;
+  await oauth.proxy('youtube', '/youtube/v3/liveStreams?id=x', {}, auth, { method: 'DELETE' });
+  assert.equal(calls[0].init.method, 'DELETE');
+  assert.equal(calls[0].init.body, undefined);
 });

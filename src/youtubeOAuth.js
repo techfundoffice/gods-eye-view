@@ -20,12 +20,51 @@ const SESSION_COOKIE = 'gev_youtube_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const TOKEN_REFRESH_LEEWAY_MS = 60 * 1000;
-const YOUTUBE_SCOPES = [
-  'openid',
-  'email',
-  'profile',
-  'https://www.googleapis.com/auth/youtube.readonly',
-];
+const YOUTUBE_IDENTITY_SCOPES = ['openid', 'email', 'profile'];
+export const YOUTUBE_READONLY_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
+export const YOUTUBE_MANAGE_SCOPE = 'https://www.googleapis.com/auth/youtube';
+
+/**
+ * Live control -- creating a broadcast, binding it to an ingest stream, reading
+ * that stream's ingest key, and transitioning it live -- needs the read-write
+ * YouTube scope. Everything else stays read-only, so the write scope is only
+ * requested when live control is actually enabled.
+ *
+ * @param {boolean} writeEnabled
+ * @returns {string[]}
+ */
+export function resolveYoutubeScopes(writeEnabled) {
+  return [
+    ...YOUTUBE_IDENTITY_SCOPES,
+    YOUTUBE_READONLY_SCOPE,
+    ...(writeEnabled ? [YOUTUBE_MANAGE_SCOPE] : []),
+  ];
+}
+
+/**
+ * Live control is on by default; set YOUTUBE_WRITE_ENABLED=0 to keep the old
+ * read-only consent screen and refuse every mutation at the proxy.
+ *
+ * @param {object} [env]
+ * @returns {boolean}
+ */
+export function youtubeWriteEnabledFromEnv(env = process.env) {
+  const raw = String(env?.YOUTUBE_WRITE_ENABLED ?? '').trim().toLowerCase();
+  if (!raw) return true;
+  return !['0', 'false', 'off', 'no'].includes(raw);
+}
+
+/**
+ * @param {string[]|undefined} scopes
+ * @returns {boolean}
+ */
+export function hasYoutubeManageScope(scopes) {
+  return Array.isArray(scopes) && scopes.includes(YOUTUBE_MANAGE_SCOPE);
+}
+
+function parseScopes(value) {
+  return String(value || '').split(/\s+/).filter(Boolean);
+}
 
 function base64url(value) {
   return Buffer.from(value).toString('base64url');
@@ -137,9 +176,11 @@ export function createYoutubeOAuthMiddleware({
   now = () => Date.now(),
   sessionTtlMs = SESSION_TTL_MS,
   oauthStateTtlMs = OAUTH_STATE_TTL_MS,
+  writeEnabled = youtubeWriteEnabledFromEnv(),
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('YouTube OAuth requires fetch');
   const configured = Boolean(clientId && clientSecret && sessionSecret);
+  const scopes = resolveYoutubeScopes(writeEnabled);
 
   function getRedirectUri(req) {
     return redirectUri || `${requestOrigin(req)}/api/youtube/auth/callback`;
@@ -233,6 +274,8 @@ export function createYoutubeOAuthMiddleware({
     session.accessToken = payload.access_token;
     session.tokenExpiresAt = now() + Math.max(0, Number(payload.expires_in || 3600) * 1000);
     if (payload.refresh_token) session.refreshToken = payload.refresh_token;
+    // Google may narrow a grant on refresh; trust the response over what we asked for.
+    if (payload.scope) session.scopes = parseScopes(payload.scope);
     return session.accessToken;
   }
 
@@ -250,6 +293,8 @@ export function createYoutubeOAuthMiddleware({
       await getAccessToken(current.value);
       return {
         sessionId: current.id,
+        scopes: current.value.scopes || [],
+        canWrite: writeEnabled && hasYoutubeManageScope(current.value.scopes),
         getAccessToken: () => getAccessToken(current.value),
       };
     } catch {
@@ -257,13 +302,17 @@ export function createYoutubeOAuthMiddleware({
     }
   }
 
-  async function proxy(_connectorName, requestPath, _req, auth) {
+  async function proxy(_connectorName, requestPath, _req, auth, options = {}) {
     if (!auth?.getAccessToken) throw authError('YouTube sign-in required.');
     const token = await auth.getAccessToken();
-    return fetchImpl(`${YOUTUBE_API_URL}${requestPath}`, {
-      method: 'GET',
-      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
-    });
+    const method = String(options.method || 'GET').toUpperCase();
+    const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
+    const init = { method, headers };
+    if (options.body != null && method !== 'GET' && method !== 'DELETE') {
+      headers['Content-Type'] = 'application/json';
+      init.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+    }
+    return fetchImpl(`${YOUTUBE_API_URL}${requestPath}`, init);
   }
 
   async function handleStart(req, res) {
@@ -291,7 +340,7 @@ export function createYoutubeOAuthMiddleware({
       client_id: clientId,
       redirect_uri: getRedirectUri(req),
       response_type: 'code',
-      scope: YOUTUBE_SCOPES.join(' '),
+      scope: scopes.join(' '),
       access_type: 'offline',
       prompt: 'consent',
       state: signedState(state, sessionId),
@@ -333,6 +382,7 @@ export function createYoutubeOAuthMiddleware({
       session.picture = String(user.picture || '');
       session.accessToken = String(token.access_token);
       session.refreshToken = String(token.refresh_token || session.refreshToken || '');
+      session.scopes = parseScopes(token.scope);
       session.tokenExpiresAt = now() + Math.max(0, Number(token.expires_in || 3600) * 1000);
       session.expiresAt = now() + sessionTtlMs;
       setSessionCookie(req, res, current.id);
@@ -360,6 +410,8 @@ export function createYoutubeOAuthMiddleware({
         authenticated: Boolean(current?.value?.googleSub),
         account: publicAccount(current?.value),
         configured,
+        writeEnabled,
+        canWrite: writeEnabled && hasYoutubeManageScope(current?.value?.scopes),
       });
     }
     if (url.pathname === '/signout') {
@@ -380,5 +432,6 @@ export function createYoutubeOAuthMiddleware({
     sessions,
     oauthStates,
     configured,
+    writeEnabled,
   };
 }

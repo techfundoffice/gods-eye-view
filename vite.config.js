@@ -46,6 +46,7 @@ import { defineConfig, loadEnv } from 'vite';
 import cesium from 'vite-plugin-cesium';
 import { createYoutubeProxyMiddleware } from './src/youtubeProxy.js';
 import { createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
+import { createAdminMiddleware } from './src/adminServer.js';
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
   normalizeRegionalArticles,
@@ -7326,14 +7327,17 @@ function normalizeAisTimestamp(value) {
 }
 
 /**
- * Authenticated, read-only YouTube Data API proxy. Each browser session gets
- * its own Google OAuth credentials; no workspace connector identity is used.
+ * Authenticated YouTube Data API proxy. Each browser session gets its own
+ * Google OAuth credentials; no workspace connector identity is used. Reads
+ * cover the whole Data API v3 surface; writes are limited to the YouTube Live
+ * lifecycle and only when YOUTUBE_WRITE_ENABLED is left on.
  */
 function youtubeProxy() {
   const oauth = createYoutubeOAuthMiddleware();
   const middleware = createYoutubeProxyMiddleware({
     proxy: oauth.proxy,
     authorizeRequest: oauth.authorizeRequest,
+    writeEnabled: oauth.writeEnabled,
   });
   function install(middlewares) {
     middlewares.use('/api/youtube/auth', oauth.middleware);
@@ -7341,6 +7345,31 @@ function youtubeProxy() {
   }
   return {
     name: 'gev-youtube-proxy',
+    configureServer(server) {
+      install(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      install(server.middlewares);
+    },
+  };
+}
+
+/**
+ * ADMIN console API — password-gated dashboard, the plugin-builder agent, and
+ * the API-key-authenticated MCP endpoint for clients outside the app.
+ *
+ * The console stays inert unless ADMIN_PASSWORD_HASH (or ADMIN_PASSWORD) is
+ * configured: with no credential every route answers `unconfigured`, so an
+ * unconfigured deployment exposes nothing.
+ */
+function adminConsoleApi() {
+  const { version } = createRequire(import.meta.url)('./package.json');
+  const middleware = createAdminMiddleware({ version: version || '0.0.0' });
+  function install(middlewares) {
+    middlewares.use('/api/admin', middleware);
+  }
+  return {
+    name: 'gev-admin-console',
     configureServer(server) {
       install(server.middlewares);
     },
@@ -7368,6 +7397,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       cesium(),
+      adminConsoleApi(),
       youtubeProxy(),
       openSkyProxy(),
       celestrakProxy(),

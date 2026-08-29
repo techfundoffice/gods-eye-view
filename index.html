@@ -35,6 +35,13 @@
     <span class="indicator-value" id="active-style-name">NORMAL</span>
   </div>
 
+  <!-- ADMIN entry point: opens the password-gated admin console -->
+  <button id="admin-launch" class="admin-launch" type="button" aria-haspopup="dialog"
+    aria-controls="admin-console" title="Open the ADMIN console">
+    <span class="admin-launch-dot" aria-hidden="true"></span>
+    <span class="admin-launch-label">ADMIN</span>
+  </button>
+
   <!-- Top-center camera and share actions -->
   <nav id="top-center-actions" aria-label="Globe actions">
     <button id="clear-selected-layers" type="button" aria-label="Clear selected data layers" title="Turn off all selected data layers">
@@ -939,6 +946,102 @@
          a live region that also holds layout makes the row jump as it speaks. -->
     <p class="first-run-note" data-first-run-status role="status" aria-live="polite">Tip: the GEV MIC button in the dock lets you talk to the map.</p>
   </aside>
+
+  <!-- ADMIN console: password gate, dashboard menu, plugin builder chat, MCP settings -->
+  <div id="admin-console" class="admin-console" role="dialog" aria-modal="true" aria-labelledby="admin-console-title" hidden>
+    <div class="admin-console-scrim"></div>
+    <section class="admin-console-shell">
+      <header class="admin-console-header">
+        <h2 id="admin-console-title">ADMIN</h2>
+        <span id="admin-status" class="admin-status" role="status" aria-live="polite">LOCKED</span>
+        <span class="panel-divider"></span>
+        <button id="admin-signout" class="scene-btn" type="button">SIGN OUT</button>
+        <button id="admin-close" class="scene-btn" type="button" aria-label="Close the admin console">CLOSE</button>
+      </header>
+
+      <p id="admin-message" class="admin-message" role="status" aria-live="polite" hidden></p>
+
+      <!-- Password gate -->
+      <div id="admin-gate" class="admin-gate">
+        <p id="admin-unconfigured" class="admin-unconfigured" hidden>
+          The ADMIN console is disabled because no admin password is configured. Set
+          <code>ADMIN_PASSWORD_HASH</code> (or <code>ADMIN_PASSWORD</code>) in the environment and restart
+          the server. Generate a hash with <code>node scripts/admin-password-hash.mjs</code>.
+        </p>
+        <form id="admin-login-form" class="admin-login-form" autocomplete="off">
+          <label class="admin-field" for="admin-password">
+            <span>ADMIN PASSWORD</span>
+            <input id="admin-password" type="password" name="admin-password" autocomplete="current-password"
+              required aria-describedby="admin-status" />
+          </label>
+          <button class="scene-btn" type="submit">SIGN IN</button>
+        </form>
+      </div>
+
+      <!-- Dashboard -->
+      <div id="admin-dashboard" class="admin-dashboard" hidden>
+        <nav class="admin-menu" aria-label="Admin dashboard menu">
+          <button class="admin-menu-item active" type="button" data-admin-view="create-plugin" aria-current="page">
+            <strong>Create New Admin Menu Plugin</strong>
+            <small>Describe a plugin; the coding agent writes it into this codebase.</small>
+          </button>
+          <button class="admin-menu-item" type="button" data-admin-view="mcp-server" aria-current="false">
+            <strong>MCP Server</strong>
+            <small>Expose this console to external MCP clients with an API key.</small>
+          </button>
+        </nav>
+
+        <div class="admin-pane" data-admin-pane="create-plugin">
+          <div class="admin-pane-side">
+            <div class="admin-pane-side-header">
+              <span>BUILDS</span>
+              <button id="admin-plugin-new" class="scene-btn" type="button">NEW</button>
+            </div>
+            <ul id="admin-plugin-list" class="admin-plugin-list"></ul>
+          </div>
+          <div class="admin-chat">
+            <h3 id="admin-chat-heading" class="admin-chat-heading">Create New Admin Menu Plugin</h3>
+            <div id="admin-transcript" class="admin-transcript" aria-live="polite"></div>
+            <form id="admin-plugin-form" class="admin-chat-form" autocomplete="off">
+              <label id="admin-plugin-name-field" class="admin-field" for="admin-plugin-name">
+                <span>PLUGIN NAME</span>
+                <input id="admin-plugin-name" type="text" name="plugin-name" placeholder="Fleet Watchlist" />
+              </label>
+              <label class="admin-field" for="admin-plugin-message">
+                <span>MESSAGE</span>
+                <textarea id="admin-plugin-message" name="plugin-message" rows="3"
+                  placeholder="What should this plugin do?"></textarea>
+              </label>
+              <button id="admin-plugin-submit" class="scene-btn" type="submit">BUILD PLUGIN</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="admin-pane admin-pane-mcp" data-admin-pane="mcp-server" hidden>
+          <div class="admin-mcp-row">
+            <span class="admin-mcp-label">EXTERNAL MCP ENDPOINT</span>
+            <span id="admin-mcp-state" class="admin-mcp-state">OFF</span>
+            <button id="admin-mcp-toggle" class="scene-btn" type="button" aria-pressed="false">ENABLE MCP SERVER</button>
+          </div>
+          <p class="admin-mcp-help">
+            While enabled, an external MCP client can reach this console over JSON-RPC at
+            <code>/api/admin/mcp</code> using an API key below. Keys are shown once and stored only as hashes.
+          </p>
+          <form id="admin-mcp-key-form" class="admin-mcp-key-form" autocomplete="off">
+            <label class="admin-field" for="admin-mcp-key-label">
+              <span>NEW API KEY LABEL</span>
+              <input id="admin-mcp-key-label" type="text" name="mcp-key-label" placeholder="Laptop MCP client" />
+            </label>
+            <button class="scene-btn" type="submit">CREATE KEY</button>
+          </form>
+          <p id="admin-mcp-fresh" class="admin-mcp-fresh" hidden></p>
+          <ul id="admin-mcp-keys" class="admin-mcp-keys"></ul>
+          <span class="admin-mcp-label">CLIENT CONFIGURATION</span>
+          <pre id="admin-mcp-snippet" class="admin-mcp-snippet"></pre>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <!-- Intelligence HUD Overlay -->
   <div id="intel-hud"></div>
