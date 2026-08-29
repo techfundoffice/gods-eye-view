@@ -1,3 +1,3 @@
 - [Cesium preview WebGL](cesium-preview-webgl.md) — automated preview browsers may expose WebGL but fail to initialize Cesium without GPU support.
 - [Workspace connector authorization](workspace-connector-authorization.md) — app code cannot launch Replit connector OAuth; account-backed features stay preview-only without app auth.
-- [Admin plugin loading](admin-plugin-loading.md) — open goal: load `src/adminPlugins/manifest.json` into the ADMIN menu so generated plugins actually show up.
+- [Admin plugin loading](admin-plugin-loading.md) — the manifest/route/registry contract that carries a generated plugin into the ADMIN dashboard menu.

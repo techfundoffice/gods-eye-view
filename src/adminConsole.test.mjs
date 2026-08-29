@@ -1,0 +1,164 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  ADMIN_MENU_ITEMS,
+  ADMIN_REQUEST_HEADER,
+  adminMcpClientSnippet,
+  createAdminClient,
+  describeSessionState,
+  hasRunningBuild,
+  pluginStatusLabel,
+  transcriptRoleLabel,
+} from './adminConsole.js';
+
+/** Record every call and answer with a scripted response. */
+function fakeFetch(responses = []) {
+  const calls = [];
+  const queue = [...responses];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    const next = queue.shift() || { ok: true, status: 200, body: {} };
+    return {
+      ok: next.ok !== false,
+      status: next.status || (next.ok === false ? 400 : 200),
+      json: async () => {
+        if (next.invalidJson) throw new Error('not json');
+        return next.body ?? {};
+      },
+    };
+  };
+  return { fetchImpl, calls };
+}
+
+test('the dashboard menu names the two built-in items the console ships with', () => {
+  const labels = ADMIN_MENU_ITEMS.map((item) => item.label);
+  assert.ok(labels.includes('Create New Admin Menu Plugin'));
+  assert.ok(labels.includes('MCP Server'));
+  for (const item of ADMIN_MENU_ITEMS) {
+    assert.ok(item.id && item.description, `${item.label} has an id and a description`);
+  }
+});
+
+test('build status and transcript roles get operator-readable labels', () => {
+  assert.equal(pluginStatusLabel('running'), 'BUILDING');
+  assert.equal(pluginStatusLabel('ready'), 'READY');
+  assert.equal(pluginStatusLabel('failed'), 'FAILED');
+  assert.equal(pluginStatusLabel('something-else'), 'UNKNOWN');
+
+  assert.equal(transcriptRoleLabel('admin'), 'ADMIN');
+  assert.equal(transcriptRoleLabel('agent'), 'CLAUDE');
+  assert.equal(transcriptRoleLabel('tool'), 'AGENT · TOOL');
+  assert.equal(transcriptRoleLabel('anything'), 'SYSTEM');
+});
+
+test('the status line distinguishes unconfigured, locked, and signed in', () => {
+  assert.match(describeSessionState({ configured: false }), /NOT CONFIGURED/);
+  assert.match(describeSessionState({ configured: true, authenticated: false }), /LOCKED/);
+  assert.equal(describeSessionState({ configured: true, authenticated: true }), 'SIGNED IN');
+  assert.equal(
+    describeSessionState({ configured: true, authenticated: true, mcpEnabled: true }),
+    'SIGNED IN · MCP ONLINE',
+  );
+});
+
+test('a running build anywhere in the list keeps the console polling', () => {
+  assert.equal(hasRunningBuild([{ status: 'ready' }, { status: 'running' }]), true);
+  assert.equal(hasRunningBuild([{ status: 'ready' }, { status: 'failed' }]), false);
+  assert.equal(hasRunningBuild([]), false);
+  assert.equal(hasRunningBuild(undefined), false);
+});
+
+test('the MCP snippet is valid client config with an absolute URL', () => {
+  const snippet = adminMcpClientSnippet({ origin: 'https://example.repl.co/', token: 'gev_admin_abc' });
+  const parsed = JSON.parse(snippet);
+  const server = parsed.mcpServers['gods-eye-view-admin'];
+  assert.equal(server.url, 'https://example.repl.co/api/admin/mcp');
+  assert.equal(server.headers.Authorization, 'Bearer gev_admin_abc');
+  assert.equal(server.type, 'http');
+});
+
+test('with no key on screen the snippet shows a placeholder, never a real token', () => {
+  const parsed = JSON.parse(adminMcpClientSnippet({ origin: 'http://localhost:5000' }));
+  assert.match(parsed.mcpServers['gods-eye-view-admin'].headers.Authorization, /<YOUR_ADMIN_API_KEY>/);
+});
+
+test('the client requires a fetch implementation', () => {
+  assert.throws(() => createAdminClient({ fetchImpl: null }), /requires fetch/);
+});
+
+test('reads are plain same-origin GETs without the write header', async () => {
+  const { fetchImpl, calls } = fakeFetch([{ body: { configured: true } }]);
+  const client = createAdminClient({ fetchImpl });
+  assert.deepEqual(await client.session(), { configured: true });
+
+  assert.equal(calls[0].url, '/api/admin/session');
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(calls[0].options.credentials, 'same-origin');
+  assert.equal(calls[0].options.headers[ADMIN_REQUEST_HEADER], undefined);
+});
+
+test('mutating calls carry the anti-CSRF header and a JSON body', async () => {
+  const { fetchImpl, calls } = fakeFetch([{ body: { authenticated: true } }]);
+  const client = createAdminClient({ fetchImpl });
+  await client.login('hunter2');
+
+  assert.equal(calls[0].url, '/api/admin/login');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.headers[ADMIN_REQUEST_HEADER], '1');
+  assert.equal(calls[0].options.headers['Content-Type'], 'application/json');
+  assert.deepEqual(JSON.parse(calls[0].options.body), { password: 'hunter2' });
+});
+
+test('a bodyless POST still carries the header but no content type', async () => {
+  const { fetchImpl, calls } = fakeFetch([{ body: {} }]);
+  await createAdminClient({ fetchImpl }).logout();
+  assert.equal(calls[0].options.headers[ADMIN_REQUEST_HEADER], '1');
+  assert.equal(calls[0].options.headers['Content-Type'], undefined);
+  assert.equal(calls[0].options.body, undefined);
+});
+
+test('every route the console needs is addressed and escaped', async () => {
+  const { fetchImpl, calls } = fakeFetch(new Array(9).fill({ body: {} }));
+  const client = createAdminClient({ fetchImpl });
+  await client.listPlugins();
+  await client.createPlugin('Watchlist', 'track ships');
+  await client.getPlugin('job/1');
+  await client.sendPluginMessage('job/1', 'more');
+  await client.mcpSettings();
+  await client.setMcpEnabled(true);
+  await client.createMcpKey('Laptop');
+  await client.revokeMcpKey('key 1');
+
+  assert.deepEqual(calls.map((entry) => `${entry.options.method} ${entry.url}`), [
+    'GET /api/admin/plugins',
+    'POST /api/admin/plugins',
+    'GET /api/admin/plugins/job%2F1',
+    'POST /api/admin/plugins/job%2F1/messages',
+    'GET /api/admin/mcp/settings',
+    'POST /api/admin/mcp/settings',
+    'POST /api/admin/mcp/keys',
+    'DELETE /api/admin/mcp/keys/key%201',
+  ]);
+});
+
+test('a server error surfaces its message, kind, and status', async () => {
+  const { fetchImpl } = fakeFetch([{
+    ok: false,
+    status: 401,
+    body: { error: { kind: 'auth', message: 'Admin sign-in required' } },
+  }]);
+  await assert.rejects(
+    () => createAdminClient({ fetchImpl }).listPlugins(),
+    (error) => {
+      assert.equal(error.message, 'Admin sign-in required');
+      assert.equal(error.kind, 'auth');
+      assert.equal(error.status, 401);
+      return true;
+    },
+  );
+});
+
+test('a failure with an unreadable body still rejects with a usable message', async () => {
+  const { fetchImpl } = fakeFetch([{ ok: false, status: 500, invalidJson: true }]);
+  await assert.rejects(() => createAdminClient({ fetchImpl }).session(), /Admin request failed/);
+});

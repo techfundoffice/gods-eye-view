@@ -5,9 +5,11 @@
  *
  *   - Session: `GET /session`, `POST /login`, `POST /logout`.
  *   - Plugin builder: `GET|POST /plugins`, `GET /plugins/:id`,
- *     `POST /plugins/:id/messages`, `POST /plugins/:id/cancel`.
+ *     `POST /plugins/:id/messages`, `POST /plugins/:id/cancel`, and `GET /menu`
+ *     for the generated plugins the dashboard should load.
  *   - MCP settings: `GET|POST /mcp/settings`, `POST /mcp/keys`,
  *     `DELETE /mcp/keys/:id`, and the external `POST /mcp` JSON-RPC endpoint.
+ *   - Live stream: `GET /live`, `POST /live/start`, `POST /live/stop`.
  *
  * Everything except `POST /mcp` requires the admin session cookie; `POST /mcp`
  * requires an API key instead and is refused outright while the MCP setting is
@@ -26,8 +28,10 @@ import {
   serializeAdminCookie,
 } from './adminAuth.js';
 import { createAdminMcpServer } from './adminMcpServer.js';
-import { createPluginBuilder } from './adminPluginBuilder.js';
+import { createPluginBuilder, readPluginManifest } from './adminPluginBuilder.js';
+import { normalizePluginManifest } from './adminPluginRegistry.js';
 import { createAdminStore } from './adminStore.js';
+import { createLiveStreamController } from './liveStream.js';
 
 /** Largest admin request body accepted, in bytes. */
 export const ADMIN_MAX_BODY_BYTES = 256 * 1024;
@@ -131,6 +135,7 @@ export function readJsonBody(req, limit = ADMIN_MAX_BODY_BYTES) {
  * @param {object} [options.auth] Auth facade; defaults to env-configured.
  * @param {object} [options.builder] Plugin builder; defaults to a real one.
  * @param {object} [options.store] Durable admin state.
+ * @param {Function} [options.readManifest] Reads the generated-plugin manifest.
  * @param {string} [options.version] Version reported over MCP.
  * @returns {(req: object, res: object, next: Function) => void}
  */
@@ -138,6 +143,8 @@ export function createAdminMiddleware({
   store = createAdminStore(),
   auth = createAdminAuth({ store }),
   builder = createPluginBuilder(),
+  live = createLiveStreamController(),
+  readManifest = readPluginManifest,
   version = '1.0.0',
 } = {}) {
   const mcp = createAdminMcpServer({ builder, version });
@@ -300,7 +307,14 @@ export function createAdminMiddleware({
           ADMIN_SESSION_TTL_MS / 1000,
           requiresSecureCookie(req),
         ));
-        sendJson(res, 200, sessionState(req));
+        // The request that carried the password has no session cookie on it
+        // yet, so the caller is described from the session just minted rather
+        // than from `sessionState`, which would report them still signed out.
+        sendJson(res, 200, {
+          ...sessionState(req),
+          authenticated: true,
+          expiresAt: new Date(result.expiresAt ?? Date.now() + ADMIN_SESSION_TTL_MS).toISOString(),
+        });
         return;
       }
 
@@ -319,6 +333,13 @@ export function createAdminMiddleware({
           configured: true,
           authenticated: false,
         });
+        return;
+      }
+
+      // The generated-plugin menu. Read fresh from disk on every request so a
+      // build that just finished shows up without restarting the dev server.
+      if (first === 'menu' && segments.length === 1 && req.method === 'GET') {
+        sendJson(res, 200, { plugins: normalizePluginManifest(readManifest()) });
         return;
       }
 
@@ -360,6 +381,35 @@ export function createAdminMiddleware({
         }
         if (segments.length === 3 && third === 'cancel' && req.method === 'POST') {
           sendJson(res, 200, { stopped: builder.cancel(second) });
+          return;
+        }
+      }
+
+      if (first === 'live') {
+        if (segments.length === 1 && req.method === 'GET') {
+          sendJson(res, 200, { live: live.status() });
+          return;
+        }
+        if (segments.length === 2 && second === 'start' && req.method === 'POST') {
+          const body = await readJsonBody(req);
+          try {
+            const result = await live.start(body);
+            // A refused or failed start is reported in the payload, not as a
+            // transport error: the console renders the log either way.
+            sendJson(res, result.status === 'error' ? 502 : 202, { live: result });
+          } catch (error) {
+            sendJson(res, error?.status === 409 ? 409 : 400, {
+              error: {
+                kind: error?.status === 409 ? 'conflict' : 'invalid',
+                message: error?.message || 'Unable to start the broadcast',
+              },
+              live: live.status(),
+            });
+          }
+          return;
+        }
+        if (segments.length === 2 && second === 'stop' && req.method === 'POST') {
+          sendJson(res, 200, { live: await live.stop() });
           return;
         }
       }

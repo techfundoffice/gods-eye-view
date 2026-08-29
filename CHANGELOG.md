@@ -7,6 +7,19 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Added
 
+- Added an `ADMIN` label to the app chrome that opens a password-gated admin
+  console. The console is disabled unless `ADMIN_PASSWORD_HASH` (or
+  `ADMIN_PASSWORD`) is configured; sign-in uses a scrypt-hashed password, an
+  HttpOnly `SameSite=Strict` session cookie, and per-client login backoff.
+  Generate a hash with `node scripts/admin-password-hash.mjs`.
+- Added the dashboard's **Create New Admin Menu Plugin** item: a chat interface
+  where the operator names a plugin and a Claude Code agent writes it into this
+  checkout, registers it in the admin menu manifest, and reports back in the
+  transcript. Follow-up messages continue the same agent session.
+- Added the dashboard's **MCP Server** setting: an operator-toggled JSON-RPC
+  endpoint at `POST /api/admin/mcp` that lets an external MCP client list,
+  start, read, and continue plugin builds with an API key. Keys are displayed
+  once and stored only as hashes.
 - Added honest aircraft identity narration: callsign, operator, registration,
   type, and route come only from selected-contact context, and missing operator,
   route, or type enrichment is named explicitly.

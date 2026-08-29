@@ -980,7 +980,7 @@
 
       <!-- Dashboard -->
       <div id="admin-dashboard" class="admin-dashboard" hidden>
-        <nav class="admin-menu" aria-label="Admin dashboard menu">
+        <nav id="admin-menu" class="admin-menu" aria-label="Admin dashboard menu">
           <button class="admin-menu-item active" type="button" data-admin-view="create-plugin" aria-current="page">
             <strong>Create New Admin Menu Plugin</strong>
             <small>Describe a plugin; the coding agent writes it into this codebase.</small>
@@ -989,7 +989,14 @@
             <strong>MCP Server</strong>
             <small>Expose this console to external MCP clients with an API key.</small>
           </button>
+          <button class="admin-menu-item" type="button" data-admin-view="live-stream" aria-current="false">
+            <strong>Go Live (ffmpeg)</strong>
+            <small>Capture the globe with headless Chromium and push it to YouTube over RTMP.</small>
+          </button>
+          <!-- Plugins written by the builder are appended here from the manifest -->
         </nav>
+
+        <p id="admin-menu-errors" class="admin-menu-errors" role="status" aria-live="polite" hidden></p>
 
         <div class="admin-pane" data-admin-pane="create-plugin">
           <div class="admin-pane-side">
@@ -1039,6 +1046,89 @@
           <span class="admin-mcp-label">CLIENT CONFIGURATION</span>
           <pre id="admin-mcp-snippet" class="admin-mcp-snippet"></pre>
         </div>
+
+        <div class="admin-pane admin-pane-live" data-admin-pane="live-stream" hidden>
+          <div class="admin-live-row">
+            <span class="admin-mcp-label">BROADCAST</span>
+            <span id="admin-live-state" class="admin-live-state" data-live-status="idle" role="status"
+              aria-live="polite">OFFLINE</span>
+            <a id="admin-live-watch" class="admin-live-watch" href="#" target="_blank" rel="noopener" hidden>OPEN ON YOUTUBE</a>
+          </div>
+          <p class="admin-mcp-help">
+            Headless Chromium loads the globe, its composited frames are piped into <code>ffmpeg</code>, and
+            H.264 is pushed to an RTMP ingest. Create the broadcast from your connected YouTube account, or
+            paste an ingest URL and stream key from YouTube Studio.
+          </p>
+
+          <form id="admin-live-form" class="admin-live-form" autocomplete="off">
+            <div class="admin-live-grid">
+              <label class="admin-field" for="admin-live-title">
+                <span>BROADCAST TITLE</span>
+                <input id="admin-live-title" type="text" name="live-title" placeholder="God's Eye View — live" />
+              </label>
+              <label class="admin-field" for="admin-live-privacy">
+                <span>PRIVACY</span>
+                <select id="admin-live-privacy" name="live-privacy">
+                  <option value="unlisted" selected>Unlisted</option>
+                  <option value="private">Private</option>
+                  <option value="public">Public</option>
+                </select>
+              </label>
+              <button id="admin-live-provision" class="scene-btn" type="button">CREATE ON YOUTUBE</button>
+            </div>
+
+            <div class="admin-live-grid">
+              <label class="admin-field" for="admin-live-ingest">
+                <span>RTMP INGEST URL</span>
+                <input id="admin-live-ingest" type="text" name="live-ingest"
+                  placeholder="rtmp://a.rtmp.youtube.com/live2" />
+              </label>
+              <label class="admin-field" for="admin-live-key">
+                <span>STREAM KEY</span>
+                <input id="admin-live-key" type="password" name="live-key" autocomplete="off"
+                  placeholder="xxxx-xxxx-xxxx-xxxx" />
+              </label>
+            </div>
+
+            <div class="admin-live-grid admin-live-grid-encoder">
+              <label class="admin-field" for="admin-live-capture">
+                <span>CAPTURE URL</span>
+                <input id="admin-live-capture" type="text" name="live-capture" value="http://localhost:5000/" />
+              </label>
+              <label class="admin-field" for="admin-live-width">
+                <span>WIDTH</span>
+                <input id="admin-live-width" type="number" name="live-width" value="1280" min="640" max="1920" step="2" />
+              </label>
+              <label class="admin-field" for="admin-live-height">
+                <span>HEIGHT</span>
+                <input id="admin-live-height" type="number" name="live-height" value="720" min="360" max="1080" step="2" />
+              </label>
+              <label class="admin-field" for="admin-live-fps">
+                <span>FPS</span>
+                <input id="admin-live-fps" type="number" name="live-fps" value="24" min="1" max="60" step="1" />
+              </label>
+              <label class="admin-field" for="admin-live-bitrate">
+                <span>KBPS</span>
+                <input id="admin-live-bitrate" type="number" name="live-bitrate" value="2500" min="300" max="12000"
+                  step="100" />
+              </label>
+            </div>
+
+            <div class="admin-live-actions">
+              <button id="admin-live-start" class="scene-btn" type="submit">START BROADCAST</button>
+              <button id="admin-live-stop" class="scene-btn" type="button" disabled>STOP</button>
+            </div>
+          </form>
+
+          <p id="admin-live-summary" class="admin-live-summary" role="status" aria-live="polite">
+            Idle. Create or paste an ingest target to begin.
+          </p>
+          <pre id="admin-live-log" class="admin-live-log" aria-label="Encoder log"></pre>
+        </div>
+
+        <!-- Shared pane for whichever generated plugin is selected; its
+             data-admin-pane is set to that plugin's id while it is mounted. -->
+        <div id="admin-plugin-host" class="admin-pane admin-pane-plugin" data-admin-pane="" hidden></div>
       </div>
     </section>
   </div>

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   ADMIN_PLUGIN_DIR,
   ADMIN_PLUGIN_MANIFEST,
@@ -9,6 +12,7 @@ import {
   createPluginBuilder,
   normalizePluginName,
   parseAgentStreamLine,
+  readPluginManifest,
 } from './adminPluginBuilder.js';
 
 /** A stand-in child process whose streams a test drives by hand. */
@@ -36,6 +40,19 @@ function scriptedSpawn(script) {
     return child;
   };
   return { spawnImpl, calls };
+}
+
+/**
+ * Wait until `predicate` holds, letting queued microtasks and immediates run.
+ * The builder queues each turn through a promise chain, so a spawn does not
+ * happen on the caller's tick.
+ */
+async function waitFor(predicate, attempts = 50) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error('Condition never became true');
 }
 
 function emitTurn(child, { sessionId = 'session-1', text = 'Built it.', code = 0 } = {}) {
@@ -252,15 +269,16 @@ test('an empty follow-up message is ignored instead of spending an agent turn', 
 });
 
 test('cancel signals the running child', async () => {
-  let running;
-  const { spawnImpl } = scriptedSpawn((child) => { running = child; });
+  const { spawnImpl, calls } = scriptedSpawn(() => { /* turn stays open */ });
   const builder = createPluginBuilder({ spawnImpl });
   const job = builder.start({ name: 'Long Job' });
-  await new Promise((resolve) => setImmediate(resolve));
+  await waitFor(() => calls.length === 1);
+
   assert.equal(builder.cancel(job.id), true);
-  assert.equal(running.killed, true);
-  running.emit('close', 143);
+  assert.equal(calls[0].child.killed, true);
+  calls[0].child.emit('close', 143);
   await builder.idle();
+  assert.equal(builder.get(job.id).status, 'failed');
 });
 
 test('the list view is newest-first and carries only the latest line per build', async () => {
@@ -275,4 +293,46 @@ test('the list view is newest-first and carries only the latest line per build',
   const list = builder.list();
   assert.deepEqual(list.map((entry) => entry.name), ['Second', 'First']);
   assert.ok(list.every((entry) => entry.transcript.length <= 1));
+});
+
+test('the plugin manifest is read from the repository root', () => {
+  const reads = [];
+  const fsImpl = {
+    readFileSync(file) {
+      reads.push(file);
+      return '[{"id":"fleet-watchlist","label":"Fleet Watchlist","module":"./fleet-watchlist.js"}]';
+    },
+  };
+  const manifest = readPluginManifest({ fsImpl, root: '/repo' });
+  assert.deepEqual(reads, [`/repo/${ADMIN_PLUGIN_MANIFEST}`]);
+  assert.equal(manifest[0].id, 'fleet-watchlist');
+});
+
+test('an absolute manifest path is used as given', () => {
+  const reads = [];
+  const fsImpl = { readFileSync(file) { reads.push(file); return '[]'; } };
+  readPluginManifest({ file: '/elsewhere/manifest.json', fsImpl, root: '/repo' });
+  assert.deepEqual(reads, ['/elsewhere/manifest.json']);
+});
+
+test('a missing or half-written manifest reads as no plugins rather than throwing', () => {
+  const missing = { readFileSync() { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); } };
+  assert.deepEqual(readPluginManifest({ fsImpl: missing, root: '/repo' }), []);
+
+  // The agent writes this file mid-build; a truncated read must not break the menu.
+  const truncated = { readFileSync: () => '[{"id":"fleet-watch' };
+  assert.deepEqual(readPluginManifest({ fsImpl: truncated, root: '/repo' }), []);
+});
+
+test('a manifest written to a real checkout is read back from disk', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gev-admin-manifest-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, ADMIN_PLUGIN_DIR), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, ADMIN_PLUGIN_MANIFEST),
+    JSON.stringify([{ id: 'fleet-watchlist', label: 'Fleet Watchlist', module: './fleet-watchlist.js' }]),
+  );
+  assert.deepEqual(readPluginManifest({ root }), [
+    { id: 'fleet-watchlist', label: 'Fleet Watchlist', module: './fleet-watchlist.js' },
+  ]);
 });

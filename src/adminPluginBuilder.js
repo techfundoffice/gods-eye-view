@@ -16,6 +16,8 @@
 
 import { spawn as nodeSpawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 /** Directory the generated plugin modules are asked to live in. */
 export const ADMIN_PLUGIN_DIR = 'src/adminPlugins';
@@ -25,6 +27,29 @@ export const ADMIN_PLUGIN_MANIFEST = 'src/adminPlugins/manifest.json';
 export const ADMIN_MAX_TRANSCRIPT_ENTRIES = 400;
 /** A single agent turn is abandoned after this long. */
 export const ADMIN_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
+
+/**
+ * Read the generated-plugin manifest off disk.
+ *
+ * The file only exists once an agent has finished a build, and it is written
+ * by that agent rather than by this code, so every failure mode — absent,
+ * unreadable, half-written, not JSON — is answered with an empty manifest.
+ * Callers normalize the result with `normalizePluginManifest`.
+ *
+ * @param {object} [options]
+ * @param {string} [options.file] Manifest path, absolute or repo-relative.
+ * @param {typeof fs} [options.fsImpl] Injected for tests.
+ * @param {string} [options.root] Repository root for a relative path.
+ * @returns {unknown} Parsed manifest contents, or `[]`.
+ */
+export function readPluginManifest({ file = ADMIN_PLUGIN_MANIFEST, fsImpl = fs, root = process.cwd() } = {}) {
+  const resolved = path.isAbsolute(file) ? file : path.join(root, file);
+  try {
+    return JSON.parse(fsImpl.readFileSync(resolved, 'utf8'));
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Turn a free-text plugin name into a stable slug plus a display name.
@@ -257,6 +282,10 @@ export function createPluginBuilder({
         append(job, 'system', 'Agent turn exceeded its time limit and was stopped.');
         try { child.kill('SIGTERM'); } catch { /* already gone */ }
       }, timeoutMs);
+      // A live child already holds the event loop open, so this watchdog never
+      // needs to. Unreffed, it also cannot keep a process alive for half an
+      // hour after the agent has gone.
+      timer.unref?.();
 
       const finish = (status, message) => {
         if (settled) return;
