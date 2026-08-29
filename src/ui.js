@@ -207,6 +207,7 @@ const SHARE_PANEL_STATE_SPECS = Object.freeze([
   { id: 'data-panel' },
   { id: 'cctv-panel' },
   { id: 'youtube-panel' },
+  { id: 'youtube-comments-panel' },
   { id: 'radio-panel' },
   { id: 'scene-panel' },
   { id: 'global-context-panel' },
@@ -218,6 +219,7 @@ const COCKPIT_ENTRY_COLLAPSE_PANEL_IDS = Object.freeze([
   'data-panel',
   'cctv-panel',
   'youtube-panel',
+  'youtube-comments-panel',
   'scene-panel',
   'pp-toggles',
   'global-context-panel',
@@ -6783,7 +6785,8 @@ export class StyleManager {
         this._scheduleRightPanelLayout();
       });
       this._rightStackResizeObserver.observe(stack);
-      for (const panel of [this._ppToggles, this._cctvPanel, globalContextPanel]) {
+      const commentsPanel = document.getElementById('youtube-comments-panel');
+      for (const panel of [this._ppToggles, this._cctvPanel, globalContextPanel, commentsPanel]) {
         if (panel) this._rightStackResizeObserver.observe(panel);
       }
       document.querySelectorAll(RIGHT_STACK_OBSTACLE_SELECTOR).forEach((element) => {
@@ -7401,7 +7404,7 @@ export class StyleManager {
    * @returns {void}
    */
   _syncPanelCollapseButton(panelEl) {
-    const isRightRail = ['pp-toggles', 'cctv-panel', 'global-context-panel'].includes(panelEl?.id);
+    const isRightRail = ['pp-toggles', 'cctv-panel', 'global-context-panel', 'youtube-comments-panel'].includes(panelEl?.id);
     const collapsed = panelEl.classList.contains('collapsed');
     panelEl.querySelectorAll('.panel-collapse-btn[data-collapse-target]').forEach((btn) => {
       const owner = btn.closest('[data-panel-id], #param-slider-panel');

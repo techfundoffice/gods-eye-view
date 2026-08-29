@@ -890,6 +890,28 @@
         </section>
       </div>
     </div>
+
+    <!-- Comment threads for the video chosen in YOUTUBE SETTINGS. Read-only
+         mirror: sign-in and video selection stay in the left settings panel so
+         this rail surface never owns connection state. -->
+    <section id="youtube-comments-panel" class="panel-collapsible collapsed" data-panel-id="youtube-comments-panel" aria-label="YouTube comments">
+      <div class="panel-glow"></div>
+      <div class="youtube-comments-panel-inner">
+        <div class="panel-header">
+          <span class="panel-title">YT COMMENTS</span>
+          <span id="youtube-comments-count" class="youtube-comments-count" title="Loaded comment threads">0</span>
+          <span class="panel-divider"></span>
+          <button class="panel-collapse-btn" data-collapse-target="youtube-comments-panel" title="Collapse panel">◀</button>
+        </div>
+        <div id="youtube-comments-video" class="youtube-summary">NO VIDEO SELECTED</div>
+        <div id="youtube-comments-status" class="youtube-comments-status" role="status" aria-live="polite">CONNECT YOUTUBE TO LOAD COMMENTS</div>
+        <ol id="youtube-comments-list" class="youtube-feed-list youtube-comments-list"></ol>
+        <div class="youtube-comments-actions">
+          <button id="youtube-comments-refresh" class="scene-btn" type="button" disabled>REFRESH</button>
+          <button id="youtube-comments-more" class="scene-btn" type="button" disabled>LOAD MORE</button>
+        </div>
+      </div>
+    </section>
   </aside>
 
   <div id="scene-runtime"></div>
@@ -1113,6 +1135,12 @@
                   step="100" />
               </label>
             </div>
+
+            <label class="admin-field" for="admin-live-audio">
+              <span>AUDIO BED (OPTIONAL — LOCAL FILE OR HTTP(S) URL; BLANK STREAMS SILENT)</span>
+              <input id="admin-live-audio" type="text" name="live-audio"
+                placeholder="/home/runner/workspace/bed.mp3" />
+            </label>
 
             <div class="admin-live-actions">
               <button id="admin-live-start" class="scene-btn" type="submit">START BROADCAST</button>

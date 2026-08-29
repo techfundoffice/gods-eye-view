@@ -771,6 +771,7 @@ class AdminConsoleController {
     try {
       const payload = await this.client.startLive({
         captureUrl: this._liveValue('admin-live-capture'),
+        audioSource: this._liveValue('admin-live-audio'),
         ingestUrl: this._liveValue('admin-live-ingest'),
         streamKey: this._liveValue('admin-live-key'),
         width: this._liveValue('admin-live-width'),
@@ -827,7 +828,7 @@ class AdminConsoleController {
       const parts = [];
       if (live.target) parts.push(`PUBLISHING TO ${live.target}`);
       if (live.settings) {
-        parts.push(`${live.settings.width}x${live.settings.height} @ ${live.settings.fps}FPS · ${live.settings.videoBitrateKbps}KBPS`);
+        parts.push(`${live.settings.width}x${live.settings.height} @ ${live.settings.fps}FPS · ${live.settings.videoBitrateKbps}KBPS · ${live.settings.audioSource === 'track' ? 'AUDIO BED' : 'SILENT'}`);
       }
       if (live.framesSent) parts.push(`${live.framesSent} FRAMES SENT`);
       if (live.error) parts.push(live.error);

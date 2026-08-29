@@ -104,6 +104,9 @@ await scenario('F', async (page) => {
   await page.waitForFunction(() => document.getElementById('admin-plugin-host').dataset.adminPane === 'good');
   console.log('PROBE-F before ->', JSON.stringify(await page.evaluate(() => document.getElementById('admin-plugin-host').dataset.adminPane)));
   manifest([]);
+  // A real operator goes back to the builder pane before starting a build.
+  await page.click('#admin-menu [data-admin-view="create-plugin"]');
+  await new Promise((r) => setTimeout(r, 300));
   await page.type('#admin-plugin-name', 'Second Build');
   await page.click('#admin-plugin-submit');
   await page.waitForFunction(

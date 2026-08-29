@@ -98,6 +98,47 @@ export function computePollDelay(pollingIntervalMillis, backoffMs = 0) {
   return Math.max(5_000, Math.min(60_000, providerDelay + Math.max(0, number(backoffMs))));
 }
 
+/**
+ * Derive the rail comments panel readouts from loaded state. Kept pure so the
+ * empty, disconnected, and paging cases are testable without a DOM.
+ *
+ * @param {object} input Loaded comment state.
+ * @param {string} [input.connection] Controller connection phase.
+ * @param {object|null} [input.video] Selected video resource, when one exists.
+ * @param {Array<object>} [input.comments] Normalized comment threads.
+ * @param {string} [input.nextPageToken] Page token for the next comment page.
+ * @param {boolean} [input.loading] Whether a comment request is in flight.
+ * @returns {{count: number, subject: string, status: string, canLoadMore: boolean}}
+ */
+export function summarizeCommentsPanel({
+  connection = 'disconnected',
+  video = null,
+  comments = [],
+  nextPageToken = '',
+  loading = false,
+} = {}) {
+  const threads = Array.isArray(comments) ? comments : [];
+  const count = threads.length;
+  const title = text(video?.snippet?.title);
+  const live = Boolean(video?.liveStreamingDetails?.activeLiveChatId);
+  const subject = title ? `${title}${live ? ' · LIVE' : ''}` : 'NO VIDEO SELECTED';
+  const replies = threads.reduce((total, thread) => total + number(thread?.replyCount), 0);
+  let status;
+  if (connection === 'unavailable') status = 'YOUTUBE UNAVAILABLE';
+  else if (connection === 'reconnect') status = 'RECONNECT YOUTUBE TO LOAD COMMENTS';
+  else if (connection !== 'connected') status = 'CONNECT YOUTUBE TO LOAD COMMENTS';
+  else if (loading) status = 'LOADING COMMENTS';
+  else if (!video) status = 'SELECT A VIDEO IN YOUTUBE SETTINGS';
+  else if (!count) status = 'NO COMMENTS ON THIS VIDEO';
+  else status = `${count} THREAD${count === 1 ? '' : 'S'}${replies ? ` · ${replies} REPLIES` : ''}`;
+  return {
+    count,
+    subject,
+    status,
+    canLoadMore: Boolean(video) && Boolean(text(nextPageToken)),
+  };
+}
+
 export function createYoutubeClient({ fetchImpl = globalThis.fetch } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('YouTube client requires fetch');
   async function get(resource, params = {}, signal) {
@@ -168,11 +209,103 @@ function writeStoredState(state) {
 }
 
 /**
+ * Right-rail view over the comment threads the settings panel has loaded.
+ *
+ * It owns presentation only: sign-in, channel, and video selection stay with
+ * YouTubePanelController, so the rail can never disagree with the settings
+ * panel about which video's comments are on screen. Its own collapse button is
+ * left to StyleManager's panel chrome, which also drives the rail layout.
+ */
+export class YouTubeCommentsPanelView {
+  constructor(root, { onRefresh, onLoadMore } = {}) {
+    this.root = root || null;
+    this._refreshButton = this._el('youtube-comments-refresh');
+    this._moreButton = this._el('youtube-comments-more');
+    this._list = this._el('youtube-comments-list');
+    this._status = this._el('youtube-comments-status');
+    this._subject = this._el('youtube-comments-video');
+    this._count = this._el('youtube-comments-count');
+    if (typeof onRefresh === 'function') {
+      this._refreshButton?.addEventListener('click', () => onRefresh());
+    }
+    if (typeof onLoadMore === 'function') {
+      this._moreButton?.addEventListener('click', () => onLoadMore());
+    }
+  }
+
+  _el(id) { return this.root?.querySelector(`#${id}`) || null; }
+
+  /**
+   * @param {object} state Comment state as passed by the controller.
+   * @returns {void}
+   */
+  render(state) {
+    if (!this.root) return;
+    const summary = summarizeCommentsPanel(state);
+    setText(this._subject, summary.subject);
+    setText(this._status, summary.status);
+    setText(this._count, String(summary.count));
+    if (this._moreButton) this._moreButton.disabled = !summary.canLoadMore;
+    if (this._refreshButton) this._refreshButton.disabled = !state?.video;
+    if (!this._list) return;
+    this._list.replaceChildren();
+    const threads = Array.isArray(state?.comments) ? state.comments : [];
+    if (!threads.length) {
+      const empty = document.createElement('li');
+      empty.className = 'youtube-feed-empty';
+      empty.textContent = summary.status;
+      this._list.append(empty);
+      return;
+    }
+    for (const thread of threads) this._list.append(this._renderThread(thread));
+  }
+
+  _renderThread(thread) {
+    const row = document.createElement('li');
+    row.className = 'youtube-feed-item youtube-comment-thread';
+    const meta = document.createElement('span');
+    meta.className = 'youtube-feed-meta';
+    meta.textContent = `${thread.author} · ${formatTime(thread.publishedAt)}`
+      + (thread.likeCount ? ` · ${thread.likeCount} LIKES` : '');
+    const body = document.createElement('span');
+    body.className = 'youtube-feed-text';
+    body.textContent = thread.text;
+    row.append(meta, body);
+    const replies = Array.isArray(thread.replies) ? thread.replies : [];
+    if (replies.length) {
+      const list = document.createElement('ol');
+      list.className = 'youtube-comment-replies';
+      for (const reply of replies) {
+        const item = document.createElement('li');
+        item.className = 'youtube-comment-reply';
+        const replyMeta = document.createElement('span');
+        replyMeta.className = 'youtube-feed-meta';
+        replyMeta.textContent = `${reply.author} · ${formatTime(reply.publishedAt)}`;
+        const replyBody = document.createElement('span');
+        replyBody.className = 'youtube-feed-text';
+        replyBody.textContent = reply.text;
+        item.append(replyMeta, replyBody);
+        list.append(item);
+      }
+      row.append(list);
+    } else if (thread.replyCount) {
+      // The API returns replies only on the pages that carry them; say so
+      // rather than implying the thread has none.
+      const hint = document.createElement('span');
+      hint.className = 'youtube-comment-reply-hint';
+      hint.textContent = `${thread.replyCount} REPLIES NOT LOADED`;
+      row.append(hint);
+    }
+    return row;
+  }
+}
+
+/**
  * Small DOM controller kept separate from StyleManager so YouTube polling does
  * not become coupled to globe rendering or share-link state.
  */
 export class YouTubePanelController {
-  constructor(root, { client = createYoutubeClient() } = {}) {
+  constructor(root, { client = createYoutubeClient(), commentsPanel = null } = {}) {
     this.root = root;
     this.client = client;
     this.state = {
@@ -194,12 +327,20 @@ export class YouTubePanelController {
       abortController: null,
       backoffMs: 0,
       account: null,
+      commentsLoading: false,
     };
     this._stored = readStoredState();
     this.state.videoId = text(this._stored.videoId);
     this.state.resource = text(this._stored.resource, 'videos');
     this.state.pollMs = Math.max(5_000, Math.min(60_000, number(this._stored.pollMs, YOUTUBE_DEFAULT_POLL_MS)));
     this.state.connection = 'disconnected';
+    // Built before the first render so the rail mirrors this same state pass.
+    this.commentsPanel = commentsPanel
+      ? new YouTubeCommentsPanelView(commentsPanel, {
+        onRefresh: () => void this._loadComments(true),
+        onLoadMore: () => void this._loadComments(false),
+      })
+      : null;
     this._bind();
     this._populateResources();
     this._render();
@@ -412,7 +553,10 @@ export class YouTubePanelController {
       this.state.comments = [];
       this.state.commentsNextPageToken = '';
     }
+    this.state.commentsLoading = true;
     this._setStatus('LOADING COMMENTS');
+    this._render();
+    let status;
     try {
       const payload = await this.client.get('commentThreads', {
         part: 'snippet,replies',
@@ -426,13 +570,16 @@ export class YouTubePanelController {
       const items = (payload?.items || []).map(normalizeCommentThread);
       this.state.comments = mergeUniqueById(this.state.comments, items);
       this.state.commentsNextPageToken = text(payload?.nextPageToken);
-      this._setStatus('COMMENTS READY');
-      this._render();
+      status = 'COMMENTS READY';
     } catch (error) {
       if (generation !== this.state.generation) return;
-      this._setStatus(this._friendlyError(error));
-      this._render();
+      status = this._friendlyError(error);
+    } finally {
+      // A superseded load must not clear the flag a newer one just set.
+      if (generation === this.state.generation) this.state.commentsLoading = false;
     }
+    this._setStatus(status);
+    this._render();
   }
 
   async _startChat(reset = false) {
@@ -641,12 +788,26 @@ export class YouTubePanelController {
     if (feedView) feedView.hidden = this.state.mode === 'api';
     const next = this._el('youtube-comments-next');
     if (next) next.disabled = !this.state.commentsNextPageToken || this.state.mode !== 'comments';
+    this.commentsPanel?.render({
+      connection: this.state.connection,
+      video: video || null,
+      comments: this.state.comments,
+      nextPageToken: this.state.commentsNextPageToken,
+      loading: this.state.commentsLoading,
+    });
   }
 }
 
-export function initYouTubePanel({ root = document.getElementById('youtube-panel'), client } = {}) {
+export function initYouTubePanel({
+  root = document.getElementById('youtube-panel'),
+  commentsPanel = document.getElementById('youtube-comments-panel'),
+  client,
+} = {}) {
   if (!root) return null;
-  const controller = new YouTubePanelController(root, { client: client || createYoutubeClient() });
+  const controller = new YouTubePanelController(root, {
+    client: client || createYoutubeClient(),
+    commentsPanel,
+  });
   void controller.refresh();
   return controller;
 }

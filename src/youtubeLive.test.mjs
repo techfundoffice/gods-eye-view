@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   computePollDelay,
   mergeUniqueById,
   normalizeCommentThread,
   normalizeLiveChatMessage,
+  summarizeCommentsPanel,
 } from './youtubeLive.js';
+
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 test('comment threads normalize plain text and nested replies', () => {
   const comment = normalizeCommentThread({
@@ -83,4 +87,85 @@ test('polling delay honors provider cadence with safe bounds and backoff', () =>
   assert.equal(computePollDelay(1000), 5000);
   assert.equal(computePollDelay(10000, 5000), 15000);
   assert.equal(computePollDelay(120000), 60000);
+});
+
+test('rail comments summary reflects connection, selection, and paging', () => {
+  assert.deepEqual(summarizeCommentsPanel(), {
+    count: 0,
+    subject: 'NO VIDEO SELECTED',
+    status: 'CONNECT YOUTUBE TO LOAD COMMENTS',
+    canLoadMore: false,
+  });
+  assert.equal(summarizeCommentsPanel({ connection: 'unavailable' }).status, 'YOUTUBE UNAVAILABLE');
+  assert.equal(
+    summarizeCommentsPanel({ connection: 'reconnect' }).status,
+    'RECONNECT YOUTUBE TO LOAD COMMENTS',
+  );
+  assert.equal(
+    summarizeCommentsPanel({ connection: 'connected' }).status,
+    'SELECT A VIDEO IN YOUTUBE SETTINGS',
+  );
+
+  const video = { snippet: { title: 'Orbit pass' } };
+  assert.equal(
+    summarizeCommentsPanel({ connection: 'connected', video }).status,
+    'NO COMMENTS ON THIS VIDEO',
+  );
+  // A load in flight outranks the empty state so the panel never reads as
+  // "no comments" while the first page is still on the wire.
+  assert.equal(
+    summarizeCommentsPanel({ connection: 'connected', video, loading: true }).status,
+    'LOADING COMMENTS',
+  );
+
+  const loaded = summarizeCommentsPanel({
+    connection: 'connected',
+    video: { ...video, liveStreamingDetails: { activeLiveChatId: 'chat-1' } },
+    comments: [{ id: 'a', replyCount: 2 }, { id: 'b', replyCount: 0 }],
+    nextPageToken: 'page-2',
+  });
+  assert.deepEqual(loaded, {
+    count: 2,
+    subject: 'Orbit pass · LIVE',
+    status: '2 THREADS · 2 REPLIES',
+    canLoadMore: true,
+  });
+  assert.equal(
+    summarizeCommentsPanel({ connection: 'connected', video, comments: [{ id: 'a' }] }).status,
+    '1 THREAD',
+  );
+});
+
+test('paging is offered only when a selected video has a further page', () => {
+  const video = { snippet: { title: 'Orbit pass' } };
+  assert.equal(summarizeCommentsPanel({ video, nextPageToken: '   ' }).canLoadMore, false);
+  assert.equal(summarizeCommentsPanel({ video: null, nextPageToken: 'page-2' }).canLoadMore, false);
+  assert.equal(summarizeCommentsPanel({ video, nextPageToken: 'page-2' }).canLoadMore, true);
+});
+
+test('the comments panel lives in the right rail and exposes every hook the view reads', () => {
+  const rail = html.slice(
+    html.indexOf('<aside id="right-context-rail">'),
+    html.indexOf('<div id="scene-runtime">'),
+  );
+  assert.ok(rail.includes('id="youtube-comments-panel"'), 'comments panel is not in the right rail');
+  assert.ok(rail.includes('data-panel-id="youtube-comments-panel"'), 'panel is not rail-layout managed');
+  assert.ok(
+    rail.includes('data-collapse-target="youtube-comments-panel"'),
+    'panel has no collapse control for StyleManager to bind',
+  );
+  for (const id of [
+    'youtube-comments-video',
+    'youtube-comments-status',
+    'youtube-comments-count',
+    'youtube-comments-list',
+    'youtube-comments-refresh',
+    'youtube-comments-more',
+  ]) {
+    assert.ok(rail.includes(`id="${id}"`), `${id} is missing from the rail panel`);
+  }
+  // Connection and video selection stay with the left settings panel: two
+  // sign-in surfaces could disagree about which video is loaded.
+  assert.ok(!rail.includes('id="youtube-connect-btn"'), 'rail panel duplicates sign-in');
+  assert.ok(!rail.includes('id="youtube-video-select"'), 'rail panel duplicates video selection');
 });

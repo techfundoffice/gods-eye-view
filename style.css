@@ -4586,6 +4586,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 }
 #right-context-rail > #pp-toggles,
 #right-context-rail > #cctv-panel,
+#right-context-rail > #youtube-comments-panel,
 #right-context-rail > #global-context-panel {
   position: relative;
   inset: auto;
@@ -4597,10 +4598,20 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   max-height: 100%;
   pointer-events: auto;
 }
-#right-context-rail #cctv-panel {
+#right-context-rail #cctv-panel,
+#right-context-rail #youtube-comments-panel {
   width: 100%;
   max-height: 100%;
   pointer-events: auto;
+}
+#right-context-rail #youtube-comments-panel.collapsed {
+  width: var(--right-context-collapsed-width);
+  margin-left: auto;
+}
+#right-context-rail #youtube-comments-panel.collapsed .youtube-comments-panel-inner {
+  height: 50px;
+  min-height: 50px;
+  box-sizing: border-box;
 }
 #right-context-rail #cctv-panel.collapsed {
   width: var(--right-display-collapsed-width);
@@ -4662,6 +4673,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 }
 #right-context-rail.layout-focus > #pp-toggles:not(.collapsed),
 #right-context-rail.layout-focus > #cctv-panel:not(.collapsed),
+#right-context-rail.layout-focus > #youtube-comments-panel:not(.collapsed),
 #right-context-rail.layout-focus > #global-context-panel:not(.collapsed) {
   flex: 0 1 var(--right-panel-allocated-height);
   height: var(--right-panel-allocated-height);
@@ -4675,6 +4687,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   scrollbar-color: rgba(0, 212, 255, 0.4) transparent;
 }
 #right-context-rail.layout-focus > #cctv-panel:not(.collapsed) .cctv-panel-inner,
+#right-context-rail.layout-focus > #youtube-comments-panel:not(.collapsed) .youtube-comments-panel-inner,
 #right-context-rail.layout-focus > #global-context-panel:not(.collapsed) .global-context-panel-inner {
   height: 100%;
   box-sizing: border-box;
@@ -6728,6 +6741,98 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   margin-top: 7px;
 }
 
+/* Right-rail comment threads. Shares the feed item styling with the settings
+   panel so the same thread reads identically on either surface. */
+#youtube-comments-panel .panel-glow {
+  position: absolute;
+  inset: -18px;
+  background: radial-gradient(ellipse at center, rgba(255, 42, 75, 0.16) 0%, transparent 65%);
+  filter: blur(16px);
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.youtube-comments-panel-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  max-height: 100%;
+  padding: 7px 8px 10px;
+  overflow: hidden;
+  color: var(--text-primary);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--panel-radius);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+
+.youtube-comments-count {
+  padding: 1px 6px;
+  color: #ffd7de;
+  background: rgba(255, 42, 75, 0.14);
+  border: 1px solid rgba(255, 72, 98, 0.45);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.8px;
+}
+
+.youtube-comments-status {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.1px;
+}
+
+.youtube-comments-list {
+  flex: 1 1 auto;
+  min-height: 96px;
+  max-height: none;
+}
+
+.youtube-comments-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.youtube-comment-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 5px 0 0;
+  padding: 0 0 0 8px;
+  border-left: 1px solid rgba(255, 64, 94, 0.35);
+  list-style: none;
+}
+
+.youtube-comment-reply {
+  display: grid;
+  gap: 2px;
+}
+
+.youtube-comment-reply-hint {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+#youtube-comments-panel.collapsed .panel-title {
+  font-size: 8px;
+  letter-spacing: 1.8px;
+}
+
+
 #youtube-resource-select {
   flex: 1;
 }
@@ -7001,6 +7106,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 #scene-panel.collapsed .scene-progress,
 #scene-panel.collapsed #scene-status,
 #youtube-panel.collapsed .youtube-panel-inner > :not(.panel-header),
+#youtube-comments-panel.collapsed .youtube-comments-panel-inner > :not(.panel-header),
 #param-slider-panel.collapsed #param-sliders,
 #location-bar.collapsed .poi-row-container,
 #location-bar.collapsed .location-bar-divider,

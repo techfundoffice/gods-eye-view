@@ -18,6 +18,7 @@
  */
 
 import { spawn as nodeSpawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 /** Encoder defaults tuned for a software-rendered globe on a shared host. */
 export const LIVE_DEFAULTS = Object.freeze({
@@ -104,6 +105,36 @@ export function normalizeIngestTarget(ingestUrl, streamKey) {
 }
 
 /**
+ * Validate an optional audio bed for the broadcast.
+ *
+ * ffmpeg will happily open `concat:`, `file:`, and a dozen other protocols, so
+ * a source is either a local file that exists or a plain http(s) URL — the same
+ * narrowing the ingest URL gets.
+ *
+ * @param {string} value Local path or http(s) URL; empty means silence.
+ * @param {(path: string) => boolean} [exists] File-existence probe.
+ * @returns {string|null} Normalized source, or null for a silent stream.
+ */
+export function normalizeAudioSource(value, exists = existsSync) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      throw new Error('The audio source is not a valid URL');
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('The audio source must be a local file or an http(s) URL');
+    }
+    return raw;
+  }
+  if (!exists(raw)) throw new Error(`No audio file at ${raw}`);
+  return raw;
+}
+
+/**
  * Remove a stream key from text before it is stored or shown.
  *
  * @param {string} text Raw text, typically an ffmpeg log line.
@@ -151,6 +182,7 @@ export function normalizeLiveOptions(input = {}) {
   return {
     ...options,
     captureUrl: parsedCapture.toString(),
+    audioSource: normalizeAudioSource(input.audioSource),
     ingest: normalizeIngestTarget(input.ingestUrl, input.streamKey),
     streamKey: String(input.streamKey || '').trim(),
   };
@@ -174,8 +206,11 @@ export function buildFfmpegArgs(options) {
     '-f', 'image2pipe',
     '-framerate', String(options.fps),
     '-i', 'pipe:0',
-    '-f', 'lavfi',
-    '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+    // `-re` paces the bed at its native rate so it cannot race ahead of the
+    // video clock, and `-stream_loop -1` keeps it playing for a long broadcast.
+    ...(options.audioSource
+      ? ['-re', '-stream_loop', '-1', '-i', options.audioSource]
+      : ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100']),
     '-c:v', 'libx264',
     '-preset', 'veryfast',
     '-tune', 'zerolatency',
@@ -400,6 +435,7 @@ export function createLiveStreamController({
       fps: options.fps,
       videoBitrateKbps: options.videoBitrateKbps,
       audioBitrateKbps: options.audioBitrateKbps,
+      audioSource: options.audioSource ? 'track' : 'silent',
     };
 
     try {

@@ -39,7 +39,8 @@
     "preview": "vite preview",
     "test": "node scripts/run-unit-tests.mjs",
     "test:track": "node scripts/track-regression.mjs",
-    "qa:map-source-tray": "node scripts/qa-map-source-tray.mjs"
+    "qa:map-source-tray": "node scripts/qa-map-source-tray.mjs",
+    "qa:admin-console": "node scripts/qa-admin-console.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^2.1.250",

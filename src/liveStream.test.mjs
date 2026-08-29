@@ -3,6 +3,7 @@ import test from 'node:test';
 import { EventEmitter } from 'node:events';
 import {
   buildChromiumArgs,
+  normalizeAudioSource,
   buildFfmpegArgs,
   createLiveStreamController,
   normalizeIngestTarget,
@@ -170,4 +171,43 @@ test('ffmpeg stderr is captured for the console with the key removed', async () 
   assert.ok(status.log.some((line) => line.includes('***')));
   assert.ok(!status.log.join('\n').includes(KEY));
   await controller.stop();
+});
+
+test('an audio bed is a local file or an http(s) URL, or nothing at all', () => {
+  assert.equal(normalizeAudioSource(''), null);
+  assert.equal(normalizeAudioSource('   '), null);
+  assert.equal(normalizeAudioSource('https://example.com/bed.mp3'), 'https://example.com/bed.mp3');
+  assert.equal(normalizeAudioSource('/music/bed.mp3', () => true), '/music/bed.mp3');
+
+  for (const bad of ['file:///etc/passwd', 'concat:/etc/passwd', 'rtmp://x/live2']) {
+    assert.throws(() => normalizeAudioSource(bad), /local file or an http/, bad);
+  }
+  assert.throws(() => normalizeAudioSource('/music/missing.mp3', () => false), /No audio file at/);
+});
+
+test('a silent stream synthesizes audio; a bed replaces it and is paced and looped', () => {
+  const silent = buildFfmpegArgs(normalizeLiveOptions(START)).join(' ');
+  assert.match(silent, /-f lavfi -i anullsrc/);
+  assert.ok(!silent.includes('-stream_loop'));
+
+  const withBed = buildFfmpegArgs(normalizeLiveOptions({
+    ...START,
+    audioSource: 'https://example.com/bed.mp3',
+  })).join(' ');
+  assert.match(withBed, /-re -stream_loop -1 -i https:\/\/example\.com\/bed\.mp3/);
+  assert.ok(!withBed.includes('anullsrc'));
+  // The video clock still terminates the broadcast, not the looping bed.
+  assert.match(withBed, /-shortest/);
+});
+
+test('the console is told whether the broadcast carries audio', async () => {
+  const { controller } = controllerWith();
+  await controller.start({ ...START, audioSource: 'https://example.com/bed.mp3' });
+  assert.equal(controller.status().settings.audioSource, 'track');
+  await controller.stop();
+
+  const plain = controllerWith();
+  await plain.controller.start(START);
+  assert.equal(plain.controller.status().settings.audioSource, 'silent');
+  await plain.controller.stop();
 });

@@ -21,7 +21,8 @@ const log = (...a) => console.log(...a);
 const shot = async (name) => { await page.screenshot({ path: `${SHOTS}/${name}.png` }); return `${SHOTS}/${name}.png`; };
 
 await page.goto(BASE, { waitUntil: 'domcontentloaded' });
-await page.waitForSelector('#admin-launch', { timeout: 20000 });
+await page.waitForSelector('#admin-launch', { timeout: 90000 });
+await new Promise((r) => setTimeout(r, 3000));
 
 // 1. Open the console and sign in as the operator.
 await page.click('#admin-launch');
