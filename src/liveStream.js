@@ -18,7 +18,7 @@
  */
 
 import { spawn as nodeSpawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { accessSync, constants, existsSync } from 'node:fs';
 
 /** Encoder defaults tuned for a software-rendered globe on a shared host. */
 export const LIVE_DEFAULTS = Object.freeze({
@@ -255,13 +255,30 @@ export function buildChromiumArgs(options) {
 }
 
 /**
+ * Whether a path is present and executable by this process.
+ *
+ * @param {string} candidate Absolute path to test.
+ * @returns {boolean}
+ */
+export function isExecutableFile(candidate) {
+  try {
+    accessSync(candidate, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Locate a Chromium binary without pinning a store path.
  *
+ * `CHROME_PATH` wins; otherwise PATH is searched for the usual binary names.
+ *
  * @param {object} [env] Environment to read.
- * @param {(path: string) => boolean} [exists] Executable-existence probe.
+ * @param {(path: string) => boolean} [exists] Executable probe, injected in tests.
  * @returns {string|null}
  */
-export function resolveChromiumPath(env = process.env, exists = () => false) {
+export function resolveChromiumPath(env = process.env, exists = isExecutableFile) {
   const explicit = String(env.CHROME_PATH || env.PUPPETEER_EXECUTABLE_PATH || '').trim();
   if (explicit) return explicit;
   const names = ['chromium', 'chromium-browser', 'google-chrome-stable', 'google-chrome', 'chrome'];
@@ -349,6 +366,7 @@ export function createLiveStreamController({
   launchBrowser = defaultLaunchBrowser,
   ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg',
   chromiumPath = null,
+  shutdownGraceMs = 4000,
   now = () => Date.now(),
 } = {}) {
   const state = {
@@ -401,8 +419,15 @@ export function createLiveStreamController({
     if (ffmpeg) {
       const encoder = ffmpeg;
       ffmpeg = null;
+      // Closing stdin is the graceful signal: ffmpeg drains its queue and
+      // writes the RTMP trailer. Signalling immediately would truncate that,
+      // so SIGKILL is only a backstop for an encoder that will not exit.
       try { encoder.stdin?.end(); } catch { /* already gone */ }
-      encoder.kill?.('SIGINT');
+      const backstop = setTimeout(() => {
+        try { encoder.kill?.('SIGKILL'); } catch { /* already reaped */ }
+      }, shutdownGraceMs);
+      backstop.unref?.();
+      encoder.once?.('exit', () => clearTimeout(backstop));
     }
     lastFrame = null;
     writable = true;

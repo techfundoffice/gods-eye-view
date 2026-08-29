@@ -3,6 +3,7 @@ import test from 'node:test';
 import { EventEmitter } from 'node:events';
 import {
   buildChromiumArgs,
+  isExecutableFile,
   normalizeAudioSource,
   buildFfmpegArgs,
   createLiveStreamController,
@@ -22,7 +23,8 @@ function fakeFfmpeg() {
   proc.stdin.write = (chunk) => { proc.written.push(chunk); return true; };
   proc.stdin.end = () => { proc.stdin.ended = true; };
   proc.stderr = new EventEmitter();
-  proc.kill = () => { proc.killed = true; };
+  proc.signals = [];
+  proc.kill = (signal) => { proc.killed = true; proc.signals.push(signal); };
   return proc;
 }
 
@@ -210,4 +212,35 @@ test('the console is told whether the broadcast carries audio', async () => {
   await plain.controller.start(START);
   assert.equal(plain.controller.status().settings.audioSource, 'silent');
   await plain.controller.stop();
+});
+
+test('Chromium discovery actually searches PATH by default', () => {
+  // Regression: the probe defaulted to () => false, so every PATH candidate was
+  // rejected and only CHROME_PATH could ever resolve.
+  const found = resolveChromiumPath(
+    { PATH: '/nope:/opt/bin' },
+    (candidate) => candidate === '/opt/bin/google-chrome-stable',
+  );
+  assert.equal(found, '/opt/bin/google-chrome-stable');
+
+  // The default probe is a real filesystem check, not a stub that always fails.
+  assert.equal(isExecutableFile('/definitely/not/here'), false);
+  assert.equal(isExecutableFile('/bin/sh'), true);
+});
+
+test('stopping closes stdin to flush, and only force-kills a stuck encoder', async () => {
+  const stuck = controllerWith({ shutdownGraceMs: 20 });
+  await stuck.controller.start(START);
+  await stuck.controller.stop();
+  assert.equal(stuck.proc.stdin.ended, true, 'stdin EOF is the graceful signal');
+  assert.deepEqual(stuck.proc.signals, [], 'no signal before the grace period');
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(stuck.proc.signals, ['SIGKILL'], 'backstop fires for a stuck encoder');
+
+  const clean = controllerWith({ shutdownGraceMs: 20 });
+  await clean.controller.start(START);
+  await clean.controller.stop();
+  clean.proc.emit('exit', 0);
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(clean.proc.signals, [], 'an encoder that exits is never killed');
 });

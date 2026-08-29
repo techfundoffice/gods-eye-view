@@ -62,6 +62,25 @@ export function liveStatusLabel(status) {
 }
 
 /**
+ * Render a broadcast's elapsed time for the console.
+ *
+ * @param {string|null} startedAt ISO timestamp from the controller.
+ * @param {number} [nowMs] Current epoch milliseconds.
+ * @returns {string} `H:MM:SS`, `M:SS`, or an empty string when not running.
+ */
+export function formatLiveUptime(startedAt, nowMs = Date.now()) {
+  if (!startedAt) return '';
+  const started = Date.parse(startedAt);
+  if (!Number.isFinite(started)) return '';
+  const seconds = Math.max(0, Math.floor((nowMs - started) / 1000));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  const pad = (value) => String(value).padStart(2, '0');
+  return hours ? `${hours}:${pad(minutes)}:${pad(rest)}` : `${minutes}:${pad(rest)}`;
+}
+
+/**
  * Whether the console should currently offer a start button.
  *
  * @param {object} live Public controller state.
@@ -533,6 +552,7 @@ class AdminConsoleController {
     this._render();
     if (view === 'mcp-server') void this._loadMcp();
     if (view === 'live-stream') void this._loadLive();
+    else this._stopLivePolling();
     const plugin = this.state.menuPlugins.find((entry) => entry.id === view);
     if (plugin) this._mountPluginView(plugin);
   }
@@ -720,7 +740,8 @@ class AdminConsoleController {
    * @returns {void}
    */
   _scheduleLivePoll() {
-    clearTimeout(this._livePollTimer);
+    this._stopLivePolling();
+    if (this.root.hidden || this.state.view !== 'live-stream') return;
     const status = String(this.state.live?.status || '');
     if (status !== 'live' && status !== 'starting') return;
     this._livePollTimer = setTimeout(() => void this._loadLive(), LIVE_POLL_MS);
@@ -780,6 +801,12 @@ class AdminConsoleController {
         videoBitrateKbps: this._liveValue('admin-live-bitrate'),
       });
       this.state.live = payload.live || this.state.live;
+      if (!canStartLive(this.state.live)) {
+        // ffmpeg holds the key now; nothing is gained by leaving a copy in a
+        // form field that survives until the console is reloaded.
+        const key = this._el('admin-live-key');
+        if (key) key.value = '';
+      }
     } catch (error) {
       this.state.message = error.message;
       if (error.payload?.live) this.state.live = error.payload.live;
@@ -830,6 +857,8 @@ class AdminConsoleController {
       if (live.settings) {
         parts.push(`${live.settings.width}x${live.settings.height} @ ${live.settings.fps}FPS · ${live.settings.videoBitrateKbps}KBPS · ${live.settings.audioSource === 'track' ? 'AUDIO BED' : 'SILENT'}`);
       }
+      const uptime = live.status === 'live' ? formatLiveUptime(live.startedAt) : '';
+      if (uptime) parts.push(`UP ${uptime}`);
       if (live.framesSent) parts.push(`${live.framesSent} FRAMES SENT`);
       if (live.error) parts.push(live.error);
       summary.textContent = parts.join(' · ') || 'Idle. Create or paste an ingest target to begin.';
@@ -901,9 +930,19 @@ class AdminConsoleController {
 
   /** @returns {void} */
   _stopPolling() {
+    // Called on close, sign-out, and build completion -- every point where the
+    // console must stop touching the network, so the live poll stops here too.
+    this._stopLivePolling();
     if (!this._pollTimer) return;
     window.clearInterval(this._pollTimer);
     this._pollTimer = null;
+  }
+
+  /** @returns {void} */
+  _stopLivePolling() {
+    if (!this._livePollTimer) return;
+    clearTimeout(this._livePollTimer);
+    this._livePollTimer = null;
   }
 
   /** Paint every view from `this.state`. @returns {void} */

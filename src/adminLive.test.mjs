@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createAdminMiddleware, ADMIN_REQUEST_HEADER } from './adminServer.js';
-import { canStartLive, liveStatusLabel, provisionYoutubeIngest } from './adminConsole.js';
+import { canStartLive, formatLiveUptime, liveStatusLabel, provisionYoutubeIngest } from './adminConsole.js';
 
 function invoke(middleware, { method = 'GET', url = '/live', body = '', headers = {} } = {}) {
   return new Promise((resolve, reject) => {
@@ -172,4 +172,15 @@ test('provisioning surfaces a read-only YouTube grant as insufficient scope', as
     () => provisionYoutubeIngest(fetchImpl, { title: 'Globe live' }),
     (error) => error.kind === 'insufficient-scope' && /Reconnect YouTube/.test(error.message),
   );
+});
+
+test('broadcast uptime reads as H:MM:SS, drops the hour when short, and tolerates junk', () => {
+  const base = Date.parse('2026-08-29T00:00:00.000Z');
+  assert.equal(formatLiveUptime('2026-08-29T00:00:00.000Z', base + 65_000), '1:05');
+  assert.equal(formatLiveUptime('2026-08-29T00:00:00.000Z', base + 3_725_000), '1:02:05');
+  assert.equal(formatLiveUptime('2026-08-29T00:00:00.000Z', base), '0:00');
+  // A clock skew must not render a negative duration.
+  assert.equal(formatLiveUptime('2026-08-29T00:00:00.000Z', base - 5_000), '0:00');
+  assert.equal(formatLiveUptime(null), '');
+  assert.equal(formatLiveUptime('not-a-date'), '');
 });

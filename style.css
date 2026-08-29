@@ -890,6 +890,16 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) #youtube-panel {
   pointer-events: auto;
 }
 
+/* Keep operator access available even when the WebGL compatibility surface
+   remains on screen. Both controls otherwise sit behind its z-index: 1000. */
+body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-launch {
+  z-index: 1101;
+}
+
+body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
+  z-index: 1200;
+}
+
 @media (min-width: 900px) {
   #loading-screen.compatibility-error {
     left: 420px;
