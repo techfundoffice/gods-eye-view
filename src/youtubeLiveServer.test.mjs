@@ -72,6 +72,7 @@ function encoderLive(overrides = {}) {
     launchBrowser: async () => fakeBrowser(),
     chromiumPath: '/usr/bin/chromium',
     resolveFfmpeg: () => '/usr/bin/ffmpeg',
+    probeCapture: async (url) => ({ url, status: 200 }),
     ...overrides,
   });
 }
@@ -108,7 +109,7 @@ test('a signed-in operator starts and stops through /api/youtube/live without ex
     body: START_BODY,
   });
   assert.equal(started.status, 202);
-  assert.equal(started.body.live.status, 'live');
+  assert.equal(started.body.live.status, 'encoding');
   assert.equal(started.body.live.target, 'rtmp://a.rtmp.youtube.com/live2/***');
   assert.equal(spawned.length, 1);
   assert.equal(spawned[0].bin, '/usr/bin/ffmpeg');
@@ -192,7 +193,10 @@ test('a start while already live is a conflict', async () => {
   });
   assert.equal(first.status, 202);
   const second = await invoke(middleware, {
-    method: 'POST', url: '/start', headers: MUTATE, body: START_BODY,
+    method: 'POST',
+    url: '/start',
+    headers: MUTATE,
+    body: { ...START_BODY, streamKey: 'other-key-zzzz' },
   });
   assert.equal(second.status, 409);
   assert.equal(second.body.error.kind, 'conflict');

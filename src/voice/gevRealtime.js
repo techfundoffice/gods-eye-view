@@ -324,6 +324,8 @@ export class GevRealtimeController {
     // which case it replies with an item_not_found error echoing this id — a
     // benign race we must NOT treat as fatal (M14).
     this.pendingViewportDeletes = new Set();
+    /** Optional homepage-chat listener. Receives every parsed Realtime payload. */
+    this.onRealtimeEvent = null;
     this.errors = loadStoredErrors();
     this.sessionId = createDebugSessionId();
     this.debugLog('controller.created', { status: this.status });
@@ -1071,6 +1073,17 @@ export class GevRealtimeController {
     // than executing tool calls (map side effects) for a session that no longer
     // exists and whose results could never be sent back.
     if (this.isSessionEnding()) return;
+
+    if (typeof this.onRealtimeEvent === 'function') {
+      try {
+        this.onRealtimeEvent(payload);
+      } catch (error) {
+        this.debugLog('realtime.listener.error', {
+          message: error?.message || String(error),
+          type: payload.type,
+        });
+      }
+    }
 
     if (payload.type === 'response.done' && this.pendingRadioPlaybackResult) {
       if (payload.response?.status !== 'completed' || this.userTurnPending) {

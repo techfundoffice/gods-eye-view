@@ -863,6 +863,11 @@ function stubClient() {
     listPlugins: async () => ({ plugins: [] }),
     mcpSettings: async () => ({ enabled: false, endpoint: '/api/admin/mcp', keys: [] }),
     liveStatus: async () => ({ live: { status: 'idle', log: [], framesSent: 0 } }),
+    listLiveBroadcasts: async () => ({ broadcasts: [] }),
+    provisionLive: async () => ({ broadcast: {}, live: { status: 'idle' } }),
+    selectLive: async () => ({ broadcast: {}, live: { status: 'idle' } }),
+    startLive: async () => ({ live: { status: 'idle' } }),
+    stopLive: async () => ({ live: { status: 'stopped' } }),
   };
 }
 

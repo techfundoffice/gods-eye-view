@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createAdminMiddleware, ADMIN_REQUEST_HEADER } from './adminServer.js';
-import { canStartLive, formatLiveUptime, liveStatusLabel, provisionYoutubeIngest } from './adminConsole.js';
+import { readFileSync } from 'node:fs';
+import { canStartLive, formatLiveUptime, liveStatusLabel, provisionYoutubeIngest, buildAdminLiveStartBody } from './adminConsole.js';
 
 function invoke(middleware, { method = 'GET', url = '/live', body = '', headers = {} } = {}) {
   return new Promise((resolve, reject) => {
@@ -35,9 +36,10 @@ function invoke(middleware, { method = 'GET', url = '/live', body = '', headers 
   });
 }
 
-function adminWith(live) {
+function adminWith(live, youtubeAuth) {
   return createAdminMiddleware({
     live,
+    youtubeAuth,
     auth: {
       configured: true,
       authenticate: () => ({ expiresAt: Date.now() + 60_000 }),
@@ -127,12 +129,15 @@ test('a start while already live is a conflict, not a silent replacement', async
 test('broadcast status maps to a console label and gates the start button', () => {
   assert.equal(liveStatusLabel('live'), 'LIVE');
   assert.equal(liveStatusLabel('starting'), 'STARTING');
+  assert.equal(liveStatusLabel('waiting-for-youtube'), 'WAITING FOR YOUTUBE');
   assert.equal(liveStatusLabel('error'), 'ERROR');
   assert.equal(liveStatusLabel(''), 'OFFLINE');
   assert.equal(canStartLive({ status: 'idle' }), true);
   assert.equal(canStartLive({ status: 'stopped' }), true);
   assert.equal(canStartLive({ status: 'live' }), false);
   assert.equal(canStartLive({ status: 'starting' }), false);
+  assert.equal(canStartLive({ status: 'waiting-for-youtube' }), false);
+  assert.equal(canStartLive({ status: 'encoding' }), false);
 });
 
 test('provisioning creates a stream, a broadcast, and binds them', async () => {
@@ -183,4 +188,193 @@ test('broadcast uptime reads as H:MM:SS, drops the hour when short, and tolerate
   assert.equal(formatLiveUptime('2026-08-29T00:00:00.000Z', base - 5_000), '0:00');
   assert.equal(formatLiveUptime(null), '');
   assert.equal(formatLiveUptime('not-a-date'), '');
+});
+
+const KEY = 'abcd-1234-efgh-5678';
+
+function writableYoutubeAuth(proxyImpl) {
+  return {
+    authorizeRequest: async () => ({
+      sessionId: 'yt-1',
+      canWrite: true,
+      getAccessToken: async () => 'token',
+    }),
+    proxy: proxyImpl,
+  };
+}
+
+test('provision and select require YouTube sign-in and live-control scope', async () => {
+  const live = {
+    status: () => ({ status: 'idle', log: [], phases: {} }),
+    start: async () => ({ status: 'idle' }),
+    stop: async () => ({ status: 'stopped' }),
+    listBroadcasts: async () => [],
+    provision: async () => ({ broadcast: {} }),
+    select: async () => ({ broadcast: {} }),
+    bindAuth() {},
+  };
+  const signedOut = adminWith(live, {
+    authorizeRequest: async () => null,
+    proxy: async () => ({}),
+  });
+  const listed = await invoke(signedOut, { url: '/live/broadcasts' });
+  assert.equal(listed.status, 401);
+  assert.equal(listed.body.error.kind, 'authentication');
+
+  const readonly = adminWith(live, {
+    authorizeRequest: async () => ({ sessionId: 'yt-1', canWrite: false }),
+    proxy: async () => ({}),
+  });
+  const provisioned = await invoke(readonly, {
+    method: 'POST',
+    url: '/live/provision',
+    headers: MUTATE,
+    body: JSON.stringify({ title: 'Globe live' }),
+  });
+  assert.equal(provisioned.status, 403);
+  assert.equal(provisioned.body.error.kind, 'insufficient-scope');
+});
+
+test('provisioning through ADMIN never returns the stream key', async () => {
+  const live = {
+    status: () => ({ status: 'idle', log: [], phases: {} }),
+    start: async () => ({ status: 'idle' }),
+    stop: async () => ({ status: 'stopped' }),
+    bindAuth() {},
+    provision: async () => ({
+      broadcast: {
+        id: 'broadcast-1',
+        streamId: 'stream-1',
+        title: 'Globe live',
+        target: 'rtmps://a.rtmp.youtube.com/live2/***',
+        ingestUrl: 'rtmps://a.rtmp.youtube.com/live2',
+        watchUrl: 'https://www.youtube.com/watch?v=broadcast-1',
+      },
+      live: { status: 'idle', phases: {} },
+    }),
+  };
+  const middleware = adminWith(live, writableYoutubeAuth(async () => ({})));
+  const response = await invoke(middleware, {
+    method: 'POST',
+    url: '/live/provision',
+    headers: MUTATE,
+    body: JSON.stringify({ title: 'Globe live' }),
+  });
+  assert.equal(response.status, 201);
+  assert.equal(response.body.broadcast.id, 'broadcast-1');
+  assert.ok(!JSON.stringify(response.body).includes(KEY));
+  assert.equal('streamKey' in (response.body.broadcast || {}), false);
+});
+
+test('quota from YouTube provision is an actionable quota error', async () => {
+  const live = {
+    status: () => ({ status: 'idle' }),
+    start: async () => ({ status: 'idle' }),
+    stop: async () => ({ status: 'stopped' }),
+    bindAuth() {},
+    provision: async () => {
+      const error = new Error('quotaExceeded');
+      error.kind = 'quota';
+      throw error;
+    },
+  };
+  const middleware = adminWith(live, writableYoutubeAuth(async () => ({})));
+  const response = await invoke(middleware, {
+    method: 'POST',
+    url: '/live/provision',
+    headers: MUTATE,
+    body: JSON.stringify({ title: 'Globe live' }),
+  });
+  assert.equal(response.status, 403);
+  assert.equal(response.body.error.kind, 'quota');
+  assert.match(response.body.error.message, /quota is exhausted/);
+});
+
+test('start with a broadcastId does not require a browser-supplied stream key', async () => {
+  const startedWith = [];
+  const live = {
+    status: () => ({
+      status: 'waiting-for-youtube',
+      phases: { youtube: { ready: false, message: 'YouTube has not received the stream yet' } },
+      target: 'rtmps://a.rtmp.youtube.com/live2/***',
+    }),
+    bindAuth() {},
+    start: async (body) => {
+      startedWith.push(body);
+      return {
+        status: 'waiting-for-youtube',
+        phases: { youtube: { ready: false, message: 'YouTube has not received the stream yet' } },
+        target: 'rtmps://a.rtmp.youtube.com/live2/***',
+        log: [],
+      };
+    },
+    stop: async () => ({ status: 'stopped' }),
+  };
+  const middleware = adminWith(live, writableYoutubeAuth(async () => ({})));
+  const response = await invoke(middleware, {
+    method: 'POST',
+    url: '/live/start',
+    headers: MUTATE,
+    body: JSON.stringify({ broadcastId: 'broadcast-1', captureUrl: 'http://localhost:4173/' }),
+  });
+  assert.equal(response.status, 202);
+  assert.equal(response.body.live.status, 'waiting-for-youtube');
+  assert.equal(response.body.live.phases.youtube.message, 'YouTube has not received the stream yet');
+  assert.equal(startedWith[0].broadcastId, 'broadcast-1');
+  assert.equal(startedWith[0].streamKey, undefined);
+  assert.ok(!JSON.stringify(response.body).includes(KEY));
+});
+
+test('ADMIN start body omits the stream key when a broadcast id is selected', () => {
+  const withBroadcast = buildAdminLiveStartBody({
+    broadcastId: 'broadcast-1',
+    streamKey: KEY,
+    ingestUrl: 'rtmps://a.rtmp.youtube.com/live2',
+    captureUrl: 'http://localhost:4173/',
+  });
+  assert.equal(withBroadcast.broadcastId, 'broadcast-1');
+  assert.equal('streamKey' in withBroadcast, false);
+  assert.equal(withBroadcast.captureUrl, 'http://localhost:4173/');
+
+  const pasted = buildAdminLiveStartBody({
+    ingestUrl: 'rtmps://a.rtmp.youtube.com/live2',
+    streamKey: KEY,
+    captureUrl: 'http://localhost:4173/',
+  });
+  assert.equal(pasted.streamKey, KEY);
+  assert.equal('broadcastId' in pasted, false);
+});
+
+test('the ADMIN Go Live pane ships readiness rows and a broadcast selector', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const pane = html.slice(html.indexOf('data-admin-pane="live-stream"'), html.indexOf('id="admin-plugin-host"'));
+  assert.match(pane, /id="admin-live-phases"/);
+  assert.match(pane, /id="admin-live-broadcast"/);
+  for (const phase of ['account', 'broadcast', 'capture', 'encoder', 'ingest', 'youtube']) {
+    assert.match(pane, new RegExp(`data-live-phase="${phase}"`));
+  }
+  assert.equal(pane.includes('value="http://localhost:5000/"'), false);
+
+  const source = readFileSync(new URL('./adminConsole.js', import.meta.url), 'utf8');
+  assert.match(source, /this\.client\.provisionLive\(/);
+  assert.match(source, /buildAdminLiveStartBody\(/);
+  assert.equal(source.includes('/api/youtube/youtube/v3/liveStreams'), false);
+});
+
+test('GET /live during waiting-for-youtube is not claimed as live', async () => {
+  const middleware = adminWith({
+    status: () => ({
+      status: 'waiting-for-youtube',
+      phases: { youtube: { ready: false, message: 'YouTube has not received the stream yet' } },
+      log: [],
+    }),
+    start: async () => ({ status: 'waiting-for-youtube' }),
+    stop: async () => ({ status: 'stopped' }),
+    bindAuth() {},
+  });
+  const response = await invoke(middleware);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.live.status, 'waiting-for-youtube');
+  assert.notEqual(response.body.live.status, 'live');
+  assert.equal(response.body.live.phases.youtube.message, 'YouTube has not received the stream yet');
 });

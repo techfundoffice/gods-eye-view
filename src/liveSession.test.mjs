@@ -53,6 +53,15 @@ const START = {
   captureUrl: 'http://localhost:4173/',
 };
 
+async function waitForFrames(session) {
+  const deadline = Date.now() + 1000;
+  while (Date.now() < deadline) {
+    if (session.status().framesSent > 0) return session.status();
+    await new Promise((resolve) => setTimeout(resolve, 15));
+  }
+  throw new Error(`timed out waiting for encoder frames; last status ${session.status().status}`);
+}
+
 function binding() {
   return {
     broadcastId: 'broadcast-1',
@@ -115,7 +124,8 @@ test('a pasted-key start without a broadcast id is ingesting, not live', async (
     encoder: encoderWith(),
     encoderReady: () => ({ ready: true, message: 'ok' }),
   });
-  const started = await session.start(START);
+  await session.start(START);
+  const started = await waitForFrames(session);
   assert.equal(started.status, 'ingesting');
   assert.match(started.phases.youtube.message, /no broadcast id/);
   assert.ok(!JSON.stringify(started).includes(KEY));
@@ -167,10 +177,11 @@ test('start with a stored broadcast uses the server key and waits for YouTube', 
   assert.ok(!JSON.stringify(provisioned).includes(KEY));
   assert.equal(provisioned.broadcast.id, 'broadcast-1');
 
-  const started = await session.start({
+  await session.start({
     broadcastId: 'broadcast-1',
     captureUrl: 'http://localhost:4173/',
   }, { call });
+  const started = await waitForFrames(session);
   assert.equal(started.status, 'waiting-for-youtube');
   assert.equal(started.phases.youtube.message, YOUTUBE_NOT_RECEIVED);
   assert.ok(spawned[0].includes(`rtmps://a.rtmp.youtube.com/live2/${KEY}`));
@@ -203,6 +214,7 @@ test('a YouTube poll flipping the stream active promotes the session to live', a
     return { id: 'broadcast-1', status: { lifeCycleStatus: 'ready' } };
   });
   await session.start({ broadcastId: 'broadcast-1', captureUrl: 'http://localhost:4173/' }, { call });
+  await waitForFrames(session);
   assert.equal(session.status().status, 'waiting-for-youtube');
 
   streamStatus = 'active';
@@ -232,6 +244,7 @@ test('quota during YouTube poll does not stop the encoder', async () => {
   await session.start({ broadcastId: 'broadcast-1', captureUrl: 'http://localhost:4173/' }, {
     call: async () => ({ items: [{ status: { streamStatus: 'ready', lifeCycleStatus: 'ready' } }] }),
   });
+  await waitForFrames(session);
   const quotaCall = async () => {
     const error = new Error('quota');
     error.kind = 'quota';

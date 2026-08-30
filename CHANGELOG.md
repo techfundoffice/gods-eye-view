@@ -7,9 +7,25 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Added
 
-- Added a grok CLI software specification for a NextChat-style chat surface on
-  the home page (`docs/NEXTCHAT-HOMEPAGE.md`). Documentation only — the runtime
-  does not yet include that chat overlay.
+- Added a NextChat-style chat overlay on the globe home page: session list,
+  new chat, user/assistant thread, and a text composer with send. Typed
+  messages use the existing GEV MIC Realtime path (`sendTextCommand` → tools
+  in `gevActions`). Assistant replies stream from live transcript deltas.
+  Without a connected voice session or `OPENAI_API_KEY`, send does not fake a
+  reply. GEV MIC remains in the command dock. Spec:
+  [`docs/NEXTCHAT-HOMEPAGE.md`](docs/NEXTCHAT-HOMEPAGE.md).
+
+### Fixed
+
+- ADMIN **Go Live** now runs the full YouTube Live path instead of calling the
+  encoder LIVE as soon as ffmpeg starts. Create or select a broadcast from the
+  signed-in YouTube account; the stream key is fetched and held on the server
+  and is never returned in status, logs, or the form. The pane shows separate
+  readiness for YouTube account, broadcast, capture, encoder, ingest, and
+  YouTube confirmation, including **YouTube has not received the stream yet**.
+  Chromium captures this origin (or `LIVE_CAPTURE_URL`) through the Replit
+  preview proxy with a deterministic viewport, and ffmpeg publishes H.264 + AAC
+  over FLV/RTMP with a 2-second GOP.
 
 ### Changed
 

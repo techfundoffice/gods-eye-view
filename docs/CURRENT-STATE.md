@@ -2,6 +2,23 @@
 
 Updated: August 30, 2026
 
+> **2026-08-30 — NextChat overlay on the globe home page.** `#gev-nextchat` is
+> chrome on `index.html` (session list, **New chat**, user/assistant thread,
+> `textarea` composer + Send). The page remains the globe (`#cesiumContainer`).
+> **GEV MIC** stays in `#command-dock`. Typed send calls the live
+> `GevRealtimeController.sendTextCommand` (`src/voice/nextchat.js`
+> `submitNextchatSend`) so tools still run through `GEV_REALTIME_TOOLS` /
+> `gevActions`. Empty/whitespace send is a no-op. If Realtime is idle, send
+> starts the existing session; a closed channel or `/api/realtime/token` 503
+> does not invent an assistant reply — the status line says the voice path is
+> unavailable. Assistant text streams from Realtime transcript deltas via
+> `handleRealtimeEvent` → `onRealtimeEvent` (visible before `response.done`).
+> Sessions persist fail-open at `godsEyeView.nextchat.sessions.v1`. New chat
+> is a fresh local thread and does not replay old messages into Realtime.
+> Overlay z-index 120 (panel band); it yields to cockpit / recording /
+> clean-view / scene-playback. No `/api/chat` backend. Spec:
+> `docs/NEXTCHAT-HOMEPAGE.md`.
+
 > **2026-08-30 — ADMIN is a two-column control panel.** After a signed-in
 > unlock, the console is a dark left navigation rail plus a focused workspace.
 > Core items are **Create Plugin**, **MCP Server**, and **Go Live**; generated
@@ -15,6 +32,27 @@ Updated: August 30, 2026
 > chrome, panes, and SIGN OUT while locked. CSS `display: none !important` via
 > the absence of `admin-unlocked` on `#admin-console` still beats dashboard
 > display rules.
+
+> **2026-08-30 — ADMIN Go Live is a YouTube Live control path, not just an
+> ffmpeg spawn.** The ADMIN **Go Live** pane (`#admin-live-phases`,
+> `#admin-live-broadcast`) talks to `/api/admin/live` on the shared live
+> session (`src/liveSession.js`). Create (`POST /live/provision`) or select
+> (`POST /live/select`) a YouTube broadcast through the signed-in YouTube
+> OAuth session; ingest URL + stream key are read from `liveStreams` **on the
+> server** and never appear in ADMIN JSON, encoder logs, or the stream-key
+> field (that field is only for a pasted Studio key). Start validates capture
+> URL, ffmpeg/Chromium, RTMP ingest, even dimensions, fps, bitrate, 2s GOP,
+> and a required AAC track, then Chromium captures this origin (or
+> `LIVE_CAPTURE_URL` / `REPLIT_DEV_DOMAIN`) with SwiftShader, a locked
+> viewport, and `domcontentloaded` — not `networkidle2`. Public status is
+> `encoding` → `ingesting` / `waiting-for-youtube` → `live` only after
+> YouTube `liveStreams.status.streamStatus=active` and the broadcast is
+> `live` or `testing` (Preview). Until then the youtube phase is **YouTube
+> has not received the stream yet**. A missing YouTube session, manage
+> scope, quota, incompatible broadcast, RTMP reject, or capture failure is
+> an actionable error, not a fake LIVE. The operator YouTube Settings panel
+> still starts the same encoder via `/api/youtube/live` with a pasted or
+> created key; it does not call `/api/admin/live`.
 
 > **2026-08-29 — operator YouTube Settings can go live through ffmpeg.** The
 > globe chrome **YOUTUBE SETTINGS** panel (`#youtube-panel`, `#youtube-go-live`)
@@ -2169,7 +2207,12 @@ silently demoting every later lookup for the session.
 
 ### Voice Control (June 2026)
 
-`GEV MIC` button (bottom UI) starts an OpenAI Realtime session over WebRTC:
+`GEV MIC` button (bottom UI) starts an OpenAI Realtime session over WebRTC.
+The homepage **CHAT** overlay (`#gev-nextchat`) types into the same session
+through `sendTextCommand` — see the 2026-08-30 NextChat delta at the top of
+this file.
+
+`GEV MIC` token flow:
 
 - **Token flow**: browser fetches a short-lived client secret from `/api/realtime/token`; the Vite middleware holds `OPENAI_API_KEY` and posts the full session config (instructions, tool schemas, VAD, truncation) to `api.openai.com/v1/realtime/client_secrets`. SDP exchange goes directly to `api.openai.com/v1/realtime/calls` with the ephemeral token.
 - **Session defaults** (env-tunable): model `gpt-realtime-2` (or `gpt-realtime-2.1-mini` when the MINI tier is selected — see the model-tier entry below), voice `marin`, reasoning effort `low`, semantic VAD with low eagerness, no response interruption, context window truncated to ~3,000 post-instruction tokens with 0.5 retention ratio — the conversational window stays short because map state is fetched live per turn.

@@ -1511,7 +1511,8 @@ body.ui-clean-view #cctv-panel,
 body.ui-clean-view #youtube-panel,
 body.ui-clean-view #radio-panel,
 body.ui-clean-view #global-context-panel,
-body.ui-clean-view #scene-panel {
+body.ui-clean-view #scene-panel,
+body.ui-clean-view #gev-nextchat {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -3973,7 +3974,8 @@ body.cockpit-mode :is(
   #title-bar, #style-indicator, #top-center-actions, #traffic-sync-chip, #cctv-sync-chip,
   #command-dock,
   #military-awareness-panel, #military-awareness-direction-overlay,
-  #cockpit-entry
+  #cockpit-entry,
+  #gev-nextchat
 ) { display: none !important; }
 body.cockpit-mode :is(#clear-selected-layers, #share-btn, #reset-globe-view) {
   display: none !important;
@@ -7315,7 +7317,8 @@ body.recording-mode #youtube-panel,
 body.recording-mode #radio-panel,
 body.recording-mode #global-context-panel,
 body.recording-mode #gev-voice-control,
-body.recording-mode #scene-panel {
+body.recording-mode #scene-panel,
+body.recording-mode #gev-nextchat {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -10413,8 +10416,47 @@ body.cockpit-mode .admin-launch {
 }
 
 .admin-live-state[data-live-status="live"] { color: #ff4d4d; }
-.admin-live-state[data-live-status="starting"] { color: var(--accent); }
+.admin-live-state[data-live-status="starting"],
+.admin-live-state[data-live-status="encoding"],
+.admin-live-state[data-live-status="ingesting"],
+.admin-live-state[data-live-status="waiting-for-youtube"] { color: var(--accent); }
 .admin-live-state[data-live-status="error"] { color: #ffb347; }
+
+.admin-live-phases {
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+}
+
+.admin-live-phases li {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary);
+}
+
+.admin-live-phases li span {
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.admin-live-phases li strong {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.admin-live-phases li[data-ready="true"] span { color: var(--accent); }
+.admin-live-phases li[data-ready="false"] strong { color: var(--text-secondary); }
 
 .admin-live-watch {
   margin-left: auto;
@@ -10511,4 +10553,204 @@ body.cockpit-mode .admin-launch {
 }
 .admin-console.admin-nav-compact.admin-nav-drawer-open .admin-nav {
   transform: none;
+}
+
+/* ── NextChat homepage overlay ───────────────── */
+#gev-nextchat {
+  position: fixed;
+  top: 76px;
+  left: var(--left-stack-x);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(58vh, 560px);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  pointer-events: none;
+}
+
+#gev-nextchat-toggle {
+  pointer-events: auto;
+  align-self: flex-start;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--glass-bg);
+  color: var(--accent);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+
+#gev-nextchat-panel {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--panel-radius);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+}
+
+#gev-nextchat.collapsed #gev-nextchat-panel {
+  display: none;
+}
+
+.gev-nextchat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.gev-nextchat-title {
+  flex: 1;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+}
+
+#gev-nextchat-new {
+  padding: 4px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.gev-nextchat-body {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  min-height: 0;
+  flex: 1;
+}
+
+.gev-nextchat-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 180px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 6px;
+  border-right: 1px solid var(--glass-border);
+}
+
+.gev-nextchat-session {
+  padding: 6px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gev-nextchat-session[aria-current="true"] {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+.gev-nextchat-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.gev-nextchat-thread {
+  flex: 1;
+  min-height: 160px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 8px 10px;
+}
+
+.gev-nextchat-msg {
+  margin-bottom: 8px;
+}
+
+.gev-nextchat-role {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gev-nextchat-user .gev-nextchat-text {
+  color: var(--text-primary);
+}
+
+.gev-nextchat-assistant .gev-nextchat-text {
+  color: var(--accent);
+}
+
+.gev-nextchat-text {
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.gev-nextchat-status {
+  margin: 0;
+  padding: 0 10px 6px;
+  color: var(--text-dim);
+  font-size: 9px;
+}
+
+.gev-nextchat-composer {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--glass-border);
+}
+
+#gev-nextchat-composer {
+  flex: 1;
+  min-height: 44px;
+  resize: none;
+  padding: 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+#gev-nextchat-send {
+  align-self: flex-end;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+body.scene-playback-mode #gev-nextchat {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }

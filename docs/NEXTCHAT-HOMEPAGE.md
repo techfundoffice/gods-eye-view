@@ -1,9 +1,9 @@
 # NextChat UX on the God's Eye View home page
 
 Software specification for **grok CLI**. This is implementer instruction, not a
-product pitch. A later grok CLI run should execute this document and ship the
-runtime. This file itself is documentation only: the live app does **not** yet
-include the chat overlay.
+product pitch. The overlay is now in the runtime (`#gev-nextchat`,
+`src/voice/nextchat.js`); `docs/CURRENT-STATE.md` is the source of truth for
+what shipped.
 
 ## Goal
 

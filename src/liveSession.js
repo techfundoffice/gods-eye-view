@@ -283,11 +283,11 @@ export function createLiveSessionController({
    */
   function bindAuth(authorization, proxy) {
     account = describeAccountPhase(authorization);
-    if (!authorization || typeof proxy !== 'function') {
-      youtubeCall = null;
-      return null;
+    // A later GET without the YouTube cookie must not drop the poll caller
+    // that is waiting for ingest confirmation.
+    if (authorization && authorization.canWrite !== false && typeof proxy === 'function') {
+      youtubeCall = createYoutubeApiCaller(proxy, authorization);
     }
-    youtubeCall = createYoutubeApiCaller(proxy, authorization);
     return youtubeCall;
   }
 

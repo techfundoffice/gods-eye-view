@@ -19,6 +19,7 @@ import { LAYER_STATE_REGISTRY } from './data/layerState.js';
 import { registerDataCredits } from './data/dataCredits.js';
 import { SceneDirector } from './scenes/director.js';
 import { initGevVoiceCommands } from './voice/gevRealtime.js';
+import { initNextchat } from './voice/nextchat.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
 import { initLogoGaze } from './logoGaze.js';
@@ -163,6 +164,9 @@ const youtubePanel = initYouTubePanel();
 // able to sign in and drive the plugin builder even on a machine that cannot
 // render the globe at all.
 const adminConsole = initAdminConsole();
+// Chat chrome is in index.html; wiring mounts outside the WebGL gate so a
+// headless / no-GPU load still has the composer. Voice attaches after globe init.
+const nextchat = initNextchat();
 
 async function init() {
   const loadingScreen = document.getElementById('loading-screen');
@@ -523,6 +527,8 @@ async function init() {
       requestRender: governorRequestRender,
     };
     window.__godsEyeView.voiceCommands = initGevVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
+    window.__godsEyeView.nextchat = nextchat;
+    nextchat?.attachVoice(window.__godsEyeView.voiceCommands);
     youtubePanel?.setActionRunner(window.__godsEyeView.voiceCommands.runner);
 
   } catch (error) {

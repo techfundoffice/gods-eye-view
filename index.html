@@ -976,6 +976,28 @@
 
   <div id="scene-runtime"></div>
 
+  <!-- NextChat overlay on the globe home page. Typed sends use sendTextCommand. -->
+  <aside id="gev-nextchat" aria-label="NextChat">
+    <button id="gev-nextchat-toggle" type="button" aria-expanded="true" aria-controls="gev-nextchat-panel">CHAT</button>
+    <div id="gev-nextchat-panel">
+      <header class="gev-nextchat-header">
+        <h2 class="gev-nextchat-title">CHAT</h2>
+        <button id="gev-nextchat-new" type="button">New chat</button>
+      </header>
+      <div class="gev-nextchat-body">
+        <nav id="gev-nextchat-sessions" class="gev-nextchat-sessions" aria-label="session list"></nav>
+        <div class="gev-nextchat-main">
+          <div id="gev-nextchat-thread" class="gev-nextchat-thread" aria-label="user/assistant thread"></div>
+          <p id="gev-nextchat-status" class="gev-nextchat-status" role="status" aria-live="polite"></p>
+          <form id="gev-nextchat-form" class="gev-nextchat-composer">
+            <textarea id="gev-nextchat-composer" rows="2" placeholder="Ask or command the globe…" autocomplete="off"></textarea>
+            <button id="gev-nextchat-send" type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </aside>
+
   <!-- Explicit mission choice on a fresh session. Live feeds are not auto-enabled
        until the visitor asks; shared links skip this surface entirely. It returns
        every session until "Don't show this again" is ticked — see
@@ -1155,11 +1177,26 @@
           </div>
           <p class="admin-mcp-help">
             Headless Chromium loads the globe, its composited frames are piped into <code>ffmpeg</code>, and
-            H.264 is pushed to an RTMP ingest. Create the broadcast from your connected YouTube account, or
-            paste an ingest URL and stream key from YouTube Studio.
+            H.264/AAC is pushed to YouTube Live over RTMP. Create or select a broadcast from the signed-in
+            YouTube account — the stream key stays on the server — or paste a Studio ingest URL and key.
           </p>
 
+          <ul id="admin-live-phases" class="admin-live-phases" aria-label="Broadcast readiness">
+            <li data-live-phase="account"><span>YouTube account</span><strong>Sign in to YouTube from the YouTube Settings panel.</strong></li>
+            <li data-live-phase="broadcast"><span>Broadcast</span><strong>Create or select a YouTube broadcast.</strong></li>
+            <li data-live-phase="capture"><span>Capture</span><strong>Capture URL will be probed when the broadcast starts.</strong></li>
+            <li data-live-phase="encoder"><span>Encoder</span><strong>ffmpeg and Chromium are checked on start.</strong></li>
+            <li data-live-phase="ingest"><span>Ingest</span><strong>Encoder is not publishing.</strong></li>
+            <li data-live-phase="youtube"><span>YouTube live</span><strong>YouTube has not received the stream yet.</strong></li>
+          </ul>
+
           <form id="admin-live-form" class="admin-live-form" autocomplete="off">
+            <label class="admin-field" for="admin-live-broadcast">
+              <span>EXISTING BROADCAST</span>
+              <select id="admin-live-broadcast" name="live-broadcast">
+                <option value="">Create new or paste a Studio key</option>
+              </select>
+            </label>
             <div class="admin-live-grid">
               <label class="admin-field" for="admin-live-title">
                 <span>BROADCAST TITLE</span>
@@ -1183,7 +1220,7 @@
                   placeholder="rtmp://a.rtmp.youtube.com/live2" />
               </label>
               <label class="admin-field" for="admin-live-key">
-                <span>STREAM KEY</span>
+                <span>STREAM KEY (PASTE FROM STUDIO — NEVER FILLED BY CREATE/SELECT)</span>
                 <input id="admin-live-key" type="password" name="live-key" autocomplete="off"
                   placeholder="xxxx-xxxx-xxxx-xxxx" />
               </label>
@@ -1192,7 +1229,8 @@
             <div class="admin-live-grid admin-live-grid-encoder">
               <label class="admin-field" for="admin-live-capture">
                 <span>CAPTURE URL</span>
-                <input id="admin-live-capture" type="text" name="live-capture" value="http://localhost:5000/" />
+                <input id="admin-live-capture" type="text" name="live-capture"
+                  placeholder="https://your-preview-host/" />
               </label>
               <label class="admin-field" for="admin-live-width">
                 <span>WIDTH</span>

@@ -115,7 +115,11 @@ export function computePollDelay(pollingIntervalMillis, backoffMs = 0) {
 export function liveStatusLabel(status) {
   switch (String(status || '')) {
     case 'starting': return 'STARTING';
+    case 'encoding': return 'ENCODING';
+    case 'ingesting': return 'INGESTING';
+    case 'waiting-for-youtube': return 'WAITING FOR YOUTUBE';
     case 'live': return 'LIVE';
+    case 'stopping': return 'STOPPING';
     case 'stopped': return 'STOPPED';
     case 'error': return 'ERROR';
     default: return 'OFFLINE';
@@ -149,7 +153,12 @@ export function formatLiveUptime(startedAt, nowMs = Date.now()) {
  */
 export function canStartLive(live) {
   const status = String(live?.status || 'idle');
-  return status !== 'live' && status !== 'starting';
+  return status !== 'live'
+    && status !== 'starting'
+    && status !== 'encoding'
+    && status !== 'ingesting'
+    && status !== 'waiting-for-youtube'
+    && status !== 'stopping';
 }
 
 /**
@@ -948,7 +957,8 @@ export class YouTubePanelController {
     this._stopLivePolling();
     if (this.state.connection !== 'connected') return;
     const status = String(this.state.live?.status || '');
-    if (status !== 'live' && status !== 'starting') return;
+    if (status !== 'live' && status !== 'starting' && status !== 'encoding'
+      && status !== 'ingesting' && status !== 'waiting-for-youtube') return;
     this._livePollTimer = setTimeout(() => void this._loadLive(), LIVE_POLL_MS);
   }
 

@@ -313,6 +313,34 @@ async function main() {
         state.snippet.includes(state.freshToken.split(': ').pop()));
     });
 
+    await section('go-live', async () => {
+      await page.click('#admin-menu [data-admin-view="live-stream"]');
+      const state = await waitUntil(page, () => {
+        const pane = document.querySelector('[data-admin-pane="live-stream"]');
+        const style = pane ? getComputedStyle(pane) : null;
+        const visible = Boolean(pane) && pane.hidden !== true
+          && style?.display !== 'none' && style?.visibility !== 'hidden';
+        return {
+          visible,
+          phases: [...document.querySelectorAll('#admin-live-phases [data-live-phase]')]
+            .map((row) => row.dataset.livePhase),
+          capture: document.getElementById('admin-live-capture')?.value || '',
+          origin: `${window.location.origin}/`,
+          select: Boolean(document.getElementById('admin-live-broadcast')),
+          chip: document.getElementById('admin-live-state')?.textContent?.trim() || '',
+        };
+      }, (s) => s.visible && s.phases.includes('youtube'), { label: 'the Go Live pane' });
+      record('the Go Live pane opens from the menu', state.visible);
+      record('readiness rows cover account through YouTube confirmation',
+        ['account', 'broadcast', 'capture', 'encoder', 'ingest', 'youtube']
+          .every((id) => state.phases.includes(id)),
+        state.phases.join(','));
+      record('capture URL defaults to this origin', state.capture === state.origin, state.capture);
+      record('an existing-broadcast selector is present', state.select);
+      record('the chip does not claim LIVE before YouTube confirmation',
+        state.chip !== 'LIVE', state.chip);
+    });
+
     await section('mcp-key-works', async () => {
       const token = (await page.evaluate(readConsole)).freshToken.split(': ').pop();
       const rpc = await page.evaluate(async (url, key) => {

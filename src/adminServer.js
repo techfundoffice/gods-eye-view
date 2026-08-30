@@ -10,7 +10,8 @@
  *     for the generated plugins the dashboard should load.
  *   - MCP settings: `GET|POST /mcp/settings`, `POST /mcp/keys`,
  *     `DELETE /mcp/keys/:id`, and the external `POST /mcp` JSON-RPC endpoint.
- *   - Live stream: `GET /live`, `POST /live/start`, `POST /live/stop`.
+ *   - Live stream: `GET /live`, `GET /live/broadcasts`, `POST /live/provision`,
+ *     `POST /live/select`, `POST /live/start`, `POST /live/stop`.
  *
  * Everything except `POST /mcp` requires the admin session cookie; `POST /mcp`
  * requires an API key instead and is refused outright while the MCP setting is
@@ -32,7 +33,8 @@ import { createAdminMcpServer } from './adminMcpServer.js';
 import { createPluginBuilder, readPluginManifest } from './adminPluginBuilder.js';
 import { normalizePluginManifest } from './adminPluginRegistry.js';
 import { createAdminStore } from './adminStore.js';
-import { createLiveStreamController } from './liveStream.js';
+import { createLiveSessionController } from './liveSession.js';
+import { youtubeLiveOperatorMessage } from './youtubeBroadcast.js';
 
 /** Largest admin request body accepted, in bytes. */
 export const ADMIN_MAX_BODY_BYTES = 256 * 1024;
@@ -146,7 +148,8 @@ export function createAdminMiddleware({
   auth = createAdminAuth({ store }),
   replitAuth = null,
   builder = createPluginBuilder(),
-  live = createLiveStreamController(),
+  live = createLiveSessionController(),
+  youtubeAuth = { authorizeRequest: async () => null, proxy: null },
   readManifest = readPluginManifest,
   version = '1.0.0',
 } = {}) {
@@ -254,6 +257,61 @@ export function createAdminMiddleware({
       return;
     }
     sendJson(res, 200, response);
+  }
+
+  /**
+   * @param {object} res
+   * @param {object|null} authorization
+   * @returns {boolean} True when the response was already sent.
+   */
+  function rejectYoutubeWrite(res, authorization) {
+    if (!authorization) {
+      sendJson(res, 401, {
+        error: {
+          kind: 'authentication',
+          message: youtubeLiveOperatorMessage('authentication'),
+        },
+      });
+      return true;
+    }
+    if (authorization.canWrite === false) {
+      sendJson(res, 403, {
+        error: {
+          kind: 'insufficient-scope',
+          message: youtubeLiveOperatorMessage('insufficient-scope'),
+        },
+      });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * @param {object} res
+   * @param {Error} error
+   * @returns {void}
+   */
+  function sendYoutubeLiveError(res, error) {
+    const kind = error?.kind || 'invalid';
+    let status = Number(error?.status);
+    if (!Number.isFinite(status) || status < 400) {
+      status = {
+        authentication: 401,
+        'insufficient-scope': 403,
+        quota: 403,
+        incompatible: 409,
+        'not-found': 404,
+        invalid: 400,
+        'invalid-request': 400,
+        upstream: 502,
+      }[kind] || 400;
+    }
+    sendJson(res, status, {
+      error: {
+        kind,
+        message: youtubeLiveOperatorMessage(kind, error?.message || 'YouTube live-control request failed.'),
+      },
+    });
   }
 
   return async function adminMiddleware(req, res, next) {
@@ -414,21 +472,69 @@ export function createAdminMiddleware({
       }
 
       if (first === 'live') {
+        const authorization = typeof youtubeAuth?.authorizeRequest === 'function'
+          ? await youtubeAuth.authorizeRequest(req)
+          : null;
+        if (typeof live.bindAuth === 'function') {
+          live.bindAuth(authorization, youtubeAuth?.proxy);
+        }
+
         if (segments.length === 1 && req.method === 'GET') {
           sendJson(res, 200, { live: live.status() });
           return;
         }
+
+        if (segments.length === 2 && second === 'broadcasts' && req.method === 'GET') {
+          if (rejectYoutubeWrite(res, authorization)) return;
+          try {
+            sendJson(res, 200, { broadcasts: await live.listBroadcasts() });
+          } catch (error) {
+            sendYoutubeLiveError(res, error);
+          }
+          return;
+        }
+
+        if (segments.length === 2 && second === 'provision' && req.method === 'POST') {
+          if (rejectYoutubeWrite(res, authorization)) return;
+          const body = await readJsonBody(req);
+          try {
+            const result = await live.provision({
+              title: body.title,
+              description: body.description,
+              privacyStatus: body.privacyStatus,
+            });
+            sendJson(res, 201, result);
+          } catch (error) {
+            sendYoutubeLiveError(res, error);
+          }
+          return;
+        }
+
+        if (segments.length === 2 && second === 'select' && req.method === 'POST') {
+          if (rejectYoutubeWrite(res, authorization)) return;
+          const body = await readJsonBody(req);
+          try {
+            const result = await live.select({ broadcastId: body.broadcastId });
+            sendJson(res, 200, result);
+          } catch (error) {
+            sendYoutubeLiveError(res, error);
+          }
+          return;
+        }
+
         if (segments.length === 2 && second === 'start' && req.method === 'POST') {
           const body = await readJsonBody(req);
           try {
-            const result = await live.start(body);
+            const result = typeof live.start === 'function'
+              ? await live.start(body, { authorization, proxy: youtubeAuth?.proxy, req })
+              : await live.start(body);
             // A refused or failed start is reported in the payload, not as a
             // transport error: the console renders the log either way.
             sendJson(res, result.status === 'error' ? 502 : 202, { live: result });
           } catch (error) {
-            sendJson(res, error?.status === 409 ? 409 : 400, {
+            sendJson(res, error?.status === 409 ? 409 : (error?.status || 400), {
               error: {
-                kind: error?.status === 409 ? 'conflict' : 'invalid',
+                kind: error?.kind || (error?.status === 409 ? 'conflict' : 'invalid'),
                 message: error?.message || 'Unable to start the broadcast',
               },
               live: live.status(),

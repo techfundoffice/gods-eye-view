@@ -50,11 +50,37 @@ import { createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
 import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.js';
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createLiveStreamController } from './src/liveStream.js';
+import { createLiveSessionController } from './src/liveSession.js';
 import { createAdminMiddleware } from './src/adminServer.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
 
-/** One encoder for the operator YouTube panel and the ADMIN console. */
-const sharedLiveStream = createLiveStreamController();
+let youtubeOAuthSingleton = null;
+let liveSessionSingleton = null;
+
+/**
+ * One OAuth middleware so ADMIN live-control and `/api/youtube` share sessions.
+ * Created lazily after `loadAndApplyGevEnv` so client id/secret are present.
+ *
+ * @returns {object}
+ */
+function sharedYoutubeOAuth() {
+  if (!youtubeOAuthSingleton) youtubeOAuthSingleton = createYoutubeOAuthMiddleware();
+  return youtubeOAuthSingleton;
+}
+
+/**
+ * One live session (encoder + YouTube binding) for ADMIN and the operator panel.
+ *
+ * @returns {object}
+ */
+function sharedLiveSession() {
+  if (!liveSessionSingleton) {
+    liveSessionSingleton = createLiveSessionController({
+      encoder: createLiveStreamController(),
+    });
+  }
+  return liveSessionSingleton;
+}
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
   normalizeRegionalArticles,
@@ -7348,7 +7374,7 @@ function normalizeAisTimestamp(value) {
  * lifecycle and only when YOUTUBE_WRITE_ENABLED is left on.
  */
 function youtubeProxy() {
-  const oauth = createYoutubeOAuthMiddleware();
+  const oauth = sharedYoutubeOAuth();
   const middleware = createYoutubeProxyMiddleware({
     proxy: oauth.proxy,
     authorizeRequest: oauth.authorizeRequest,
@@ -7358,7 +7384,7 @@ function youtubeProxy() {
     authorizeRequest: oauth.authorizeRequest,
   });
   const liveMiddleware = createYoutubeLiveMiddleware({
-    live: sharedLiveStream,
+    live: sharedLiveSession().asEncoder(),
     authorizeRequest: oauth.authorizeRequest,
   });
   function install(middlewares) {
@@ -7391,7 +7417,8 @@ function adminConsoleApi() {
   const replitAuth = createReplitAdminAuth();
   const middleware = createAdminMiddleware({
     version: version || '0.0.0',
-    live: sharedLiveStream,
+    live: sharedLiveSession(),
+    youtubeAuth: sharedYoutubeOAuth(),
     replitAuth,
   });
   function install(middlewares) {

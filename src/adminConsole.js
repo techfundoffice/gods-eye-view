@@ -15,6 +15,7 @@ import { createPluginRegistry, mountPlugin } from './adminPluginRegistry.js';
 import {
   LIVE_POLL_MS,
   canStartLive,
+  defaultLiveCaptureUrl,
   formatLiveUptime,
   liveStatusLabel,
   provisionYoutubeIngest,
@@ -348,9 +349,46 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     createMcpKey: (label) => request('/mcp/keys', { method: 'POST', body: { label } }),
     revokeMcpKey: (id) => request(`/mcp/keys/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     liveStatus: () => request('/live'),
+    listLiveBroadcasts: () => request('/live/broadcasts'),
+    provisionLive: (options) => request('/live/provision', { method: 'POST', body: options }),
+    selectLive: (broadcastId) => request('/live/select', { method: 'POST', body: { broadcastId } }),
     startLive: (options) => request('/live/start', { method: 'POST', body: options }),
     stopLive: () => request('/live/stop', { method: 'POST' }),
   };
+}
+
+const LIVE_POLL_STATUSES = new Set([
+  'starting',
+  'encoding',
+  'ingesting',
+  'waiting-for-youtube',
+  'live',
+]);
+
+/**
+ * ADMIN start body: a selected/created broadcast never round-trips the key.
+ *
+ * @param {object} fields
+ * @returns {object}
+ */
+export function buildAdminLiveStartBody(fields = {}) {
+  const broadcastId = String(fields.broadcastId || '').trim();
+  const body = {
+    captureUrl: String(fields.captureUrl || '').trim(),
+    audioSource: String(fields.audioSource || '').trim(),
+    width: fields.width,
+    height: fields.height,
+    fps: fields.fps,
+    videoBitrateKbps: fields.videoBitrateKbps,
+  };
+  if (broadcastId) {
+    body.broadcastId = broadcastId;
+    return body;
+  }
+  body.ingestUrl = String(fields.ingestUrl || '').trim();
+  const streamKey = String(fields.streamKey || '').trim();
+  if (streamKey) body.streamKey = streamKey;
+  return body;
 }
 
 /**
@@ -384,8 +422,9 @@ export class AdminConsoleController {
       mcp: { enabled: false, endpoint: '/api/admin/mcp', keys: [] },
       mcpLoaded: false,
       freshToken: '',
-      live: { status: 'idle', log: [], framesSent: 0, target: '', error: null },
+      live: { status: 'idle', log: [], framesSent: 0, target: '', error: null, phases: null },
       liveWatchUrl: '',
+      liveBroadcasts: [],
       menuPlugins: [],
       menuErrors: [],
       menuLoaded: false,
@@ -464,6 +503,7 @@ export class AdminConsoleController {
     });
     this._el('admin-live-stop')?.addEventListener('click', () => void this._stopLive());
     this._el('admin-live-provision')?.addEventListener('click', () => void this._provisionLive());
+    this._el('admin-live-broadcast')?.addEventListener('change', () => void this._selectLive());
 
     this._el('admin-mcp-toggle')?.addEventListener('click', () => void this._toggleMcp());
     this._el('admin-mcp-key-form')?.addEventListener('submit', (event) => {
@@ -968,12 +1008,26 @@ export class AdminConsoleController {
   }
 
   /** @returns {Promise<void>} */
-  async _loadLive() {
+  async _loadLive({ refreshBroadcasts = true } = {}) {
+    this._ensureCaptureUrl();
     try {
       const payload = await this.client.liveStatus();
       this.state.live = payload.live || this.state.live;
+      if (payload.live?.broadcast?.watchUrl) this.state.liveWatchUrl = payload.live.broadcast.watchUrl;
     } catch (error) {
       this.state.message = error.message;
+    }
+    if (refreshBroadcasts) {
+      try {
+        const listed = await this.client.listLiveBroadcasts();
+        this.state.liveBroadcasts = Array.isArray(listed.broadcasts) ? listed.broadcasts : [];
+      } catch (error) {
+        this.state.liveBroadcasts = [];
+        if (error.kind === 'authentication' || error.kind === 'insufficient-scope') {
+          // Account phase on GET /live already explains this; don't clobber encoder errors.
+          if (!this.state.live?.error) this.state.message = error.message;
+        }
+      }
     }
     this._render();
     this._scheduleLivePoll();
@@ -988,8 +1042,16 @@ export class AdminConsoleController {
     this._stopLivePolling();
     if (this.root.hidden || this.state.view !== 'live-stream') return;
     const status = String(this.state.live?.status || '');
-    if (status !== 'live' && status !== 'starting') return;
-    this._livePollTimer = setTimeout(() => void this._loadLive(), LIVE_POLL_MS);
+    if (!LIVE_POLL_STATUSES.has(status)) return;
+    this._livePollTimer = setTimeout(() => void this._loadLive({ refreshBroadcasts: false }), LIVE_POLL_MS);
+  }
+
+  /** @returns {void} */
+  _ensureCaptureUrl() {
+    const field = this._el('admin-live-capture');
+    if (!field || String(field.value || '').trim()) return;
+    const origin = globalThis.location?.origin || '';
+    field.value = defaultLiveCaptureUrl(origin);
   }
 
   /**
@@ -1009,18 +1071,15 @@ export class AdminConsoleController {
     this.state.message = 'Creating the YouTube broadcast...';
     this._render();
     try {
-      const result = await provisionYoutubeIngest(globalThis.fetch.bind(globalThis), {
+      const result = await this.client.provisionLive({
         title,
         privacyStatus: this._liveValue('admin-live-privacy', 'unlisted') || 'unlisted',
       });
-      const ingest = this._el('admin-live-ingest');
-      const key = this._el('admin-live-key');
-      if (ingest) ingest.value = result.ingestUrl;
-      if (key) key.value = result.streamKey;
-      this.state.liveWatchUrl = result.watchUrl;
-      this.state.message = result.streamKey
+      this._applyBroadcast(result.broadcast);
+      if (result.live) this.state.live = result.live;
+      this.state.message = result.broadcast?.id
         ? 'Broadcast created. Start the encoder to go live.'
-        : 'Broadcast created but YouTube returned no ingest key.';
+        : 'Broadcast created but YouTube returned no ingest target.';
     } catch (error) {
       this.state.message = error.kind === 'insufficient-scope'
         ? 'Reconnect YouTube from the YouTube panel to grant live-control permission.'
@@ -1037,8 +1096,10 @@ export class AdminConsoleController {
     this.state.message = '';
     this._render();
     try {
-      const payload = await this.client.startLive({
-        captureUrl: this._liveValue('admin-live-capture'),
+      const payload = await this.client.startLive(buildAdminLiveStartBody({
+        broadcastId: this._liveValue('admin-live-broadcast'),
+        captureUrl: this._liveValue('admin-live-capture')
+          || defaultLiveCaptureUrl(globalThis.location?.origin || ''),
         audioSource: this._liveValue('admin-live-audio'),
         ingestUrl: this._liveValue('admin-live-ingest'),
         streamKey: this._liveValue('admin-live-key'),
@@ -1046,8 +1107,9 @@ export class AdminConsoleController {
         height: this._liveValue('admin-live-height'),
         fps: this._liveValue('admin-live-fps'),
         videoBitrateKbps: this._liveValue('admin-live-bitrate'),
-      });
+      }));
       this.state.live = payload.live || this.state.live;
+      if (payload.live?.broadcast?.watchUrl) this.state.liveWatchUrl = payload.live.broadcast.watchUrl;
       if (!canStartLive(this.state.live)) {
         // ffmpeg holds the key now; nothing is gained by leaving a copy in a
         // form field that survives until the console is reloaded.
@@ -1079,12 +1141,98 @@ export class AdminConsoleController {
     this._render();
   }
 
+  /**
+   * Apply a redacted broadcast view to the form. Never writes a stream key.
+   *
+   * @param {object|null} broadcast
+   * @returns {void}
+   */
+  _applyBroadcast(broadcast) {
+    if (!broadcast?.id) return;
+    const ingest = this._el('admin-live-ingest');
+    const key = this._el('admin-live-key');
+    if (ingest) ingest.value = broadcast.ingestUrl || broadcast.target || '';
+    if (key) key.value = '';
+    this.state.liveWatchUrl = broadcast.watchUrl || this.state.liveWatchUrl;
+    const already = this.state.liveBroadcasts.some((row) => row.id === broadcast.id);
+    if (!already) {
+      this.state.liveBroadcasts = [
+        {
+          id: broadcast.id,
+          title: broadcast.title,
+          privacy: broadcast.privacy,
+          lifeCycleStatus: broadcast.lifeCycleStatus,
+          watchUrl: broadcast.watchUrl,
+        },
+        ...this.state.liveBroadcasts,
+      ];
+    }
+    const select = this._el('admin-live-broadcast');
+    if (select) select.value = broadcast.id;
+  }
+
+  /** @returns {Promise<void>} */
+  async _selectLive() {
+    if (!this._requireUnlocked()) return;
+    const broadcastId = this._liveValue('admin-live-broadcast');
+    if (!broadcastId) return;
+    this.state.busy = true;
+    this.state.message = 'Loading the YouTube broadcast...';
+    this._render();
+    try {
+      const result = await this.client.selectLive(broadcastId);
+      this._applyBroadcast(result.broadcast);
+      if (result.live) this.state.live = result.live;
+      this.state.message = 'Broadcast selected. Start the encoder to go live.';
+    } catch (error) {
+      this.state.message = error.message;
+    }
+    this.state.busy = false;
+    this._render();
+  }
+
+  /** @returns {void} */
+  _renderLivePhases(live) {
+    const list = this._el('admin-live-phases');
+    if (!list) return;
+    const phases = live.phases || {};
+    for (const row of list.querySelectorAll('[data-live-phase]')) {
+      const phase = phases[row.dataset.livePhase] || {};
+      row.dataset.ready = phase.ready ? 'true' : 'false';
+      const message = row.querySelector('strong');
+      if (message) message.textContent = phase.message || '—';
+    }
+  }
+
+  /** @returns {void} */
+  _renderBroadcastSelect(live) {
+    const select = this._el('admin-live-broadcast');
+    if (!select) return;
+    const selected = this._liveValue('admin-live-broadcast') || live.broadcast?.id || '';
+    const options = [
+      { id: '', title: 'Create new or paste a Studio key', lifeCycleStatus: '' },
+      ...this.state.liveBroadcasts,
+    ];
+    select.replaceChildren();
+    for (const row of options) {
+      const option = globalThis.document?.createElement?.('option') || { value: '', textContent: '' };
+      option.value = row.id || '';
+      option.textContent = row.id
+        ? `${row.lifeCycleStatus ? `${String(row.lifeCycleStatus).toUpperCase()} · ` : ''}${row.title || row.id}`
+        : row.title;
+      select.append(option);
+    }
+    if (selected) select.value = selected;
+  }
+
   /** @returns {void} */
   _renderLive() {
     const live = this.state.live || {};
     const chip = this._el('admin-live-state');
     if (chip) {
-      chip.textContent = liveStatusLabel(live.status);
+      chip.textContent = live.phases?.youtube?.preview && live.status === 'live'
+        ? 'YOUTUBE PREVIEW'
+        : liveStatusLabel(live.status);
       chip.dataset.liveStatus = String(live.status || 'idle');
     }
 
@@ -1098,6 +1246,9 @@ export class AdminConsoleController {
     const provision = this._el('admin-live-provision');
     if (provision) provision.disabled = this.state.busy || !canStartLive(live);
 
+    this._renderLivePhases(live);
+    this._renderBroadcastSelect(live);
+
     const summary = this._el('admin-live-summary');
     if (summary) {
       const parts = [];
@@ -1108,14 +1259,18 @@ export class AdminConsoleController {
       const uptime = live.status === 'live' ? formatLiveUptime(live.startedAt) : '';
       if (uptime) parts.push(`UP ${uptime}`);
       if (live.framesSent) parts.push(`${live.framesSent} FRAMES SENT`);
+      if (live.phases?.youtube?.message && live.status === 'waiting-for-youtube') {
+        parts.push(live.phases.youtube.message);
+      }
       if (live.error) parts.push(live.error);
       summary.textContent = parts.join(' · ') || 'Idle. Create or paste an ingest target to begin.';
     }
 
     const watch = this._el('admin-live-watch');
     if (watch) {
-      watch.href = this.state.liveWatchUrl || '#';
-      watch.hidden = !this.state.liveWatchUrl;
+      const href = this.state.liveWatchUrl || live.broadcast?.watchUrl || '';
+      watch.href = href || '#';
+      watch.hidden = !href;
     }
 
     const log = this._el('admin-live-log');
