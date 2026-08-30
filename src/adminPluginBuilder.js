@@ -1,5 +1,5 @@
 /**
- * "Create New Admin Menu Plugin" — the chat-driven plugin builder.
+ * "Create Plugin" — the chat-driven plugin builder.
  *
  * The ADMIN types a plugin name and a description; this module hands that to a
  * Claude Code agent running against the repository root, streams the agent's

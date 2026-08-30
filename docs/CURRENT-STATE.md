@@ -1,6 +1,20 @@
 # God's Eye View Current State
 
-Updated: August 29, 2026
+Updated: August 30, 2026
+
+> **2026-08-30 — ADMIN is a two-column control panel.** After a signed-in
+> unlock, the console is a dark left navigation rail plus a focused workspace.
+> Core items are **Create Plugin**, **MCP Server**, and **Go Live**; generated
+> manifest entries list under a separate **Plugins** group with empty /
+> loading / error states. Selecting a left-nav item updates the existing pane
+> in place (no URL change) and still goes through `_requireUnlocked`. On a
+> narrow viewport the rail becomes a drawer: Escape closes the drawer when it
+> is open and otherwise still closes the console. Native Replit Login, lock
+> paint, plugin builder, MCP, and live controls are unchanged.
+> `applyAdminLockPaint` still withholds dashboard, nav, Plugins group, drawer
+> chrome, panes, and SIGN OUT while locked. CSS `display: none !important` via
+> the absence of `admin-unlocked` on `#admin-console` still beats dashboard
+> display rules.
 
 > **2026-08-29 — operator YouTube Settings can go live through ffmpeg.** The
 > globe chrome **YOUTUBE SETTINGS** panel (`#youtube-panel`, `#youtube-go-live`)
@@ -14,7 +28,7 @@ Updated: August 29, 2026
 > ADMIN password). Unauthenticated start is 401. A missing ffmpeg or capture
 > Chromium is `status: error`, not live. The stream key is accepted on start,
 > cleared from the password field once the encoder is running, and never
-> returned in status, logs, or on-screen copy. ADMIN **Go Live (ffmpeg)** stays
+> returned in status, logs, or on-screen copy. ADMIN **Go Live** stays
 > as a second entry on the same encoder.
 
 > **2026-08-29 — a pasted `ADMIN_PASSWORD_HASH=scrypt$...` actually enables
@@ -26,16 +40,16 @@ Updated: August 29, 2026
 
 > **2026-08-29 — ADMIN login is the whole locked surface.** Clicking the
 > chrome **ADMIN** label while signed out paints only the password gate
-> (`#admin-gate`). Plugin menu items (Create New Admin Menu Plugin, MCP
-> Server, Go Live, generated plugins), the plugin builder, MCP settings, live
-> controls, and SIGN OUT stay unpainted — CSS `display: none !important` via
-> the absence of `admin-unlocked` on `#admin-console`, plus `hidden`, plus
-> skipping `_renderMenu` / `_renderMcp` / `_renderLive` until
-> `isAdminUnlocked`. `applyAdminLockPaint` is the helper `_render` and the
-> unit tests share. Operator fetches (`GET /api/admin/plugins`, `/menu`, MCP,
-> live) still require the session cookie; the client does not request them
-> until unlock. `scripts/qa-admin-console.mjs` measures this with computed
-> layout, not the `hidden` attribute.
+> (`#admin-gate`). Plugin menu items (Create Plugin, MCP Server, Go Live,
+> generated plugins), the left rail, Plugins group, drawer chrome, the plugin
+> builder, MCP settings, live controls, and SIGN OUT stay unpainted — CSS
+> `display: none !important` via the absence of `admin-unlocked` on
+> `#admin-console`, plus `hidden`, plus skipping `_renderMenu` / `_renderMcp` /
+> `_renderLive` until `isAdminUnlocked`. `applyAdminLockPaint` is the helper
+> `_render` and the unit tests share. Operator fetches (`GET /api/admin/plugins`,
+> `/menu`, MCP, live) still require the session cookie; the client does not
+> request them until unlock. `scripts/qa-admin-console.mjs` measures this with
+> computed layout, not the `hidden` attribute.
 
 > **2026-08-23 — first-run mission launcher** (`src/firstRunExperience.js`,
 > `#first-run-launcher`, styles at the tail of `style.css`). After startup

@@ -34,15 +34,16 @@ export const ADMIN_REQUEST_HEADER = 'X-GEV-Admin';
 export const ADMIN_POLL_MS = 1500;
 
 /**
- * Fixed dashboard menu. Generated plugins are appended after these at runtime
- * by `_renderMenu`, from the manifest `GET /api/admin/menu` reports.
+ * Fixed dashboard menu. Generated plugins are listed in a separate Plugins
+ * group at runtime by `_renderMenu`, from the manifest `GET /api/admin/menu`
+ * reports.
  *
  * @type {ReadonlyArray<{id: string, label: string, description: string}>}
  */
 export const ADMIN_MENU_ITEMS = Object.freeze([
   {
     id: 'create-plugin',
-    label: 'Create New Admin Menu Plugin',
+    label: 'Create Plugin',
     description: 'Describe a plugin; the coding agent writes it into this codebase.',
   },
   {
@@ -52,10 +53,17 @@ export const ADMIN_MENU_ITEMS = Object.freeze([
   },
   {
     id: 'live-stream',
-    label: 'Go Live (ffmpeg)',
+    label: 'Go Live',
     description: 'Capture the globe with headless Chromium and push it to YouTube over RTMP.',
   },
 ]);
+
+/** Viewport width at which the left rail becomes a compact drawer. */
+export const ADMIN_NAV_COMPACT_MAX_WIDTH = 900;
+/** Class on `#admin-console` when the rail is in its compact/drawer layout. */
+export const ADMIN_NAV_COMPACT_CLASS = 'admin-nav-compact';
+/** Class on `#admin-console` while the compact rail drawer is open. */
+export const ADMIN_NAV_DRAWER_OPEN_CLASS = 'admin-nav-drawer-open';
 
 /**
  * One-word status for a plugin build.
@@ -106,11 +114,109 @@ export function isAdminUnlocked(state) {
 export const ADMIN_UNLOCKED_CLASS = 'admin-unlocked';
 
 /**
+ * Status of the generated-plugins group in the left rail.
+ *
+ * A missing/empty manifest is `empty` (no plugins, no errors). A failed
+ * manifest load is `error` and must not look like a successful plugin list.
+ *
+ * @param {{ loaded?: boolean, plugins?: object[], errors?: object[] }} state
+ * @returns {'loading'|'empty'|'error'|'ready'}
+ */
+export function pluginNavStatus({ loaded = false, plugins = [], errors = [] } = {}) {
+  if (!loaded) return 'loading';
+  if ((errors || []).length && !(plugins || []).length) return 'error';
+  if (!(plugins || []).length) return 'empty';
+  return 'ready';
+}
+
+/**
+ * Operator-readable copy for a plugins-group status.
+ *
+ * @param {'loading'|'empty'|'error'|'ready'|string} status
+ * @returns {string}
+ */
+export function pluginNavStatusMessage(status) {
+  switch (String(status || '')) {
+    case 'loading': return 'Loading plugins…';
+    case 'empty': return 'No plugins yet.';
+    case 'error': return 'Could not load plugins.';
+    default: return '';
+  }
+}
+
+/**
+ * Apply compact-rail and drawer-open classes on the console root.
+ *
+ * The drawer can only be open in the compact layout; opening it on a wide
+ * screen is a no-op so the persistent rail never overlays the workspace.
+ *
+ * @param {Element|null} root `#admin-console`
+ * @param {{ compact?: boolean, drawerOpen?: boolean }} [options]
+ * @returns {{ compact: boolean, drawerOpen: boolean }}
+ */
+export function applyAdminNavLayout(root, { compact = false, drawerOpen = false } = {}) {
+  const nextCompact = Boolean(compact);
+  const nextOpen = nextCompact && Boolean(drawerOpen);
+  if (!root?.classList) return { compact: nextCompact, drawerOpen: nextOpen };
+  root.classList.toggle(ADMIN_NAV_COMPACT_CLASS, nextCompact);
+  root.classList.toggle(ADMIN_NAV_DRAWER_OPEN_CLASS, nextOpen);
+  return { compact: nextCompact, drawerOpen: nextOpen };
+}
+
+/**
+ * What Escape should do while the ADMIN console is on screen.
+ *
+ * The compact drawer claims Escape only while it is open — then the key
+ * closes the drawer and must not also close the console. Otherwise Escape
+ * still closes the console, matching the previous handler.
+ *
+ * @param {{ consoleOpen?: boolean, compact?: boolean, drawerOpen?: boolean }} [state]
+ * @returns {'close-drawer'|'close-console'|null}
+ */
+export function adminEscapeAction({ consoleOpen = false, compact = false, drawerOpen = false } = {}) {
+  if (!consoleOpen) return null;
+  if (compact && drawerOpen) return 'close-drawer';
+  return 'close-console';
+}
+
+/**
+ * Next `[data-admin-view]` control for arrow/home/end keys inside the rail.
+ *
+ * @param {Array<Element>|NodeListOf<Element>} items
+ * @param {Element|null} current
+ * @param {string} key
+ * @returns {Element|null}
+ */
+export function nextAdminNavItem(items, current, key) {
+  const list = [...(items || [])].filter(Boolean);
+  if (!list.length) return null;
+  const index = list.indexOf(current);
+  if (index < 0) {
+    if (key === 'End' || key === 'ArrowUp' || key === 'ArrowLeft') return list[list.length - 1];
+    if (key === 'Home' || key === 'ArrowDown' || key === 'ArrowRight') return list[0];
+    return null;
+  }
+  switch (key) {
+    case 'Home': return list[0];
+    case 'End': return list[list.length - 1];
+    case 'ArrowDown':
+    case 'ArrowRight':
+      return list[(index + 1) % list.length];
+    case 'ArrowUp':
+    case 'ArrowLeft':
+      return list[(index - 1 + list.length) % list.length];
+    default:
+      return null;
+  }
+}
+
+/**
  * Paint the locked-vs-unlocked admin overlay.
  *
  * Class `admin-unlocked` on the console root is the CSS gate: without it,
- * dashboard, plugin panes, menu, and sign-out are `display: none !important`.
- * `hidden` stays in step so the accessibility tree matches the paint.
+ * dashboard, plugin panes, menu, rail, drawer chrome, and sign-out are
+ * `display: none !important`. `hidden` stays in step so the accessibility
+ * tree matches the paint.
  *
  * @param {Element|null} root `#admin-console`
  * @param {object|null|undefined} session Payload from `GET /api/admin/session`.
@@ -124,13 +230,20 @@ export function applyAdminLockPaint(root, session, { view = '' } = {}) {
   if (!root?.classList) return { unlocked, showGate, showDashboard };
 
   root.classList.toggle(ADMIN_UNLOCKED_CLASS, unlocked);
+  if (!unlocked) root.classList.remove(ADMIN_NAV_DRAWER_OPEN_CLASS);
 
   const gate = root.querySelector?.('#admin-gate');
   const dashboard = root.querySelector?.('#admin-dashboard');
   const signout = root.querySelector?.('#admin-signout');
+  const toggle = root.querySelector?.('#admin-nav-toggle');
+  const scrim = root.querySelector?.('#admin-nav-drawer-scrim');
+  const nav = root.querySelector?.('#admin-nav');
   if (gate) gate.hidden = unlocked;
   if (dashboard) dashboard.hidden = !unlocked;
   if (signout) signout.hidden = !unlocked;
+  if (toggle) toggle.hidden = !unlocked;
+  if (scrim && !unlocked) scrim.hidden = true;
+  if (nav && !unlocked) nav.setAttribute?.('aria-hidden', 'true');
 
   const panes = root.querySelectorAll?.('[data-admin-pane]') || [];
   for (const pane of panes) {
@@ -243,7 +356,7 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
 /**
  * Wire the ADMIN launcher, native Replit Login, and the dashboard.
  */
-class AdminConsoleController {
+export class AdminConsoleController {
   /**
    * @param {HTMLElement} root The `#admin-console` overlay.
    * @param {object} options
@@ -275,6 +388,9 @@ class AdminConsoleController {
       liveWatchUrl: '',
       menuPlugins: [],
       menuErrors: [],
+      menuLoaded: false,
+      navCompact: false,
+      navDrawerOpen: false,
       busy: false,
       message: '',
     };
@@ -282,6 +398,8 @@ class AdminConsoleController {
     this._livePollTimer = null;
     this._pluginCleanup = null;
     this._menuSignature = '';
+    this._navMedia = null;
+    this._onNavMedia = null;
     this._bind();
   }
 
@@ -294,9 +412,11 @@ class AdminConsoleController {
   }
 
   _bind() {
-    document.getElementById('admin-launch')?.addEventListener('click', () => this.open());
+    globalThis.document?.getElementById('admin-launch')?.addEventListener('click', () => this.open());
     this._el('admin-close')?.addEventListener('click', () => this.close());
     this._el('admin-signout')?.addEventListener('click', () => this._signOut());
+    this._el('admin-nav-toggle')?.addEventListener('click', () => this._toggleNavDrawer());
+    this._el('admin-nav-drawer-scrim')?.addEventListener('click', () => this._setNavDrawerOpen(false));
 
     this._el('admin-login-form')?.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -309,6 +429,16 @@ class AdminConsoleController {
       const button = event.target?.closest?.('[data-admin-view]');
       if (button) this._setView(button.dataset.adminView);
     });
+    this._el('admin-menu')?.addEventListener('keydown', (event) => this._onNavKeydown(event));
+
+    const matchMedia = globalThis.window?.matchMedia;
+    if (typeof matchMedia === 'function') {
+      this._navMedia = matchMedia(`(max-width: ${ADMIN_NAV_COMPACT_MAX_WIDTH}px)`);
+      this._onNavMedia = () => this._syncNavLayout();
+      if (this._navMedia.addEventListener) this._navMedia.addEventListener('change', this._onNavMedia);
+      else this._navMedia.addListener?.(this._onNavMedia);
+      this._syncNavLayout();
+    }
 
     this._el('admin-plugin-form')?.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -345,9 +475,48 @@ class AdminConsoleController {
       if (button) void this._revokeKey(button.dataset.revokeKey);
     });
 
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !this.root.hidden) this.close();
+    globalThis.document?.addEventListener('keydown', (event) => this._onDocumentKeydown(event));
+  }
+
+  /**
+   * Escape closes the compact drawer when it is open, otherwise the console.
+   * The drawer path stops the event so it cannot also dismiss the console (or
+   * become a fourth global ESC policy). The console-close path is unchanged.
+   *
+   * @param {KeyboardEvent} event
+   * @returns {void}
+   */
+  _onDocumentKeydown(event) {
+    if (event.key !== 'Escape' || this.root.hidden) return;
+    const action = adminEscapeAction({
+      consoleOpen: !this.root.hidden,
+      compact: this.state.navCompact,
+      drawerOpen: this.state.navDrawerOpen,
     });
+    if (action === 'close-drawer') {
+      event.preventDefault?.();
+      event.stopImmediatePropagation?.();
+      this._setNavDrawerOpen(false);
+      return;
+    }
+    this.close();
+  }
+
+  /**
+   * Arrow/home/end move focus between left-nav items.
+   *
+   * @param {KeyboardEvent} event
+   * @returns {void}
+   */
+  _onNavKeydown(event) {
+    const next = nextAdminNavItem(
+      this._el('admin-menu')?.querySelectorAll?.('[data-admin-view]') || [],
+      event.target?.closest?.('[data-admin-view]') || null,
+      event.key,
+    );
+    if (!next || next === event.target) return;
+    event.preventDefault?.();
+    next.focus?.();
   }
 
   /** Open the console, refreshing session state first. @returns {Promise<void>} */
@@ -358,7 +527,7 @@ class AdminConsoleController {
     this.state.session = { ...this.state.session, authenticated: false };
     this._render();
     this.root.hidden = false;
-    document.body.classList.add('admin-console-open');
+    globalThis.document?.body?.classList?.add('admin-console-open');
     await this._refreshSession();
     if (isAdminUnlocked(this.state.session)) {
       await this._loadPlugins();
@@ -371,11 +540,12 @@ class AdminConsoleController {
 
   /** Close the console and stop polling. @returns {void} */
   close() {
+    this._setNavDrawerOpen(false, { restoreFocus: false });
     this.root.hidden = true;
-    document.body.classList.remove('admin-console-open');
+    globalThis.document?.body?.classList?.remove('admin-console-open');
     this._stopPolling();
     this._unmountPluginView();
-    document.getElementById('admin-launch')?.focus();
+    globalThis.document?.getElementById('admin-launch')?.focus?.();
   }
 
   /**
@@ -425,6 +595,7 @@ class AdminConsoleController {
     this.state.plugins = [];
     this.state.menuPlugins = [];
     this.state.menuErrors = [];
+    this.state.menuLoaded = false;
     this.state.view = ADMIN_MENU_ITEMS[0].id;
     this.state.activePlugin = null;
     this.state.activePluginId = '';
@@ -516,6 +687,7 @@ class AdminConsoleController {
     this._unmountPluginView();
     this.state.view = view;
     this.state.message = '';
+    this._setNavDrawerOpen(false, { restoreFocus: false });
     this._render();
     if (view === 'mcp-server') void this._loadMcp();
     if (view === 'live-stream') void this._loadLive();
@@ -586,8 +758,9 @@ class AdminConsoleController {
       result = { plugins: [], errors: [{ id: '', message: error?.message || 'Could not load plugins' }] };
     }
     if (!isAdminUnlocked(this.state.session)) return;
-    this.state.menuPlugins = result.plugins;
-    this.state.menuErrors = result.errors;
+    this.state.menuPlugins = result.plugins || [];
+    this.state.menuErrors = result.errors || [];
+    this.state.menuLoaded = true;
     // A plugin that has been deleted from the manifest cannot stay on screen.
     if (!this._isKnownView(this.state.view)) {
       this._unmountPluginView();
@@ -605,48 +778,151 @@ class AdminConsoleController {
       || this.state.menuPlugins.some((plugin) => plugin.id === view);
   }
 
-  /** Append the generated plugins after the fixed menu items. @returns {void} */
+  /** Paint core + generated plugin groups in the left rail. @returns {void} */
   _renderMenu() {
     const nav = this._el('admin-menu');
     if (!nav) return;
+    const list = this._el('admin-plugins-list') || nav.querySelector?.('[data-admin-nav-group="plugins"]');
     // Rebuild only when the plugin set actually changed: `_render` runs on
     // every build poll, and replacing the buttons would steal focus from one.
-    const signature = this.state.menuPlugins.map((plugin) => `${plugin.id}:${plugin.label}`).join('|');
+    const signature = [
+      this.state.menuLoaded ? '1' : '0',
+      this.state.menuPlugins.map((plugin) => `${plugin.id}:${plugin.label}`).join('|'),
+      (this.state.menuErrors || []).map((entry) => entry.message).join('|'),
+    ].join('~');
     if (signature !== this._menuSignature) {
       this._menuSignature = signature;
-      nav.querySelectorAll('[data-admin-generated]').forEach((node) => node.remove());
-      this._appendMenuPlugins(nav);
+      if (list?.querySelectorAll) {
+        list.querySelectorAll('[data-admin-generated]').forEach((node) => node.remove());
+      } else if (list?.replaceChildren) {
+        list.replaceChildren();
+      }
+      this._appendMenuPlugins(list || nav);
     }
-    for (const button of nav.querySelectorAll('[data-admin-generated]')) {
+    for (const button of nav.querySelectorAll('[data-admin-view]')) {
       const active = button.dataset.adminView === this.state.view;
       button.classList.toggle('active', active);
       button.setAttribute('aria-current', active ? 'page' : 'false');
     }
+    this._paintPluginNavStatus();
+  }
 
+  /** Empty / loading / error owned by the Plugins group. @returns {void} */
+  _paintPluginNavStatus() {
+    const status = pluginNavStatus({
+      loaded: this.state.menuLoaded,
+      plugins: this.state.menuPlugins,
+      errors: this.state.menuErrors,
+    });
+    const loading = this._el('admin-plugins-loading');
+    const empty = this._el('admin-plugins-empty');
     const errors = this._el('admin-menu-errors');
+    if (loading) {
+      loading.textContent = pluginNavStatusMessage('loading');
+      loading.hidden = status !== 'loading';
+    }
+    if (empty) {
+      empty.textContent = pluginNavStatusMessage('empty');
+      empty.hidden = status !== 'empty';
+    }
     if (!errors) return;
     const messages = (this.state.menuErrors || []).map((entry) => entry.message).filter(Boolean);
-    errors.textContent = messages.join(' · ');
-    errors.hidden = !messages.length;
+    errors.textContent = messages.join(' · ') || (status === 'error' ? pluginNavStatusMessage('error') : '');
+    errors.hidden = status !== 'error' && !messages.length;
   }
 
   /**
-   * @param {HTMLElement} nav Menu container.
+   * @param {HTMLElement} nav Plugins list (or the menu, as a fallback).
    * @returns {void}
    */
   _appendMenuPlugins(nav) {
+    if (!nav) return;
+    const doc = nav.ownerDocument || globalThis.document;
+    if (!doc?.createElement) return;
     for (const plugin of this.state.menuPlugins) {
-      const button = document.createElement('button');
+      const button = doc.createElement('button');
       button.type = 'button';
       button.className = 'admin-menu-item';
       button.dataset.adminView = plugin.id;
       button.dataset.adminGenerated = '1';
-      const label = document.createElement('strong');
+      button.title = plugin.description || plugin.label;
+      const label = doc.createElement('strong');
       label.textContent = plugin.label;
-      const description = document.createElement('small');
+      const description = doc.createElement('small');
       description.textContent = plugin.description || 'Generated from the ADMIN plugin builder.';
-      button.append(label, description);
-      nav.append(button);
+      if (typeof button.append === 'function') button.append(label, description);
+      else {
+        button.appendChild?.(label);
+        button.appendChild?.(description);
+      }
+      if (typeof nav.append === 'function') nav.append(button);
+      else nav.appendChild?.(button);
+    }
+  }
+
+  /**
+   * Keep compact/drawer classes, toggle chrome, and aria in step with state.
+   *
+   * @returns {void}
+   */
+  _syncNavLayout() {
+    const compact = Boolean(this._navMedia?.matches);
+    if (!compact) this.state.navDrawerOpen = false;
+    this.state.navCompact = compact;
+    this._applyNavDrawerPaint();
+  }
+
+  /**
+   * Open or close the compact navigation drawer.
+   *
+   * @param {boolean} open
+   * @returns {void}
+   */
+  /**
+   * @param {boolean} open
+   * @param {{ restoreFocus?: boolean }} [options]
+   * @returns {void}
+   */
+  _setNavDrawerOpen(open, { restoreFocus = true } = {}) {
+    const next = Boolean(open) && this.state.navCompact;
+    const changed = next !== this.state.navDrawerOpen;
+    this.state.navDrawerOpen = next;
+    this._applyNavDrawerPaint();
+    if (!changed) return;
+    if (next) {
+      this._el('admin-menu')?.querySelector?.('[data-admin-view]')?.focus?.();
+    } else if (restoreFocus) {
+      this._el('admin-nav-toggle')?.focus?.();
+    }
+  }
+
+  /** Toggle the compact drawer from the header control. @returns {void} */
+  _toggleNavDrawer() {
+    if (!this._requireUnlocked()) return;
+    if (!this.state.navCompact) return;
+    this._setNavDrawerOpen(!this.state.navDrawerOpen);
+  }
+
+  /** @returns {void} */
+  _applyNavDrawerPaint() {
+    const { compact, drawerOpen } = applyAdminNavLayout(this.root, {
+      compact: this.state.navCompact,
+      drawerOpen: this.state.navDrawerOpen,
+    });
+    this.state.navCompact = compact;
+    this.state.navDrawerOpen = drawerOpen;
+    const unlocked = isAdminUnlocked(this.state.session);
+    const toggle = this._el('admin-nav-toggle');
+    if (toggle) {
+      toggle.hidden = !unlocked;
+      toggle.setAttribute('aria-expanded', String(drawerOpen));
+      toggle.setAttribute('aria-label', drawerOpen ? 'Close admin navigation' : 'Open admin navigation');
+    }
+    const scrim = this._el('admin-nav-drawer-scrim');
+    if (scrim) scrim.hidden = !unlocked || !drawerOpen;
+    const nav = this._el('admin-nav');
+    if (nav) {
+      nav.setAttribute('aria-hidden', unlocked ? String(compact && !drawerOpen) : 'true');
     }
   }
 
@@ -939,6 +1215,9 @@ class AdminConsoleController {
     }
 
     if (!unlocked) {
+      this.state.menuLoaded = false;
+      this.state.navDrawerOpen = false;
+      this._applyNavDrawerPaint();
       this._clearGeneratedMenu();
       return;
     }
@@ -950,6 +1229,7 @@ class AdminConsoleController {
     });
 
     this._renderMenu();
+    this._applyNavDrawerPaint();
     this._renderPluginList();
     this._renderTranscript();
     this._renderMcp();
@@ -958,13 +1238,22 @@ class AdminConsoleController {
 
   /** Drop generated plugin tiles so a locked overlay cannot keep them. @returns {void} */
   _clearGeneratedMenu() {
+    const list = this._el('admin-plugins-list');
     const nav = this._el('admin-menu');
-    if (!nav) return;
-    const generated = nav.querySelectorAll?.('[data-admin-generated]');
+    const generated = (list || nav)?.querySelectorAll?.('[data-admin-generated]');
     if (generated) {
       for (const node of generated) node.remove?.();
     }
     this._menuSignature = '';
+    const loading = this._el('admin-plugins-loading');
+    const empty = this._el('admin-plugins-empty');
+    const errors = this._el('admin-menu-errors');
+    if (loading) loading.hidden = true;
+    if (empty) empty.hidden = true;
+    if (errors) {
+      errors.textContent = '';
+      errors.hidden = true;
+    }
   }
 
   /** @returns {void} */
@@ -1011,7 +1300,7 @@ class AdminConsoleController {
     if (heading) {
       heading.textContent = plugin
         ? `${plugin.name} · ${pluginStatusLabel(plugin.status)}`
-        : 'Create New Admin Menu Plugin';
+        : 'Create Plugin';
     }
 
     feed.replaceChildren();
@@ -1114,14 +1403,25 @@ class AdminConsoleController {
  * @param {object} [options.client]
  * @returns {AdminConsoleController|null}
  */
-export function initAdminConsole({ root = document.getElementById('admin-console'), client } = {}) {
+export function initAdminConsole({
+  root = globalThis.document?.getElementById('admin-console'),
+  client,
+  registry,
+} = {}) {
   if (!root) return null;
-  const controller = new AdminConsoleController(root, { client: client || createAdminClient() });
-  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('admin') === '1') {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('admin');
-    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-    queueMicrotask(() => void controller.open());
+  const controller = new AdminConsoleController(root, {
+    client: client || createAdminClient(),
+    registry,
+  });
+  try {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('admin') === '1') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('admin');
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+      queueMicrotask(() => void controller.open());
+    }
+  } catch {
+    // Tests (and any window without a Location) skip the ?admin=1 auto-open.
   }
   return controller;
 }

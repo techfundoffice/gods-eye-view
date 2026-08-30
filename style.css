@@ -9818,12 +9818,18 @@ body.cockpit-mode .admin-launch {
 
 /*
  * Class lock — independent of the `hidden` attribute. Clicking ADMIN while
- * signed out is a login page: plugin tiles, builder, MCP, Go Live, and SIGN
- * OUT must not paint even if a stylesheet slip clears `hidden`.
+ * signed out is a login page: plugin tiles, builder, MCP, Go Live, SIGN
+ * OUT, the left rail, Plugins group, and drawer chrome must not paint even
+ * if a stylesheet slip clears `hidden`.
  */
 .admin-console:not(.admin-unlocked) #admin-dashboard,
 .admin-console:not(.admin-unlocked) #admin-menu,
+.admin-console:not(.admin-unlocked) #admin-nav,
+.admin-console:not(.admin-unlocked) #admin-nav-toggle,
+.admin-console:not(.admin-unlocked) #admin-nav-drawer-scrim,
+.admin-console:not(.admin-unlocked) #admin-workspace,
 .admin-console:not(.admin-unlocked) #admin-signout,
+.admin-console:not(.admin-unlocked) [data-admin-nav-group],
 .admin-console:not(.admin-unlocked) [data-admin-pane] {
   display: none !important;
 }
@@ -9843,11 +9849,12 @@ body.cockpit-mode .admin-launch {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  width: min(1040px, 100%);
+  gap: 0;
+  width: min(1180px, 100%);
+  height: min(90vh, 840px);
   max-height: 92vh;
-  overflow: hidden auto;
-  padding: 20px 22px;
+  overflow: hidden;
+  padding: 0;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border-hover);
   border-radius: var(--panel-radius);
@@ -9860,6 +9867,9 @@ body.cockpit-mode .admin-launch {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 0 0 auto;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .admin-console-header h2 {
@@ -9879,7 +9889,7 @@ body.cockpit-mode .admin-launch {
 .admin-console-header .scene-btn { flex: 0 0 auto; }
 
 .admin-message {
-  margin: 0;
+  margin: 12px 18px 0;
   padding: 8px 10px;
   border: 1px solid rgba(255, 114, 114, 0.35);
   border-radius: 8px;
@@ -9887,6 +9897,10 @@ body.cockpit-mode .admin-launch {
   color: #ff9d9d;
   font-size: 10px;
   letter-spacing: 0.6px;
+}
+
+.admin-gate {
+  padding: 22px 22px 24px;
 }
 
 .admin-unconfigured {
@@ -9911,7 +9925,8 @@ body.cockpit-mode .admin-launch {
 }
 
 .admin-field input,
-.admin-field textarea {
+.admin-field textarea,
+.admin-field select {
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--glass-border);
@@ -9921,10 +9936,12 @@ body.cockpit-mode .admin-launch {
   font-size: 11px;
   letter-spacing: 0.4px;
   resize: vertical;
+  max-width: 100%;
 }
 
 .admin-field input:focus,
-.admin-field textarea:focus {
+.admin-field textarea:focus,
+.admin-field select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent-dim);
@@ -9940,27 +9957,125 @@ body.cockpit-mode .admin-launch {
 .admin-login-form .scene-btn { flex: 0 0 auto; }
 
 .admin-dashboard {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.admin-nav-toggle {
+  display: none;
+  flex: 0 0 auto;
+}
+
+.admin-nav-drawer-scrim {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(4, 4, 9, 0.55);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.admin-nav {
+  flex: 0 0 236px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-height: 0;
+  overflow: hidden auto;
+  padding: 16px 0 18px;
+  background: rgba(6, 6, 12, 0.92);
+  border-right: 1px solid var(--glass-border);
+}
+
+.admin-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.admin-nav-brand-mark {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.admin-nav-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-nav-brand-copy strong {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  color: var(--text-primary);
+}
+
+.admin-nav-brand-copy small {
+  font-size: 8px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
 .admin-menu {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 0 8px;
+  min-height: 0;
+}
+
+.admin-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-nav-heading {
+  margin: 0 8px 6px;
+  font-size: 8px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.admin-plugins-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-nav-status {
+  margin: 4px 8px 0;
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
 }
 
 .admin-menu-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
+  gap: 2px;
+  padding: 8px 10px;
   text-align: left;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--btn-radius);
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0 8px 8px 0;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -9968,26 +10083,47 @@ body.cockpit-mode .admin-launch {
 
 .admin-menu-item strong {
   font-size: 11px;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   color: var(--text-primary);
 }
 
 .admin-menu-item small {
-  font-size: 9px;
-  line-height: 1.5;
-  letter-spacing: 0.4px;
+  font-size: 8px;
+  line-height: 1.45;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
 }
 
-.admin-menu-item.active,
-.admin-menu-item:hover {
-  border-color: var(--accent);
+.admin-menu-item:hover,
+.admin-menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+.admin-menu-item.active {
+  border-left-color: var(--accent);
   background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+.admin-menu-item:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.admin-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px 20px;
 }
 
 .admin-pane {
   display: grid;
   grid-template-columns: 220px 1fr;
   gap: 14px;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -10144,6 +10280,7 @@ body.cockpit-mode .admin-launch {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 
 /* Whichever generated plugin is selected paints into this single pane. */
@@ -10152,6 +10289,8 @@ body.cockpit-mode .admin-launch {
   flex-direction: column;
   gap: 12px;
   overflow: auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Manifest entries that could not be loaded, listed under the menu. */
@@ -10258,6 +10397,7 @@ body.cockpit-mode .admin-launch {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 
 .admin-live-row {
@@ -10339,4 +10479,36 @@ body.cockpit-mode .admin-launch {
   .admin-plugin-list { max-height: 22vh; }
   .admin-live-grid,
   .admin-live-grid-encoder { grid-template-columns: 1fr; }
+  .admin-console-shell { height: min(94vh, 100%); }
+  .admin-nav-toggle { display: inline-flex; }
+  .admin-nav-drawer-scrim { display: block; }
+  .admin-nav {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 2;
+    width: min(280px, 86vw);
+    transform: translateX(-105%);
+    transition: transform var(--transition-smooth);
+    box-shadow: 16px 0 40px rgba(0, 0, 0, 0.45);
+  }
+  .admin-console.admin-nav-drawer-open .admin-nav {
+    transform: none;
+  }
+}
+
+/* JS compact class mirrors the media query so tests (and forced compact)
+   get the same drawer layout without a real viewport. */
+.admin-console.admin-nav-compact .admin-nav-toggle { display: inline-flex; }
+.admin-console.admin-nav-compact .admin-nav-drawer-scrim { display: block; }
+.admin-console.admin-nav-compact .admin-nav {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 2;
+  width: min(280px, 86vw);
+  transform: translateX(-105%);
+  transition: transform var(--transition-smooth);
+  box-shadow: 16px 0 40px rgba(0, 0, 0, 0.45);
+}
+.admin-console.admin-nav-compact.admin-nav-drawer-open .admin-nav {
+  transform: none;
 }

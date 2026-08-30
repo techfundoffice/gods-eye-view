@@ -1,0 +1,432 @@
+/**
+ * Server-side YouTube Live control: create, select, and poll broadcasts.
+ *
+ * The stream key stays in this process. Public views use a redacted ingest
+ * target. Callers inject `call(resource, { method, params, body })` so tests
+ * never need a network, and production uses `oauth.proxy` directly instead of
+ * looping through `/api/youtube`.
+ *
+ * @module youtubeBroadcast
+ */
+
+import { classifyYoutubeError } from './youtubeProxy.js';
+import { normalizeIngestTarget } from './liveStream.js';
+
+/** Lifecycle statuses that can still take an ingest. */
+export const COMPATIBLE_BROADCAST_STATUSES = Object.freeze([
+  'created',
+  'ready',
+  'testStarting',
+  'testing',
+  'liveStarting',
+  'live',
+]);
+
+/** Lifecycle statuses that cannot take a new ingest. */
+export const TERMINAL_BROADCAST_STATUSES = Object.freeze([
+  'complete',
+  'revoked',
+  'failed',
+]);
+
+/** Operator sentence while the encoder is up but YouTube has not gone active. */
+export const YOUTUBE_NOT_RECEIVED = 'YouTube has not received the stream yet';
+
+const REDACTED = '***';
+
+/**
+ * @param {string} status
+ * @returns {boolean}
+ */
+export function isCompatibleBroadcastStatus(status) {
+  return COMPATIBLE_BROADCAST_STATUSES.includes(String(status || ''));
+}
+
+/**
+ * @param {string} status
+ * @returns {boolean}
+ */
+export function isTerminalBroadcastStatus(status) {
+  return TERMINAL_BROADCAST_STATUSES.includes(String(status || ''));
+}
+
+/**
+ * Operator-facing sentence for a classified YouTube error kind.
+ *
+ * @param {string} kind
+ * @param {string} [fallback]
+ * @returns {string}
+ */
+export function youtubeLiveOperatorMessage(kind, fallback = '') {
+  switch (String(kind || '')) {
+    case 'insufficient-scope':
+      return 'Reconnect YouTube to grant live-control permission.';
+    case 'authentication':
+      return 'Sign in to YouTube from the YouTube Settings panel.';
+    case 'quota':
+      return 'YouTube API quota is exhausted; retry after the quota reset.';
+    case 'not-found':
+      return 'That YouTube broadcast was not found, or it is not yours.';
+    case 'rate-limit':
+      return 'YouTube is rate limiting live-control requests. Try again shortly.';
+    case 'incompatible':
+      return fallback || 'That broadcast cannot take a new ingest.';
+    default:
+      return fallback || 'YouTube rejected this live-control request.';
+  }
+}
+
+/**
+ * Throw a classified error from a YouTube HTTP response payload.
+ *
+ * @param {number} status
+ * @param {object} payload
+ * @returns {never}
+ */
+export function throwYoutubeLiveError(status, payload) {
+  const classified = classifyYoutubeError(status, payload);
+  const error = new Error(youtubeLiveOperatorMessage(classified.kind, classified.message));
+  error.kind = classified.kind;
+  error.status = classified.code || status;
+  error.reasons = classified.reasons || [];
+  throw error;
+}
+
+/**
+ * Pull RTMP ingest details out of a liveStreams resource. Prefers RTMPS.
+ *
+ * @param {object} stream
+ * @returns {{ingestUrl: string, streamKey: string}}
+ */
+export function extractIngestInfo(stream) {
+  const info = stream?.cdn?.ingestionInfo || {};
+  const ingestUrl = String(info.rtmpsIngestionAddress || info.ingestionAddress || '').trim();
+  const streamKey = String(info.streamName || '').trim();
+  return { ingestUrl, streamKey };
+}
+
+/**
+ * Public, credential-free view of a bound broadcast.
+ *
+ * @param {object} binding Internal binding (may include streamKey).
+ * @returns {object}
+ */
+export function redactBroadcastView(binding = {}) {
+  const ingestUrl = String(binding.ingestUrl || '').trim();
+  let target = '';
+  if (ingestUrl && binding.streamKey) {
+    try {
+      target = normalizeIngestTarget(ingestUrl, binding.streamKey).display;
+    } catch {
+      target = `${ingestUrl.replace(/\/+$/, '')}/${REDACTED}`;
+    }
+  } else if (ingestUrl) {
+    target = `${ingestUrl.replace(/\/+$/, '')}/${REDACTED}`;
+  }
+  const json = JSON.stringify({
+    id: String(binding.broadcastId || binding.id || ''),
+    streamId: String(binding.streamId || ''),
+    title: String(binding.title || ''),
+    privacy: String(binding.privacy || ''),
+    watchUrl: String(binding.watchUrl || ''),
+    lifeCycleStatus: String(binding.lifeCycleStatus || ''),
+    ingestUrl,
+    target,
+  });
+  if (binding.streamKey && json.includes(binding.streamKey)) {
+    throw new Error('Refusing to return a broadcast view that contains the stream key');
+  }
+  return JSON.parse(json);
+}
+
+/**
+ * @param {object} item liveBroadcasts resource
+ * @returns {object}
+ */
+export function summarizeBroadcastItem(item) {
+  const id = String(item?.id || '');
+  return {
+    id,
+    title: String(item?.snippet?.title || ''),
+    privacy: String(item?.status?.privacyStatus || ''),
+    lifeCycleStatus: String(item?.status?.lifeCycleStatus || ''),
+    boundStreamId: String(item?.contentDetails?.boundStreamId || ''),
+    watchUrl: id ? `https://www.youtube.com/watch?v=${id}` : '',
+  };
+}
+
+/**
+ * @param {Function} call Injected YouTube caller.
+ * @param {object} response Fetch-like `{ ok, status, json() }` or already-parsed payload.
+ * @returns {Promise<object>}
+ */
+async function readPayload(response) {
+  if (response && typeof response.json === 'function') {
+    let payload = {};
+    try { payload = await response.json(); } catch { payload = {}; }
+    if (response.ok === false) throwYoutubeLiveError(response.status || 502, payload);
+    return payload;
+  }
+  return response && typeof response === 'object' ? response : {};
+}
+
+/**
+ * Invoke `call` and normalize errors so callers always see `.kind`.
+ *
+ * @param {Function} call
+ * @param {string} resource
+ * @param {object} [options]
+ * @returns {Promise<object>}
+ */
+export async function youtubeCall(call, resource, options = {}) {
+  if (typeof call !== 'function') throw new Error('YouTube live control requires a caller');
+  let result;
+  try {
+    result = await call(resource, options);
+  } catch (error) {
+    if (error?.kind) {
+      error.message = youtubeLiveOperatorMessage(error.kind, error.message);
+      throw error;
+    }
+    const wrapped = new Error(error?.message || 'YouTube live-control request failed');
+    wrapped.kind = 'upstream';
+    throw wrapped;
+  }
+  return readPayload(result);
+}
+
+/**
+ * Create a stream, a broadcast (auto-start, no monitor-stream delay), and bind.
+ *
+ * @param {Function} call
+ * @param {{title: string, description?: string, privacyStatus?: string}} options
+ * @returns {Promise<object>} Internal binding including streamKey.
+ */
+export async function provisionYoutubeBroadcast(call, {
+  title,
+  description = '',
+  privacyStatus = 'unlisted',
+} = {}) {
+  const name = String(title || '').trim();
+  if (!name) throw new Error('A broadcast title is required');
+  const privacy = String(privacyStatus || 'unlisted').trim() || 'unlisted';
+
+  const stream = await youtubeCall(call, 'liveStreams', {
+    method: 'POST',
+    params: { part: 'snippet,cdn,status' },
+    body: {
+      snippet: { title: `${name} ingest` },
+      cdn: { frameRate: 'variable', ingestionType: 'rtmp', resolution: 'variable' },
+    },
+  });
+  const ingest = extractIngestInfo(stream);
+  if (!ingest.ingestUrl || !ingest.streamKey) {
+    const error = new Error('YouTube returned no ingest key for the new stream.');
+    error.kind = 'invalid-request';
+    throw error;
+  }
+
+  const broadcast = await youtubeCall(call, 'liveBroadcasts', {
+    method: 'POST',
+    params: { part: 'snippet,status,contentDetails' },
+    body: {
+      snippet: {
+        title: name,
+        description,
+        scheduledStartTime: new Date(Date.now() + 15_000).toISOString(),
+      },
+      status: { privacyStatus: privacy, selfDeclaredMadeForKids: false },
+      contentDetails: {
+        enableAutoStart: true,
+        enableAutoStop: true,
+        monitorStream: { enableMonitorStream: false, broadcastStreamDelayMs: 0 },
+      },
+    },
+  });
+
+  await youtubeCall(call, 'liveBroadcasts/bind', {
+    method: 'POST',
+    params: {
+      part: 'id,contentDetails',
+      id: broadcast.id,
+      streamId: stream.id,
+    },
+  });
+
+  return {
+    broadcastId: String(broadcast.id || ''),
+    streamId: String(stream.id || ''),
+    title: name,
+    privacy,
+    watchUrl: broadcast.id ? `https://www.youtube.com/watch?v=${broadcast.id}` : '',
+    lifeCycleStatus: String(broadcast.status?.lifeCycleStatus || 'ready'),
+    ingestUrl: ingest.ingestUrl,
+    streamKey: ingest.streamKey,
+  };
+}
+
+/**
+ * List the signed-in account's broadcasts that can still take an ingest.
+ *
+ * @param {Function} call
+ * @returns {Promise<object[]>}
+ */
+export async function listCompatibleBroadcasts(call) {
+  const payload = await youtubeCall(call, 'liveBroadcasts', {
+    method: 'GET',
+    params: { part: 'snippet,contentDetails,status', mine: 'true', maxResults: '50' },
+  });
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  return items
+    .map(summarizeBroadcastItem)
+    .filter((row) => row.id && isCompatibleBroadcastStatus(row.lifeCycleStatus));
+}
+
+/**
+ * Load a broadcast, require a compatible lifecycle, bind a stream if needed,
+ * and return ingest details for server-side start.
+ *
+ * @param {Function} call
+ * @param {{broadcastId: string}} options
+ * @returns {Promise<object>} Internal binding including streamKey.
+ */
+export async function selectYoutubeBroadcast(call, { broadcastId } = {}) {
+  const id = String(broadcastId || '').trim();
+  if (!id) throw new Error('A broadcast id is required');
+
+  const listed = await youtubeCall(call, 'liveBroadcasts', {
+    method: 'GET',
+    params: { part: 'snippet,contentDetails,status', id },
+  });
+  const item = Array.isArray(listed.items) ? listed.items[0] : null;
+  if (!item?.id) {
+    const error = new Error('That YouTube broadcast was not found, or it is not yours.');
+    error.kind = 'not-found';
+    error.status = 404;
+    throw error;
+  }
+  const summary = summarizeBroadcastItem(item);
+  if (!isCompatibleBroadcastStatus(summary.lifeCycleStatus)) {
+    const error = new Error(
+      `That broadcast is ${summary.lifeCycleStatus || 'unknown'} and cannot take a new ingest.`,
+    );
+    error.kind = 'incompatible';
+    error.status = 409;
+    throw error;
+  }
+
+  let streamId = summary.boundStreamId;
+  let stream = null;
+  if (!streamId) {
+    stream = await youtubeCall(call, 'liveStreams', {
+      method: 'POST',
+      params: { part: 'snippet,cdn,status' },
+      body: {
+        snippet: { title: `${summary.title || id} ingest` },
+        cdn: { frameRate: 'variable', ingestionType: 'rtmp', resolution: 'variable' },
+      },
+    });
+    streamId = String(stream.id || '');
+    await youtubeCall(call, 'liveBroadcasts/bind', {
+      method: 'POST',
+      params: { part: 'id,contentDetails', id, streamId },
+    });
+  } else {
+    const streams = await youtubeCall(call, 'liveStreams', {
+      method: 'GET',
+      params: { part: 'snippet,cdn,status', id: streamId },
+    });
+    stream = Array.isArray(streams.items) ? streams.items[0] : streams;
+  }
+
+  const ingest = extractIngestInfo(stream);
+  if (!ingest.ingestUrl || !ingest.streamKey) {
+    const error = new Error('YouTube returned no ingest key for that broadcast.');
+    error.kind = 'invalid-request';
+    throw error;
+  }
+
+  return {
+    broadcastId: summary.id,
+    streamId,
+    title: summary.title,
+    privacy: summary.privacy,
+    watchUrl: summary.watchUrl,
+    lifeCycleStatus: summary.lifeCycleStatus,
+    ingestUrl: ingest.ingestUrl,
+    streamKey: ingest.streamKey,
+  };
+}
+
+/**
+ * Read stream + broadcast health for the confirmation state machine.
+ *
+ * @param {Function} call
+ * @param {{broadcastId: string, streamId: string}} ids
+ * @returns {Promise<object>}
+ */
+export async function pollYoutubeBroadcast(call, { broadcastId, streamId } = {}) {
+  const stream = streamId
+    ? await youtubeCall(call, 'liveStreams', {
+      method: 'GET',
+      params: { part: 'status', id: String(streamId) },
+    }).then((payload) => (Array.isArray(payload.items) ? payload.items[0] : payload))
+    : null;
+  const broadcast = broadcastId
+    ? await youtubeCall(call, 'liveBroadcasts', {
+      method: 'GET',
+      params: { part: 'status,snippet', id: String(broadcastId) },
+    }).then((payload) => (Array.isArray(payload.items) ? payload.items[0] : payload))
+    : null;
+
+  const streamStatus = String(stream?.status?.streamStatus || '');
+  const healthStatus = String(stream?.status?.healthStatus?.status || '');
+  const broadcastStatus = String(broadcast?.status?.lifeCycleStatus || '');
+  const preview = broadcastStatus === 'testing' || broadcastStatus === 'testStarting';
+  const live = broadcastStatus === 'live' || broadcastStatus === 'liveStarting';
+  const received = streamStatus === 'active' && (preview || live);
+
+  let message = YOUTUBE_NOT_RECEIVED;
+  if (isTerminalBroadcastStatus(broadcastStatus)) {
+    message = `That broadcast is ${broadcastStatus} and cannot take a new ingest.`;
+  } else if (received && preview) {
+    message = 'YouTube preview (testing)';
+  } else if (received) {
+    message = 'YouTube has received the stream and the broadcast is live.';
+  } else if (streamStatus === 'error') {
+    message = 'YouTube reported an error on the bound stream.';
+  }
+
+  return {
+    streamStatus,
+    healthStatus,
+    broadcastStatus,
+    received,
+    preview,
+    terminal: isTerminalBroadcastStatus(broadcastStatus),
+    message,
+  };
+}
+
+/**
+ * Build a `call(resource, { method, params, body })` from the OAuth proxy.
+ *
+ * @param {Function} proxy `oauth.proxy`
+ * @param {object} authorization From `oauth.authorizeRequest`
+ * @returns {Function}
+ */
+export function createYoutubeApiCaller(proxy, authorization) {
+  return async function call(resource, { method = 'GET', params = {}, body } = {}) {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params || {})) {
+      if (value === undefined || value === null || value === '') continue;
+      query.set(key, String(value));
+    }
+    const path = `/youtube/v3/${resource}${query.toString() ? `?${query}` : ''}`;
+    const response = await proxy('youtube', path, {}, authorization, {
+      method,
+      body,
+    });
+    return response;
+  };
+}

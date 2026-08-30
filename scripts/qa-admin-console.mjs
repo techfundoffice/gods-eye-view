@@ -223,9 +223,10 @@ async function main() {
       record('plugin menu and panes paint after sign-in', state.pluginChromeVisible);
       record('sign-out is available after sign-in', state.signOutVisible);
       record('the status reads signed in', /SIGNED IN/.test(state.status), state.status);
-      record('the menu offers Create New Admin Menu Plugin',
-        state.menu.includes('Create New Admin Menu Plugin'), state.menu.join(' | '));
+      record('the menu offers Create Plugin',
+        state.menu.includes('Create Plugin'), state.menu.join(' | '));
       record('the menu offers MCP Server', state.menu.includes('MCP Server'));
+      record('the menu offers Go Live', state.menu.includes('Go Live'));
     });
 
     await section('session-cookie', async () => {

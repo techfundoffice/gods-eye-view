@@ -3,6 +3,24 @@
 This changelog records public product changes. For the authoritative description
 of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md).
 
+## [Unreleased] — 2026-08-30
+
+### Added
+
+- Added a grok CLI software specification for a NextChat-style chat surface on
+  the home page (`docs/NEXTCHAT-HOMEPAGE.md`). Documentation only — the runtime
+  does not yet include that chat overlay.
+
+### Changed
+
+- The ADMIN console is now a two-column control panel: a persistent left
+  navigation rail (Core: **Create Plugin**, **MCP Server**, **Go Live**; then a
+  separate **Plugins** group for generated manifest entries) and a focused
+  content workspace. Narrow screens open the rail as a drawer; Escape closes
+  the drawer when it is open and otherwise still closes the console. SIGN OUT
+  stays in the shell header. Native Replit Login, server-side authorization,
+  plugin builder, MCP, and live-stream controls are unchanged.
+
 ## [Unreleased] — 2026-08-29
 
 ### Fixed

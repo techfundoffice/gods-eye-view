@@ -1029,11 +1029,13 @@
     <p class="first-run-note" data-first-run-status role="status" aria-live="polite">Tip: the GEV MIC button in the dock lets you talk to the map.</p>
   </aside>
 
-  <!-- ADMIN console: native Replit Login gate, dashboard menu, plugin builder chat, MCP settings -->
+  <!-- ADMIN console: native Replit Login gate, two-column dashboard, plugin builder, MCP, Go Live -->
   <div id="admin-console" class="admin-console" role="dialog" aria-modal="true" aria-labelledby="admin-console-title" hidden>
     <div class="admin-console-scrim"></div>
     <section class="admin-console-shell">
       <header class="admin-console-header">
+        <button id="admin-nav-toggle" class="scene-btn admin-nav-toggle" type="button"
+          aria-controls="admin-nav" aria-expanded="false" aria-label="Open admin navigation" hidden>MENU</button>
         <h2 id="admin-console-title">ADMIN</h2>
         <span id="admin-status" class="admin-status" role="status" aria-live="polite">LOCKED</span>
         <span class="panel-divider"></span>
@@ -1055,26 +1057,46 @@
         </form>
       </div>
 
-      <!-- Dashboard -->
+      <!-- Dashboard: persistent left rail + focused workspace -->
       <div id="admin-dashboard" class="admin-dashboard" hidden>
-        <nav id="admin-menu" class="admin-menu" aria-label="Admin dashboard menu">
-          <button class="admin-menu-item active" type="button" data-admin-view="create-plugin" aria-current="page">
-            <strong>Create New Admin Menu Plugin</strong>
-            <small>Describe a plugin; the coding agent writes it into this codebase.</small>
-          </button>
-          <button class="admin-menu-item" type="button" data-admin-view="mcp-server" aria-current="false">
-            <strong>MCP Server</strong>
-            <small>Expose this console to external MCP clients with an API key.</small>
-          </button>
-          <button class="admin-menu-item" type="button" data-admin-view="live-stream" aria-current="false">
-            <strong>Go Live (ffmpeg)</strong>
-            <small>Capture the globe with headless Chromium and push it to YouTube over RTMP.</small>
-          </button>
-          <!-- Plugins written by the builder are appended here from the manifest -->
-        </nav>
+        <div id="admin-nav-drawer-scrim" class="admin-nav-drawer-scrim" hidden></div>
+        <aside id="admin-nav" class="admin-nav" aria-label="Admin navigation">
+          <div class="admin-nav-brand">
+            <span class="admin-nav-brand-mark" aria-hidden="true"></span>
+            <div class="admin-nav-brand-copy">
+              <strong>GOD'S EYE VIEW</strong>
+              <small>Control panel</small>
+            </div>
+          </div>
+          <nav id="admin-menu" class="admin-menu" aria-label="Admin dashboard menu">
+            <div class="admin-nav-group" data-admin-nav-group="core" role="group" aria-labelledby="admin-nav-core-heading">
+              <h3 id="admin-nav-core-heading" class="admin-nav-heading">Core</h3>
+              <button class="admin-menu-item active" type="button" data-admin-view="create-plugin" aria-current="page">
+                <strong>Create Plugin</strong>
+                <small>Describe a plugin; the coding agent writes it into this codebase.</small>
+              </button>
+              <button class="admin-menu-item" type="button" data-admin-view="mcp-server" aria-current="false">
+                <strong>MCP Server</strong>
+                <small>Expose this console to external MCP clients with an API key.</small>
+              </button>
+              <button class="admin-menu-item" type="button" data-admin-view="live-stream" aria-current="false">
+                <strong>Go Live</strong>
+                <small>Capture the globe with headless Chromium and push it to YouTube over RTMP.</small>
+              </button>
+            </div>
+            <div class="admin-nav-group" data-admin-nav-group="plugins" role="group" aria-labelledby="admin-nav-plugins-heading">
+              <h3 id="admin-nav-plugins-heading" class="admin-nav-heading">Plugins</h3>
+              <div id="admin-plugins-list" class="admin-plugins-list">
+                <!-- Generated plugins from the manifest are appended here -->
+              </div>
+              <p id="admin-plugins-loading" class="admin-nav-status" hidden>Loading plugins…</p>
+              <p id="admin-plugins-empty" class="admin-nav-status" hidden>No plugins yet.</p>
+              <p id="admin-menu-errors" class="admin-menu-errors" role="status" aria-live="polite" hidden></p>
+            </div>
+          </nav>
+        </aside>
 
-        <p id="admin-menu-errors" class="admin-menu-errors" role="status" aria-live="polite" hidden></p>
-
+        <div id="admin-workspace" class="admin-workspace">
         <div class="admin-pane" data-admin-pane="create-plugin" hidden>
           <div class="admin-pane-side">
             <div class="admin-pane-side-header">
@@ -1084,7 +1106,7 @@
             <ul id="admin-plugin-list" class="admin-plugin-list"></ul>
           </div>
           <div class="admin-chat">
-            <h3 id="admin-chat-heading" class="admin-chat-heading">Create New Admin Menu Plugin</h3>
+            <h3 id="admin-chat-heading" class="admin-chat-heading">Create Plugin</h3>
             <div id="admin-transcript" class="admin-transcript" aria-live="polite"></div>
             <form id="admin-plugin-form" class="admin-chat-form" autocomplete="off">
               <label id="admin-plugin-name-field" class="admin-field" for="admin-plugin-name">
@@ -1212,6 +1234,7 @@
         <!-- Shared pane for whichever generated plugin is selected; its
              data-admin-pane is set to that plugin's id while it is mounted. -->
         <div id="admin-plugin-host" class="admin-pane admin-pane-plugin" data-admin-pane="" hidden></div>
+        </div>
       </div>
     </section>
   </div>
