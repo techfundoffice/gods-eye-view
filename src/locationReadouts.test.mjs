@@ -52,6 +52,41 @@ test('a typed location search requests close photoreal framing', () => {
   );
 });
 
+test('typing in #location-search requests suggestions, not only Enter', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.match(html, /id="location-search"/);
+  assert.match(html, /id="location-suggestions"/);
+  assert.match(html, /id="location-bar"/);
+
+  const initStart = ui.indexOf('  _initLocationBar() {');
+  const initEnd = ui.indexOf('  _showLocationStreetView(destination) {', initStart);
+  const init = ui.slice(initStart, initEnd);
+  assert.match(init, /addEventListener\('input'/);
+  assert.match(init, /this\._locationSuggest\.schedule\(this\._locationSearch\.value\)/);
+  assert.match(init, /createLocationSuggestController/);
+  assert.match(init, /fetchPlaceSuggestions/);
+  assert.match(init, /_showLocationSuggestions\(rows\)/);
+  assert.match(init, /renderLocationSuggestions\(this\._locationSuggestions/);
+  assert.match(init, /e\.key === 'Enter'/);
+
+  const suggest = fs.readFileSync(path.join(ROOT, 'src', 'locationSuggest.js'), 'utf8');
+  assert.match(suggest, /location-suggestion-name/);
+  assert.match(suggest, /location-suggestion-address/);
+});
+
+test('picking a suggestion flies to that place via the typed-search path', () => {
+  const pickStart = ui.indexOf('  async _pickLocationSuggestion(suggestion) {');
+  assert.ok(pickStart > 0, '_pickLocationSuggestion is missing');
+  const pickEnd = ui.indexOf('\n  async _submitTypedLocationSearch', pickStart);
+  const pick = ui.slice(pickStart, pickEnd);
+  assert.match(pick, /suggestion\?\.query/);
+  assert.match(pick, /skipViewBias:\s*true/);
+  assert.match(pick, /extra\.latitude = suggestion\.lat/);
+  assert.match(pick, /extra\.longitude = suggestion\.lon/);
+  assert.match(pick, /_submitTypedLocationSearch\(query, extra\)/);
+  assert.doesNotMatch(pick, /searchAndFlyTo\(this\.viewer, ['"]Disneyland['"]/);
+});
+
 test('a successful location search opens the in-app Street View preview', () => {
   const handler = locationSearchHandler();
   assert.match(handler, /this\._showLocationStreetView\(destination\);/);

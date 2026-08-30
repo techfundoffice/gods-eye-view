@@ -636,3 +636,64 @@ test('Ensenada-shaped geocoder result produces one safe viewport flight', async 
   assert.equal(result.longitude, -116.6057392);
   assert.equal(viewer.flights.length, 1);
 });
+
+test('a picked suggestion flies to its coordinates without geocoding the first hit', async () => {
+  const viewer = stubViewer();
+  const urls = [];
+  const hadWindow = Object.hasOwn(globalThis, 'window');
+  const priorWindow = globalThis.window;
+  const priorFetch = globalThis.fetch;
+  globalThis.window = { __GOOGLE_MAPS_API_KEY__: 'test-key' };
+  globalThis.fetch = async (url) => {
+    urls.push(String(url));
+    return { json: async () => ({ status: 'OK', results: [AUSTIN_RESULT] }) };
+  };
+  try {
+    const result = await searchAndFlyTo(viewer, 'Tokyo Disneyland, Maihama, Urayasu, Chiba, Japan', {
+      latitude: 35.6329,
+      longitude: 139.8804,
+      label: 'Tokyo Disneyland, Maihama, Urayasu, Chiba, Japan',
+      skipViewBias: true,
+      forceClose: true,
+      types: ['amusement_park'],
+    });
+    assert.equal(result.latitude, 35.6329);
+    assert.equal(result.longitude, 139.8804);
+    assert.equal(result.label, 'Tokyo Disneyland, Maihama, Urayasu, Chiba, Japan');
+    assert.equal(viewer.flights.length, 1);
+    assert.equal(
+      urls.filter((url) => url.includes('maps.googleapis.com/maps/api/geocode')).length,
+      0,
+      'picked coordinates must not re-geocode (which would land on the first Disneyland)',
+    );
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (hadWindow) globalThis.window = priorWindow;
+    else delete globalThis.window;
+  }
+});
+
+test('skipViewBias omits the geocode viewport bias', async () => {
+  const viewer = stubViewer();
+  const urls = [];
+  const hadWindow = Object.hasOwn(globalThis, 'window');
+  const priorWindow = globalThis.window;
+  const priorFetch = globalThis.fetch;
+  globalThis.window = { __GOOGLE_MAPS_API_KEY__: 'test-key' };
+  globalThis.fetch = async (url) => {
+    urls.push(String(url));
+    return { json: async () => ({ status: 'OK', results: [AUSTIN_RESULT] }) };
+  };
+  try {
+    await searchAndFlyTo(viewer, 'Tokyo Disneyland, Maihama, Urayasu, Chiba, Japan', {
+      skipViewBias: true,
+    });
+    const geocode = urls.find((url) => url.includes('maps.googleapis.com/maps/api/geocode'));
+    assert.ok(geocode, 'unbiased typed search still geocodes');
+    assert.doesNotMatch(geocode, /bounds=/);
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (hadWindow) globalThis.window = priorWindow;
+    else delete globalThis.window;
+  }
+});

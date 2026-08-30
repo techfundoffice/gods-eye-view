@@ -427,6 +427,42 @@ test('Composio is not an admin route — signed-in /composio 404s, unconfigured 
   assert.equal(blocked.body.error.kind, 'unconfigured');
 });
 
+test('a local ADMIN password still unlocks when Replit login is also configured', async () => {
+  const replitAuth = {
+    configured: true,
+    authenticate: () => null,
+    login: async () => { throw new Error('OIDC must not run for a password POST'); },
+    callback: async () => {},
+    logout: () => {},
+  };
+  const store = memoryStore();
+  const auth = createAdminAuth({
+    credential: { hash: hashAdminPassword(PASSWORD), source: 'hash' },
+    store,
+  });
+  const middleware = createAdminMiddleware({
+    replitAuth,
+    auth,
+    store,
+    builder: stubBuilder(),
+    live: stubLive(),
+  });
+
+  const session = await call(middleware, { url: '/session' });
+  assert.equal(session.status, 200);
+  assert.equal(session.body.configured, true);
+  assert.equal(session.body.authenticated, false);
+
+  const login = await call(middleware, {
+    method: 'POST', url: '/login', headers: WRITE, body: { password: PASSWORD },
+  });
+  assert.equal(login.status, 200);
+  assert.equal(login.body.authenticated, true);
+  const cookie = login.cookies[0].split(';')[0];
+  const plugins = await call(middleware, { url: '/plugins', cookie });
+  assert.equal(plugins.status, 200);
+});
+
 test('native Replit Login routes are delegated while protected ADMIN routes stay server-guarded', async () => {
   const calls = [];
   const replitAuth = {

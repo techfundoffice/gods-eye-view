@@ -18,6 +18,7 @@
  *  13. Weather effects — camera-local Open-Meteo observations without news/geocoding overhead
  *  14. Rocket launches — recent Launch Library 2 mission metadata
  *  15. Radio Browser — public-domain station directory and click counting
+ *  16. Catalog public APIs — OpenAQ, Open Charge Map, GBIF, USGS Water, NWS alerts, openSenseMap
  *
  * Also exposes Cesium and Google 3D Tiles API keys to the
  * client via `import.meta.env.*` defines.
@@ -48,11 +49,14 @@ import cesium from 'vite-plugin-cesium';
 import { createYoutubeProxyMiddleware } from './src/youtubeProxy.js';
 import { createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
 import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.js';
+import { createYoutubeCommentHarnessMiddleware } from './src/youtubeCommentHarnessServer.js';
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
 import { createAdminMiddleware } from './src/adminServer.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
+import { mapPlaceSuggestions } from './src/locationSuggest.js';
+import { publicApiCatalogProxy } from './src/publicApiProxies.js';
 
 let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
@@ -491,7 +495,7 @@ function openAiRateLimiter() {
   if (_openAiRateLimiter === undefined) _openAiRateLimiter = makeOptInRateLimiter(process.env.GEV_RATELIMIT_OPENAI_PER_MIN);
   return _openAiRateLimiter;
 }
-/** Google cost endpoint (nearby-places). Null = unlimited (default). */
+/** Google cost endpoint (nearby-places + text-search + place-suggest). Null = unlimited (default). */
 function googleRateLimiter() {
   if (_googleRateLimiter === undefined) _googleRateLimiter = makeOptInRateLimiter(process.env.GEV_RATELIMIT_GOOGLE_PER_MIN);
   return _googleRateLimiter;
@@ -5309,6 +5313,89 @@ function readRequestBody(req, maxBytes = 1024 * 1024) {
 }
 
 /**
+ * Unbiased as-you-type place suggestions for the LOCATION finder.
+ * Places Text Search (New) with no locationBias / locationRestriction so a
+ * query like "Disneyland" can return Anaheim, Florida, France, and Japan
+ * together. The Google URL is hardcoded — client `url` / `lat` / `lon` query
+ * params are ignored.
+ *
+ * @param {{fetchImpl?: typeof fetch, getApiKey?: () => string|undefined, getRateLimiter?: () => ((key: string) => boolean)|null}} [options]
+ * @returns {(req: import('http').IncomingMessage, res: import('http').ServerResponse) => Promise<void>}
+ */
+export function createPlaceSuggestMiddleware({
+  fetchImpl = globalThis.fetch.bind(globalThis),
+  getApiKey = () => process.env.GOOGLE_MAPS_API_KEY,
+  getRateLimiter = googleRateLimiter,
+} = {}) {
+  return async function placeSuggest(req, res) {
+    const json = (status, body) => {
+      res.statusCode = status;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.end(JSON.stringify(body));
+    };
+
+    if (req.method !== 'GET') {
+      json(405, { error: 'Method not allowed', suggestions: [] });
+      return;
+    }
+
+    const limiter = getRateLimiter();
+    if (limiter && !limiter(clientKey(req))) {
+      res.setHeader('Retry-After', '5');
+      json(429, { error: 'Rate limit exceeded', suggestions: [] });
+      return;
+    }
+
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      json(503, { error: 'GOOGLE_MAPS_API_KEY is not set', suggestions: [] });
+      return;
+    }
+
+    const requestUrl = new URL(req.url || '', 'http://localhost');
+    const textQuery = String(requestUrl.searchParams.get('q') || '').trim();
+    if (!textQuery) {
+      json(400, { error: 'q is required', suggestions: [] });
+      return;
+    }
+    if (textQuery.length > 200) {
+      json(400, { error: 'q is too long', suggestions: [] });
+      return;
+    }
+
+    try {
+      const response = await fetchImpl('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': [
+            'places.id',
+            'places.displayName',
+            'places.formattedAddress',
+            'places.shortFormattedAddress',
+            'places.location',
+            'places.types',
+          ].join(','),
+        },
+        body: JSON.stringify({
+          textQuery,
+          maxResultCount: 8,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      const suggestions = mapPlaceSuggestions(data);
+      json(response.ok ? 200 : response.status, {
+        suggestions,
+        error: response.ok ? null : data.error?.message || 'Google Places request failed',
+      });
+    } catch (error) {
+      json(502, { error: error?.message || 'Google Places request failed', suggestions: [] });
+    }
+  };
+}
+
+/**
  * Vite plugin: nearby Google place labels for Realtime scene context.
  *
  * The Photorealistic 3D Tiles mesh does not expose rendered map labels as
@@ -5542,6 +5629,10 @@ function googlePlacesContextProxy() {
         res.end(JSON.stringify({ error: error?.message || 'Google Places request failed', places: [] }));
       }
     });
+
+    // Global (unbiased) as-you-type suggestions for the LOCATION finder.
+    // Distinct from text-search above, which requires lat/lon and view-biases.
+    middlewares.use('/api/google/place-suggest', createPlaceSuggestMiddleware());
   }
 
   return {
@@ -7383,6 +7474,9 @@ function youtubeProxy() {
   const viewAgentMiddleware = createYoutubeViewAgentMiddleware({
     authorizeRequest: oauth.authorizeRequest,
   });
+  const commentHarnessMiddleware = createYoutubeCommentHarnessMiddleware({
+    authorizeRequest: oauth.authorizeRequest,
+  });
   const liveMiddleware = createYoutubeLiveMiddleware({
     live: sharedLiveSession().asEncoder(),
     authorizeRequest: oauth.authorizeRequest,
@@ -7391,6 +7485,7 @@ function youtubeProxy() {
     middlewares.use('/api/youtube/auth', oauth.middleware);
     middlewares.use('/api/youtube/live', liveMiddleware);
     middlewares.use('/api/youtube-view-agent', viewAgentMiddleware);
+    middlewares.use('/api/youtube-comment-harness', commentHarnessMiddleware);
     middlewares.use('/api/youtube', middleware);
   }
   return {
@@ -7474,6 +7569,7 @@ export default defineConfig(({ mode }) => {
       trackBackfillProxies(),
       openAiRealtimeProxy(),
       googlePlacesContextProxy(),
+      publicApiCatalogProxy(),
     ],
     server: {
       host: env.HOST || 'localhost',
@@ -7502,7 +7598,7 @@ export default defineConfig(({ mode }) => {
     },
     // Expose selected API keys to the browser via import.meta.env.*
     define: {
-      'import.meta.env.GOOGLE_MAPS_API_KEY': JSON.stringify(env.GOOGLE_MAPS_API_KEY),
+      'import.meta.env.GOOGLE_MAPS_API_KEY': JSON.stringify(env.GOOGLE_MAPS_API_KEY || ''),
       'import.meta.env.CESIUM_ION_TOKEN': JSON.stringify(env.CESIUM_ION_TOKEN),
     },
     build: {

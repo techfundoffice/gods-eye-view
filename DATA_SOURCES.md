@@ -16,7 +16,7 @@ How to read this:
 
 | Source | Used for | License / terms | Attribution |
 |--------|----------|-----------------|-------------|
-| **Google Map Tiles API** (Photorealistic 3D Tiles) + Places/Geocoding | The 3D globe, voice scene context, and on-demand nearby installation search | Google Maps Platform ToS (proprietary, your own key + billing) | "Google" / "Google Maps" logo — **shown in-app**, required |
+| **Google Map Tiles API** (Photorealistic 3D Tiles) + Places/Geocoding | The 3D globe, voice scene context, on-demand nearby installation search, and LOCATION-finder as-you-type suggestions | Google Maps Platform ToS (proprietary, your own key + billing) | "Google" / "Google Maps" logo — **shown in-app**, required |
 | **OpenSky Network** | Primary worldwide live-flight snapshot | Non-commercial research/education license | Schäfer et al., *"Bringing Up OpenSky"*, IPSN 2014 + opensky-network.org |
 | **adsb.lol point API** | Bounded live-flight fallback when OpenSky has no usable snapshot | ODbL 1.0 | adsb.lol contributors; `api.adsb.lol/v2/lat/{lat}/lon/{lon}/dist/{radius}` |
 | **adsb.lol** | Military flights + aircraft traces | ODbL 1.0 | "adsb.lol" (ODbL) |
@@ -24,6 +24,12 @@ How to read this:
 | **CelesTrak** | Satellite TLEs (SGP4) | US-government-origin data, no license; citation requested | "CelesTrak (celestrak.org), Dr. T.S. Kelso" |
 | **The Space Devs — Launch Library 2 v2.3** | Recent launch, payload, stage, and recovery metadata for Space Missions (30d) | [The Space Devs terms of use](https://github.com/TheSpaceDevs/Tutorials/blob/main/faqs/faq_TSD.md#terms-of-use): data may be used and shared in any form; avoid forwarding it without added value; attribution is encouraged (not mandatory). [Official API limits](https://ll.thespacedevs.com/docs/): 15 unauthenticated calls/hour; optional token | "Launch Library 2 — The Space Devs" (courtesy attribution) |
 | **USGS** | Earthquakes | U.S. public domain | "Data courtesy of the U.S. Geological Survey" |
+| **OpenAQ** | Air-quality station locations (DATA panel) | [CC BY 4.0](https://openaq.org) | "OpenAQ" — optional `OPENAQ_API_KEY`; keyless is `KEY REQUIRED` |
+| **Open Charge Map** | Public EV charging locations (DATA panel) | Open data / contributor terms | "Open Charge Map" — optional `OPEN_CHARGE_MAP_KEY` |
+| **GBIF** | Georeferenced biodiversity occurrences (DATA panel) | [GBIF data-user agreement](https://www.gbif.org/terms); underlying dataset licenses vary | "GBIF" — capped occurrence search, not a full-earth dump |
+| **USGS Water Services** | Streamflow monitoring sites (DATA panel) | U.S. public domain | "Data courtesy of the U.S. Geological Survey" — viewport-bounded |
+| **U.S. National Weather Service** | Active weather-alert centroids (DATA panel) | U.S. public domain | "U.S. National Weather Service" |
+| **openSenseMap** | Outdoor senseBox stations (DATA panel) | openSenseMap / senseBox open data | "openSenseMap" — viewport-bounded |
 | **OpenStreetMap (Overpass API)** | Road geometry for traffic | ODbL 1.0 | "© OpenStreetMap contributors" |
 | **TomTom Traffic API** (flow vector tiles) | Live congestion coloring for the traffic layer (optional, BYOK) | [TomTom for Developers terms](https://developer.tomtom.com) (proprietary, your own key; quotas depend on the current account plan) | "Traffic flow data © TomTom" — registered when live mode activates |
 | **OpenStreetMap (Overpass API)** | Viewport-bounded mapped installation context for Global Context | ODbL 1.0 | "© OpenStreetMap contributors" (incomplete mapped context) |
@@ -38,9 +44,19 @@ How to read this:
 | **Radio Browser** | Geolocated internet-radio station directory and station-level tags | Public-domain directory data under PDDL 1.0; individual broadcaster stream terms apply | "Radio Browser" plus a link to the selected broadcaster |
 | **Re:Earth Terrain** (Mapterhorn) | Terrain (keyless globe stacks — OSM etc. — + `/api/terrain/heights` ellipsoidal-height lookups) | Terrain mesh: CC BY 4.0; geoid: EGM2008 (NGA, public domain) | "Terrain (keyless globe stacks): Re:Earth Terrain / Mapterhorn (CC BY 4.0) / EGM2008 (NGA)" |
 
+The DATA panel's OpenAQ, Open Charge Map, GBIF, USGS Water, NWS Alerts, and
+openSenseMap layers are the subset of
+[public-apis/public-apis](https://github.com/public-apis/public-apis) that a
+shipped relevance filter accepts (HTTPS, plottable public geo payload, terms
+that allow display, not already plotted). Catalog rows that fail that bar are
+rejected with a reason. Each feed is fetched at runtime through a same-origin
+proxy and capped (200 points); USGS Water and openSenseMap are also
+viewport-bounded so a full-earth camera does not ingest an uncapped dump.
+
 ### Notes on the live sources
 
-- **Google Maps Platform.** You supply your own API key and are bound by [Google's ToS](https://cloud.google.com/maps-platform/terms). Google Maps Content (tiles, geocodes, places) **may not be cached, stored, rehosted, or committed** — this app only ever uses it live, which is the compliant pattern. The "Google" attribution is displayed on the globe and must stay visible. Restrict your key (see [SECURITY.md](SECURITY.md)).
+- **Google Maps Platform.** You supply your own API key and are bound by [Google's ToS](https://cloud.google.com/maps-platform/terms). Google Maps Content (tiles, geocodes, places) **may not be cached, stored, rehosted, or committed** — this app only ever uses it live, which is the compliant pattern. The "Google" attribution is displayed on the globe and must stay visible. Restrict your key (see [SECURITY.md](SECURITY.md)). The LOCATION finder requests as-you-type suggestions through same-origin `/api/google/place-suggest` (Places Text Search (New), no viewport bias); it does not store the payload.
+
 - **OpenSky Network.** Its license is **non-commercial**, and operational use of the REST API in a live product can require a prior written agreement with OpenSky — even for non-profit/government use. If you deploy this commercially, contact OpenSky for your own terms. The flights layer is a toggle and runs anonymously by default.
 - **adsb.lol flight fallback.** When OpenSky is unavailable and no last-good OpenSky response exists, the server requests a cached, capped 250 nm adsb.lol point snapshot around the current camera subpoint. This is regional observed context, not worldwide completeness; provenance is exposed in the Flights stats/context row. Military ICAOs remain reconciled through the existing dedicated military registry rather than duplicated.
 - **Launch Library 2.** `/api/launches` makes a server-side rolling-30-day query against the supported v2.3 detailed launch endpoint, caches successful responses for 15 minutes in memory and on disk, and serves the last successful response during a throttle or transient outage. Anonymous access is limited to 15 calls/hour; deployments can provide `LL2_API_TOKEN` for authenticated access. The Space Devs' published terms permit using and sharing the API data in any form, ask users not to forward it without adding value, disclaim complete accuracy, and encourage—but do not require—attribution. This app keeps a courtesy credit. Payload and stage/recovery records are shown only when supplied. Failed launches expose their source status and never receive fallback orbit geometry or a live/estimated marker. LL2 supplies launch context and event timing, not continuous ascent telemetry or live orbital state.

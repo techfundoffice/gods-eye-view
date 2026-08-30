@@ -7,6 +7,8 @@
  */
 
 export const NEXTCHAT_STORAGE_KEY = 'godsEyeView.nextchat.sessions.v1';
+/** Cap for waiting on the Realtime data channel after start() returns at SDP. */
+export const VOICE_CHANNEL_WAIT_MS = 20000;
 
 const ASSISTANT_DELTA_TYPES = new Set([
   'response.output_audio_transcript.delta',
@@ -64,6 +66,7 @@ export function createNextchatState(seed = {}) {
     sessions: seed.sessions || [session],
     activeId: seed.activeId || session.id,
     unavailable: seed.unavailable ?? null,
+    harnessStatus: seed.harnessStatus ?? null,
   };
 }
 
@@ -96,8 +99,15 @@ export function loadNextchatState(storage) {
       messages: Array.isArray(session.messages)
         ? session.messages.map((message) => ({
           id: String(message.id || createSessionId()),
-          role: message.role === 'assistant' || message.role === 'user' ? message.role : 'user',
+          role: message.role === 'assistant' || message.role === 'viewer' ? message.role : 'user',
+          author: String(message.author || '').slice(0, 80),
           content: String(message.content || ''),
+          metadata: message.metadata && typeof message.metadata === 'object' ? {
+            source: String(message.metadata.source || '').slice(0, 16),
+            commentId: String(message.metadata.commentId || '').slice(0, 160),
+            videoId: String(message.metadata.videoId || '').slice(0, 80),
+            receivedAt: String(message.metadata.receivedAt || '').slice(0, 40),
+          } : undefined,
           streaming: Boolean(message.streaming),
         }))
         : [],
@@ -105,7 +115,7 @@ export function loadNextchatState(storage) {
     const activeId = sessions.some((session) => session.id === parsed.activeId)
       ? parsed.activeId
       : sessions[0].id;
-    return { sessions, activeId, unavailable: null };
+    return { sessions, activeId, unavailable: null, harnessStatus: null };
   } catch {
     return createNextchatState();
   }
@@ -189,6 +199,88 @@ export function appendUserMessage(state, text, now = Date.now()) {
     if (session.title === 'New chat') session.title = titleFromUserText(content);
     return session;
   }, now);
+}
+
+/**
+ * Append an untrusted viewer comment. Author and text are stored as plain
+ * strings; the thread renderer uses textContent only.
+ *
+ * @param {object} state
+ * @param {{author?: string, text?: string, metadata?: object}} payload
+ * @param {number} [now]
+ * @returns {object}
+ */
+export function appendViewerMessage(state, payload, now = Date.now()) {
+  const author = String(payload?.author || 'VIEWER').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80) || 'VIEWER';
+  const content = String(payload?.text ?? payload?.content ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 500);
+  if (!content) return state;
+  const meta = payload?.metadata && typeof payload.metadata === 'object' ? payload.metadata : {};
+  return mapActiveSession(state, (session) => {
+    session.messages.push({
+      id: createSessionId(),
+      role: 'viewer',
+      author,
+      content,
+      metadata: {
+        source: String(meta.source || '').slice(0, 16),
+        commentId: String(meta.commentId || '').slice(0, 160),
+        videoId: String(meta.videoId || '').slice(0, 80),
+        receivedAt: String(meta.receivedAt || '').slice(0, 40),
+      },
+      streaming: false,
+    });
+    if (session.title === 'New chat') session.title = titleFromUserText(`${author}: ${content}`);
+    return session;
+  }, now);
+}
+
+/**
+ * Operator-readable harness status for the NextChat status line.
+ *
+ * @param {object} state
+ * @param {string|null} message
+ * @returns {object}
+ */
+export function setHarnessStatus(state, message) {
+  const text = String(message || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 200);
+  return { ...state, harnessStatus: text || null };
+}
+
+/**
+ * Publish a viewer message into a NextChat store or live overlay API.
+ *
+ * @param {{role?: string, author?: string, text?: string, metadata?: object}} payload
+ * @param {object|null|undefined} target Store, overlay API, or null.
+ * @returns {{ok: boolean, reason?: string}}
+ */
+export function publishNextChatMessage(payload, target = null) {
+  const store = target?.store && typeof target.store.appendViewerMessage === 'function'
+    ? target.store
+    : target;
+  if (!store || typeof store.appendViewerMessage !== 'function') {
+    return { ok: false, reason: 'unavailable' };
+  }
+  store.appendViewerMessage({
+    role: 'viewer',
+    author: payload?.author,
+    text: payload?.text,
+    metadata: payload?.metadata,
+  });
+  return { ok: true };
+}
+
+/**
+ * @param {string} message
+ * @param {object|null|undefined} target
+ * @returns {{ok: boolean}}
+ */
+export function setNextchatHarnessStatus(message, target = null) {
+  const store = target?.store && typeof target.store.setHarnessStatus === 'function'
+    ? target.store
+    : target;
+  if (!store || typeof store.setHarnessStatus !== 'function') return { ok: false };
+  store.setHarnessStatus(message);
+  return { ok: true };
 }
 
 /**
@@ -309,6 +401,14 @@ export function createNextchatStore(storage) {
       state = appendUserMessage(state, text);
       emit();
     },
+    appendViewerMessage(payload) {
+      state = appendViewerMessage(state, payload);
+      emit();
+    },
+    setHarnessStatus(message) {
+      state = setHarnessStatus(state, message);
+      emit();
+    },
     applyAssistantTranscriptDelta(delta) {
       state = applyAssistantTranscriptDelta(state, delta);
       emit();
@@ -344,12 +444,65 @@ function voiceUnavailableMessage(voice, fallback = UNAVAILABLE_MESSAGE) {
 }
 
 /**
- * Start the existing Realtime session if idle, then require an open data channel.
- * Does not invent a second backend.
- * @param {object|null|undefined} voice GevRealtimeController (or test double with the same surface)
+ * Wait until the Realtime data channel is open, or the session errors / idles.
+ * `GevRealtimeController.start()` returns after the SDP answer; `dc` is still
+ * `connecting` until the later `open` event.
+ * @param {object} voice
+ * @param {{timeoutMs?: number}} [options]
  * @returns {Promise<{ok: boolean, reason?: string, message?: string}>}
  */
-export async function ensureVoiceReady(voice) {
+export function waitForVoiceChannel(voice, { timeoutMs = VOICE_CHANNEL_WAIT_MS } = {}) {
+  if (isVoiceChannelOpen(voice)) return Promise.resolve({ ok: true });
+  if (voice?.status === 'error') {
+    return Promise.resolve({
+      ok: false,
+      reason: 'unavailable',
+      message: voiceUnavailableMessage(voice),
+    });
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const dc = voice.dc;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearInterval(poll);
+      dc?.removeEventListener?.('open', onOpen);
+      dc?.removeEventListener?.('error', onDead);
+      dc?.removeEventListener?.('close', onDead);
+      resolve(result);
+    };
+    const onOpen = () => finish({ ok: true });
+    const onDead = () => finish({
+      ok: false,
+      reason: voice.status === 'error' ? 'unavailable' : 'unconnected',
+      message: voiceUnavailableMessage(voice),
+    });
+    const timer = setTimeout(onDead, Math.max(1, Number(timeoutMs) || VOICE_CHANNEL_WAIT_MS));
+    const poll = setInterval(() => {
+      if (isVoiceChannelOpen(voice)) onOpen();
+      else if (voice.status === 'error' || voice.status === 'idle') onDead();
+    }, 25);
+    if (dc && typeof dc.addEventListener === 'function') {
+      dc.addEventListener('open', onOpen);
+      dc.addEventListener('error', onDead);
+      dc.addEventListener('close', onDead);
+    }
+    if (isVoiceChannelOpen(voice)) onOpen();
+  });
+}
+
+/**
+ * Start the existing Realtime session if idle, then wait until the data
+ * channel is actually open. `start()` returning is not enough — the channel
+ * opens on a later event. Does not invent a second backend.
+ * @param {object|null|undefined} voice GevRealtimeController (or test double with the same surface)
+ * @param {{timeoutMs?: number}} [options]
+ * @returns {Promise<{ok: boolean, reason?: string, message?: string}>}
+ */
+export async function ensureVoiceReady(voice, options = {}) {
   if (isVoiceChannelOpen(voice)) return { ok: true };
   if (!voice || typeof voice.sendTextCommand !== 'function') {
     return { ok: false, reason: 'unconnected', message: UNAVAILABLE_MESSAGE };
@@ -357,7 +510,7 @@ export async function ensureVoiceReady(voice) {
   if (voice.status === 'error') {
     return { ok: false, reason: 'unavailable', message: voiceUnavailableMessage(voice) };
   }
-  if (typeof voice.start === 'function') {
+  if (typeof voice.start === 'function' && !voice.isActive?.()) {
     try {
       await voice.start({ pushToTalk: false });
     } catch (error) {
@@ -372,6 +525,10 @@ export async function ensureVoiceReady(voice) {
   if (voice.status === 'error') {
     return { ok: false, reason: 'unavailable', message: voiceUnavailableMessage(voice) };
   }
+  const pending = voice.status === 'connecting'
+    || voice.status === 'listening'
+    || voice.dc?.readyState === 'connecting';
+  if (pending) return waitForVoiceChannel(voice, options);
   return { ok: false, reason: 'unconnected', message: UNAVAILABLE_MESSAGE };
 }
 
@@ -388,7 +545,7 @@ export async function submitNextchatSend(input) {
 
   const store = input.store;
   const voice = input.voice;
-  const ready = await ensureVoiceReady(voice);
+  const ready = await ensureVoiceReady(voice, input);
   if (!ready.ok) {
     store?.setUnavailable?.(ready.message || UNAVAILABLE_MESSAGE);
     return { ok: false, reason: ready.reason || 'unconnected' };
@@ -442,7 +599,11 @@ function renderThread(threadEl, session) {
     row.dataset.role = message.role;
     const who = threadEl.ownerDocument.createElement('span');
     who.className = 'gev-nextchat-role';
-    who.textContent = message.role === 'user' ? 'You' : 'Assistant';
+    who.textContent = message.role === 'user'
+      ? 'You'
+      : message.role === 'viewer'
+        ? (message.author || 'Viewer')
+        : 'Assistant';
     const body = threadEl.ownerDocument.createElement('div');
     body.className = 'gev-nextchat-text';
     body.textContent = message.content;
@@ -495,9 +656,11 @@ export function initNextchat({
     if (statusEl) {
       statusEl.textContent = state.unavailable
         ? state.unavailable
-        : attachedVoice
-          ? 'Live globe agent — typed sends use GEV MIC tools'
-          : 'Voice path unavailable until the globe agent starts';
+        : state.harnessStatus
+          ? state.harnessStatus
+          : attachedVoice
+            ? 'Live globe agent — typed sends use GEV MIC tools'
+            : 'Voice path unavailable until the globe agent starts';
       statusEl.hidden = false;
     }
   };
@@ -562,6 +725,12 @@ export function initNextchat({
     },
     getVoice() {
       return attachedVoice;
+    },
+    publishViewerMessage(payload) {
+      return publishNextChatMessage(payload, store);
+    },
+    setHarnessStatus(message) {
+      return setNextchatHarnessStatus(message, store);
     },
   };
   root.__gevNextchat = api;

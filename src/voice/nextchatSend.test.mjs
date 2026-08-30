@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { GevRealtimeController } from './gevRealtime.js';
 import {
   createNextchatStore,
+  ensureVoiceReady,
   ingestRealtimePayload,
   submitNextchatSend,
 } from './nextchat.js';
@@ -123,29 +124,77 @@ test('HTTP 503 / start failure does not invent an assistant reply', async () => 
   assert.match(store.getState().unavailable, /503|unavailable/i);
 });
 
-test('idle send starts Realtime then uses sendTextCommand', async () => {
-  const { controller, sent } = textCommandController();
-  controller.dc = { readyState: 'closed' };
-  controller.status = 'idle';
-  let started = false;
-  controller.start = async () => {
-    started = true;
-    controller.dc = { readyState: 'open' };
-    controller.status = 'listening';
+/**
+ * Mirrors the shipped start() contract: dc exists after SDP but readyState
+ * stays `connecting` until the later `open` event.
+ */
+function connectingDataChannel() {
+  const listeners = { open: [], error: [], close: [] };
+  return {
+    readyState: 'connecting',
+    addEventListener(type, fn) {
+      listeners[type]?.push(fn);
+    },
+    removeEventListener(type, fn) {
+      const list = listeners[type];
+      if (!list) return;
+      const index = list.indexOf(fn);
+      if (index >= 0) list.splice(index, 1);
+    },
+    open() {
+      this.readyState = 'open';
+      for (const fn of listeners.open.slice()) fn();
+    },
   };
+}
+
+function armConnectingStart(controller, dc) {
+  controller.dc = dc;
+  controller.status = 'idle';
+  controller.start = async () => {
+    controller.status = 'connecting';
+    controller.dc = dc;
+    setTimeout(() => {
+      dc.open();
+      controller.status = 'listening';
+    }, 30);
+  };
+}
+
+test('ensureVoiceReady waits for dc open after start returns connecting', async () => {
+  const { controller } = textCommandController();
+  const dc = connectingDataChannel();
+  armConnectingStart(controller, dc);
+  const readyPromise = ensureVoiceReady(controller);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(dc.readyState, 'connecting', 'start() must return before the open event');
+  const ready = await readyPromise;
+  assert.equal(ready.ok, true);
+  assert.equal(dc.readyState, 'open');
+});
+
+test('idle send waits for data-channel open after start before sendTextCommand', async () => {
+  const { controller, sent } = textCommandController();
+  const dc = connectingDataChannel();
+  armConnectingStart(controller, dc);
+  assert.equal(
+    controller.sendTextCommand,
+    GevRealtimeController.prototype.sendTextCommand,
+    'the send helper must invoke the shipped method, not a stand-in',
+  );
   const store = createNextchatStore(memoryStorage());
-  const result = await submitNextchatSend({
+  const sendPromise = submitNextchatSend({
     text: 'show earthquakes',
     store,
     voice: controller,
   });
-  assert.equal(started, true);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(dc.readyState, 'connecting');
+  assert.equal(sent.length, 0, 'sendTextCommand must not run before dc open');
+  const result = await sendPromise;
   assert.equal(result.ok, true);
+  assert.equal(dc.readyState, 'open');
   assert.equal(userTextFromSent(sent), 'show earthquakes');
-  assert.equal(
-    controller.sendTextCommand,
-    GevRealtimeController.prototype.sendTextCommand,
-  );
 });
 
 test('handleRealtimeEvent forwards assistant transcript deltas to onRealtimeEvent', async () => {

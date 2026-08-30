@@ -196,7 +196,7 @@ test('share-panel state excludes responsive collapse and preserves recipient pre
   );
   assert.match(
     ui,
-    /_setCommandDockPanelPinState\(spec\.id, state\.pinned, \{\s*restore: true,\s*persist: false,\s*syncShare: false,/,
+    /_setCommandDockPanelPinState\(spec\.id, pinned, \{\s*restore: true,\s*persist: false,\s*syncShare: false,/,
     'restoring a pin must not overwrite local panel preferences or emit an intermediate hash',
   );
   assert.match(

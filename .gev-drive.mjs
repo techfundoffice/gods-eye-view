@@ -1,16 +1,23 @@
+/**
+ * One-off evidence dump: #location-search in #location-bar inside #command-dock.
+ * Deleted after the run — not repository content.
+ */
 import puppeteer from 'puppeteer';
-import { writeFileSync } from 'node:fs';
+import fs from 'node:fs';
 
 const url = process.env.GEV_URL || 'http://127.0.0.1:4207/';
 const chrome = process.env.CHROME_PATH
   || '/nix/store/5afrhwm7zqn1vb7p5z1mc2rkh2grsfgz-ungoogled-chromium-138.0.7204.100/bin/chromium';
-const out = process.env.GEV_LAUNCH_LOG || 'nextchat-launch.log';
+const out = process.env.GEV_LAUNCH_LOG || '/tmp/grok-goal-e3aa377070e6/implementer/ui-launch.log';
 
-const lines = [];
-const log = (msg) => {
-  lines.push(msg);
-  console.log(msg);
-};
+function log(line) {
+  fs.appendFileSync(out, `${line}\n`);
+  process.stdout.write(`${line}\n`);
+}
+
+fs.writeFileSync(out, '');
+log(`chrome=${chrome}`);
+log(`url=${url}`);
 
 let browser;
 try {
@@ -29,55 +36,32 @@ try {
   });
   const page = await browser.newPage();
   page.setDefaultTimeout(30000);
-  const pageErrors = [];
-  page.on('pageerror', (error) => pageErrors.push(String(error)));
-  await page.setViewport({ width: 1440, height: 900 });
-  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  log(`status: ${response?.status()}`);
-  await page.waitForSelector('#cesiumContainer', { timeout: 15000 });
-  await page.waitForSelector('#gev-nextchat-composer', { timeout: 15000 });
-  const chromeIds = await page.evaluate(() => ({
-    cesium: Boolean(document.getElementById('cesiumContainer')),
-    composer: Boolean(document.getElementById('gev-nextchat-composer')),
-    send: Boolean(document.getElementById('gev-nextchat-send')),
-    sessions: Boolean(document.getElementById('gev-nextchat-sessions')),
-    thread: Boolean(document.getElementById('gev-nextchat-thread')),
-    newChat: Boolean(document.getElementById('gev-nextchat-new')),
-    micMarkup: Boolean(document.getElementById('command-dock')),
-    nextchatInit: Boolean(window.__gevNextchat),
-    webgl: Boolean(window.__gevGpuCompatibility),
-    webglReason: window.__gevGpuCompatibility?.reason || null,
-  }));
-  log(`chrome: ${JSON.stringify(chromeIds)}`);
-  await page.type('#gev-nextchat-composer', 'zoom to the globe');
-  await page.click('#gev-nextchat-send');
-  await new Promise((resolve) => setTimeout(resolve, 800));
-  const afterSend = await page.evaluate(() => {
-    const thread = document.getElementById('gev-nextchat-thread');
-    const status = document.getElementById('gev-nextchat-status');
-    const roles = [...(thread?.querySelectorAll('[data-role]') || [])].map((el) => ({
-      role: el.dataset.role,
-      text: el.querySelector('.gev-nextchat-text')?.textContent || '',
-    }));
+  const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
+  log(`http=${response?.status()}`);
+  const dump = await page.evaluate(() => {
+    const dock = document.getElementById('command-dock');
+    const bar = document.getElementById('location-bar');
+    const search = document.getElementById('location-search');
+    const list = document.getElementById('location-suggestions');
     return {
-      status: status?.textContent || '',
-      roles,
-      composer: document.getElementById('gev-nextchat-composer')?.value || '',
+      title: document.title,
+      webglGate: Boolean(document.getElementById('webgl-compatibility')),
+      commandDock: Boolean(dock),
+      locationBar: Boolean(bar),
+      locationSearch: Boolean(search),
+      locationSuggestions: Boolean(list),
+      searchInBar: Boolean(bar && search && bar.contains(search)),
+      barInDock: Boolean(dock && bar && dock.contains(bar)),
+      listInBar: Boolean(bar && list && bar.contains(list)),
     };
   });
-  log(`afterSend: ${JSON.stringify(afterSend)}`);
-  const shot = process.env.GEV_SHOT || '';
-  if (shot) {
-    await page.screenshot({ path: shot, fullPage: true });
-    log(`screenshot: ${shot}`);
+  log(`dump=${JSON.stringify(dump)}`);
+  if (!dump.commandDock || !dump.searchInBar || !dump.barInDock) {
+    process.exitCode = 2;
   }
-  if (pageErrors.length) log(`pageErrors: ${pageErrors.join(' | ')}`);
-  const ok = chromeIds.cesium && chromeIds.composer && chromeIds.send
-    && chromeIds.sessions && chromeIds.thread && chromeIds.newChat;
-  log(ok ? 'LAUNCH_OK' : 'LAUNCH_FAIL missing chrome');
-} catch (error) {
-  log(`LAUNCH_FAIL ${error?.message || error}`);
+} catch (err) {
+  log(`launcher-failure=${err?.message || err}`);
+  process.exitCode = 1;
 } finally {
   if (browser) await browser.close();
-  writeFileSync(out, `${lines.join('\n')}\n`);
 }

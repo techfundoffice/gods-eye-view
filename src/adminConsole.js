@@ -334,6 +334,7 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
 
   return {
     session: () => request('/session'),
+    login: (password) => request('/login', { method: 'POST', body: { password } }),
     loginUrl: (returnTo = '/?admin=1') => `/api/admin/login?returnTo=${encodeURIComponent(returnTo)}`,
     logout: () => request('/logout', { method: 'POST' }),
     menu: () => request('/menu'),
@@ -573,8 +574,8 @@ export class AdminConsoleController {
       await this._loadPlugins();
       await this._loadMenu();
       this._el('admin-plugin-name')?.focus();
-    } else {
-      if (this.state.session.configured) this._signIn();
+    } else if (this.state.session.configured) {
+      this._el('admin-password')?.focus?.();
     }
   }
 
@@ -620,6 +621,27 @@ export class AdminConsoleController {
 
   /** @returns {Promise<void>} */
   async _signIn() {
+    const password = String(this._el('admin-password')?.value || '');
+    if (password && typeof this.client.login === 'function') {
+      try {
+        this.state.busy = true;
+        this._render();
+        this.state.session = await this.client.login(password);
+        const field = this._el('admin-password');
+        if (field) field.value = '';
+        this.state.message = '';
+        if (isAdminUnlocked(this.state.session)) {
+          await this._loadPlugins();
+          await this._loadMenu();
+        }
+      } catch (error) {
+        this.state.message = error.message;
+      } finally {
+        this.state.busy = false;
+        this._render();
+      }
+      return;
+    }
     const returnTo = `${window.location.pathname}${window.location.search ? window.location.search : '?admin=1'}`;
     window.location.assign(this.client.loginUrl(returnTo.includes('admin=1') ? returnTo : `${returnTo}${returnTo.includes('?') ? '&' : '?'}admin=1`));
   }

@@ -160,12 +160,16 @@ export function createAdminMiddleware({
    * @returns {object|null} Live session, or null.
    */
   function sessionFor(req) {
-    if (replitAuth) return replitAuth.authenticate(req);
+    if (replitAuth) {
+      const session = replitAuth.authenticate(req);
+      if (session) return session;
+    }
+    if (!auth.configured) return null;
     const cookies = parseCookies(req.headers?.cookie);
     return auth.authenticate(cookies[ADMIN_SESSION_COOKIE]);
   }
 
-  const operatorConfigured = () => replitAuth ? replitAuth.configured : auth.configured;
+  const operatorConfigured = () => Boolean((replitAuth && replitAuth.configured) || auth.configured);
 
   /**
    * @param {object} req
@@ -361,8 +365,15 @@ export function createAdminMiddleware({
       }
 
       if (first === 'login' && req.method === 'POST') {
-        if (replitAuth) {
-          sendJson(res, 405, { error: { kind: 'method', message: 'Use native Replit Login.' } });
+        if (!auth.configured) {
+          sendJson(res, 405, {
+            error: {
+              kind: 'method',
+              message: replitAuth?.configured
+                ? 'Use native Replit Login.'
+                : 'Admin password is not configured.',
+            },
+          });
           return;
         }
         const body = await readJsonBody(req);

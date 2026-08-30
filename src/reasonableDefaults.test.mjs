@@ -258,6 +258,47 @@ test('detection-on-by-default is a default, not an operator override', () => {
     'Normal gained a default, not a style preset — switching to it still touches nothing');
 });
 
+// ---------------------------------------------------------------------------
+// 4. LOCATION + VISUAL PRESETS — PINNED and expanded on a first run
+// ---------------------------------------------------------------------------
+
+test('first run opens LOCATION and VISUAL PRESETS pinned, at every surface that decides it', () => {
+  const location = indexHtml.match(/<div id="location-bar"[^>]*>/)[0];
+  const presets = indexHtml.match(/<div id="control-panel"[^>]*>/)[0];
+  assert.match(location, /\bdock-pinned\b/, 'index.html: LOCATION ships pinned');
+  assert.doesNotMatch(location, /\bcollapsed\b/, 'index.html: LOCATION ships expanded');
+  assert.match(presets, /\bdock-pinned\b/, 'index.html: VISUAL PRESETS ships pinned');
+  assert.doesNotMatch(presets, /\bcollapsed\b/, 'index.html: VISUAL PRESETS ships expanded');
+  assert.match(indexHtml, /data-pin-target="location-bar"[^>]*aria-pressed="true"/);
+  assert.match(indexHtml, /data-pin-target="control-panel"[^>]*aria-pressed="true"/);
+
+  // A fresh boot runs this restore, so the default is not markup-only.
+  assert.match(uiSource, /restoreCommandDockPinDefaults\(\{/);
+  assert.match(uiSource, /pinCommandDockPanel\(\{/);
+  assert.match(
+    uiSource,
+    /if \(COMMAND_DOCK_PINNABLE_PANEL_IDS\.includes\(panelId\) && stored === null\) \{\s*collapsed = false;/,
+    'collapse restore agrees with the first-run expanded default',
+  );
+});
+
+test('an explicit unpin, stored collapse, or share ui field still wins over the pin default', () => {
+  const restore = uiBlock('  _restoreCommandDockPinDefaults() {', '\n  }\n');
+  assert.match(restore, /allowStored: !this\._initialShareState,/);
+  assert.match(restore, /restoreCommandDockPinDefaults\(\{/);
+  assert.match(
+    restore,
+    /setPin: \(panelId, pin, options\) => this\._setCommandDockPanelPinState\(panelId, pin, options\),/,
+  );
+  assert.match(uiSource, /savePin: \(pinned\) => this\._savePanelPinState\(panelId, pinned\)/);
+
+  const unpinned = managerForHash('#v=2&lat=10&lon=20&ui=l.c.1_l.p.0_c.c.1_c.p.0').parseInitialHash();
+  assert.deepEqual(unpinned.panelState.specs, [
+    { id: 'location-bar', collapsed: true, pinned: false },
+    { id: 'control-panel', collapsed: true, pinned: false },
+  ]);
+});
+
 test('a share link that carries detection OFF still restores OFF', () => {
   // Same rule as the feather: the default governs a session that said nothing.
   const off = managerForHash('#lat=10&lon=20&dm=OFF&dd=50').parseInitialHash();

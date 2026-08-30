@@ -153,6 +153,16 @@ test('native login URL preserves the safe ADMIN return location', () => {
   assert.equal(calls.length, 0, 'login is a browser redirect, not a credential-bearing fetch');
 });
 
+test('a typed password is posted to /login with the write header', async () => {
+  const { fetchImpl, calls } = fakeFetch([{ body: { authenticated: true } }]);
+  const client = createAdminClient({ fetchImpl });
+  assert.deepEqual(await client.login('secret'), { authenticated: true });
+  assert.equal(calls[0].url, '/api/admin/login');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.headers[ADMIN_REQUEST_HEADER], '1');
+  assert.equal(JSON.parse(calls[0].options.body).password, 'secret');
+});
+
 test('a bodyless POST still carries the header but no content type', async () => {
   const { fetchImpl, calls } = fakeFetch([{ body: {} }]);
   await createAdminClient({ fetchImpl }).logout();

@@ -15,12 +15,17 @@ import aisLiveVesselsLayer from './data/aisLiveVessels.js';
 import militaryInstallationsLayer from './data/militaryInstallations.js';
 import militaryAwarenessLayer from './data/militaryAwareness.js';
 import localDataLayers from './data/localLayers.js';
+import publicApiLayers from './data/publicApiLayers.js';
 import { LAYER_STATE_REGISTRY } from './data/layerState.js';
 import { registerDataCredits } from './data/dataCredits.js';
 import { SceneDirector } from './scenes/director.js';
 import { initGevVoiceCommands } from './voice/gevRealtime.js';
 import { initNextchat } from './voice/nextchat.js';
 import { MapStackController } from './mapStackController.js';
+import {
+  googleEarthUnavailableReason,
+  hasUsableGoogleMapsKey,
+} from './googleEarth.js';
 import { initAnnotations } from './annotations/index.js';
 import { initLogoGaze } from './logoGaze.js';
 import { initCockpitCloudEffects } from './cockpitCloudEffects.js';
@@ -194,15 +199,14 @@ async function init() {
       Cesium.Ion.defaultAccessToken = cesiumToken;
     }
 
-    // Set Google Maps API key for 3D Tiles
-    const googleApiKey = import.meta.env.GOOGLE_MAPS_API_KEY;
-    if (!googleApiKey) {
-      throw new Error('GOOGLE_MAPS_API_KEY not found. Set it as an environment variable.');
+    // Google Maps key for Photorealistic 3D Tiles (Google Earth). A missing
+    // key is KEY REQUIRED, not a hard abort — OSM remains available.
+    const googleApiKey = String(import.meta.env.GOOGLE_MAPS_API_KEY || '').trim();
+    const googleKeyPresent = hasUsableGoogleMapsKey(googleApiKey);
+    if (googleKeyPresent) {
+      Cesium.GoogleMaps.defaultApiKey = googleApiKey;
     }
-    Cesium.GoogleMaps.defaultApiKey = googleApiKey;
-
-    // Expose API key globally for geocoding in locations.js
-    window.__GOOGLE_MAPS_API_KEY__ = googleApiKey;
+    window.__GOOGLE_MAPS_API_KEY__ = googleKeyPresent ? googleApiKey : '';
 
     // Create the Cesium viewer with minimal chrome
     let viewer;
@@ -332,11 +336,6 @@ async function init() {
     // clutter the on-globe attribution line.
     registerDataCredits(viewer);
 
-    // Hide Cesium's default globe — Google Photorealistic 3D Tiles provide their own
-    // globe at all LODs (street level → orbital). The default globe's 2D imagery
-    // clips through 3D tile buildings at close range.
-    viewer.scene.globe.show = false;
-
     // Keep a sky behind Google 3D Tiles, but soften Cesium's high-intensity
     // default atmosphere. With the globe hidden its bright limb otherwise
     // reads as a hard cyan seam where distant photoreal tiles meet the sky.
@@ -345,25 +344,33 @@ async function init() {
     viewer.scene.skyAtmosphere.saturationShift = -0.12;
     viewer.scene.skyAtmosphere.brightnessShift = -0.08;
 
-    loaderStatus.textContent = 'Loading Google 3D Tiles...';
     let tileset = null;
-    try {
-      // Load Google Photorealistic 3D Tiles
-      tileset = await Cesium.createGooglePhotorealistic3DTileset({
-        key: googleApiKey,
-        onlyUsingWithGoogleGeocoder: true,
-      });
-      viewer.scene.primitives.add(tileset);
-      keepTilesetStreaming(tileset);
-      // NOTE: Cesium World Terrain intentionally disabled — conflicts with Google 3D Tiles at high zoom.
-      // Google Photorealistic 3D Tiles provide their own terrain/elevation.
-      viewer.scene.globe.show = false;
-    } catch (tileError) {
-      console.warn('[Init] Google 3D Tiles unavailable, falling back to Cesium globe:', tileError);
-      const tileErrorDetail = describeError(tileError);
-      loaderStatus.textContent = `Google 3D Tiles unavailable (${tileErrorDetail}). Continuing in fallback mode...`;
-      // Keep Cesium globe visible as fallback instead of aborting the app.
+    let googleEarthLoadError = null;
+    if (!googleKeyPresent) {
+      loaderStatus.textContent = 'GOOGLE_MAPS_API_KEY not set. Continuing without Google Earth...';
       viewer.scene.globe.show = true;
+    } else {
+      // Hide Cesium's default globe — Google Photorealistic 3D Tiles provide their own
+      // globe at all LODs (street level → orbital). The default globe's 2D imagery
+      // clips through 3D tile buildings at close range.
+      viewer.scene.globe.show = false;
+      loaderStatus.textContent = 'Loading Google 3D Tiles...';
+      try {
+        tileset = await Cesium.createGooglePhotorealistic3DTileset({
+          key: googleApiKey,
+          onlyUsingWithGoogleGeocoder: true,
+        });
+        viewer.scene.primitives.add(tileset);
+        keepTilesetStreaming(tileset);
+        // NOTE: Cesium World Terrain intentionally disabled — conflicts with Google 3D Tiles at high zoom.
+        // Google Photorealistic 3D Tiles provide their own terrain/elevation.
+        viewer.scene.globe.show = false;
+      } catch (tileError) {
+        console.warn('[Init] Google 3D Tiles unavailable, falling back to Cesium globe:', tileError);
+        googleEarthLoadError = describeError(tileError);
+        loaderStatus.textContent = `Google 3D Tiles unavailable (${googleEarthLoadError}). Continuing in fallback mode...`;
+        viewer.scene.globe.show = true;
+      }
     }
 
     loaderStatus.textContent = 'Initializing systems...';
@@ -371,6 +378,12 @@ async function init() {
     const mapStackController = new MapStackController(viewer, {
       googleTileset: tileset,
       cesiumToken,
+      photorealUnavailableReason: tileset
+        ? ''
+        : googleEarthUnavailableReason({
+          keyPresent: googleKeyPresent,
+          loadError: googleEarthLoadError,
+        }),
       initialStack: tileset ? 'photoreal' : 'osm',
       // Task 5 (height-datum fix): rebroadcast stack changes as a window
       // CustomEvent so data layers (CCTV per-regime ground resolution) can
@@ -419,6 +432,9 @@ async function init() {
     dataManager.register(militaryAwarenessLayer);
     militaryAwarenessLayer.attachDataManager(dataManager);
     for (const layer of localDataLayers) {
+      dataManager.register(layer);
+    }
+    for (const layer of publicApiLayers) {
       dataManager.register(layer);
     }
     // Restoration starts only after the complete production registry is sealed.
@@ -515,6 +531,8 @@ async function init() {
       viewer,
       styleManager,
       tileset,
+      googleApiKey: googleKeyPresent ? googleApiKey : '',
+      googleEarthLoadError,
       dataManager,
       sceneDirector,
       mapStackController,

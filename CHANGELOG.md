@@ -7,6 +7,28 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Added
 
+- The bottom LOCATION finder suggests matching places as you type. A query
+  like `Disneyland` lists Anaheim, Florida, France, Japan, and other distinct
+  parks with their addresses so you can pick the right one; choosing a row
+  flies the globe there. Enter still searches. Without a Google Maps key, or
+  when lookup fails, the list stays empty.
+- ADMIN **Plugins** includes **Google Earth**: it reports Map Tiles key/tileset
+  status honestly (`KEY REQUIRED` vs `LOAD FAILED` vs `DISPLAYING`) and can
+  switch the globe onto Google Photorealistic 3D Tiles when the tileset loaded.
+- A missing `GOOGLE_MAPS_API_KEY` no longer aborts globe startup; the app
+  continues on OSM and labels Google Earth as `KEY REQUIRED` instead of
+  presenting OSM as Google Earth.
+- ADMIN login still offers native Replit Login, and a configured
+  `ADMIN_PASSWORD` / `ADMIN_PASSWORD_HASH` can also unlock the console.
+
+- DATA panel now includes globe-relevant feeds selected from the
+  [public-apis/public-apis](https://github.com/public-apis/public-apis)
+  catalog: **Air Quality (OpenAQ)**, **EV Chargers**, **Biodiversity (GBIF)**,
+  **USGS Water Sites**, **NWS Alerts**, and **SenseBoxes**. Each is a
+  toggleable runtime layer with a density cap. Optional keys degrade as
+  `KEY REQUIRED`. Non-geo, APILayer commercial, lookup-only, and already-plotted
+  catalog rows are rejected by a shipped relevance filter rather than omitted.
+
 - Added a NextChat-style chat overlay on the globe home page: session list,
   new chat, user/assistant thread, and a text composer with send. Typed
   messages use the existing GEV MIC Realtime path (`sendTextCommand` → tools
@@ -28,6 +50,11 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
   over FLV/RTMP with a 2-second GOP.
 
 ### Changed
+
+- LOCATION and VISUAL PRESETS start pinned and expanded on a first visit, so
+  their contents are visible without a click or hover. Unpin still uses the
+  existing pin control and is remembered. A stored unpin/collapse or a
+  share-link panel field still wins over that default.
 
 - The ADMIN console is now a two-column control panel: a persistent left
   navigation rail (Core: **Create Plugin**, **MCP Server**, **Go Live**; then a

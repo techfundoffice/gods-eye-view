@@ -245,7 +245,7 @@ test('validated voice camera destinations share the UI navigation authority faca
 test('deferred search releases only after its final authority check', () => {
   const handler = body(
     ui,
-    /this\._locationSearch\.addEventListener\('keydown', async \(e\) => \{([\s\S]*?)\n    \}\);/,
+    /async _submitTypedLocationSearch\(query, extra = \{\}\) \{([\s\S]*?)\n  \}/,
     'search handler',
   );
   ordered(handler, [
@@ -346,7 +346,7 @@ test('teardown refuses deferred location work before geocoding begins', () => {
 
   const handler = body(
     ui,
-    /this\._locationSearch\.addEventListener\('keydown', async \(e\) => \{([\s\S]*?)\n    \}\);/,
+    /async _submitTypedLocationSearch\(query, extra = \{\}\) \{([\s\S]*?)\n  \}/,
     'search handler',
   );
   ordered(handler, [

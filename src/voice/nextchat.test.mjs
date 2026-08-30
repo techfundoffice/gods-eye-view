@@ -19,6 +19,9 @@ import {
   persistNextchatState,
   selectSession,
   appendUserMessage,
+  appendViewerMessage,
+  publishNextChatMessage,
+  setHarnessStatus,
 } from './nextchat.js';
 
 function memoryStorage(seed) {
@@ -146,6 +149,32 @@ test('extractAssistantTranscriptDelta ignores non-transcript events', () => {
     type: 'response.output_text.delta',
     delta: 'Hi',
   }), 'Hi');
+});
+
+test('viewer comments keep the author and are not treated as the operator', () => {
+  let state = createNextchatState();
+  state = appendViewerMessage(state, {
+    author: 'CruiseWatcher',
+    text: '#Task view Ensenada Port',
+    metadata: { source: 'comment', commentId: 'yt-1', videoId: 'v1', receivedAt: '2026-08-30T00:00:00.000Z' },
+  });
+  const message = getActiveSession(state).messages[0];
+  assert.equal(message.role, 'viewer');
+  assert.equal(message.author, 'CruiseWatcher');
+  assert.equal(message.content, '#Task view Ensenada Port');
+  state = setHarnessStatus(state, 'APPLIED · Close view of Ensenada Port');
+  assert.match(state.harnessStatus, /APPLIED/);
+});
+
+test('publishNextChatMessage refuses HTML injection by storing plain text', () => {
+  const store = createNextchatStore(memoryStorage());
+  const result = publishNextChatMessage({
+    author: 'CruiseWatcher',
+    text: '<img src=x onerror=alert(1)> **bold**',
+  }, store);
+  assert.equal(result.ok, true);
+  assert.equal(store.getActiveSession().messages[0].content, '<img src=x onerror=alert(1)> **bold**');
+  assert.equal(publishNextChatMessage({ author: 'x', text: 'hi' }, null).ok, false);
 });
 
 test('createEmptySession starts with no messages to replay', () => {

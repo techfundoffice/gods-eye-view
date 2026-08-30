@@ -1964,6 +1964,61 @@ body.ui-clean-view #scene-runtime.active {
   opacity: 0.5;
 }
 
+.location-suggestions {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 4px;
+  max-height: 220px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: rgba(6, 16, 24, 0.96);
+  border: 1px solid rgba(0, 212, 255, 0.28);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.location-suggestions[hidden] {
+  display: none;
+}
+
+.location-suggestion-item {
+  margin: 0;
+  padding: 0;
+}
+
+.location-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.location-suggestion:hover,
+.location-suggestion:focus-visible {
+  background: rgba(0, 212, 255, 0.12);
+  outline: none;
+}
+
+.location-suggestion-name {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.location-suggestion-address {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.2px;
+}
+
 .location-streetview {
   width: min(360px, calc(100vw - 48px));
   margin: 10px 0 0;
@@ -7753,6 +7808,19 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
   font-size: 11px;
 }
 
+#command-dock .location-suggestions {
+  margin-top: 8px;
+  max-height: 180px;
+}
+
+#command-dock .location-suggestion-name {
+  font-size: 11px;
+}
+
+#command-dock .location-suggestion-address {
+  font-size: 9px;
+}
+
 #command-dock .location-pills {
   flex: 1;
   min-width: 0;
@@ -9952,8 +10020,18 @@ body.cockpit-mode .admin-launch {
 
 .admin-login-form {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 10px;
+}
+
+.admin-login-form > p {
+  flex: 1 0 100%;
+  margin: 0 0 4px;
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.2px;
+  color: var(--text-secondary);
 }
 
 .admin-login-form .admin-field { flex: 1; }
@@ -10296,6 +10374,208 @@ body.cockpit-mode .admin-launch {
   max-width: 100%;
 }
 
+.admin-google-earth {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 640px;
+}
+
+.admin-google-earth-title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+
+.admin-google-earth-lead {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.admin-google-earth-status {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: #7ce8a4;
+}
+
+.admin-google-earth-status.warn {
+  color: #ffb347;
+  border-color: rgba(255, 179, 71, 0.35);
+}
+
+.admin-google-earth-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.admin-google-earth-facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-google-earth-facts dt {
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.admin-google-earth-facts dd {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+}
+
+.admin-google-earth-message {
+  margin: 0;
+  font-size: 11px;
+  color: #ff9d9d;
+}
+
+.admin-google-earth-message[hidden] { display: none; }
+
+.admin-ych {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.admin-ych-title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+
+.admin-ych-lead {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.admin-ych-status,
+.admin-ych-connection {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: #7ce8a4;
+}
+
+.admin-ych-status.warn,
+.admin-ych-connection {
+  color: #ffb347;
+  border-color: rgba(255, 179, 71, 0.35);
+}
+
+.admin-ych-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-ych-select {
+  min-width: 140px;
+  max-width: 260px;
+  padding: 6px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+}
+
+.admin-ych-counters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.admin-ych-counter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-ych-counter dt {
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.admin-ych-counter dd {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+}
+
+.admin-ych-heading {
+  margin: 4px 0 0;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.admin-ych-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.admin-ych-message,
+.admin-ych-task {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+}
+
+.admin-ych-author {
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.admin-ych-text,
+.admin-ych-task-meta {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.admin-ych-task-meta {
+  color: var(--text-secondary);
+}
+
 /* Manifest entries that could not be loaded, listed under the menu. */
 .admin-menu-errors {
   margin: 0;
@@ -10558,7 +10838,7 @@ body.cockpit-mode .admin-launch {
 /* ── NextChat homepage overlay ───────────────── */
 #gev-nextchat {
   position: fixed;
-  top: 76px;
+  top: 108px;
   left: var(--left-stack-x);
   z-index: 120;
   display: flex;
@@ -10696,6 +10976,10 @@ body.cockpit-mode .admin-launch {
 
 .gev-nextchat-user .gev-nextchat-text {
   color: var(--text-primary);
+}
+
+.gev-nextchat-viewer .gev-nextchat-text {
+  background: rgba(255, 179, 71, 0.08);
 }
 
 .gev-nextchat-assistant .gev-nextchat-text {

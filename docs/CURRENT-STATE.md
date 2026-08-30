@@ -2,6 +2,49 @@
 
 Updated: August 30, 2026
 
+> **2026-08-30 — LOCATION finder suggests places as you type.** Typing in
+> `#location-search` (bottom command-dock LOCATION bar, next to GEV MIC and
+> Visual Presets) shows matching places without waiting for Enter. A query
+> like `Disneyland` lists geographically distinct rows with a distinguishing
+> address (Anaheim, Florida, France, Japan, …) from unbiased Places Text
+> Search via `/api/google/place-suggest` — not the first geocode hit and not
+> the view-biased `/api/google/text-search`. Picking a row flies through the
+> existing typed-search path (`searchAndFlyTo` + mini-status + Street View)
+> using that row's query/coordinates; Enter still searches the typed string.
+> Empty query, missing `GOOGLE_MAPS_API_KEY` (503), or a failed lookup leaves
+> the list empty and does not invent places. Client-supplied upstream URLs
+> are ignored.
+
+> **2026-08-30 — Google Earth is Photorealistic 3D Tiles, exposed as an ADMIN
+> plugin.** The visible Google Earth globe remains Cesium
+> `createGooglePhotorealistic3DTileset` (`photoreal` in
+> `src/mapStackController.js`) using `GOOGLE_MAPS_API_KEY` (Map Tiles API). A
+> missing key no longer throws during init: the ellipsoid/OSM stack stays up
+> and the operator-facing state is `KEY REQUIRED`, never OSM labeled as Google
+> Earth. A keyed tileset failure is `LOAD FAILED`. While photoreal tiles are
+> shown, Google attribution stays on the on-globe credit line. ADMIN **Plugins**
+> lists **Google Earth** (`src/adminPlugins/google-earth.js`, registered in
+> `manifest.json`): the pane reports key/tileset/stack/displaying truth and
+> **SHOW GOOGLE EARTH** calls `setStack('photoreal')` when a tileset exists.
+> Native Replit Login remains the default ADMIN gate; a configured
+> `ADMIN_PASSWORD` / `ADMIN_PASSWORD_HASH` can also unlock via `#admin-password`.
+
+> **2026-08-30 — public-apis catalog layers on the DATA panel.** A shipped
+> relevance filter (`src/data/publicApiCatalog.js`) inventories
+> [public-apis/public-apis](https://github.com/public-apis/public-apis) and
+> keeps only HTTPS, geographically plottable, redistributable feeds that this
+> globe does not already plot. Animals/Anime/Email and other non-geo
+> categories, APILayer commercial products, lookup-only geocoders, and
+> duplicates (OpenSky, USGS earthquakes, FIRMS, AIS, CelesTrak, Launch Library
+> 2, bikeshare, Open-Meteo) are rejected with a reason. Accepted feeds ship as
+> DATA-panel layers: OpenAQ air-quality stations (`openaq`, `KEY REQUIRED`
+> without `OPENAQ_API_KEY`), Open Charge Map EV chargers (`open-charge-map`),
+> GBIF occurrences (`gbif`), USGS water sites (`usgs-water`, viewport-bounded),
+> NWS active-alert centroids (`nws-alerts`), and openSenseMap senseBoxes
+> (`opensensemap`, viewport-bounded). Each polls a same-origin proxy, caps at
+> 200 points, and must not dump a full-earth unthrottled catalog. Voice-tool
+> schema is unchanged.
+
 > **2026-08-30 — NextChat overlay on the globe home page.** `#gev-nextchat` is
 > chrome on `index.html` (session list, **New chat**, user/assistant thread,
 > `textarea` composer + Send). The page remains the globe (`#cesiumContainer`).
@@ -9,9 +52,11 @@ Updated: August 30, 2026
 > `GevRealtimeController.sendTextCommand` (`src/voice/nextchat.js`
 > `submitNextchatSend`) so tools still run through `GEV_REALTIME_TOOLS` /
 > `gevActions`. Empty/whitespace send is a no-op. If Realtime is idle, send
-> starts the existing session; a closed channel or `/api/realtime/token` 503
-> does not invent an assistant reply — the status line says the voice path is
-> unavailable. Assistant text streams from Realtime transcript deltas via
+> starts the existing session and waits for the data-channel `open` event
+> (`start()` returns at SDP while `dc` is still `connecting`); a closed
+> channel, wait timeout, or `/api/realtime/token` 503 does not invent an
+> assistant reply — the status line says the voice path is unavailable.
+> Assistant text streams from Realtime transcript deltas via
 > `handleRealtimeEvent` → `onRealtimeEvent` (visible before `response.done`).
 > Sessions persist fail-open at `godsEyeView.nextchat.sessions.v1`. New chat
 > is a fresh local thread and does not replay old messages into Realtime.
@@ -53,6 +98,19 @@ Updated: August 30, 2026
 > an actionable error, not a fake LIVE. The operator YouTube Settings panel
 > still starts the same encoder via `/api/youtube/live` with a pasted or
 > created key; it does not call `/api/admin/live`.
+>
+> **YouTube Live ingest confirmation (environment boundary).** This checkout
+> has YouTube OAuth client id/secret and `SESSION_SECRET`, so a human can
+> sign in from YouTube Settings and grant the manage scope. This process has
+> no signed-in YouTube user session (tokens are in-memory after Google
+> consent) and ADMIN on Replit is native Replit Login, so a headless driver
+> cannot complete an authorized test broadcast. ffmpeg 6.1.2 is on PATH;
+> capture Chromium is the Nix ungoogled-chromium used by QA. A real Preview
+> go-live still requires: Replit-authenticated ADMIN, YouTube Settings
+> reconnect with live-control permission, remaining Data API quota, and
+> `CHROME_PATH` if Chromium is not on PATH. Local evidence without that
+> session is the unit/middleware suite plus the ADMIN pane markup
+> (`#admin-live-phases`, `#admin-live-broadcast`).
 
 > **2026-08-29 — operator YouTube Settings can go live through ffmpeg.** The
 > globe chrome **YOUTUBE SETTINGS** panel (`#youtube-panel`, `#youtube-go-live`)
@@ -95,7 +153,11 @@ Updated: August 30, 2026
 > Missions · Environmental · Explore manually**. No layer and no optional API
 > call happens until a tile is clicked. The right-hand DISPLAY rail
 > (`pp-toggles`) now starts **collapsed** on a first run rather than expanded —
-> a stored collapse state still wins, as before.
+> a stored collapse state still wins, as before. The command-dock **LOCATION**
+> and **VISUAL PRESETS** trays start **pinned and expanded** on a first run so
+> their contents are visible without a click or hover. Unpin still uses the
+> existing pin control; a stored unpin/collapse or a share-link `ui` panel
+> field still wins over that default.
 >
 > **The ENVIRONMENTAL tile is quakes AND fires** — live USGS earthquakes plus
 > NASA FIRMS active fires (`layerIds: ['earthquakes', 'local-firms']`), with the
@@ -2368,6 +2430,7 @@ this file.
 - `AISSTREAM_API_KEY` is server-side only; the browser reads the same-origin `/api/ais-live` cache.
 - `/api/google/nearby-places` keeps the Google key out of Places requests issued for voice scene context.
 - `/api/google/text-search` keeps the Google key server-side for view-biased Places recovery used by annotation resolution.
+- `/api/google/place-suggest` is the LOCATION finder's as-you-type lookup: Places Text Search (New) with **no** `locationBias` / `locationRestriction`, so chain parks in other countries stay visible. Missing key → 503 `suggestions: []`; empty `q` → 400 `suggestions: []`; the Google URL is hardcoded (client `url`/`lat`/`lon` are ignored).
 - `/api/overpass` is bounded by body/response caps, per-client/global rate limits, concurrency limits, mirror fallback, in-flight dedupe, cache bounds, and static validation that every selector is spatially bounded.
 - `/api/military-installations` uses an independent limiter with the same 90-per-client/300-global one-minute bounds, so viewport installation refreshes never consume `/api/overpass` annotation/traffic capacity.
 - `/api/route` proxies bounded OSRM route requests for annotation routes, with profile allowlisting, distance caps, response caps, caching, and sanitized "no route found" errors.
@@ -2384,7 +2447,7 @@ this file.
 - The desktop right rail (`#right-context-rail`) owns `DISPLAY`, `CCTV`, its active parameter controls, and `GLOBAL CONTEXT` as one fixed responsive stack in that order. Its compact buttons use the same 176 px width as the left accordion and one consistent 50 px height, share the left stack's 52 px edge inset and measured top baseline across HUD variants, then constrain themselves against visible HUD/chrome rectangles and the remaining vertical corridor. `DISPLAY` is no longer draggable and legacy saved coordinates are ignored.
 - The right rail is labeled **DISPLAY** (formerly "MOVE") and groups, in order, HUD, DETECT, Bloom, Sharpen, 3D, Clean-UI (HUD + DETECT promoted to the top). Its expanded controls retain the same compact 176 px width as the right-side tabs instead of growing to the wider Context detail-card width. It starts expanded on first run and respects the user's later `v6` collapse choice. Collapses/expands with directional chevrons (`◀` collapsed, `▶` expanded).
 - Display and Context use matching 330 px expanded widths and matching compact tab dimensions. The parameter panel is part of Display's expanded content. DISPLAY may remain open beside one contextual panel; CCTV and Context are mutually exclusive. In Tactical HUD, expanding CCTV or Context hides the other contextual launcher while DISPLAY remains independently available. The most recently opened right-rail panel owns the constrained lane even when it appears later in DOM order; passive restoration and automatic disclosure do not replace that explicit owner. Minimal and other HUD layouts retain the collapsed launchers; when their active panel exceeds the measured corridor, the rail reserves sibling heights and gaps and scrolls the active panel internally.
-- `STYLE PRESETS` and `LOCATIONS` start collapsed, expand on intentional hover/click, and auto-collapse after hover leave delay.
+- `VISUAL PRESETS` and `LOCATION` start **pinned and expanded** on a first run so their contents are visible without a click or hover. Unpin uses the existing pin control and is remembered (`godsEyeView.v6.panelPinned.<id>`); a stored unpin/collapse or a share-link `ui` panel field still wins. Unpinned trays still expand on intentional hover/click and auto-collapse after hover leave delay.
 - Collapsed mini-status indicators show active style and active location/landmark.
 - Detection mode is user-controlled and should persist when switching styles. Since 2026-08-22 it also STARTS on — Dense @ 75% for every style on a first run, Normal included — as a `GLOBAL_POST_DEFAULTS` baseline that does NOT set `_detectionUserOverridden`. Exception (unchanged): selecting a military style (CRT/NVG/FLIR) auto-enables the same Dense preset, but only until the user manually changes detection this session (`_detectionUserOverridden` gate), after which style switches never touch it.
 - Detection runs in the bottom lane of the shared host's single world-overlay `postRender`

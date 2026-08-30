@@ -54,12 +54,14 @@ export class MapStackController {
     googleTileset = null,
     cesiumToken = '',
     initialStack = 'photoreal',
+    photorealUnavailableReason = '',
     onChange = null,
     onError = null,
   } = {}) {
     this.viewer = viewer;
     this.googleTileset = googleTileset;
     this.cesiumToken = String(cesiumToken || '').trim();
+    this.photorealUnavailableReason = String(photorealUnavailableReason || '').trim();
     this._onChange = onChange;
     this._onError = onError;
     this._activeId = googleTileset ? initialStack : 'osm';
@@ -115,6 +117,9 @@ export class MapStackController {
    * @returns {string}
    */
   _unavailableReason(stack) {
+    if (stack?.kind === 'photoreal' && this.photorealUnavailableReason) {
+      return this.photorealUnavailableReason;
+    }
     return stack?.requiresIon
       ? 'Cesium ion token required for Bing stacks'
       : `${stack?.label || 'This map stack'} is unavailable`;

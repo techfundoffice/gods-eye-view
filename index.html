@@ -487,17 +487,17 @@
   <!-- Unified bottom command dock: locations, voice (injected at runtime), visual presets -->
   <div id="command-dock" aria-label="Navigation, voice, and visual preset controls">
   <!-- Control panel -->
-  <div id="control-panel" class="panel-collapsible collapsed">
+  <div id="control-panel" class="panel-collapsible dock-pinned">
     <div class="panel-glow"></div>
     <div class="panel-inner">
       <button id="control-panel-toggle" class="panel-header dock-tray-toggle" type="button"
-        data-dock-toggle-target="control-panel" aria-expanded="false"
-        aria-controls="control-panel-popover" aria-label="Expand Visual Presets">
+        data-dock-toggle-target="control-panel" aria-expanded="true"
+        aria-controls="control-panel-popover" aria-label="Collapse Visual Presets">
         <span class="panel-title"><span class="dock-label-icon dock-label-icon-presets" aria-hidden="true"></span>VISUAL PRESETS</span>
         <span class="panel-divider"></span>
       </button>
       <div id="control-panel-popover" class="dock-popover-content">
-      <button class="dock-pin-btn" data-pin-target="control-panel" type="button" aria-label="Pin visual presets" aria-pressed="false" title="Keep visual presets open"><img src="/pin.svg" alt="" /></button>
+      <button class="dock-pin-btn" data-pin-target="control-panel" type="button" aria-label="Pin visual presets" aria-pressed="true" title="Keep visual presets open"><img src="/pin.svg" alt="" /></button>
       <div id="style-buttons" class="button-grid">
         <button class="style-btn active" data-style="normal">
           <span class="btn-icon">◯</span>
@@ -551,19 +551,19 @@
   </div>
 
   <!-- Location bar -->
-  <div id="location-bar" class="panel-collapsible collapsed">
+  <div id="location-bar" class="panel-collapsible dock-pinned">
     <div class="panel-glow"></div>
     <div class="location-inner">
       <div class="location-toolbar">
         <span class="location-toolbar-label"><span class="dock-label-icon dock-label-icon-location" aria-hidden="true"></span>LOCATION</span>
-        <button class="panel-collapse-btn" data-collapse-target="location-bar" title="Collapse panel">+</button>
+        <button class="panel-collapse-btn" data-collapse-target="location-bar" title="Collapse panel">−</button>
       </div>
       <div id="location-mini-status" class="location-mini-status" aria-live="polite">
         <div id="location-mini-city" class="location-mini-city">📍 Location: --</div>
         <div id="location-mini-poi" class="location-mini-poi">Landmark: --</div>
       </div>
       <div class="dock-popover-content">
-        <button class="dock-pin-btn" data-pin-target="location-bar" type="button" aria-label="Pin location tray" aria-pressed="false" title="Keep location tray open"><img src="/pin.svg" alt="" /></button>
+        <button class="dock-pin-btn" data-pin-target="location-bar" type="button" aria-label="Pin location tray" aria-pressed="true" title="Keep location tray open"><img src="/pin.svg" alt="" /></button>
         <div id="poi-row" class="poi-row-container"></div>
         <div class="location-bar-divider" id="location-bar-divider"></div>
         <div class="location-city-row">
@@ -572,9 +572,10 @@
             <button id="search-toggle" class="search-toggle-btn" title="Search any location">
               <span>&#x1F50E;</span>
             </button>
-            <input type="text" id="location-search" placeholder="Search any location..." autocomplete="off" spellcheck="false" />
+            <input type="text" id="location-search" placeholder="Search any location..." autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="location-suggestions" />
           </div>
         </div>
+        <ul id="location-suggestions" class="location-suggestions" hidden role="listbox" aria-label="Location suggestions"></ul>
         <figure id="location-streetview" class="location-streetview" hidden>
           <img id="location-streetview-image" alt="" />
           <figcaption>
@@ -1074,7 +1075,11 @@
           so the application identity and secure session configuration are available.
         </p>
         <form id="admin-login-form" class="admin-login-form" autocomplete="off">
-          <p>Continue to the secure account login to access ADMIN.</p>
+          <p>Continue to the secure account login, or enter the local ADMIN password.</p>
+          <label class="admin-field" for="admin-password">
+            <span>PASSWORD</span>
+            <input id="admin-password" type="password" name="admin-password" autocomplete="current-password" />
+          </label>
           <button class="scene-btn" type="submit">LOG IN</button>
         </form>
       </div>

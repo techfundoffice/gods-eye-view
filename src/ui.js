@@ -13,6 +13,11 @@ import {
   decodeBloomIntensity,
 } from './bloom.js';
 import { LOCATIONS, CITY_POIS, GLOBE_VIEW, flyToGlobeView, flyToPresetLocation, flyToPOI, searchAndFlyTo } from './locations.js';
+import {
+  createLocationSuggestController,
+  fetchPlaceSuggestions,
+  renderLocationSuggestions,
+} from './locationSuggest.js';
 import { locationMiniStatus } from './locationStatus.js';
 import { interruptCameraMotion } from './cameraVerbs.js';
 import {
@@ -21,6 +26,11 @@ import {
 } from './cockpitTracking.js';
 import { IntelHUD } from './hud.js';
 import { ShareLinkManager } from './sharelink.js';
+import {
+  COMMAND_DOCK_PINNABLE_PANEL_IDS,
+  pinCommandDockPanel,
+  restoreCommandDockPinDefaults,
+} from './commandDockPin.js';
 import {
   isExplicitLayerStateOrigin,
   LayerStateCoordinator,
@@ -2371,6 +2381,8 @@ export class StyleManager {
     this._cctvSyncProgress = document.getElementById('cctv-sync-progress');
     this._toast = document.getElementById('toast');
     this._locationSearch = document.getElementById('location-search');
+    this._locationSuggestions = document.getElementById('location-suggestions');
+    this._locationSuggestionRows = [];
     this._searchToggle = document.getElementById('search-toggle');
     this._locationStreetView = document.getElementById('location-streetview');
     this._locationStreetViewImage = document.getElementById('location-streetview-image');
@@ -2823,6 +2835,7 @@ export class StyleManager {
     this._activeLocationSearchGeneration = null;
     this._locationSearch?.classList.remove('searching', 'expanded');
     if (clear && this._locationSearch) this._locationSearch.value = '';
+    this._hideLocationSuggestions();
     this._locationSearch?.blur();
   }
 
@@ -3364,6 +3377,7 @@ export class StyleManager {
         if (this._locationSearch.classList.contains('expanded')) {
           this._locationSearch.classList.remove('expanded');
           this._locationSearch.value = '';
+          this._hideLocationSuggestions();
           this._locationSearch.blur();
         }
       }
@@ -3951,6 +3965,7 @@ export class StyleManager {
     });
 
     for (const targetId of targets) {
+      if (COMMAND_DOCK_PINNABLE_PANEL_IDS.includes(targetId)) continue;
       this._restorePanelCollapsedState(targetId, {
         allowStored: !this._initialShareState,
       });
@@ -3978,6 +3993,57 @@ export class StyleManager {
         this._setCommandDockPanelPinState(panelId);
       });
     });
+    this._restoreCommandDockPinDefaults();
+  }
+
+  /**
+   * Pins LOCATION and VISUAL PRESETS on a true first run. A stored pin or
+   * collapse, or a share-link panel field, still wins over that default.
+   * @returns {void}
+   */
+  _restoreCommandDockPinDefaults() {
+    const shareSpecs = this._initialShareState?.panelState?.specs;
+    const shareById = new Map(
+      Array.isArray(shareSpecs) ? shareSpecs.map((spec) => [spec.id, spec]) : [],
+    );
+    const readStored = (keyFn, panelId) => {
+      try {
+        return localStorage.getItem(keyFn.call(this, panelId));
+      } catch {
+        return null;
+      }
+    };
+    restoreCommandDockPinDefaults({
+      shareById,
+      allowStored: !this._initialShareState,
+      readPin: (panelId) => readStored(this._panelPinStorageKey, panelId),
+      readCollapse: (panelId) => readStored(this._panelCollapseStorageKey, panelId),
+      setPin: (panelId, pin, options) => this._setCommandDockPanelPinState(panelId, pin, options),
+      restoreCollapse: (panelId, options) => this._restorePanelCollapsedState(panelId, options),
+    });
+  }
+
+  /**
+   * Returns the versioned localStorage key for a command-dock tray pin.
+   * @param {string} panelId - DOM id of the tray.
+   * @returns {string} localStorage key.
+   */
+  _panelPinStorageKey(panelId) {
+    return `godsEyeView.${PANEL_LAYOUT_STORAGE_VERSION}.panelPinned.${panelId}`;
+  }
+
+  /**
+   * Persists a command-dock tray pin (`'1'` or `'0'`) to localStorage.
+   * @param {string} panelId - DOM id of the tray.
+   * @param {boolean} pinned - Whether the tray is pinned open.
+   * @returns {void}
+   */
+  _savePanelPinState(panelId, pinned) {
+    try {
+      localStorage.setItem(this._panelPinStorageKey(panelId), pinned ? '1' : '0');
+    } catch {
+      // storage unavailable
+    }
   }
 
   _setCommandDockPanelPinState(panelId, pin, {
@@ -3987,36 +4053,19 @@ export class StyleManager {
   } = {}) {
     const panelEl = document.getElementById(panelId);
     const button = document.querySelector(`.dock-pin-btn[data-pin-target="${panelId}"]`);
-    if (!panelEl || !button) return undefined;
-    const shouldPin = typeof pin === 'boolean'
-      ? pin
-      : !panelEl.classList.contains('dock-pinned');
-    panelEl.classList.toggle('dock-pinned', shouldPin);
-    button.setAttribute('aria-pressed', String(shouldPin));
-    document.querySelectorAll('#command-dock .dock-pinned-top').forEach((pinnedPanel) => {
-      pinnedPanel.classList.remove('dock-pinned-top');
+    const shouldPin = pinCommandDockPanel({
+      panelEl,
+      button,
+      dock: document.getElementById('command-dock'),
+      pin,
+      restore,
+      persist,
+      hovering: Boolean(panelEl?.matches?.(':hover')),
+      setCollapsed: (collapsed, options) => this.setPanelCollapsed(panelId, collapsed, options),
+      savePin: (pinned) => this._savePanelPinState(panelId, pinned),
     });
-    if (shouldPin) {
-      panelEl.classList.add('dock-pinned-top');
-      this.setPanelCollapsed(panelId, false, {
-        explicit: !restore,
-        restore,
-        persist,
-        syncShare: false,
-      });
-    } else {
-      const remainingPinnedPanel = document.querySelector('#command-dock .dock-pinned');
-      remainingPinnedPanel?.classList.add('dock-pinned-top');
-      if (!restore && !panelEl.matches(':hover')) {
-        this.setPanelCollapsed(panelId, true, {
-          explicit: true,
-          persist,
-          syncShare: false,
-        });
-      }
-    }
     this._updateCommandDockTrayStack();
-    if (syncShare) {
+    if (syncShare && shouldPin !== undefined) {
       if (!restore) this.shareLinkManager?.claimRestoreLane?.('panel', panelId);
       this.shareLinkManager?.onPanelStateChange?.();
     }
@@ -6743,6 +6792,11 @@ export class StyleManager {
     // first-run mission card for the one first impression there is. A stored
     // choice still wins in both directions, so anyone who opens it keeps it.
     if (panelId === 'pp-toggles' && stored === null) collapsed = true;
+    // LOCATION and VISUAL PRESETS start PINNED+expanded for a first-time
+    // visitor. A stored collapse still wins, as with every other panel.
+    if (COMMAND_DOCK_PINNABLE_PANEL_IDS.includes(panelId) && stored === null) {
+      collapsed = false;
+    }
     panelEl.classList.toggle('collapsed', collapsed);
     this._syncPanelCollapseButton(panelEl);
   }
@@ -7660,14 +7714,17 @@ export class StyleManager {
     for (const spec of SHARE_PANEL_STATE_SPECS) {
       const state = specsById.get(spec.id);
       if (!state || typeof state.collapsed !== 'boolean') continue;
-      if (spec.pinnable && typeof state.pinned === 'boolean') {
-        this._setCommandDockPanelPinState(spec.id, state.pinned, {
+      const pinned = spec.pinnable
+        ? (typeof state.pinned === 'boolean' ? state.pinned : !state.collapsed)
+        : false;
+      if (spec.pinnable) {
+        this._setCommandDockPanelPinState(spec.id, pinned, {
           restore: true,
           persist: false,
           syncShare: false,
         });
       }
-      const nextCollapsed = state.pinned && spec.pinnable ? false : state.collapsed;
+      const nextCollapsed = spec.pinnable && pinned ? false : state.collapsed;
       this.setPanelCollapsed(spec.id, nextCollapsed, {
         restore: true,
         persist: false,
@@ -9308,7 +9365,29 @@ export class StyleManager {
       this._locationSearch.classList.toggle('expanded');
       if (this._locationSearch.classList.contains('expanded')) {
         this._locationSearch.focus();
+      } else {
+        this._hideLocationSuggestions();
       }
+    });
+
+    this._locationSuggest = createLocationSuggestController({
+      fetchSuggestions: fetchPlaceSuggestions,
+      onResults: (rows) => this._showLocationSuggestions(rows),
+    });
+
+    // As-you-type suggestions — do not wait for Enter.
+    this._locationSearch.addEventListener('input', () => {
+      this._locationSuggest.schedule(this._locationSearch.value);
+    });
+
+    this._locationSuggestions?.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.location-suggestion')) e.preventDefault();
+    });
+    this._locationSuggestions?.addEventListener('click', (e) => {
+      const button = e.target.closest('.location-suggestion');
+      if (!button) return;
+      const suggestion = this._locationSuggestionRows[Number(button.dataset.index)];
+      if (suggestion) this._pickLocationSuggestion(suggestion);
     });
 
     // Search submit on Enter
@@ -9316,57 +9395,114 @@ export class StyleManager {
       if (e.key === 'Enter') {
         const query = this._locationSearch.value.trim();
         if (!query) return;
-        const generation = this._beginDeferredNavigation('location');
-        if (generation === false) {
-          this._locationSearch.classList.remove('searching');
-          this._locationSearch.blur();
-          return;
-        }
-        this._activeLocationSearchGeneration = generation;
-        this._locationSearch.classList.add('searching');
-        let clearSearch = false;
-        try {
-          const destination = await searchAndFlyTo(this.viewer, query, {
-            beforeFly: () => this._reassertNavigationHandoff(generation),
-            // The visible search box is the user's direct "take me there"
-            // control. City viewport framing leaves places such as Ensenada
-            // kilometers away, so Google never reaches useful street-level
-            // photoreal LOD. Keep broad framing available to explicit voice
-            // "overview" requests, but make typed searches land close.
-            forceClose: true,
-          });
-          if (this._disposed || generation !== this._navigationGeneration) return;
-          if (destination?.cancelled) {
-            // Authority changed while the lookup was resolving; remain inert.
-            clearSearch = true;
-          } else if (destination) {
-            // The ACTIVE STYLE indicator reports the STYLE and nothing else.
-            // Writing the searched city here made the top-right corner read
-            // "ACTIVE STYLE / TOKYO"; where the camera is belongs to the
-            // LOCATION panel's own readout, which is updated below.
-            //
-            // Set before _setActiveLocation(null) so its own mini-status
-            // refresh already sees the destination — the readout never blinks
-            // through "Location: --" on the way to the searched place.
-            this._searchedLocationLabel = destination.label || query;
-            this._setActiveLocation(null);
-            this._currentPoi = null;
-            this._collapsePOIRow();
-            this._updateLocationMiniStatus();
-            this._showLocationStreetView(destination);
-            clearSearch = true;
-          } else {
-            this._showToast(`Location not found: ${query}`);
-          }
-        } catch (err) {
-          console.error('[Search] Geocoding failed:', err);
-          if (this._disposed || generation !== this._navigationGeneration) return;
-          this._showToast(`Search failed for "${query}". Try a city and country.`);
-        } finally {
-          this._settleLocationSearchUi(generation, { clear: clearSearch });
-        }
+        this._hideLocationSuggestions();
+        await this._submitTypedLocationSearch(query);
       }
     });
+  }
+
+  /**
+   * Replace the LOCATION suggestion list with mapped rows (name + address).
+   * @param {Array<object>} rows
+   * @returns {void}
+   */
+  _showLocationSuggestions(rows) {
+    this._locationSuggestionRows = Array.isArray(rows) ? rows : [];
+    renderLocationSuggestions(this._locationSuggestions, this._locationSuggestionRows);
+  }
+
+  /**
+   * Hide and forget the current LOCATION suggestion list.
+   * @returns {void}
+   */
+  _hideLocationSuggestions() {
+    this._locationSuggest?.cancel();
+    this._locationSuggestionRows = [];
+    renderLocationSuggestions(this._locationSuggestions, []);
+  }
+
+  /**
+   * Fly to a picked suggestion through the same typed-search destination path
+   * as Enter, using that row's query/coordinates rather than the first geocode hit.
+   * @param {{query?: string, name?: string, address?: string, lat?: number|null, lon?: number|null, label?: string, types?: string[]}} suggestion
+   * @returns {Promise<void>}
+   */
+  async _pickLocationSuggestion(suggestion) {
+    const query = String(suggestion?.query || [suggestion?.name, suggestion?.address].filter(Boolean).join(', ')).trim();
+    if (!query) return;
+    if (this._locationSearch) this._locationSearch.value = query;
+    this._hideLocationSuggestions();
+    const extra = {
+      skipViewBias: true,
+      label: suggestion.label || query,
+      types: suggestion.types,
+    };
+    if (Number.isFinite(suggestion.lat) && Number.isFinite(suggestion.lon)) {
+      extra.latitude = suggestion.lat;
+      extra.longitude = suggestion.lon;
+    }
+    await this._submitTypedLocationSearch(query, extra);
+  }
+
+  /**
+   * Typed LOCATION search: geocode (or a picked suggestion's coordinates) and
+   * fly close, then update mini-status / Street View. Enter and suggestion
+   * picks share this path.
+   * @param {string} query
+   * @param {object} [extra]
+   * @returns {Promise<void>}
+   */
+  async _submitTypedLocationSearch(query, extra = {}) {
+    const generation = this._beginDeferredNavigation('location');
+    if (generation === false) {
+      this._locationSearch.classList.remove('searching');
+      this._locationSearch.blur();
+      return;
+    }
+    this._activeLocationSearchGeneration = generation;
+    this._locationSearch.classList.add('searching');
+    let clearSearch = false;
+    try {
+      const destination = await searchAndFlyTo(this.viewer, query, {
+        beforeFly: () => this._reassertNavigationHandoff(generation),
+        // The visible search box is the user's direct "take me there"
+        // control. City viewport framing leaves places such as Ensenada
+        // kilometers away, so Google never reaches useful street-level
+        // photoreal LOD. Keep broad framing available to explicit voice
+        // "overview" requests, but make typed searches land close.
+        forceClose: true,
+        ...extra,
+      });
+      if (this._disposed || generation !== this._navigationGeneration) return;
+      if (destination?.cancelled) {
+        // Authority changed while the lookup was resolving; remain inert.
+        clearSearch = true;
+      } else if (destination) {
+        // The ACTIVE STYLE indicator reports the STYLE and nothing else.
+        // Writing the searched city here made the top-right corner read
+        // "ACTIVE STYLE / TOKYO"; where the camera is belongs to the
+        // LOCATION panel's own readout, which is updated below.
+        //
+        // Set before _setActiveLocation(null) so its own mini-status
+        // refresh already sees the destination — the readout never blinks
+        // through "Location: --" on the way to the searched place.
+        this._searchedLocationLabel = destination.label || query;
+        this._setActiveLocation(null);
+        this._currentPoi = null;
+        this._collapsePOIRow();
+        this._updateLocationMiniStatus();
+        this._showLocationStreetView(destination);
+        clearSearch = true;
+      } else {
+        this._showToast(`Location not found: ${query}`);
+      }
+    } catch (err) {
+      console.error('[Search] Geocoding failed:', err);
+      if (this._disposed || generation !== this._navigationGeneration) return;
+      this._showToast(`Search failed for "${query}". Try a city and country.`);
+    } finally {
+      this._settleLocationSearchUi(generation, { clear: clearSearch });
+    }
   }
 
   _showLocationStreetView(destination) {

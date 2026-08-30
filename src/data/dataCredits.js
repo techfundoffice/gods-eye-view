@@ -67,6 +67,45 @@ export const DATA_CREDITS = [
     html: 'Earthquakes: Data courtesy of the U.S. Geological Survey',
   },
   {
+    key: 'openaq',
+    html:
+      'Air quality stations: ' +
+      '<a href="https://openaq.org" target="_blank" rel="noopener">OpenAQ</a> ' +
+      '(CC BY 4.0)',
+  },
+  {
+    key: 'open-charge-map',
+    html:
+      'EV charging locations: ' +
+      '<a href="https://openchargemap.org" target="_blank" rel="noopener">Open Charge Map</a> ' +
+      '(ODbL / contributor terms)',
+  },
+  {
+    key: 'gbif',
+    html:
+      'Biodiversity occurrences: ' +
+      '<a href="https://www.gbif.org" target="_blank" rel="noopener">GBIF</a> ' +
+      '(free-to-use occurrence search; dataset licenses vary)',
+  },
+  {
+    key: 'usgs-water',
+    html: 'Water monitoring sites: Data courtesy of the U.S. Geological Survey',
+  },
+  {
+    key: 'nws-alerts',
+    html:
+      'Weather alerts: ' +
+      '<a href="https://www.weather.gov" target="_blank" rel="noopener">U.S. National Weather Service</a> ' +
+      '(U.S. public domain)',
+  },
+  {
+    key: 'opensensemap',
+    html:
+      'Personal weather stations: ' +
+      '<a href="https://opensensemap.org" target="_blank" rel="noopener">openSenseMap</a> ' +
+      '(senseBox / open data)',
+  },
+  {
     key: 'overpass',
     html:
       'Road geometry (traffic): ' +

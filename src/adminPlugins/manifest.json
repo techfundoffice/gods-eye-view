@@ -1,0 +1,14 @@
+[
+  {
+    "id": "google-earth",
+    "label": "Google Earth",
+    "description": "Show Google Photorealistic 3D Tiles on the globe and report key/tileset status.",
+    "module": "./google-earth.js"
+  },
+  {
+    "id": "youtube-ai-comment-harness",
+    "label": "Youtube AI Comment Harness",
+    "description": "Read YouTube comments into NextChat and apply validated #Task globe views.",
+    "module": "./youtube-ai-comment-harness.js"
+  }
+]
