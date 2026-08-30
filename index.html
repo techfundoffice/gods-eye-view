@@ -1029,7 +1029,7 @@
     <p class="first-run-note" data-first-run-status role="status" aria-live="polite">Tip: the GEV MIC button in the dock lets you talk to the map.</p>
   </aside>
 
-  <!-- ADMIN console: password gate, dashboard menu, plugin builder chat, MCP settings -->
+  <!-- ADMIN console: native Replit Login gate, dashboard menu, plugin builder chat, MCP settings -->
   <div id="admin-console" class="admin-console" role="dialog" aria-modal="true" aria-labelledby="admin-console-title" hidden>
     <div class="admin-console-scrim"></div>
     <section class="admin-console-shell">
@@ -1043,20 +1043,15 @@
 
       <p id="admin-message" class="admin-message" role="status" aria-live="polite" hidden></p>
 
-      <!-- Password gate -->
+      <!-- Native Replit Login gate -->
       <div id="admin-gate" class="admin-gate">
         <p id="admin-unconfigured" class="admin-unconfigured" hidden>
-          The ADMIN console is disabled because no admin password is configured. Set
-          <code>ADMIN_PASSWORD_HASH</code> (or <code>ADMIN_PASSWORD</code>) in the environment and restart
-          the server. Generate a hash with <code>node scripts/admin-password-hash.mjs</code>.
+          Native login is unavailable for this ADMIN console. Run the app from its Replit workspace
+          so the application identity and secure session configuration are available.
         </p>
         <form id="admin-login-form" class="admin-login-form" autocomplete="off">
-          <label class="admin-field" for="admin-password">
-            <span>ADMIN PASSWORD</span>
-            <input id="admin-password" type="password" name="admin-password" autocomplete="current-password"
-              required aria-describedby="admin-status" />
-          </label>
-          <button class="scene-btn" type="submit">SIGN IN</button>
+          <p>Continue to the secure account login to access ADMIN.</p>
+          <button class="scene-btn" type="submit">LOG IN</button>
         </form>
       </div>
 

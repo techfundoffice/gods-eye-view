@@ -51,6 +51,7 @@ import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.j
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createAdminMiddleware } from './src/adminServer.js';
+import { createReplitAdminAuth } from './src/replitAdminAuth.js';
 
 /** One encoder for the operator YouTube panel and the ADMIN console. */
 const sharedLiveStream = createLiveStreamController();
@@ -7387,9 +7388,11 @@ function youtubeProxy() {
  */
 function adminConsoleApi() {
   const { version } = createRequire(import.meta.url)('./package.json');
+  const replitAuth = createReplitAdminAuth();
   const middleware = createAdminMiddleware({
     version: version || '0.0.0',
     live: sharedLiveStream,
+    replitAuth,
   });
   function install(middlewares) {
     middlewares.use('/api/admin', middleware);

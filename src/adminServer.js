@@ -3,7 +3,8 @@
  *
  * Three groups of routes live here:
  *
- *   - Session: `GET /session`, `POST /login`, `POST /logout`.
+ *   - Session: `GET /session`, native `GET /login` + `GET /callback`, and
+ *     `POST /logout`.
  *   - Plugin builder: `GET|POST /plugins`, `GET /plugins/:id`,
  *     `POST /plugins/:id/messages`, `POST /plugins/:id/cancel`, and `GET /menu`
  *     for the generated plugins the dashboard should load.
@@ -13,7 +14,7 @@
  *
  * Everything except `POST /mcp` requires the admin session cookie; `POST /mcp`
  * requires an API key instead and is refused outright while the MCP setting is
- * off. With no admin password configured, every route reports `unconfigured`
+ * off. With no configured native login, every route reports `unconfigured`
  * and does nothing — the console cannot be opened by omission.
  *
  * @module adminServer
@@ -133,6 +134,7 @@ export function readJsonBody(req, limit = ADMIN_MAX_BODY_BYTES) {
  *
  * @param {object} [options]
  * @param {object} [options.auth] Auth facade; defaults to env-configured.
+ * @param {object|null} [options.replitAuth] Native Replit Login facade.
  * @param {object} [options.builder] Plugin builder; defaults to a real one.
  * @param {object} [options.store] Durable admin state.
  * @param {Function} [options.readManifest] Reads the generated-plugin manifest.
@@ -142,6 +144,7 @@ export function readJsonBody(req, limit = ADMIN_MAX_BODY_BYTES) {
 export function createAdminMiddleware({
   store = createAdminStore(),
   auth = createAdminAuth({ store }),
+  replitAuth = null,
   builder = createPluginBuilder(),
   live = createLiveStreamController(),
   readManifest = readPluginManifest,
@@ -154,9 +157,12 @@ export function createAdminMiddleware({
    * @returns {object|null} Live session, or null.
    */
   function sessionFor(req) {
+    if (replitAuth) return replitAuth.authenticate(req);
     const cookies = parseCookies(req.headers?.cookie);
     return auth.authenticate(cookies[ADMIN_SESSION_COOKIE]);
   }
+
+  const operatorConfigured = () => replitAuth ? replitAuth.configured : auth.configured;
 
   /**
    * @param {object} req
@@ -176,9 +182,10 @@ export function createAdminMiddleware({
   function sessionState(req) {
     const session = sessionFor(req);
     return {
-      configured: auth.configured,
+      configured: operatorConfigured(),
       authenticated: Boolean(session),
       expiresAt: session ? new Date(session.expiresAt).toISOString() : null,
+      username: session?.username || null,
       mcpEnabled: auth.mcpEnabled(),
       agentCommand: builder.command,
     };
@@ -208,7 +215,7 @@ export function createAdminMiddleware({
       sendJson(res, 405, { error: { kind: 'method', message: 'MCP endpoint accepts POST only' } });
       return;
     }
-    if (!auth.configured) {
+    if (!operatorConfigured()) {
       sendJson(res, 503, { error: { kind: 'unconfigured', message: 'Admin console is not configured' } });
       return;
     }
@@ -250,7 +257,7 @@ export function createAdminMiddleware({
   }
 
   return async function adminMiddleware(req, res, next) {
-    const { segments } = parseAdminRoute(req.url);
+    const { segments, query } = parseAdminRoute(req.url);
     const [first, second, third] = segments;
 
     try {
@@ -259,11 +266,23 @@ export function createAdminMiddleware({
         return;
       }
 
-      if (!auth.configured) {
+      if (replitAuth && first === 'login' && req.method === 'GET') {
+        await replitAuth.login(req, res, query.get('returnTo'));
+        return;
+      }
+
+      if (replitAuth && first === 'callback' && req.method === 'GET') {
+        await replitAuth.callback(req, res);
+        return;
+      }
+
+      if (!operatorConfigured()) {
         sendJson(res, 503, {
           error: {
             kind: 'unconfigured',
-            message: 'Set ADMIN_PASSWORD_HASH (or ADMIN_PASSWORD) and restart to enable the ADMIN console.',
+            message: replitAuth
+              ? 'Native Replit Login is not configured for this ADMIN console.'
+              : 'Set ADMIN_PASSWORD_HASH (or ADMIN_PASSWORD) and restart to enable the ADMIN console.',
           },
           configured: false,
         });
@@ -284,6 +303,10 @@ export function createAdminMiddleware({
       }
 
       if (first === 'login' && req.method === 'POST') {
+        if (replitAuth) {
+          sendJson(res, 405, { error: { kind: 'method', message: 'Use native Replit Login.' } });
+          return;
+        }
         const body = await readJsonBody(req);
         const result = auth.login(String(body.password ?? ''), { clientId: clientId(req) });
         if (!result.ok) {
@@ -319,6 +342,11 @@ export function createAdminMiddleware({
       }
 
       if (first === 'logout' && req.method === 'POST') {
+        if (replitAuth) {
+          replitAuth.logout(req, res);
+          sendJson(res, 200, { configured: true, authenticated: false, mcpEnabled: auth.mcpEnabled() });
+          return;
+        }
         const cookies = parseCookies(req.headers?.cookie);
         auth.logout(cookies[ADMIN_SESSION_COOKIE]);
         res.setHeader('Set-Cookie', serializeAdminCookie('', 0, requiresSecureCookie(req)));

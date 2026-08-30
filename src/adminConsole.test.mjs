@@ -130,16 +130,11 @@ test('reads are plain same-origin GETs without the write header', async () => {
   assert.equal(calls[0].options.headers[ADMIN_REQUEST_HEADER], undefined);
 });
 
-test('mutating calls carry the anti-CSRF header and a JSON body', async () => {
-  const { fetchImpl, calls } = fakeFetch([{ body: { authenticated: true } }]);
+test('native login URL preserves the safe ADMIN return location', () => {
+  const { fetchImpl, calls } = fakeFetch([]);
   const client = createAdminClient({ fetchImpl });
-  await client.login('hunter2');
-
-  assert.equal(calls[0].url, '/api/admin/login');
-  assert.equal(calls[0].options.method, 'POST');
-  assert.equal(calls[0].options.headers[ADMIN_REQUEST_HEADER], '1');
-  assert.equal(calls[0].options.headers['Content-Type'], 'application/json');
-  assert.deepEqual(JSON.parse(calls[0].options.body), { password: 'hunter2' });
+  assert.equal(client.loginUrl('/?admin=1'), '/api/admin/login?returnTo=%2F%3Fadmin%3D1');
+  assert.equal(calls.length, 0, 'login is a browser redirect, not a credential-bearing fetch');
 });
 
 test('a bodyless POST still carries the header but no content type', async () => {

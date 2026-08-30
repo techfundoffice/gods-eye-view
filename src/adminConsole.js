@@ -1,5 +1,5 @@
 /**
- * The ADMIN console: password gate, dashboard menu, plugin-builder chat, the
+ * The ADMIN console: native login gate, dashboard menu, plugin-builder chat, the
  * MCP server settings page, and the generated plugins the builder has already
  * written into this checkout.
  *
@@ -88,10 +88,10 @@ export function transcriptRoleLabel(role) {
 }
 
 /**
- * Whether the console may show, or act on, anything past the password gate.
+ * Whether the console may show, or act on, anything past the login gate.
  *
  * Both halves matter. `authenticated` is the signed-in session, and
- * `configured` is the server admitting an admin password exists at all — an
+ * `configured` is the server admitting native login is available at all — an
  * unconfigured deployment refuses every route, so a console that painted its
  * dashboard there would offer controls that cannot work.
  *
@@ -147,8 +147,8 @@ export function applyAdminLockPaint(root, session, { view = '' } = {}) {
  * @returns {string}
  */
 export function describeSessionState(state) {
-  if (!state?.configured) return 'ADMIN NOT CONFIGURED · SET ADMIN_PASSWORD';
-  if (!state.authenticated) return 'LOCKED · ENTER ADMIN PASSWORD';
+  if (!state?.configured) return 'ADMIN NOT CONFIGURED · REPLIT LOGIN UNAVAILABLE';
+  if (!state.authenticated) return 'LOCKED · LOGIN REQUIRED';
   return state.mcpEnabled ? 'SIGNED IN · MCP ONLINE' : 'SIGNED IN';
 }
 
@@ -220,7 +220,7 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
 
   return {
     session: () => request('/session'),
-    login: (password) => request('/login', { method: 'POST', body: { password } }),
+    loginUrl: (returnTo = '/?admin=1') => `/api/admin/login?returnTo=${encodeURIComponent(returnTo)}`,
     logout: () => request('/logout', { method: 'POST' }),
     menu: () => request('/menu'),
     listPlugins: () => request('/plugins'),
@@ -241,7 +241,7 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
 }
 
 /**
- * Wire the ADMIN launcher, the password gate, and the dashboard.
+ * Wire the ADMIN launcher, native Replit Login, and the dashboard.
  */
 class AdminConsoleController {
   /**
@@ -365,7 +365,7 @@ class AdminConsoleController {
       await this._loadMenu();
       this._el('admin-plugin-name')?.focus();
     } else {
-      this._el('admin-password')?.focus();
+      if (this.state.session.configured) this._signIn();
     }
   }
 
@@ -392,7 +392,7 @@ class AdminConsoleController {
    */
   _requireUnlocked() {
     if (isAdminUnlocked(this.state.session)) return true;
-    this.state.message = 'Sign in with the admin password first.';
+    this.state.message = 'Log in before using ADMIN.';
     this._render();
     return false;
   }
@@ -410,23 +410,8 @@ class AdminConsoleController {
 
   /** @returns {Promise<void>} */
   async _signIn() {
-    const input = this._el('admin-password');
-    const password = String(input?.value || '');
-    this.state.busy = true;
-    this.state.message = 'Verifying…';
-    this._render();
-    try {
-      this.state.session = await this.client.login(password);
-      if (input) input.value = '';
-      this.state.message = '';
-      await this._loadPlugins();
-      await this._loadMenu();
-    } catch (error) {
-      this.state.message = error.message;
-    } finally {
-      this.state.busy = false;
-      this._render();
-    }
+    const returnTo = `${window.location.pathname}${window.location.search ? window.location.search : '?admin=1'}`;
+    window.location.assign(this.client.loginUrl(returnTo.includes('admin=1') ? returnTo : `${returnTo}${returnTo.includes('?') ? '&' : '?'}admin=1`));
   }
 
   /** @returns {Promise<void>} */
@@ -1131,5 +1116,12 @@ class AdminConsoleController {
  */
 export function initAdminConsole({ root = document.getElementById('admin-console'), client } = {}) {
   if (!root) return null;
-  return new AdminConsoleController(root, { client: client || createAdminClient() });
+  const controller = new AdminConsoleController(root, { client: client || createAdminClient() });
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('admin') === '1') {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('admin');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    queueMicrotask(() => void controller.open());
+  }
+  return controller;
 }

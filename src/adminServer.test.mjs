@@ -427,6 +427,45 @@ test('Composio is not an admin route — signed-in /composio 404s, unconfigured 
   assert.equal(blocked.body.error.kind, 'unconfigured');
 });
 
+test('native Replit Login routes are delegated while protected ADMIN routes stay server-guarded', async () => {
+  const calls = [];
+  const replitAuth = {
+    configured: true,
+    authenticate: () => null,
+    login: async (_req, res, returnTo) => {
+      calls.push(['login', returnTo]);
+      res.statusCode = 302;
+      res.setHeader('Location', 'https://replit.com/oidc/auth');
+      res.end();
+    },
+    callback: async (_req, res) => {
+      calls.push(['callback']);
+      res.statusCode = 302;
+      res.setHeader('Location', '/?admin=1');
+      res.end();
+    },
+    logout: () => calls.push(['logout']),
+  };
+  const middleware = createAdminMiddleware({
+    replitAuth,
+    auth: createAdminAuth({ credential: null, store: memoryStore() }),
+    builder: stubBuilder(),
+    live: stubLive(),
+  });
+
+  const login = await call(middleware, { url: '/login?returnTo=%2F%3Fadmin%3D1' });
+  assert.equal(login.status, 302);
+  assert.deepEqual(calls[0], ['login', '/?admin=1']);
+
+  const callback = await call(middleware, { url: '/callback?code=abc&state=state' });
+  assert.equal(callback.status, 302);
+  assert.deepEqual(calls[1], ['callback']);
+
+  const protectedRoute = await call(middleware, { url: '/plugins' });
+  assert.equal(protectedRoute.status, 401);
+  assert.equal(protectedRoute.body.error.kind, 'auth');
+});
+
 test('a successful login reports the session it just minted', async () => {
   const { middleware } = harness();
   // The request that carried the password has no session cookie on it, so the
