@@ -59,6 +59,62 @@ test('empty query returns 400 and an empty suggestion list', async () => {
   assert.equal(called, 0);
 });
 
+test('stubbed Autocomplete payload keeps several address-distinguished Disneylands', async () => {
+  const middleware = createPlaceSuggestMiddleware({
+    getApiKey: () => 'test-key',
+    getRateLimiter: () => null,
+    fetchImpl: async () => new Response(JSON.stringify({
+      suggestions: [
+        {
+          placePrediction: {
+            text: { text: 'Disneyland Park, Anaheim, CA, USA' },
+            structuredFormat: {
+              mainText: { text: 'Disneyland Park' },
+              secondaryText: { text: 'Anaheim, CA, USA' },
+            },
+          },
+        },
+        {
+          placePrediction: {
+            text: { text: 'Walt Disney World Resort, Florida, USA' },
+            structuredFormat: {
+              mainText: { text: 'Walt Disney World Resort' },
+              secondaryText: { text: 'Florida, USA' },
+            },
+          },
+        },
+        {
+          placePrediction: {
+            text: { text: 'Disneyland Paris, Boulevard de Parc, Coupvray, France' },
+            structuredFormat: {
+              mainText: { text: 'Disneyland Paris' },
+              secondaryText: { text: 'Boulevard de Parc, Coupvray, France' },
+            },
+          },
+        },
+        {
+          placePrediction: {
+            text: { text: 'Tokyo Disneyland, Maihama, Urayasu, Chiba, Japan' },
+            structuredFormat: {
+              mainText: { text: 'Tokyo Disneyland' },
+              secondaryText: { text: 'Maihama, Urayasu, Chiba, Japan' },
+            },
+          },
+        },
+      ],
+    }), { status: 200 }),
+  });
+  const result = await invoke(middleware, '/api/google/place-suggest?q=Disneyland');
+  assert.equal(result.status, 200);
+  const body = jsonBody(result);
+  assert.ok(body.suggestions.length > 1);
+  const blob = body.suggestions.map((row) => `${row.name} ${row.address}`).join('\n').toLowerCase();
+  assert.match(blob, /anaheim/);
+  assert.match(blob, /florida/);
+  assert.match(blob, /france/);
+  assert.match(blob, /japan/);
+});
+
 test('stubbed upstream returns name+address suggestions for Disneyland', async () => {
   const middleware = createPlaceSuggestMiddleware({
     getApiKey: () => 'test-key',
@@ -101,12 +157,14 @@ test('client-supplied url/lat/lon never become the upstream or a view bias', asy
     '/api/google/place-suggest?q=Disneyland&url=https://evil.example/places&lat=30.27&lon=-97.74&radiusM=50',
   );
   assert.equal(result.status, 200);
-  assert.equal(upstreamUrl, 'https://places.googleapis.com/v1/places:searchText');
+  assert.equal(upstreamUrl, 'https://places.googleapis.com/v1/places:autocomplete');
   assert.doesNotMatch(upstreamUrl, /evil/);
-  assert.equal(upstreamBody.textQuery, 'Disneyland');
+  assert.equal(upstreamBody.input, 'Disneyland');
   assert.equal('locationBias' in upstreamBody, false);
   assert.equal('locationRestriction' in upstreamBody, false);
+  assert.equal('includedRegionCodes' in upstreamBody, false);
   assert.equal('location' in upstreamBody, false);
+  assert.equal('textQuery' in upstreamBody, false);
 });
 
 test('POST is rejected and upstream errors stay an empty list', async () => {

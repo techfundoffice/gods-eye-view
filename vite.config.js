@@ -5313,11 +5313,11 @@ function readRequestBody(req, maxBytes = 1024 * 1024) {
 }
 
 /**
- * Unbiased as-you-type place suggestions for the LOCATION finder.
- * Places Text Search (New) with no locationBias / locationRestriction so a
- * query like "Disneyland" can return Anaheim, Florida, France, and Japan
- * together. The Google URL is hardcoded — client `url` / `lat` / `lon` query
- * params are ignored.
+ * As-you-type place suggestions for the LOCATION finder.
+ * Places Autocomplete (New) with no locationBias / locationRestriction so a
+ * query like "Disneyland" can return geographically distinct parks (Anaheim,
+ * Florida, France, …) instead of a single Text Search hit. The Google URL is
+ * hardcoded — client `url` / `lat` / `lon` query params are ignored.
  *
  * @param {{fetchImpl?: typeof fetch, getApiKey?: () => string|undefined, getRateLimiter?: () => ((key: string) => boolean)|null}} [options]
  * @returns {(req: import('http').IncomingMessage, res: import('http').ServerResponse) => Promise<void>}
@@ -5364,23 +5364,20 @@ export function createPlaceSuggestMiddleware({
     }
 
     try {
-      const response = await fetchImpl('https://places.googleapis.com/v1/places:searchText', {
+      const response = await fetchImpl('https://places.googleapis.com/v1/places:autocomplete', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': apiKey,
           'X-Goog-FieldMask': [
-            'places.id',
-            'places.displayName',
-            'places.formattedAddress',
-            'places.shortFormattedAddress',
-            'places.location',
-            'places.types',
+            'suggestions.placePrediction.placeId',
+            'suggestions.placePrediction.text',
+            'suggestions.placePrediction.structuredFormat',
+            'suggestions.placePrediction.types',
           ].join(','),
         },
         body: JSON.stringify({
-          textQuery,
-          maxResultCount: 8,
+          input: textQuery,
         }),
       });
       const data = await response.json().catch(() => ({}));

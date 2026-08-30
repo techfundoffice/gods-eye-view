@@ -6,9 +6,9 @@ Updated: August 30, 2026
 > `#location-search` (bottom command-dock LOCATION bar, next to GEV MIC and
 > Visual Presets) shows matching places without waiting for Enter. A query
 > like `Disneyland` lists geographically distinct rows with a distinguishing
-> address (Anaheim, Florida, France, Japan, …) from unbiased Places Text
-> Search via `/api/google/place-suggest` — not the first geocode hit and not
-> the view-biased `/api/google/text-search`. Picking a row flies through the
+> address (Anaheim, Florida, France, Japan, …) from Places Autocomplete (New)
+> via `/api/google/place-suggest` — not the first geocode hit and not the
+> view-biased `/api/google/text-search`. Picking a row flies through the
 > existing typed-search path (`searchAndFlyTo` + mini-status + Street View)
 > using that row's query/coordinates; Enter still searches the typed string.
 > Empty query, missing `GOOGLE_MAPS_API_KEY` (503), or a failed lookup leaves
@@ -2430,7 +2430,7 @@ this file.
 - `AISSTREAM_API_KEY` is server-side only; the browser reads the same-origin `/api/ais-live` cache.
 - `/api/google/nearby-places` keeps the Google key out of Places requests issued for voice scene context.
 - `/api/google/text-search` keeps the Google key server-side for view-biased Places recovery used by annotation resolution.
-- `/api/google/place-suggest` is the LOCATION finder's as-you-type lookup: Places Text Search (New) with **no** `locationBias` / `locationRestriction`, so chain parks in other countries stay visible. Missing key → 503 `suggestions: []`; empty `q` → 400 `suggestions: []`; the Google URL is hardcoded (client `url`/`lat`/`lon` are ignored).
+- `/api/google/place-suggest` is the LOCATION finder's as-you-type lookup: Places Autocomplete (New) with **no** `locationBias` / `locationRestriction`, so chain parks in other countries stay visible (Text Search returns only the local first hit). Missing key → 503 `suggestions: []`; empty `q` → 400 `suggestions: []`; the Google URL is hardcoded (client `url`/`lat`/`lon` are ignored).
 - `/api/overpass` is bounded by body/response caps, per-client/global rate limits, concurrency limits, mirror fallback, in-flight dedupe, cache bounds, and static validation that every selector is spatially bounded.
 - `/api/military-installations` uses an independent limiter with the same 90-per-client/300-global one-minute bounds, so viewport installation refreshes never consume `/api/overpass` annotation/traffic capacity.
 - `/api/route` proxies bounded OSRM route requests for annotation routes, with profile allowlisting, distance caps, response caps, caching, and sanitized "no route found" errors.

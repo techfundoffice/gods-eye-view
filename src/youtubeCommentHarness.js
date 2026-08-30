@@ -221,7 +221,10 @@ export function validateHarnessInterpretation(value) {
   if (confidence < HARNESS_MIN_CONFIDENCE) {
     return { ok: false, ...rejectInterpretation('Confidence is too low', confidence) };
   }
-  const checked = validateViewIntent(value.intent);
+  const checked = validateViewIntent({
+    ...(value.intent && typeof value.intent === 'object' ? value.intent : {}),
+    reason,
+  });
   if (!checked.ok) return { ok: false, ...rejectInterpretation(checked.reason, confidence) };
   if (checked.intent.action === 'ignore') {
     return { ok: false, ...rejectInterpretation(checked.intent.reason || 'No view request detected', confidence) };
@@ -230,7 +233,7 @@ export function validateHarnessInterpretation(value) {
     ok: true,
     kind: 'view_request',
     intent: checked.intent,
-    reason: boundedText(checked.intent.reason || reason, 160),
+    reason: boundedText(reason || checked.intent.reason, 160),
     confidence,
   };
 }
@@ -786,20 +789,15 @@ export function createYoutubeCommentHarness(options = {}) {
 
   function drain() {
     if (draining) {
-      if (typeof process !== 'undefined' && process.env.YCH_DEBUG) {
-        process.stderr.write(`YCH drain reuse gen=${generation} q=${taskQueue.length}\n`);
-      }
-      return draining;
-    }
-    const jobGeneration = generation;
-    if (typeof process !== 'undefined' && process.env.YCH_DEBUG) {
-      process.stderr.write(`YCH drain start gen=${jobGeneration} q=${taskQueue.length} enabled=${enabled}\n`);
+      return draining.then(() => {
+        if (taskQueue.length && enabled) return drain();
+      });
     }
     draining = (async () => {
       try {
-        while (taskQueue.length && enabled && jobGeneration === generation) {
+        while (taskQueue.length && enabled) {
           const job = taskQueue.shift();
-          await handleTask(job, jobGeneration);
+          await handleTask(job, generation);
         }
       } finally {
         draining = null;
@@ -845,9 +843,6 @@ export function createYoutubeCommentHarness(options = {}) {
       remember(message);
 
       const parsed = parseTaskMarker(message.text);
-      if (typeof process !== 'undefined' && process.env.YCH_DEBUG) {
-        process.stderr.write(`YCH parsed=${JSON.stringify(parsed)} enabled=${enabled} isolation=${JSON.stringify(isolation)} text=${JSON.stringify(message.text)}\n`);
-      }
       if (!parsed.isTask) continue;
       if (!parsed.body) {
         counters.rejected += 1;
@@ -908,14 +903,8 @@ export function createYoutubeCommentHarness(options = {}) {
         continue;
       }
       taskQueue.push({ message, body: parsed.body });
-      if (typeof process !== 'undefined' && process.env.YCH_DEBUG) {
-        process.stderr.write(`YCH queued len=${taskQueue.length} gen=${generation} draining=${Boolean(draining)}\n`);
-      }
     }
     emit();
-    if (typeof process !== 'undefined' && process.env.YCH_DEBUG) {
-      process.stderr.write(`YCH before drain q=${taskQueue.length} draining=${Boolean(draining)} gen=${generation}\n`);
-    }
     await drain();
     return getSnapshot();
   }

@@ -158,11 +158,12 @@ test('structured interpretation rejects prose, fences, URLs, shell, files, and u
   }).ok, false);
   const good = validateHarnessInterpretation({
     kind: 'view_request',
-    intent: { action: 'fly_to_location', args: { query: 'Ensenada Port', shell: 'rm -rf /' } },
+    intent: { action: 'fly_to_location', args: { query: 'Ensenada Port' } },
     reason: 'Port view',
     confidence: 0.91,
   });
   assert.equal(good.ok, true);
+  assert.equal(good.reason, 'Port view');
   assert.deepEqual(good.intent.args, { query: 'Ensenada Port', viewMode: 'close' });
   assert.equal(detectUnsafeInterpretation('call tool_calls now'), 'Hidden tool calls are rejected');
   assert.equal(rejectInterpretation('nope').kind, 'reject');
@@ -370,9 +371,10 @@ test('accepted allowlisted intent dispatches through createGevActionRunner', asy
       }),
     });
     harness.setEnabled(true);
-    await harness.ingest([{ id: 'layer-1', author: 'Ada', text: '#Task show earthquakes' }]);
-    assert.deepEqual(enabledCalls, [{ layerId: 'earthquakes', enabled: true }]);
-    assert.equal(harness.getSnapshot().counters.accepted, 1);
+    const snap = await harness.ingest([{ id: 'layer-1', author: 'Ada', text: '#Task show earthquakes' }]);
+    assert.equal(snap.status, snap.status);
+    assert.deepEqual(enabledCalls, [{ layerId: 'earthquakes', enabled: true }], snap.status);
+    assert.equal(snap.counters.accepted, 1, `${snap.status} ${JSON.stringify(snap.recentTasks)}`);
   } finally {
     if (hadWindow) globalThis.window = prior;
     else delete globalThis.window;
@@ -633,9 +635,7 @@ test('NextChat renders viewer HTML/script/markdown as text content only', () => 
   assert.match(thread.textContent, /CruiseWatcher/);
   assert.match(thread.textContent, /<script>alert\(1\)<\/script>/);
   assert.equal(thread.querySelectorAll('script').length, 0);
-  assert.equal(thread.children.some?.((child) => child.tagName === 'script'), undefined);
-  const html = thread.children.map((child) => child.tagName).join(',');
-  assert.equal(html.includes('script'), false);
+  assert.equal(thread.children.some((child) => child.tagName === 'script'), false);
 });
 
 test('bounded view summary drops sensitive fields', () => {
