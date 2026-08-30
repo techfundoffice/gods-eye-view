@@ -12,6 +12,7 @@ import {
   googleEarthUnavailableReason,
   hasUsableGoogleMapsKey,
   isGoogleEarthDisplaying,
+  paintOnScreenGoogleCredit,
   readGoogleEarthRuntime,
 } from './googleEarth.js';
 
@@ -173,4 +174,45 @@ test('startup no longer aborts the globe when the Map Tiles key is missing', () 
   assert.match(main, /createGooglePhotorealistic3DTileset/);
   assert.match(main, /googleEarthLoadError/);
   assert.match(main, /photorealUnavailableReason/);
+  assert.match(main, /addDefaultCredit/);
+  assert.match(main, /paintOnScreenGoogleCredit\(document\.getElementById\('cesium-credits'\)/);
+});
+
+test('paintOnScreenGoogleCredit writes Google into the credit container', () => {
+  const kids = [];
+  const container = {
+    ownerDocument: null,
+    querySelector: (sel) => kids.find((n) => n.id === sel.slice(1)) || null,
+    append: (node) => { kids.push(node); },
+  };
+  const created = [];
+  const doc = {
+    createElement(tag) {
+      const node = {
+        tagName: tag,
+        id: '',
+        className: '',
+        hidden: false,
+        href: '',
+        target: '',
+        rel: '',
+        textContent: '',
+        children: [],
+        append(child) { this.children.push(child); },
+      };
+      created.push(node);
+      return node;
+    },
+  };
+  container.ownerDocument = doc;
+  const node = paintOnScreenGoogleCredit(container, { document: doc });
+  assert.equal(node.id, 'google-earth-credit');
+  assert.equal(kids.length, 1);
+  assert.equal(node.children[0].textContent, 'Google');
+  assert.match(node.children[0].href, /google\.com\/maps/);
+  const blob = `${node.id} ${node.children[0].textContent} ${node.children[0].href}`;
+  assert.match(blob, /google/i);
+  const again = paintOnScreenGoogleCredit(container, { document: doc });
+  assert.equal(again, node, 'repaint does not duplicate the credit node');
+  assert.equal(kids.length, 1);
 });

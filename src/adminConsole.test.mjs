@@ -984,6 +984,39 @@ test('selecting left-nav items switches existing panes without changing the URL'
   assert.equal(globalThis.window.location.href, href);
 });
 
+test('the shipped Google Earth plugin mounts in the Plugins pane and reports DISPLAYING', async (t) => {
+  const tree = makeLiveAdminTree();
+  const globals = installAdminGlobals(tree.root);
+  t.after(globals.restore);
+  const { default: plugin } = await import('./adminPlugins/google-earth.js');
+  globalThis.window.__godsEyeView = {
+    googleApiKey: 'AIzaSy-test-key',
+    tileset: { show: true, isDestroyed: () => false },
+    mapStackController: {
+      getActiveId: () => 'photoreal',
+      setStack: async () => ({ activeId: 'photoreal' }),
+    },
+    viewer: { scene: { globe: { show: false } } },
+  };
+  const controller = initAdminConsole({
+    root: tree.root,
+    client: stubClient(),
+    registry: { load: async () => ({ plugins: [plugin], errors: [] }) },
+  });
+  controller.state.session = { configured: true, authenticated: true, mcpEnabled: false };
+  await controller._loadMenu();
+  const item = tree.pluginList.querySelector('[data-admin-view="google-earth"]');
+  assert.ok(item, 'Google Earth is listed under Plugins');
+  item.click();
+  assert.equal(controller.state.view, 'google-earth');
+  assert.equal(tree.host.hidden, false);
+  assert.equal(tree.host.dataset.adminPane, 'google-earth');
+  const status = tree.host.querySelector('#admin-google-earth-status');
+  assert.ok(status, 'the plugin painted its status into the pane');
+  assert.equal(status.dataset.googleEarthState, 'DISPLAYING');
+  assert.match(status.textContent, /DISPLAYING/);
+});
+
 test('a missing manifest is empty and a failed manifest is an error, not a plugin list', async (t) => {
   const missingTree = makeLiveAdminTree();
   const missingGlobals = installAdminGlobals(missingTree.root);

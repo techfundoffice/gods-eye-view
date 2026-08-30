@@ -255,6 +255,14 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   color: rgba(232, 234, 237, 0.7);
 }
 
+#cesium-credits .google-earth-credit {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+  color: rgba(232, 234, 237, 0.85);
+}
+#cesium-credits .google-earth-credit a { color: inherit; }
+
 /* Cesium's stock attribution lightbox grows with every registered data source.
    Keep the title and close affordance fixed while the complete, unabridged
    credit list wraps and scrolls inside a compact panel. */
@@ -10838,13 +10846,14 @@ body.cockpit-mode .admin-launch {
 /* ── NextChat homepage overlay ───────────────── */
 #gev-nextchat {
   position: fixed;
-  top: 108px;
-  left: var(--left-stack-x);
-  z-index: 120;
+  top: 76px;
+  left: auto;
+  right: var(--right-rail-x);
+  z-index: 108;
   display: flex;
   flex-direction: column;
   width: min(360px, calc(100vw - 24px));
-  max-height: min(58vh, 560px);
+  max-height: calc(26vh - 88px);
   color: var(--text-primary);
   font-family: var(--font-mono);
   pointer-events: none;
@@ -10852,7 +10861,7 @@ body.cockpit-mode .admin-launch {
 
 #gev-nextchat-toggle {
   pointer-events: auto;
-  align-self: flex-start;
+  align-self: flex-end;
   margin-bottom: 6px;
   padding: 6px 10px;
   border: 1px solid var(--glass-border);

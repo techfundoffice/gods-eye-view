@@ -88,6 +88,7 @@ export function createCatalogGeoLayer(spec) {
   let _loading = false;
   let _enabled = false;
   let _answered = false;
+  let _coverage = '';
 
   async function request(viewer) {
     const fetchFn = fetchImpl || globalThis.fetch;
@@ -131,6 +132,7 @@ export function createCatalogGeoLayer(spec) {
       _loading = false;
       _enabled = false;
       _answered = false;
+      _coverage = '';
       overlayHost.setVisible(id, false);
     },
 
@@ -152,6 +154,19 @@ export function createCatalogGeoLayer(spec) {
       _loading = true;
       try {
         const payload = await request(viewer);
+        if (payload?.coverage === 'zoom-in') {
+          _coverage = 'zoom-in';
+          _answered = true;
+          _count = 0;
+          _lastUpdate = Date.now();
+          _lastError = null;
+          _keyRequired = false;
+          _dataSource.entities.removeAll();
+          overlayHost.clearSource(id);
+          overlayHost.setVisible(id, _enabled);
+          governorRequestRender(`layer-tick:${id}`);
+          return true;
+        }
         const records = capCatalogRecords(parsePayload(payload) || [], maxRecords);
         _dataSource.entities.removeAll();
         const overlayEntries = [];
@@ -205,6 +220,7 @@ export function createCatalogGeoLayer(spec) {
         });
         _count = count;
         _answered = true;
+        _coverage = payload?.coverage === 'viewport' ? 'viewport' : '';
         _lastUpdate = Date.now();
         _lastError = null;
         _keyRequired = false;
@@ -236,20 +252,26 @@ export function createCatalogGeoLayer(spec) {
       _lastError = null;
       _keyRequired = false;
       _answered = false;
+      _coverage = '';
     },
 
     getStats() {
       const neverAnswered = !_answered;
+      const zoomLimited = _coverage === 'zoom-in';
       return {
-        count: neverAnswered ? null : _count,
+        count: neverAnswered || zoomLimited ? null : _count,
         lastUpdate: _lastUpdate,
         loading: _loading,
         keyRequired: _keyRequired,
+        coverage: _coverage || undefined,
+        status: zoomLimited ? 'zoom-in' : undefined,
         error: _keyRequired ? 'KEY REQUIRED' : _lastError,
-        unavailable: Boolean(!(_enabled === false) && neverAnswered && _lastError && !_keyRequired),
+        unavailable: Boolean(_enabled && neverAnswered && _lastError && !_keyRequired),
         loadingLabel: _keyRequired
           ? 'KEY REQUIRED'
-          : (_lastError && neverAnswered ? _lastError : ''),
+          : (zoomLimited
+            ? 'ZOOM IN'
+            : (_lastError && neverAnswered ? _lastError : '')),
       };
     },
   };

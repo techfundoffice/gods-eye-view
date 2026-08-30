@@ -4,6 +4,17 @@
  */
 
 import { PUBLIC_API_LAYER_IDS } from './publicApiCatalog.js';
+import {
+  aqicnLayer,
+  aviationapiLayer,
+  idigbioLayer,
+  luchtmeetnetLayer,
+  npsLayer,
+  pm25Layer,
+  purpleairLayer,
+  refugeLayer,
+  ridbLayer,
+} from './catalogCollections.js';
 import gbifLayer from './gbif.js';
 import nwsAlertsLayer from './nwsAlerts.js';
 import openChargeMapLayer from './openChargeMap.js';
@@ -12,11 +23,20 @@ import openSenseMapLayer from './openSenseMap.js';
 import usgsWaterLayer from './usgsWater.js';
 
 export const PUBLIC_API_LAYERS = Object.freeze([
+  aqicnLayer,
+  aviationapiLayer,
   gbifLayer,
+  idigbioLayer,
+  luchtmeetnetLayer,
+  npsLayer,
   nwsAlertsLayer,
   openChargeMapLayer,
   openaqLayer,
   openSenseMapLayer,
+  pm25Layer,
+  purpleairLayer,
+  refugeLayer,
+  ridbLayer,
   usgsWaterLayer,
 ]);
 

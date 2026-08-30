@@ -2,6 +2,24 @@
 
 Updated: August 30, 2026
 
+> **2026-08-30 — Youtube AI Comment Harness ADMIN plugin.** After ADMIN unlock,
+> **Plugins** includes **Youtube AI Comment Harness**
+> (`src/adminPlugins/youtube-ai-comment-harness.js`). The pane enables/disables
+> a read-only comment/live-chat harness, selects the YouTube video and source,
+> shows connection/harness status, recent messages, `#Task` decisions, counters
+> (received, displayed, accepted, rejected, rate-limited, failed), and STOP /
+> CANCEL. Every incoming item is normalized (`schemaVersion: 1`) and published
+> to NextChat as a `viewer` message with the author's name and full text as
+> text content only. Only comments whose trimmed text starts with `#Task`
+> (optional `:` / `-`) are interpreted. The interpreter must return constrained
+> JSON (`kind: view_request | reject`); the existing `validateViewIntent`
+> allowlist runs on the server and again in the browser before
+> `createGevActionRunner` dispatch. If the Cursor adapter cannot enforce a
+> tool-less session, the harness stays **disabled** with that explanation and
+> never starts an agent. Stale completions after disable, cleanup, video
+> change, or generation bump do not apply. YouTube access remains read-only;
+> tokens stay server-side.
+
 > **2026-08-30 — LOCATION finder suggests places as you type.** Typing in
 > `#location-search` (bottom command-dock LOCATION bar, next to GEV MIC and
 > Visual Presets) shows matching places without waiting for Enter. A query
@@ -37,13 +55,16 @@ Updated: August 30, 2026
 > categories, APILayer commercial products, lookup-only geocoders, and
 > duplicates (OpenSky, USGS earthquakes, FIRMS, AIS, CelesTrak, Launch Library
 > 2, bikeshare, Open-Meteo) are rejected with a reason. Accepted feeds ship as
-> DATA-panel layers: OpenAQ air-quality stations (`openaq`, `KEY REQUIRED`
-> without `OPENAQ_API_KEY`), Open Charge Map EV chargers (`open-charge-map`),
-> GBIF occurrences (`gbif`), USGS water sites (`usgs-water`, viewport-bounded),
-> NWS active-alert centroids (`nws-alerts`), and openSenseMap senseBoxes
-> (`opensensemap`, viewport-bounded). Each polls a same-origin proxy, caps at
-> 200 points, and must not dump a full-earth unthrottled catalog. Voice-tool
-> schema is unchanged.
+> DATA-panel layers: OpenAQ (`openaq`, `KEY REQUIRED` without
+> `OPENAQ_API_KEY`), Open Charge Map (`open-charge-map`), GBIF (`gbif`), USGS
+> water (`usgs-water`, viewport-bounded; IV bbox product clamped to ≤25°²),
+> NWS alerts (`nws-alerts`), openSenseMap (`opensensemap`, viewport-bounded;
+> full-earth is labeled `ZOOM IN`, not count 0), PurpleAir, iDigBio, AQICN,
+> Luchtmeetnet, PM2.5 Open Data Portal, REFUGE Restrooms, AviationAPI airports,
+> NPS parks, and RIDB recreation sites. Locatable-collection catalog rows pass
+> the filter without a six-name allowlist. Each polls a same-origin proxy
+> (dev and `vite preview`), caps at 200 points, and must not dump a full-earth
+> unthrottled catalog. Voice-tool schema is unchanged.
 
 > **2026-08-30 — NextChat overlay on the globe home page.** `#gev-nextchat` is
 > chrome on `index.html` (session list, **New chat**, user/assistant thread,

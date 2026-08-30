@@ -87,14 +87,22 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
   const doc = context.document || container?.ownerDocument || globalThis.document;
   if (!container || typeof doc?.createElement !== 'function') return () => {};
 
-  const harness = context.harness || createYoutubeCommentHarness({
-    interpret: context.interpret,
-    runner: context.runner,
-    youtubeSource: context.youtubeSource || createYoutubeHarnessSource({ fetchImpl: context.fetchImpl }),
-    nextChat: context.nextChat || createNextChatAdapter({ getApi: context.getNextchatApi }),
-    supportsToolIsolation: context.supportsToolIsolation,
-    configured: context.configured,
-    fetchImpl: context.fetchImpl,
+  const windowInject = typeof globalThis.window !== 'undefined'
+    ? globalThis.window.__gevYoutubeCommentHarnessInject
+    : null;
+  const injectedHarness = context.harness
+    || (windowInject && typeof windowInject.ingest === 'function' ? windowInject : null);
+  const optionInject = !injectedHarness && windowInject && typeof windowInject === 'object' ? windowInject : {};
+  const isolationOpt = context.supportsToolIsolation ?? optionInject.supportsToolIsolation;
+  const harness = injectedHarness || createYoutubeCommentHarness({
+    interpret: context.interpret || optionInject.interpret,
+    runner: context.runner || optionInject.runner,
+    youtubeSource: context.youtubeSource || optionInject.youtubeSource
+      || createYoutubeHarnessSource({ fetchImpl: context.fetchImpl || optionInject.fetchImpl }),
+    nextChat: context.nextChat || optionInject.nextChat || createNextChatAdapter({ getApi: context.getNextchatApi }),
+    supportsToolIsolation: isolationOpt,
+    configured: context.configured ?? optionInject.configured,
+    fetchImpl: context.fetchImpl || optionInject.fetchImpl,
   });
 
   const root = el(doc, 'div', 'admin-ych');
@@ -239,7 +247,7 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
   } catch { /* tests */ }
 
   let cancelled = false;
-  if (!context.harness && typeof context.supportsToolIsolation !== 'boolean') {
+  if (!injectedHarness && typeof isolationOpt !== 'boolean') {
     const fetchImpl = context.fetchImpl || globalThis.fetch;
     if (typeof fetchImpl === 'function') {
       Promise.resolve(fetchImpl('/api/youtube-comment-harness/status', {

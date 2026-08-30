@@ -30,6 +30,15 @@ How to read this:
 | **USGS Water Services** | Streamflow monitoring sites (DATA panel) | U.S. public domain | "Data courtesy of the U.S. Geological Survey" — viewport-bounded |
 | **U.S. National Weather Service** | Active weather-alert centroids (DATA panel) | U.S. public domain | "U.S. National Weather Service" |
 | **openSenseMap** | Outdoor senseBox stations (DATA panel) | openSenseMap / senseBox open data | "openSenseMap" — viewport-bounded |
+| **PurpleAir** | Community air sensors (DATA panel) | PurpleAir terms; optional `PURPLEAIR_API_KEY` | "PurpleAir" — `KEY REQUIRED` without a key |
+| **iDigBio** | Museum specimen occurrences (DATA panel) | iDigBio / contributing institutions | "iDigBio" |
+| **AQICN** | City air-quality index stations (DATA panel) | WAQI/AQICN terms; optional `AQICN_TOKEN` | "AQICN" — `KEY REQUIRED` without a token |
+| **Luchtmeetnet** | Netherlands air-quality stations (DATA panel) | RIVM open data | "Luchtmeetnet" |
+| **PM2.5 Open Data Portal** | Low-cost PM2.5 sensors (DATA panel) | LASS / AirBox open data | "LASS PM2.5" |
+| **REFUGE Restrooms** | Safe restroom locations (DATA panel) | REFUGE Restrooms API | "REFUGE Restrooms" |
+| **AviationAPI** | FAA airport information (DATA panel) | AviationAPI / FAA | "AviationAPI" — capped major-airport sample |
+| **US National Park Service** | Park locations (DATA panel) | NPS API terms; optional `NPS_API_KEY` | "NPS" — `KEY REQUIRED` without a key |
+| **RIDB** | US recreation facilities (DATA panel) | Recreation.gov RIDB; optional `RIDB_API_KEY` | "RIDB" — `KEY REQUIRED` without a key |
 | **OpenStreetMap (Overpass API)** | Road geometry for traffic | ODbL 1.0 | "© OpenStreetMap contributors" |
 | **TomTom Traffic API** (flow vector tiles) | Live congestion coloring for the traffic layer (optional, BYOK) | [TomTom for Developers terms](https://developer.tomtom.com) (proprietary, your own key; quotas depend on the current account plan) | "Traffic flow data © TomTom" — registered when live mode activates |
 | **OpenStreetMap (Overpass API)** | Viewport-bounded mapped installation context for Global Context | ODbL 1.0 | "© OpenStreetMap contributors" (incomplete mapped context) |
@@ -44,8 +53,10 @@ How to read this:
 | **Radio Browser** | Geolocated internet-radio station directory and station-level tags | Public-domain directory data under PDDL 1.0; individual broadcaster stream terms apply | "Radio Browser" plus a link to the selected broadcaster |
 | **Re:Earth Terrain** (Mapterhorn) | Terrain (keyless globe stacks — OSM etc. — + `/api/terrain/heights` ellipsoidal-height lookups) | Terrain mesh: CC BY 4.0; geoid: EGM2008 (NGA, public domain) | "Terrain (keyless globe stacks): Re:Earth Terrain / Mapterhorn (CC BY 4.0) / EGM2008 (NGA)" |
 
-The DATA panel's OpenAQ, Open Charge Map, GBIF, USGS Water, NWS Alerts, and
-openSenseMap layers are the subset of
+The DATA panel's catalog-selected layers (OpenAQ, Open Charge Map, GBIF, USGS
+Water, NWS Alerts, openSenseMap, PurpleAir, iDigBio, AQICN, Luchtmeetnet,
+PM2.5 sensors, REFUGE Restrooms, AviationAPI airports, NPS parks, RIDB) are
+the subset of
 [public-apis/public-apis](https://github.com/public-apis/public-apis) that a
 shipped relevance filter accepts (HTTPS, plottable public geo payload, terms
 that allow display, not already plotted). Catalog rows that fail that bar are

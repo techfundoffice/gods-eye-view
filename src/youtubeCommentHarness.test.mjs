@@ -5,7 +5,6 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createGevActionRunner } from './voice/gevActions.js';
 import {
-  appendViewerMessage,
   createNextchatStore,
   initNextchat,
   publishNextChatMessage,
@@ -292,6 +291,8 @@ test('stale completion after disable, video change, or destroy does not call the
   });
   harness.setEnabled(true);
   const pending = harness.ingest([{ id: 'stale', author: 'Ada', text: '#Task zoom to the globe' }], { videoId: 'v1' });
+  for (let i = 0; i < 10 && typeof resolveIntent !== 'function'; i += 1) await Promise.resolve();
+  assert.equal(typeof resolveIntent, 'function');
   harness.setEnabled(false);
   resolveIntent({
     kind: 'view_request',
@@ -309,6 +310,8 @@ test('stale completion after disable, video change, or destroy does not call the
   second.harness.setEnabled(true);
   second.harness.setVideo({ id: 'v1' });
   const pendingTwo = second.harness.ingest([{ id: 'vchange', author: 'Ada', text: '#Task zoom to the globe' }], { videoId: 'v1' });
+  for (let i = 0; i < 10 && typeof resolveTwo !== 'function'; i += 1) await Promise.resolve();
+  assert.equal(typeof resolveTwo, 'function');
   second.harness.setVideo({ id: 'v2', title: 'Other' });
   resolveTwo({
     kind: 'view_request',
@@ -325,6 +328,8 @@ test('stale completion after disable, video change, or destroy does not call the
   });
   third.harness.setEnabled(true);
   const pendingThree = third.harness.ingest([{ id: 'dead', author: 'Ada', text: '#Task zoom to the globe' }]);
+  for (let i = 0; i < 10 && typeof resolveThree !== 'function'; i += 1) await Promise.resolve();
+  assert.equal(typeof resolveThree, 'function');
   third.harness.destroy();
   resolveThree({
     kind: 'view_request',
@@ -338,14 +343,17 @@ test('stale completion after disable, video change, or destroy does not call the
 
 test('accepted allowlisted intent dispatches through createGevActionRunner', async () => {
   const enabledCalls = [];
+  const enabledLayers = new Set();
   const dataManager = {
     layers: new Map([['earthquakes', { module: {} }]]),
-    isEnabled: () => false,
+    isEnabled: (layerId) => enabledLayers.has(layerId),
     async setEnabled(layerId, enabled) {
       enabledCalls.push({ layerId, enabled });
+      if (enabled) enabledLayers.add(layerId);
+      else enabledLayers.delete(layerId);
       return true;
     },
-    getAll: () => [],
+    getAll: () => [{ id: 'earthquakes', name: 'Earthquakes', enabled: enabledLayers.has('earthquakes') }],
   };
   const inner = createGevActionRunner({
     viewer: stubViewer(),

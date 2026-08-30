@@ -787,6 +787,7 @@ export class AdminConsoleController {
     if (!host) return;
     host.replaceChildren();
     host.dataset.adminPane = plugin.id;
+    host.hidden = false;
     const { cleanup, error } = mountPlugin(plugin, host, this._pluginContext());
     this._pluginCleanup = cleanup;
     if (error) this.state.message = error;

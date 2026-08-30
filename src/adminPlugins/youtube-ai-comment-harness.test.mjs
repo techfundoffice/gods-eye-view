@@ -222,6 +222,8 @@ test('plugin render returns cleanup that stops pending work', async () => {
   assert.equal(error, '');
   harness.setEnabled(true);
   const pending = harness.ingest([{ id: 'one', author: 'Ada', text: '#Task zoom to the globe' }]);
+  for (let i = 0; i < 10 && typeof resolveIntent !== 'function'; i += 1) await Promise.resolve();
+  assert.equal(typeof resolveIntent, 'function');
   cleanup();
   resolveIntent({
     kind: 'view_request',

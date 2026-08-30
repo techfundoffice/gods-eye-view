@@ -132,6 +132,53 @@ export function getGoogleEarthStatus({
 }
 
 /**
+ * Put Google attribution in the on-globe credit container while photoreal
+ * tiles are the visible Earth. Cesium's own credit widget can lag until
+ * tiles stream; this node is the ToS-visible "Google" text.
+ *
+ * @param {object|null} container `#cesium-credits` or a test stand-in.
+ * @param {object} [options]
+ * @param {boolean} [options.visible]
+ * @param {{createElement?: Function}} [options.document]
+ * @returns {object|null} The credit node, or null when container is missing.
+ */
+export function paintOnScreenGoogleCredit(container, {
+  visible = true,
+  document: doc = container?.ownerDocument || globalThis.document,
+} = {}) {
+  if (!container || typeof doc?.createElement !== 'function') return null;
+  let node = typeof container.querySelector === 'function'
+    ? container.querySelector('#google-earth-credit')
+    : null;
+  if (!visible) {
+    if (node) {
+      node.remove?.();
+      node.hidden = true;
+    }
+    return node;
+  }
+  if (!node) {
+    node = doc.createElement('span');
+    node.id = 'google-earth-credit';
+    node.className = 'google-earth-credit';
+    const link = doc.createElement('a');
+    link.href = 'https://www.google.com/maps';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'Google';
+    node.append(link);
+    const host = (typeof container.querySelector === 'function'
+      && container.querySelector('.cesium-credit-textContainer'))
+      || container;
+    if (typeof host.prepend === 'function') host.prepend(node);
+    else if (typeof host.append === 'function') host.append(node);
+    else host.appendChild?.(node);
+  }
+  node.hidden = false;
+  return node;
+}
+
+/**
  * Read the live globe's Google Earth inputs from `window.__godsEyeView`.
  *
  * @param {object} [source] Window-like object; defaults to `globalThis`.

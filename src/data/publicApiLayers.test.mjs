@@ -17,6 +17,27 @@ import { createGbifLayer, parseGbifPayload } from './gbif.js';
 import { createUsgsWaterLayer, parseUsgsWaterPayload } from './usgsWater.js';
 import { createNwsAlertsLayer, parseNwsAlertsPayload } from './nwsAlerts.js';
 import { createOpenSenseMapLayer, parseOpenSenseMapPayload } from './openSenseMap.js';
+import {
+  createAqicnLayer,
+  createAviationApiLayer,
+  createIdigbioLayer,
+  createLuchtmeetnetLayer,
+  createNpsLayer,
+  createPm25Layer,
+  createPurpleAirLayer,
+  createRefugeLayer,
+  createRidbLayer,
+  parseAqicnPayload,
+  parseAviationApiPayload,
+  parseIdigbioPayload,
+  parseLuchtmeetnetPayload,
+  parseNpsPayload,
+  parsePm25Payload,
+  parsePurpleAirPayload,
+  parseRefugePayload,
+  parseRidbPayload,
+} from './catalogCollections.js';
+import { clampUsgsIvBbox, USGS_IV_BBOX_PRODUCT_MAX, publicApiCatalogProxy } from '../publicApiProxies.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const mainSource = fs.readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8');
@@ -140,8 +161,53 @@ test('Open Charge Map, GBIF, USGS water, NWS alerts, and senseBoxes plot fixture
     },
     {
       create: createOpenSenseMapLayer,
-      payload: [{ _id: 'box1', name: 'Roof', currentLocation: { coordinates: [13.4, 52.5] }, exposure: 'outdoor' }],
+      payload: { boxes: [{ _id: 'box1', name: 'Roof', currentLocation: { coordinates: [13.4, 52.5] }, exposure: 'outdoor' }] },
       parse: parseOpenSenseMapPayload,
+    },
+    {
+      create: createPurpleAirLayer,
+      payload: { fields: ['latitude', 'longitude', 'name'], data: [[30.2, -97.7, 'Austin']] },
+      parse: parsePurpleAirPayload,
+    },
+    {
+      create: createIdigbioLayer,
+      payload: { items: [{ indexTerms: { uuid: 'u1', geopoint: { lat: 40.7, lon: -74 }, scientificname: 'Quercus' } }] },
+      parse: parseIdigbioPayload,
+    },
+    {
+      create: createAqicnLayer,
+      payload: { data: [{ uid: 1, lat: 31.2, lon: 121.5, aqi: 80, station: { name: 'Shanghai' } }] },
+      parse: parseAqicnPayload,
+    },
+    {
+      create: createLuchtmeetnetLayer,
+      payload: { data: [{ number: 'NL1', location: 'Utrecht', geometry: { coordinates: [5.1, 52.1] } }] },
+      parse: parseLuchtmeetnetPayload,
+    },
+    {
+      create: createPm25Layer,
+      payload: { feeds: [{ device_id: 'd1', gps_lat: 25.0, gps_lon: 121.5, SiteName: 'Taipei' }] },
+      parse: parsePm25Payload,
+    },
+    {
+      create: createRefugeLayer,
+      payload: [{ id: 3, name: 'Library', latitude: 37.77, longitude: -122.42, city: 'SF' }],
+      parse: parseRefugePayload,
+    },
+    {
+      create: createAviationApiLayer,
+      payload: [{ faa_ident: 'AUS', facility_name: 'Austin', latitude: 30.19, longitude: -97.67, city: 'Austin' }],
+      parse: parseAviationApiPayload,
+    },
+    {
+      create: createNpsLayer,
+      payload: { data: [{ parkCode: 'yose', name: 'Yosemite', latitude: '37.86', longitude: '-119.53', states: 'CA' }] },
+      parse: parseNpsPayload,
+    },
+    {
+      create: createRidbLayer,
+      payload: { RECDATA: [{ FacilityID: '1', FacilityName: 'Camp', FacilityLatitude: 39.1, FacilityLongitude: -106.3 }] },
+      parse: parseRidbPayload,
     },
   ];
 
@@ -162,6 +228,40 @@ test('Open Charge Map, GBIF, USGS water, NWS alerts, and senseBoxes plot fixture
     assert.ok(stats.lastUpdate);
     layer.destroy(viewer);
   }
+});
+
+test('USGS IV bbox product is clamped to 25 square degrees', () => {
+  const tenByTen = clampUsgsIvBbox({ west: 0, south: 0, east: 10, north: 10 });
+  const latSpan = Math.abs(tenByTen.north - tenByTen.south);
+  const lonSpan = Math.abs(tenByTen.east - tenByTen.west);
+  assert.ok(latSpan * lonSpan <= USGS_IV_BBOX_PRODUCT_MAX + 1e-9);
+  assert.equal(Number((latSpan * lonSpan).toFixed(6)), USGS_IV_BBOX_PRODUCT_MAX);
+  const small = clampUsgsIvBbox({ west: -80, south: 35, east: -79, north: 36 });
+  assert.deepEqual(small, { west: -80, south: 35, east: -79, north: 36 });
+  assert.equal(clampUsgsIvBbox(null), null);
+});
+
+test('catalog proxy mounts on both the dev server and vite preview', () => {
+  const plugin = publicApiCatalogProxy();
+  assert.equal(typeof plugin.configureServer, 'function');
+  assert.equal(typeof plugin.configurePreviewServer, 'function');
+  assert.equal(plugin.configurePreviewServer, plugin.configureServer);
+});
+
+test('coverage-limited empty USGS/openSenseMap is labeled ZOOM IN, not count 0', async () => {
+  const layer = createUsgsWaterLayer({
+    overlayHost: silentOverlay,
+    fetchImpl: jsonFetch(200, { value: { timeSeries: [] }, coverage: 'zoom-in' }),
+  });
+  layer.init(fakeViewer());
+  assert.equal(await layer.update(fakeViewer()), true);
+  const stats = layer.getStats();
+  assert.notEqual(stats.count, 0);
+  assert.equal(stats.count, null);
+  assert.equal(stats.status, 'zoom-in');
+  assert.equal(stats.loadingLabel, 'ZOOM IN');
+  assert.equal(stats.error, null);
+  assert.ok(stats.lastUpdate);
 });
 
 test('a never-answered catalog layer is not a successful count 0', () => {

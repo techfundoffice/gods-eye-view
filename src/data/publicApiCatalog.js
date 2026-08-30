@@ -85,18 +85,49 @@ const ALREADY_PLOTTED = [
   { pattern: /wildfire detection|nasa firms|modis.*fire/i, layerId: 'local-firms' },
 ];
 
-const LOOKUP_ONLY_PATTERN = /\b(geocod|ip (address|geolocation|lookup)|zip.?code|routing|turn-by-turn|visa |forecast data|historic(al)? weather|calculate|carbon (offset|footprint|intensity)|exchange rate|validate|search trips|price estimation|icao code)\b/i;
+const LOOKUP_ONLY_PATTERN = /\b(geocod|ip (address|geolocation|lookup)|zip.?code|routing|turn-by-turn|visa |forecast data|historic(al)? weather|for a specific location|calculate|carbon (offset|footprint|intensity)|exchange rate|validate|search trips|price estimation|by icao code)\b/i;
 
 const REGIONAL_ONLY_PATTERN = /^(transport for |city, |metro lisboa|bay area rapid transit|boston mbta)/i;
 
-const PLOTTABLE_PAYLOAD = [
-  { pattern: /open air quality data/i, layerId: 'openaq' },
-  { pattern: /electric vehicle charging locations/i, layerId: 'open-charge-map' },
-  { pattern: /global biodiversity information facility/i, layerId: 'gbif' },
-  { pattern: /water quality and level info/i, layerId: 'usgs-water' },
-  { pattern: /us national weather service/i, layerId: 'nws-alerts' },
-  { pattern: /personal weather stations called senseboxes/i, layerId: 'opensensemap' },
-];
+const COMMERCIAL_HOST_PATTERN = /\biqair\b|accuweather|openweathermap|tomorrow\.io|visual crossing/i;
+
+/**
+ * A locatable collection: the primary payload is Earth-located features
+ * (stations, sensors, parks, restrooms, occurrences, airports, chargers),
+ * not a calculator, geocoder, or point-forecast lookup.
+ */
+const LOCATABLE_COLLECTION = /\b(air quality|pm2\.?5|charging locations?|electric vehicle charging|biodiversity|occurrence|specimen|idigbio|restroom|water quality|water services|water level|sensebox|personal weather stations?|national weather service|purple air|luchtmeetnet|aqicn|aviationapi|aeronautical charts|airport information|national park service|recreation information|ridb|recreation\.gov)\b/i;
+
+const LAYER_ID_BY_NAME = Object.freeze({
+  OpenAQ: 'openaq',
+  'Open Charge Map': 'open-charge-map',
+  GBIF: 'gbif',
+  'USGS Water Services': 'usgs-water',
+  'US Weather': 'nws-alerts',
+  openSenseMap: 'opensensemap',
+  'Purple Air': 'purpleair',
+  iDigBio: 'idigbio',
+  AQICN: 'aqicn',
+  Luchtmeetnet: 'luchtmeetnet',
+  'PM2.5 Open Data Portal': 'pm25-opendata',
+  'REFUGE Restrooms': 'refuge-restrooms',
+  AviationAPI: 'aviationapi',
+  'National Park Service, US': 'nps-parks',
+  RIDB: 'ridb',
+});
+
+/**
+ * Stable DATA-layer id for a catalog row. Known names keep fixed slugs;
+ * anything else is a lowercase hyphenated name — not a description whitelist.
+ *
+ * @param {object} entry
+ * @returns {string}
+ */
+export function catalogLayerId(entry) {
+  const name = String(entry?.name || '').trim();
+  if (LAYER_ID_BY_NAME[name]) return LAYER_ID_BY_NAME[name];
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+}
 
 /**
  * Snapshot of public-apis/public-apis README rows used as the inventory for
@@ -153,6 +184,94 @@ export const PUBLIC_API_CATALOG_SNAPSHOT = Object.freeze([
     https: true,
     category: 'Weather',
     url: 'https://api.opensensemap.org/',
+  }),
+  Object.freeze({
+    name: 'Purple Air',
+    description: 'Real Time Air Quality Monitoring',
+    auth: 'No',
+    https: true,
+    category: 'Science & Math',
+    url: 'https://www2.purpleair.com/',
+  }),
+  Object.freeze({
+    name: 'iDigBio',
+    description: 'Access millions of museum specimens from organizations around the world',
+    auth: 'No',
+    https: true,
+    category: 'Science & Math',
+    url: 'https://github.com/idigbio/idigbio-search-api/wiki',
+  }),
+  Object.freeze({
+    name: 'AQICN',
+    description: 'Air Quality Index Data for over 1000 cities',
+    auth: 'apiKey',
+    https: true,
+    category: 'Weather',
+    url: 'https://aqicn.org/api/',
+  }),
+  Object.freeze({
+    name: 'Luchtmeetnet',
+    description: 'Predicted and actual air quality components for The Netherlands (RIVM)',
+    auth: 'No',
+    https: true,
+    category: 'Environment',
+    url: 'https://api-docs.luchtmeetnet.nl/',
+  }),
+  Object.freeze({
+    name: 'PM2.5 Open Data Portal',
+    description: 'Open low-cost PM2.5 sensor data',
+    auth: 'No',
+    https: true,
+    category: 'Environment',
+    url: 'https://pm25.lass-net.org/#apis',
+  }),
+  Object.freeze({
+    name: 'REFUGE Restrooms',
+    description: 'Provides safe restroom access for transgender, intersex and gender nonconforming individuals',
+    auth: 'No',
+    https: true,
+    category: 'Transportation',
+    url: 'https://www.refugerestrooms.org/api/docs/#!/restrooms',
+  }),
+  Object.freeze({
+    name: 'AviationAPI',
+    description: 'FAA Aeronautical Charts and Publications, Airport Information, and Airport Weather',
+    auth: 'No',
+    https: true,
+    category: 'Transportation',
+    url: 'https://docs.aviationapi.com',
+  }),
+  Object.freeze({
+    name: 'National Park Service, US',
+    description: 'Data from the US National Park Service',
+    auth: 'apiKey',
+    https: true,
+    category: 'Government',
+    url: 'https://www.nps.gov/subjects/developer/',
+  }),
+  Object.freeze({
+    name: 'RIDB',
+    description: 'Recreation Information Database of US recreation areas and facilities',
+    auth: 'apiKey',
+    https: true,
+    category: 'Government',
+    url: 'https://ridb.recreation.gov/',
+  }),
+  Object.freeze({
+    name: 'BreezoMeter Pollen',
+    description: 'Daily Forecast pollen conditions data for a specific location',
+    auth: 'apiKey',
+    https: true,
+    category: 'Environment',
+    url: 'https://docs.breezometer.com/api-documentation/pollen-api/v2/',
+  }),
+  Object.freeze({
+    name: 'IQAir',
+    description: 'Air quality and weather data',
+    auth: 'apiKey',
+    https: true,
+    category: 'Environment',
+    url: 'https://www.iqair.com/air-pollution-data-api',
   }),
   Object.freeze({
     name: 'Cat Facts',
@@ -283,7 +402,8 @@ export function evaluatePublicApiRelevance(entry) {
     return { accepted: false, reason: 'non-geo-category' };
   }
   const text = haystack(entry);
-  if (APILAYER_PATTERN.test(text) || APILAYER_PATTERN.test(String(entry.name || ''))) {
+  if (APILAYER_PATTERN.test(text) || APILAYER_PATTERN.test(String(entry.name || ''))
+    || COMMERCIAL_HOST_PATTERN.test(text)) {
     return { accepted: false, reason: 'commercial-apilayer' };
   }
   for (const known of ALREADY_PLOTTED) {
@@ -300,12 +420,10 @@ export function evaluatePublicApiRelevance(entry) {
   if (String(entry.auth || '').toLowerCase() === 'oauth') {
     return { accepted: false, reason: 'not-runtime-fetchable' };
   }
-  for (const payload of PLOTTABLE_PAYLOAD) {
-    if (payload.pattern.test(text)) {
-      return { accepted: true, reason: 'plottable-geo', layerId: payload.layerId };
-    }
+  if (!LOCATABLE_COLLECTION.test(text)) {
+    return { accepted: false, reason: 'no-geo-payload' };
   }
-  return { accepted: false, reason: 'no-geo-payload' };
+  return { accepted: true, reason: 'plottable-geo', layerId: catalogLayerId(entry) };
 }
 
 /**

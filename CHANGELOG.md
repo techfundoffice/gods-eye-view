@@ -7,6 +7,14 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Added
 
+- ADMIN **Plugins** now includes **Youtube AI Comment Harness**: incoming
+  YouTube comments and live chat appear in NextChat with the viewer's name,
+  and only leading `#Task` comments may propose a validated globe view through
+  the existing GEV action runner. Unsafe, ambiguous, duplicate, stale, and
+  tool-seeking requests stay visible and do not change the globe. If the
+  interpreter cannot run with an empty tool surface, the harness stays
+  disabled.
+
 - The bottom LOCATION finder suggests matching places as you type. A query
   like `Disneyland` lists Anaheim, Florida, France, Japan, and other distinct
   parks with their addresses so you can pick the right one; choosing a row
@@ -24,10 +32,14 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 - DATA panel now includes globe-relevant feeds selected from the
   [public-apis/public-apis](https://github.com/public-apis/public-apis)
   catalog: **Air Quality (OpenAQ)**, **EV Chargers**, **Biodiversity (GBIF)**,
-  **USGS Water Sites**, **NWS Alerts**, and **SenseBoxes**. Each is a
-  toggleable runtime layer with a density cap. Optional keys degrade as
-  `KEY REQUIRED`. Non-geo, APILayer commercial, lookup-only, and already-plotted
-  catalog rows are rejected by a shipped relevance filter rather than omitted.
+  **USGS Water Sites**, **NWS Alerts**, **SenseBoxes**, **PurpleAir**,
+  **iDigBio**, **AQI Cities**, **NL Air Quality**, **PM2.5 Sensors**,
+  **REFUGE Restrooms**, **FAA Airports**, **US National Parks**, and
+  **Recreation Sites**. Each is a toggleable runtime layer with a density cap.
+  Optional keys degrade as `KEY REQUIRED`. Non-geo, APILayer commercial,
+  lookup-only, and already-plotted catalog rows are rejected by a shipped
+  relevance filter rather than omitted. USGS Water clamps camera bboxes to the
+  IV product limit of 25 square degrees.
 
 - Added a NextChat-style chat overlay on the globe home page: session list,
   new chat, user/assistant thread, and a text composer with send. Typed

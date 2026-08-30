@@ -38,6 +38,24 @@ test('plottable Environment/Weather/Transportation/Science rows pass the shipped
   const sense = evaluatePublicApiRelevance(byName('openSenseMap'));
   assert.equal(sense.accepted, true);
   assert.equal(sense.layerId, 'opensensemap');
+
+  const extra = {
+    'Purple Air': 'purpleair',
+    iDigBio: 'idigbio',
+    AQICN: 'aqicn',
+    Luchtmeetnet: 'luchtmeetnet',
+    'PM2.5 Open Data Portal': 'pm25-opendata',
+    'REFUGE Restrooms': 'refuge-restrooms',
+    AviationAPI: 'aviationapi',
+    'National Park Service, US': 'nps-parks',
+    RIDB: 'ridb',
+  };
+  for (const [name, layerId] of Object.entries(extra)) {
+    const verdict = evaluatePublicApiRelevance(byName(name));
+    assert.equal(verdict.accepted, true, `${name} must pass as a locatable collection`);
+    assert.equal(verdict.layerId, layerId);
+    assert.equal(verdict.reason, 'plottable-geo');
+  }
 });
 
 test('non-geo catalog rows such as Animals/Anime/Email are rejected, not omitted', () => {
@@ -92,8 +110,10 @@ test('sources this app already plots are rejected as duplicates', () => {
 
 test('lookup-only, HTTP-only, and calculator rows fail with an explicit reason', () => {
   assert.equal(evaluatePublicApiRelevance(byName('Carbon Interface')).reason, 'lookup-only');
+  assert.equal(evaluatePublicApiRelevance(byName('BreezoMeter Pollen')).reason, 'lookup-only');
   assert.equal(evaluatePublicApiRelevance(byName('Bay Area Rapid Transit')).reason, 'https-required');
   assert.equal(evaluatePublicApiRelevance(byName('Zippopotam.us')).reason, 'https-required');
+  assert.equal(evaluatePublicApiRelevance(byName('IQAir')).accepted, false);
 });
 
 test('selectGlobeRelevantPublicApis returns only the accepted snapshot rows', () => {
@@ -102,10 +122,13 @@ test('selectGlobeRelevantPublicApis returns only the accepted snapshot rows', ()
     selected.map((entry) => entry.layerId),
     [...PUBLIC_API_LAYER_IDS],
   );
-  assert.deepEqual(
-    [...PUBLIC_API_LAYER_IDS].sort(),
-    ['gbif', 'nws-alerts', 'open-charge-map', 'openaq', 'opensensemap', 'usgs-water'],
-  );
+  for (const id of [
+    'openaq', 'open-charge-map', 'gbif', 'usgs-water', 'nws-alerts', 'opensensemap',
+    'purpleair', 'idigbio', 'aqicn', 'luchtmeetnet', 'pm25-opendata',
+    'refuge-restrooms', 'aviationapi', 'nps-parks', 'ridb',
+  ]) {
+    assert.ok(PUBLIC_API_LAYER_IDS.includes(id), `${id} must be filter-accepted`);
+  }
   for (const entry of selected) {
     assert.equal(entry.reason, 'plottable-geo');
     assert.equal(evaluatePublicApiRelevance(entry).accepted, true);

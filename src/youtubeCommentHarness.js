@@ -516,7 +516,7 @@ export function createYoutubeCommentHarness(options = {}) {
   let pollAbort = null;
   let interpretAbort = null;
   let chatPageToken = '';
-  let draining = null;
+  let drainChain = Promise.resolve();
   const seen = new Set();
   const viewerLastTaskAt = new Map();
   let lastTaskAt = 0;
@@ -788,22 +788,18 @@ export function createYoutubeCommentHarness(options = {}) {
   }
 
   function drain() {
-    if (draining) {
-      return draining.then(() => {
-        if (taskQueue.length && enabled) return drain();
-      });
-    }
-    draining = (async () => {
-      try {
-        while (taskQueue.length && enabled) {
-          const job = taskQueue.shift();
-          await handleTask(job, generation);
-        }
-      } finally {
-        draining = null;
+    drainChain = drainChain.catch(() => {}).then(async () => {
+      let processed = 0;
+      while (taskQueue.length && enabled) {
+        const job = taskQueue.shift();
+        if (!job) break;
+        const jobGeneration = generation;
+        await handleTask(job, jobGeneration);
+        processed += 1;
+        if (processed > 50) break;
       }
-    })();
-    return draining;
+    });
+    return drainChain;
   }
 
   /**

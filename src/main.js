@@ -25,6 +25,7 @@ import { MapStackController } from './mapStackController.js';
 import {
   googleEarthUnavailableReason,
   hasUsableGoogleMapsKey,
+  paintOnScreenGoogleCredit,
 } from './googleEarth.js';
 import { initAnnotations } from './annotations/index.js';
 import { initLogoGaze } from './logoGaze.js';
@@ -362,6 +363,13 @@ async function init() {
         });
         viewer.scene.primitives.add(tileset);
         keepTilesetStreaming(tileset);
+        // Google Maps Platform ToS: keep Google attribution on screen while
+        // Photorealistic 3D Tiles are the visible Earth.
+        viewer.creditDisplay?.addDefaultCredit?.(new Cesium.Credit(
+          '<a href="https://www.google.com/maps" target="_blank" rel="noopener">Google</a>',
+          true,
+        ));
+        paintOnScreenGoogleCredit(document.getElementById('cesium-credits'), { visible: true });
         // NOTE: Cesium World Terrain intentionally disabled — conflicts with Google 3D Tiles at high zoom.
         // Google Photorealistic 3D Tiles provide their own terrain/elevation.
         viewer.scene.globe.show = false;
