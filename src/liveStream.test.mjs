@@ -11,6 +11,7 @@ import {
   normalizeLiveOptions,
   redactStreamKey,
   resolveChromiumPath,
+  resolveFfmpegPath,
 } from './liveStream.js';
 
 const KEY = 'abcd-1234-efgh-5678';
@@ -47,6 +48,7 @@ function controllerWith(overrides = {}) {
     spawn: (bin, args) => { spawned.push({ bin, args }); return proc; },
     launchBrowser: async () => browser,
     chromiumPath: '/usr/bin/chromium',
+    resolveFfmpeg: () => '/usr/bin/ffmpeg',
     ...overrides,
   });
   return { controller, spawned, browser, proc };
@@ -98,6 +100,7 @@ test('ffmpeg is invoked for realtime H.264 over FLV with a silent audio track', 
   assert.match(joined, /anullsrc/);
   assert.match(joined, /-c:v libx264/);
   assert.match(joined, /-pix_fmt yuv420p/);
+  assert.match(joined, /-c:a aac/);
   assert.match(joined, /-shortest/);
   // A two-second GOP at 30fps keeps YouTube's keyframe requirement satisfied.
   assert.equal(args[args.indexOf('-g') + 1], '60');
@@ -149,6 +152,30 @@ test('a second start while live is refused instead of replacing the broadcast', 
   await assert.rejects(() => controller.start(START), /already running/);
   assert.equal(controller.status().status, 'live');
   await controller.stop();
+});
+
+test('ffmpeg discovery prefers FFMPEG_PATH and otherwise searches PATH', () => {
+  assert.equal(resolveFfmpegPath({ FFMPEG_PATH: '/opt/ffmpeg' }, () => true), '/opt/ffmpeg');
+  assert.equal(resolveFfmpegPath({ FFMPEG_PATH: '/opt/missing' }, () => false), null);
+  assert.equal(
+    resolveFfmpegPath({ PATH: '/a:/b' }, (candidate) => candidate === '/b/ffmpeg'),
+    '/b/ffmpeg',
+  );
+  assert.equal(resolveFfmpegPath({ PATH: '/a' }, () => false), null);
+});
+
+test('a missing ffmpeg reports an error and never goes live', async () => {
+  let spawned = 0;
+  const { controller, browser } = controllerWith({
+    resolveFfmpeg: () => null,
+    spawn: () => { spawned += 1; return fakeFfmpeg(); },
+  });
+  const result = await controller.start(START);
+  assert.equal(result.status, 'error');
+  assert.match(result.error, /ffmpeg/i);
+  assert.equal(spawned, 0);
+  assert.equal(browser.closed, false);
+  assert.ok(!JSON.stringify(result).includes(KEY));
 });
 
 test('a missing Chromium reports an error and leaves nothing running', async () => {

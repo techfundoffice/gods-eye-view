@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 import {
   ADMIN_MENU_ITEMS,
   ADMIN_REQUEST_HEADER,
+  ADMIN_UNLOCKED_CLASS,
   adminMcpClientSnippet,
+  applyAdminLockPaint,
   createAdminClient,
   describeSessionState,
   hasRunningBuild,
@@ -39,13 +41,35 @@ function fakeFetch(responses = []) {
   return { fetchImpl, calls };
 }
 
-test('the dashboard menu names the two built-in items the console ships with', () => {
-  const labels = ADMIN_MENU_ITEMS.map((item) => item.label);
-  assert.ok(labels.includes('Create New Admin Menu Plugin'));
-  assert.ok(labels.includes('MCP Server'));
+test('the dashboard menu is the three shipped items and has no Composio surface', () => {
+  assert.deepEqual(
+    ADMIN_MENU_ITEMS.map((item) => item.id),
+    ['create-plugin', 'mcp-server', 'live-stream'],
+  );
+  assert.deepEqual(
+    ADMIN_MENU_ITEMS.map((item) => item.label),
+    ['Create New Admin Menu Plugin', 'MCP Server', 'Go Live (ffmpeg)'],
+  );
   for (const item of ADMIN_MENU_ITEMS) {
     assert.ok(item.id && item.description, `${item.label} has an id and a description`);
   }
+
+  const menuBlob = JSON.stringify(ADMIN_MENU_ITEMS);
+  assert.equal(/composio/i.test(menuBlob), false, 'ADMIN_MENU_ITEMS must not name Composio');
+
+  const dashboard = html.match(/<div id="admin-dashboard"[\s\S]*?<div id="admin-plugin-host"/);
+  assert.ok(dashboard, 'the dashboard markup is missing from index.html');
+  assert.equal(/composio/i.test(dashboard[0]), false, 'index.html dashboard must not name Composio');
+  assert.match(dashboard[0], /data-admin-view="create-plugin"/);
+  assert.match(dashboard[0], /data-admin-view="mcp-server"/);
+  assert.match(dashboard[0], /data-admin-view="live-stream"/);
+
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const depNames = [
+    ...Object.keys(pkg.dependencies || {}),
+    ...Object.keys(pkg.devDependencies || {}),
+  ].join('\n');
+  assert.equal(/composio/i.test(depNames), false, 'package.json must not declare a Composio package');
 });
 
 test('build status and transcript roles get operator-readable labels', () => {
@@ -208,11 +232,136 @@ test('the admin dashboard ships hidden and stays hidden until the password lands
   assert.ok(dashboard, 'the dashboard is missing from index.html');
   assert.match(dashboard[0], /\bhidden\b/, 'the dashboard must be hidden before any session check');
 
-  // The gate the console actually draws: `hidden` decides, and `_render`
-  // derives it from the session rather than from anything the page can set.
-  assert.match(consoleSource, /dashboard\.hidden = !unlocked;/);
-  assert.match(consoleSource, /gate\.hidden = unlocked;/);
-  assert.match(consoleSource, /pane\.hidden = !unlocked \|\| /);
+  const signout = html.match(/<button id="admin-signout"[^>]*>/);
+  assert.ok(signout, 'sign-out is missing from index.html');
+  assert.match(signout[0], /\bhidden\b/, 'sign-out must not ship painted on the login page');
+
+  const createPane = html.match(/<div class="admin-pane" data-admin-pane="create-plugin"[^>]*>/);
+  assert.ok(createPane, 'the create-plugin pane is missing from index.html');
+  assert.match(createPane[0], /\bhidden\b/, 'the plugin builder pane must ship hidden');
+
+  // `_render` must call the same helper the tests drive — not a parallel copy.
+  assert.match(consoleSource, /applyAdminLockPaint\(this\.root, session/);
+  assert.match(consoleSource, /if \(!unlocked\) \{\n {6}this\._clearGeneratedMenu\(\);\n {6}return;/);
+});
+
+/**
+ * Mini overlay with the real element ids `applyAdminLockPaint` walks.
+ * Not a browser: just hidden / classList / querySelector so the shipped
+ * helper is the thing under test.
+ */
+function makeAdminOverlay() {
+  const classList = (initial) => {
+    const set = new Set(initial);
+    return {
+      add: (name) => set.add(name),
+      remove: (name) => set.delete(name),
+      contains: (name) => set.has(name),
+      toggle(name, force) {
+        const on = force === undefined ? !set.has(name) : Boolean(force);
+        if (on) set.add(name);
+        else set.delete(name);
+        return on;
+      },
+    };
+  };
+  const makeNode = (id, { hidden = false, classes = [], dataset = {} } = {}) => {
+    const node = {
+      id,
+      hidden,
+      dataset,
+      classList: classList(classes),
+      children: [],
+      querySelector(selector) {
+        if (selector.startsWith('#')) {
+          const want = selector.slice(1);
+          const walk = (current) => {
+            if (current.id === want) return current;
+            for (const child of current.children) {
+              const hit = walk(child);
+              if (hit) return hit;
+            }
+            return null;
+          };
+          return walk(node);
+        }
+        return null;
+      },
+      querySelectorAll(selector) {
+        const found = [];
+        const walk = (current) => {
+          if (selector === '[data-admin-pane]' && current.dataset?.adminPane) found.push(current);
+          for (const child of current.children) walk(child);
+        };
+        walk(node);
+        return found;
+      },
+    };
+    return node;
+  };
+  const root = makeNode('admin-console', { hidden: true, classes: ['admin-console'] });
+  const gate = makeNode('admin-gate');
+  const signout = makeNode('admin-signout', { hidden: true });
+  const dashboard = makeNode('admin-dashboard', { hidden: true, classes: ['admin-dashboard'] });
+  const createPane = makeNode('', { hidden: true, dataset: { adminPane: 'create-plugin' } });
+  const mcpPane = makeNode('', { hidden: true, dataset: { adminPane: 'mcp-server' } });
+  const livePane = makeNode('', { hidden: true, dataset: { adminPane: 'live-stream' } });
+  root.children.push(gate, signout, dashboard);
+  dashboard.children.push(createPane, mcpPane, livePane);
+  return { root, gate, signout, dashboard, createPane, mcpPane, livePane };
+}
+
+test('applyAdminLockPaint withholds dashboard, panes, and sign-out while locked', () => {
+  const overlay = makeAdminOverlay();
+  overlay.dashboard.hidden = false;
+  overlay.createPane.hidden = false;
+  overlay.signout.hidden = false;
+  overlay.root.classList.add(ADMIN_UNLOCKED_CLASS);
+
+  const paint = applyAdminLockPaint(overlay.root, { configured: true, authenticated: false }, {
+    view: 'create-plugin',
+  });
+
+  assert.equal(paint.unlocked, false);
+  assert.equal(paint.showGate, true);
+  assert.equal(paint.showDashboard, false);
+  assert.equal(overlay.gate.hidden, false);
+  assert.equal(overlay.dashboard.hidden, true);
+  assert.equal(overlay.signout.hidden, true);
+  assert.equal(overlay.createPane.hidden, true);
+  assert.equal(overlay.mcpPane.hidden, true);
+  assert.equal(overlay.livePane.hidden, true);
+  assert.equal(overlay.root.classList.contains(ADMIN_UNLOCKED_CLASS), false);
+});
+
+test('applyAdminLockPaint reveals the dashboard only after a signed-in session', () => {
+  const overlay = makeAdminOverlay();
+
+  const paint = applyAdminLockPaint(overlay.root, { configured: true, authenticated: true }, {
+    view: 'mcp-server',
+  });
+
+  assert.equal(paint.unlocked, true);
+  assert.equal(paint.showGate, false);
+  assert.equal(paint.showDashboard, true);
+  assert.equal(overlay.gate.hidden, true);
+  assert.equal(overlay.dashboard.hidden, false);
+  assert.equal(overlay.signout.hidden, false);
+  assert.equal(overlay.createPane.hidden, true);
+  assert.equal(overlay.mcpPane.hidden, false);
+  assert.equal(overlay.livePane.hidden, true);
+  assert.equal(overlay.root.classList.contains(ADMIN_UNLOCKED_CLASS), true);
+});
+
+test('an unconfigured session stays on the login gate, never the plugin dashboard', () => {
+  const overlay = makeAdminOverlay();
+  const paint = applyAdminLockPaint(overlay.root, { configured: false, authenticated: true }, {
+    view: 'create-plugin',
+  });
+  assert.equal(paint.unlocked, false);
+  assert.equal(overlay.dashboard.hidden, true);
+  assert.equal(overlay.createPane.hidden, true);
+  assert.equal(overlay.root.classList.contains(ADMIN_UNLOCKED_CLASS), false);
 });
 
 test('`hidden` outranks every display an admin class sets', () => {
@@ -224,6 +373,26 @@ test('`hidden` outranks every display an admin class sets', () => {
   assert.match(css, /\.admin-console \[hidden\] \{ display: none !important; \}/);
   assert.match(css, /\.admin-dashboard \{[\s\S]*?display: flex;/,
     'the dashboard still sets a display, which is what makes the rule necessary');
+});
+
+test('locked CSS hides operator chrome without relying on the hidden attribute', () => {
+  assert.match(css, /\.admin-console:not\(\.admin-unlocked\) #admin-dashboard/);
+  assert.match(css, /\.admin-console:not\(\.admin-unlocked\) #admin-menu/);
+  assert.match(css, /\.admin-console:not\(\.admin-unlocked\) #admin-signout/);
+  assert.match(css, /\.admin-console:not\(\.admin-unlocked\) \[data-admin-pane\]/);
+  assert.match(css, /\.admin-console\.admin-unlocked #admin-gate/);
+  assert.match(css, /display: none !important;/);
+});
+
+test('plugin and menu payloads are not fetched while locked', () => {
+  assert.match(
+    consoleSource,
+    /async _loadPlugins\(\) \{\n {4}if \(!isAdminUnlocked\(this\.state\.session\)\) return;/,
+  );
+  assert.match(
+    consoleSource,
+    /async _loadMenu\(\) \{\n {4}if \(!isAdminUnlocked\(this\.state\.session\)\) return;/,
+  );
 });
 
 test('every operator action refuses to run while the console is locked', () => {

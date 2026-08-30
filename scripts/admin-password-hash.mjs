@@ -8,7 +8,9 @@
  *
  * Storing the hash rather than `ADMIN_PASSWORD` keeps the plaintext out of the
  * environment of every child process the dev server spawns — including the
- * coding agent the console itself can start.
+ * coding agent the console itself can start. Paste the printed
+ * `ADMIN_PASSWORD_HASH=scrypt$...` line into `.env` as-is; the Vite loader
+ * restores `$` that dotenv-expand would otherwise eat.
  */
 
 import { hashAdminPassword } from '../src/adminAuth.js';

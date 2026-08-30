@@ -1,6 +1,41 @@
 # God's Eye View Current State
 
-Updated: August 24, 2026
+Updated: August 29, 2026
+
+> **2026-08-29 — operator YouTube Settings can go live through ffmpeg.** The
+> globe chrome **YOUTUBE SETTINGS** panel (`#youtube-panel`, `#youtube-go-live`)
+> starts and stops a YouTube Live broadcast without OBS: Create on YouTube
+> (liveStreams.insert → liveBroadcasts.insert with `enableAutoStart` → bind)
+> or paste a Studio RTMP ingest URL + stream key, then Start. The server
+> encodes globe frames with ffmpeg as H.264 + AAC in FLV and publishes to
+> `rtmp://` / `rtmps://` only (`src/liveStream.js`, GOP = fps × 2s, `yuv420p`).
+> The encoder is the same controller ADMIN already used; the operator path is
+> `GET|POST /api/youtube/live` gated on the signed-in YouTube session (not the
+> ADMIN password). Unauthenticated start is 401. A missing ffmpeg or capture
+> Chromium is `status: error`, not live. The stream key is accepted on start,
+> cleared from the password field once the encoder is running, and never
+> returned in status, logs, or on-screen copy. ADMIN **Go Live (ffmpeg)** stays
+> as a second entry on the same encoder.
+
+> **2026-08-29 — a pasted `ADMIN_PASSWORD_HASH=scrypt$...` actually enables
+> the console.** Vite's `loadEnv` runs dotenv-expand, which used to eat `$` in
+> the hash (and in passwords like `op$secret`) and leave ADMIN on
+> `ADMIN NOT CONFIGURED · SET ADMIN_PASSWORD`. `src/gevEnv.js` overlays the
+> unexpanded file values for those two keys and treats an empty inherited
+> admin env var as unset. Unconfigured (neither key) is still 503.
+
+> **2026-08-29 — ADMIN login is the whole locked surface.** Clicking the
+> chrome **ADMIN** label while signed out paints only the password gate
+> (`#admin-gate`). Plugin menu items (Create New Admin Menu Plugin, MCP
+> Server, Go Live, generated plugins), the plugin builder, MCP settings, live
+> controls, and SIGN OUT stay unpainted — CSS `display: none !important` via
+> the absence of `admin-unlocked` on `#admin-console`, plus `hidden`, plus
+> skipping `_renderMenu` / `_renderMcp` / `_renderLive` until
+> `isAdminUnlocked`. `applyAdminLockPaint` is the helper `_render` and the
+> unit tests share. Operator fetches (`GET /api/admin/plugins`, `/menu`, MCP,
+> live) still require the session cookie; the client does not request them
+> until unlock. `scripts/qa-admin-console.mjs` measures this with computed
+> layout, not the `hidden` attribute.
 
 > **2026-08-23 — first-run mission launcher** (`src/firstRunExperience.js`,
 > `#first-run-launcher`, styles at the tail of `style.css`). After startup
@@ -2260,6 +2295,7 @@ silently demoting every later lookup for the session.
 - OpenSky credentials expected in Keychain service `opensky-network` (or env, or `.env`); `OPENSKY_AUTH_MODE` and `OPENSKY_CREDENTIALS_FILE` read from `.env` too
 - Optional-key precedence in `dev-fresh.sh` is uniform — explicit shell env, then `.env`, then Keychain: `OPENAI_API_KEY` (Keychain `openai-api`/`api-key` — voice + HUD summary), `AISSTREAM_API_KEY` (`aisstream-api`/`api-key` — live vessels), `CESIUM_ION_TOKEN` (`cesium-ion`/`token` — Bing stacks), `TOMTOM_API_KEY` (`tomtom-api`/`api-key` — live traffic flow), `FIRMS_MAP_KEY` (`firms-map`/`map-key` — live fires), `LL2_API_TOKEN` (`.env` only)
 - An empty string is not "unset" on either side of the launcher, and both sides are handled. `scripts/read-dotenv-value.mjs` hides the requested key from `process.env` for the duration of the read (Vite's `loadEnv` otherwise lets an inherited empty export win over the parsed files) and restores it after. A key the launcher resolves to nothing is then removed from the dev server's environment outright (`env -u`), not merely omitted — the child inherits this shell's environment, and Vite backfills `.env` only over undefined variables, so an empty export in either place would shadow a configured key. `CCTV_CALTRANS_DISTRICTS` is the deliberate exception: empty is its documented Caltrans kill switch and is passed through as-is
+- ADMIN credentials are the other empty-and-`$` exception. Vite `loadEnv` runs dotenv-expand, which would turn `ADMIN_PASSWORD_HASH=scrypt$N$r$p$salt$hash` into a string `isAdminPasswordHash` rejects (and would eat `$` inside `ADMIN_PASSWORD`). `src/gevEnv.js` (`loadAndApplyGevEnv`, called from `vite.config.js` before `createAdminAuth` captures the credential) overlays the unexpanded file values for those two keys. An empty inherited `ADMIN_PASSWORD` / `ADMIN_PASSWORD_HASH` does not shadow `.env`; a non-empty shell value still wins. Neither key set remains the closed 503 `unconfigured` default.
 - `.env` supported via `.env.example` template
 
 ### Proxy/Security Baseline

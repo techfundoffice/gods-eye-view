@@ -42,12 +42,18 @@ import {
 import { filterTrailing24h, parseFirmsCsv } from './src/data/firmsCsv.js';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
+import { loadAndApplyGevEnv } from './src/gevEnv.js';
 import cesium from 'vite-plugin-cesium';
 import { createYoutubeProxyMiddleware } from './src/youtubeProxy.js';
 import { createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
 import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.js';
+import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
+import { createLiveStreamController } from './src/liveStream.js';
 import { createAdminMiddleware } from './src/adminServer.js';
+
+/** One encoder for the operator YouTube panel and the ADMIN console. */
+const sharedLiveStream = createLiveStreamController();
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
   normalizeRegionalArticles,
@@ -7350,8 +7356,13 @@ function youtubeProxy() {
   const viewAgentMiddleware = createYoutubeViewAgentMiddleware({
     authorizeRequest: oauth.authorizeRequest,
   });
+  const liveMiddleware = createYoutubeLiveMiddleware({
+    live: sharedLiveStream,
+    authorizeRequest: oauth.authorizeRequest,
+  });
   function install(middlewares) {
     middlewares.use('/api/youtube/auth', oauth.middleware);
+    middlewares.use('/api/youtube/live', liveMiddleware);
     middlewares.use('/api/youtube-view-agent', viewAgentMiddleware);
     middlewares.use('/api/youtube', middleware);
   }
@@ -7376,7 +7387,10 @@ function youtubeProxy() {
  */
 function adminConsoleApi() {
   const { version } = createRequire(import.meta.url)('./package.json');
-  const middleware = createAdminMiddleware({ version: version || '0.0.0' });
+  const middleware = createAdminMiddleware({
+    version: version || '0.0.0',
+    live: sharedLiveStream,
+  });
   function install(middlewares) {
     middlewares.use('/api/admin', middleware);
   }
@@ -7394,17 +7408,17 @@ function adminConsoleApi() {
 /**
  * Main Vite configuration factory.
  *
- * Loads .env files via Vite's loadEnv, registers Cesium + local proxy
- * plugins, configures the dev server host/port, and exposes selected
- * API keys to the client as import.meta.env defines.
+ * Loads .env files via Vite's loadEnv (through loadAndApplyGevEnv, which
+ * restores ADMIN_PASSWORD_HASH / ADMIN_PASSWORD that dotenv-expand would
+ * eat), registers Cesium + local proxy plugins, configures the dev server
+ * host/port, and exposes selected API keys to the client as import.meta.env
+ * defines.
  */
 export default defineConfig(({ mode }) => {
-  // Load only this checkout's dotenv files. Shell/Keychain values still win,
-  // and no sibling workspace is consulted implicitly.
-  const loaded = loadEnv(mode, __dirname, '');
-  for (const [key, val] of Object.entries(loaded)) {
-    if (process.env[key] === undefined) process.env[key] = val;
-  }
+  // Load only this checkout's dotenv files. Non-empty shell/Keychain values
+  // still win. Empty inherited ADMIN credentials do not shadow .env, and
+  // `$` in scrypt hashes / passwords is preserved — see src/gevEnv.js.
+  loadAndApplyGevEnv(mode, __dirname);
   const env = { ...process.env };
   return {
     plugins: [

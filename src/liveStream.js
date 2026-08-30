@@ -1,5 +1,6 @@
 /**
- * `ffmpeg` live-streaming control for the ADMIN console.
+ * `ffmpeg` live-streaming control for the operator YouTube panel and the
+ * ADMIN console.
  *
  * The globe is a WebGL canvas, so there is no camera or file to push: this
  * module drives a headless Chromium at the running app, pulls composited
@@ -293,6 +294,30 @@ export function resolveChromiumPath(env = process.env, exists = isExecutableFile
 }
 
 /**
+ * Locate an ffmpeg binary without pinning a store path.
+ *
+ * `FFMPEG_PATH` wins when it is a real executable path; a bare command name
+ * (or an empty value) is looked up on PATH.
+ *
+ * @param {object} [env] Environment to read.
+ * @param {(path: string) => boolean} [exists] Executable probe, injected in tests.
+ * @returns {string|null}
+ */
+export function resolveFfmpegPath(env = process.env, exists = isExecutableFile) {
+  const explicit = String(env.FFMPEG_PATH || '').trim();
+  if (explicit && (explicit.includes('/') || explicit.startsWith('.'))) {
+    return exists(explicit) ? explicit : null;
+  }
+  const name = explicit || 'ffmpeg';
+  const dirs = String(env.PATH || '').split(':').filter(Boolean);
+  for (const dir of dirs) {
+    const candidate = `${dir}/${name}`;
+    if (exists(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
  * Public, credential-free view of the controller for the console.
  *
  * @param {object} state Internal controller state.
@@ -353,10 +378,12 @@ async function defaultLaunchBrowser({ executablePath, args, options }) {
 }
 
 /**
- * Create the single live-stream controller backing `/api/admin/live`.
+ * Create the single live-stream controller backing `/api/youtube/live` and
+ * `/api/admin/live`.
  *
  * Only one broadcast runs at a time: a second start while live is refused
- * rather than silently replacing the first.
+ * rather than silently replacing the first. A missing ffmpeg or capture
+ * binary is an error state, not a silent "live".
  *
  * @param {object} [deps] Injectable dependencies.
  * @returns {{start: Function, stop: Function, status: Function}}
@@ -366,6 +393,7 @@ export function createLiveStreamController({
   launchBrowser = defaultLaunchBrowser,
   ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg',
   chromiumPath = null,
+  resolveFfmpeg = null,
   shutdownGraceMs = 4000,
   now = () => Date.now(),
 } = {}) {
@@ -464,6 +492,12 @@ export function createLiveStreamController({
     };
 
     try {
+      const encoderBin = typeof resolveFfmpeg === 'function'
+        ? resolveFfmpeg()
+        : resolveFfmpegPath({ ...process.env, FFMPEG_PATH: ffmpegPath });
+      if (!encoderBin) {
+        throw new Error('No ffmpeg binary found. Install ffmpeg or set FFMPEG_PATH to an ffmpeg executable.');
+      }
       const executablePath = chromiumPath || resolveChromiumPath();
       if (!executablePath) {
         throw new Error('No Chromium binary found. Set CHROME_PATH to a Chromium or Chrome executable.');
@@ -471,7 +505,7 @@ export function createLiveStreamController({
       log(`Capturing ${options.captureUrl} at ${options.width}x${options.height}@${options.fps}`);
       log(`Publishing to ${options.ingest.display}`);
 
-      ffmpeg = spawn(ffmpegPath, buildFfmpegArgs(options), { stdio: ['pipe', 'ignore', 'pipe'] });
+      ffmpeg = spawn(encoderBin, buildFfmpegArgs(options), { stdio: ['pipe', 'ignore', 'pipe'] });
       ffmpeg.stderr?.on('data', (chunk) => log(String(chunk)));
       ffmpeg.stdin?.on('error', () => { writable = false; });
       ffmpeg.stdin?.on('drain', () => { writable = true; });

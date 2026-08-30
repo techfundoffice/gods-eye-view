@@ -1,0 +1,218 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { EventEmitter } from 'node:events';
+import { createLiveStreamController } from './liveStream.js';
+import {
+  YOUTUBE_LIVE_REQUEST_HEADER,
+  createYoutubeLiveMiddleware,
+} from './youtubeLiveServer.js';
+
+const KEY = 'abcd-1234-efgh-5678';
+const MUTATE = { [YOUTUBE_LIVE_REQUEST_HEADER]: '1' };
+
+function invoke(middleware, { method = 'GET', url = '/', body = '', headers = {} } = {}) {
+  return new Promise((resolve, reject) => {
+    const listeners = new Map();
+    const req = {
+      method,
+      url,
+      headers: { cookie: 'gev_youtube_session=session-1', ...headers },
+      socket: { remoteAddress: '127.0.0.1' },
+      on(event, handler) {
+        listeners.set(event, handler);
+        if (listeners.has('data') && listeners.has('end')) {
+          queueMicrotask(() => {
+            if (body) listeners.get('data')(Buffer.from(typeof body === 'string' ? body : JSON.stringify(body)));
+            listeners.get('end')();
+          });
+        }
+        return this;
+      },
+    };
+    const res = {
+      statusCode: 200,
+      writableEnded: false,
+      setHeader() {},
+      end(payload) {
+        this.writableEnded = true;
+        resolve({ status: this.statusCode, body: payload ? JSON.parse(payload) : {} });
+      },
+    };
+    Promise.resolve(middleware(req, res, reject)).catch(reject);
+  });
+}
+
+function fakeFfmpeg() {
+  const proc = new EventEmitter();
+  proc.written = [];
+  proc.killed = false;
+  proc.stdin = new EventEmitter();
+  proc.stdin.write = (chunk) => { proc.written.push(chunk); return true; };
+  proc.stdin.end = () => { proc.stdin.ended = true; };
+  proc.stderr = new EventEmitter();
+  proc.signals = [];
+  proc.kill = (signal) => { proc.killed = true; proc.signals.push(signal); };
+  return proc;
+}
+
+function fakeBrowser() {
+  const browser = { closed: false, frames: 0 };
+  browser.startScreencast = (onFrame) => {
+    browser.frames += 1;
+    onFrame(Buffer.from('jpeg-frame'));
+    return Promise.resolve();
+  };
+  browser.close = () => { browser.closed = true; return Promise.resolve(); };
+  return browser;
+}
+
+function encoderLive(overrides = {}) {
+  return createLiveStreamController({
+    spawn: () => fakeFfmpeg(),
+    launchBrowser: async () => fakeBrowser(),
+    chromiumPath: '/usr/bin/chromium',
+    resolveFfmpeg: () => '/usr/bin/ffmpeg',
+    ...overrides,
+  });
+}
+
+function signedIn(live, authorizeRequest) {
+  return createYoutubeLiveMiddleware({
+    live,
+    authorizeRequest: authorizeRequest || (async () => ({ sessionId: 'yt-1', canWrite: true })),
+  });
+}
+
+const START_BODY = {
+  ingestUrl: 'rtmp://a.rtmp.youtube.com/live2',
+  streamKey: KEY,
+  captureUrl: 'http://localhost:4173/',
+};
+
+test('a signed-in operator starts and stops through /api/youtube/live without exposing the key', async () => {
+  const spawned = [];
+  const proc = fakeFfmpeg();
+  const live = encoderLive({
+    spawn: (bin, args) => { spawned.push({ bin, args }); return proc; },
+  });
+  const middleware = signedIn(live);
+
+  const read = await invoke(middleware);
+  assert.equal(read.status, 200);
+  assert.equal(read.body.live.status, 'idle');
+
+  const started = await invoke(middleware, {
+    method: 'POST',
+    url: '/start',
+    headers: MUTATE,
+    body: START_BODY,
+  });
+  assert.equal(started.status, 202);
+  assert.equal(started.body.live.status, 'live');
+  assert.equal(started.body.live.target, 'rtmp://a.rtmp.youtube.com/live2/***');
+  assert.equal(spawned.length, 1);
+  assert.equal(spawned[0].bin, '/usr/bin/ffmpeg');
+  const argv = spawned[0].args.join(' ');
+  assert.match(argv, /-c:v libx264/);
+  assert.match(argv, /-pix_fmt yuv420p/);
+  assert.match(argv, /-c:a aac/);
+  assert.match(argv, /-f flv/);
+  assert.equal(spawned[0].args[spawned[0].args.indexOf('-g') + 1], '48');
+  assert.ok(!JSON.stringify(started.body).includes(KEY));
+
+  const stopped = await invoke(middleware, { method: 'POST', url: '/stop', headers: MUTATE });
+  assert.equal(stopped.status, 200);
+  assert.equal(stopped.body.live.status, 'stopped');
+  assert.ok(!JSON.stringify(stopped.body).includes(KEY));
+});
+
+test('unauthenticated callers cannot start a broadcast', async () => {
+  let started = 0;
+  const middleware = createYoutubeLiveMiddleware({
+    live: {
+      status: () => ({ status: 'idle', log: [] }),
+      start: async () => { started += 1; return { status: 'live', log: [] }; },
+      stop: async () => ({ status: 'stopped', log: [] }),
+    },
+    authorizeRequest: async () => null,
+  });
+  const response = await invoke(middleware, {
+    method: 'POST',
+    url: '/start',
+    headers: MUTATE,
+    body: START_BODY,
+  });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.error.kind, 'authentication');
+  assert.equal(started, 0);
+});
+
+test('driving the encoder requires the anti-CSRF header', async () => {
+  let started = 0;
+  const middleware = signedIn({
+    status: () => ({ status: 'idle', log: [] }),
+    start: async () => { started += 1; return { status: 'live', log: [] }; },
+    stop: async () => ({ status: 'stopped', log: [] }),
+  });
+  const response = await invoke(middleware, { method: 'POST', url: '/start', body: START_BODY });
+  assert.equal(response.status, 403);
+  assert.equal(response.body.error.kind, 'csrf');
+  assert.equal(started, 0);
+});
+
+test('non-RTMP ingest is refused by the shipped encoder, not a stub', async () => {
+  const middleware = signedIn(encoderLive());
+  const response = await invoke(middleware, {
+    method: 'POST',
+    url: '/start',
+    headers: MUTATE,
+    body: { ingestUrl: 'file:///etc/passwd', streamKey: KEY, captureUrl: 'http://localhost:4173/' },
+  });
+  assert.equal(response.status, 400);
+  assert.match(response.body.error.message, /rtmp/i);
+  assert.notEqual(response.body.live?.status, 'live');
+});
+
+test('http ingest is refused the same way', async () => {
+  const middleware = signedIn(encoderLive());
+  const response = await invoke(middleware, {
+    method: 'POST',
+    url: '/start',
+    headers: MUTATE,
+    body: { ingestUrl: 'http://example.com/live', streamKey: KEY, captureUrl: 'http://localhost:4173/' },
+  });
+  assert.equal(response.status, 400);
+  assert.match(response.body.error.message, /rtmp/i);
+});
+
+test('a start while already live is a conflict', async () => {
+  const middleware = signedIn(encoderLive());
+  const first = await invoke(middleware, {
+    method: 'POST', url: '/start', headers: MUTATE, body: START_BODY,
+  });
+  assert.equal(first.status, 202);
+  const second = await invoke(middleware, {
+    method: 'POST', url: '/start', headers: MUTATE, body: START_BODY,
+  });
+  assert.equal(second.status, 409);
+  assert.equal(second.body.error.kind, 'conflict');
+  await invoke(middleware, { method: 'POST', url: '/stop', headers: MUTATE });
+});
+
+test('a missing ffmpeg is an error status, not live', async () => {
+  const middleware = signedIn(encoderLive({
+    resolveFfmpeg: () => null,
+    spawn: () => { throw new Error('should not spawn ffmpeg'); },
+    launchBrowser: async () => { throw new Error('should not launch a browser'); },
+  }));
+  const response = await invoke(middleware, {
+    method: 'POST',
+    url: '/start',
+    headers: MUTATE,
+    body: START_BODY,
+  });
+  assert.equal(response.status, 502);
+  assert.equal(response.body.live.status, 'error');
+  assert.match(response.body.live.error, /ffmpeg/i);
+  assert.ok(!JSON.stringify(response.body).includes(KEY));
+});

@@ -86,16 +86,24 @@ const readConsole = () => {
   // `offsetParent` is null for a position:fixed element even when it is on
   // screen, so measure the painted box instead.
   const visible = (node) => {
-    if (!node || node.hidden) return false;
+    if (!node) return false;
+    const style = getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
+      return false;
+    }
     const box = node.getBoundingClientRect();
-    return box.width > 0 && box.height > 0 && getComputedStyle(node).visibility !== 'hidden';
+    return box.width > 0 && box.height > 0;
   };
+  const anyVisible = (nodes) => nodes.some((node) => visible(node));
   return {
     launcherText: el('admin-launch')?.textContent?.trim() || '',
     consoleOpen: Boolean(el('admin-console') && !el('admin-console').hidden),
     status: el('admin-status')?.textContent?.trim() || '',
     gateVisible: visible(el('admin-gate')),
     dashboardVisible: visible(el('admin-dashboard')),
+    signOutVisible: visible(el('admin-signout')),
+    pluginChromeVisible: visible(el('admin-dashboard'))
+      || anyVisible([...document.querySelectorAll('#admin-menu [data-admin-view], [data-admin-pane]')]),
     message: el('admin-message')?.hidden === false ? el('admin-message').textContent.trim() : '',
     menu: [...document.querySelectorAll('#admin-menu [data-admin-view]')]
       .map((node) => node.querySelector('strong')?.textContent?.trim() || ''),
@@ -188,6 +196,8 @@ async function main() {
       record('clicking ADMIN opens the console', state.consoleOpen);
       record('the password gate is shown', state.gateVisible);
       record('the dashboard is withheld while locked', state.dashboardVisible === false);
+      record('plugin menu and panes are not painted while locked', state.pluginChromeVisible === false);
+      record('sign-out is withheld until unlock', state.signOutVisible === false);
       record('the status reads locked', /LOCKED/.test(state.status), state.status);
     });
 
@@ -199,6 +209,7 @@ async function main() {
         { label: 'a settled rejection message' });
       record('a wrong password is refused', /Incorrect admin password/i.test(state.message), state.message);
       record('the dashboard stays closed after a refusal', state.dashboardVisible === false);
+      record('plugin chrome stays unpainted after a refusal', state.pluginChromeVisible === false);
     });
 
     await section('sign-in', async () => {
@@ -209,6 +220,8 @@ async function main() {
         timeoutMs: TEETH ? 4000 : 15000,
       });
       record('a correct password opens the dashboard', state.dashboardVisible);
+      record('plugin menu and panes paint after sign-in', state.pluginChromeVisible);
+      record('sign-out is available after sign-in', state.signOutVisible);
       record('the status reads signed in', /SIGNED IN/.test(state.status), state.status);
       record('the menu offers Create New Admin Menu Plugin',
         state.menu.includes('Create New Admin Menu Plugin'), state.menu.join(' | '));
@@ -330,6 +343,7 @@ async function main() {
         { label: 'the gate to return' });
       record('signing out returns the password gate', state.gateVisible);
       record('the dashboard is withheld again', state.dashboardVisible === false);
+      record('plugin chrome is unpainted after sign-out', state.pluginChromeVisible === false);
       const stillAuthorized = await page.evaluate(async (url) => {
         const response = await fetch(`${url}/api/admin/plugins`, { credentials: 'same-origin' });
         return response.status;

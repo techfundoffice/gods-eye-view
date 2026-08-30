@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadEnv } from 'vite';
+import { loadGevEnv } from '../src/gevEnv.js';
 
 /**
- * Read one dotenv key with Vite's parser; no file content is executed.
+ * Read one dotenv key with the same loader the Vite server uses; no file
+ * content is executed.
  *
- * Reports what the FILES say. `loadEnv` lets `process.env` override the parsed
- * files, so an inherited export — an empty one above all, which is how a shell
- * says "unset" to this script's callers — would otherwise mask the value the
- * user wrote down. The key is hidden for the duration of the read and restored
- * afterwards, leaving the caller's environment untouched.
+ * Reports what the FILES say. Vite's `loadEnv` lets `process.env` override
+ * the parsed files, so an inherited export — an empty one above all, which
+ * is how a shell says "unset" to this script's callers — would otherwise
+ * mask the value the user wrote down. The key is hidden for the duration of
+ * the read and restored afterwards, leaving the caller's environment
+ * untouched. ADMIN_PASSWORD_HASH / ADMIN_PASSWORD keep their `$` characters
+ * (dotenv-expand would otherwise eat a pasted scrypt hash).
  */
 export function readDotenvValue(variableName, rootDir = process.cwd(), mode = 'development') {
   const key = String(variableName || '').trim();
@@ -20,7 +23,7 @@ export function readDotenvValue(variableName, rootDir = process.cwd(), mode = 'd
     : undefined;
   if (inherited !== undefined) delete process.env[key];
   try {
-    const env = loadEnv(mode, path.resolve(rootDir), '');
+    const env = loadGevEnv(mode, path.resolve(rootDir), '');
     return String(env[key] ?? '');
   } finally {
     if (inherited !== undefined) process.env[key] = inherited;

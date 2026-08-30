@@ -3,6 +3,25 @@
 This changelog records public product changes. For the authoritative description
 of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md).
 
+## [Unreleased] — 2026-08-29
+
+### Fixed
+
+- ADMIN console now accepts a `.env` `ADMIN_PASSWORD_HASH` (or `ADMIN_PASSWORD`)
+  that contains `$`. Vite's dotenv-expand previously stripped those characters,
+  so a pasted `scrypt$...` hash left the console stuck on
+  `ADMIN NOT CONFIGURED`. An empty inherited admin env var no longer shadows
+  the file either.
+
+### Added
+
+- The operator **YouTube Settings** panel can go live on YouTube Live through
+  ffmpeg — no OBS or other encoder app. Create a broadcast from the connected
+  YouTube account, or paste a Studio ingest URL and stream key, then start or
+  stop the globe capture. The stream key never appears in status, encoder logs,
+  or on-screen copy. A missing ffmpeg or capture browser is reported as an
+  error rather than a silent live state.
+
 ## [Unreleased] — 2026-08-24
 
 ### Added
@@ -43,6 +62,11 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Fixed
 
+- Clicking **ADMIN** while signed out now opens a login page only. Plugin
+  menu items, the plugin builder, MCP settings, Go Live, and SIGN OUT stay
+  unpainted until a correct admin password succeeds. A `hidden` attribute
+  alone was not enough: `.admin-dashboard { display: flex }` had already
+  beaten the UA rule once, so the lock is now a class on `#admin-console`.
 - A missing optional FIRMS key no longer turns the complete Environmental
   mission into `LOAD FAILED`. The FIRMS row still reports `KEY REQUIRED`, while
   earthquakes continue to load. Real lifecycle and fetch failures retain

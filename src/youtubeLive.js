@@ -7,6 +7,13 @@ export const YOUTUBE_API_PREFIX = '/youtube/v3';
 export const YOUTUBE_STORAGE_KEY = 'gev:youtube-live:v1';
 export const YOUTUBE_DEFAULT_POLL_MS = 10_000;
 export const YOUTUBE_MAX_FEED_ITEMS = 100;
+/** Poll cadence while an operator broadcast is running. */
+export const LIVE_POLL_MS = 3000;
+/**
+ * Header the operator live routes require on mutating calls. The server
+ * compares the lowercase Node form `x-gev-youtube`.
+ */
+export const YOUTUBE_LIVE_REQUEST_HEADER = 'X-GEV-YouTube';
 import { ViewerCommentAgentController, createViewAgentClient } from './youtubeViewAgent.js';
 
 export const YOUTUBE_RESOURCE_REGISTRY = Object.freeze([
@@ -100,6 +107,180 @@ export function computePollDelay(pollingIntervalMillis, backoffMs = 0) {
 }
 
 /**
+ * One-word status for the broadcast, for the panel's state chip.
+ *
+ * @param {string} status Controller status.
+ * @returns {string}
+ */
+export function liveStatusLabel(status) {
+  switch (String(status || '')) {
+    case 'starting': return 'STARTING';
+    case 'live': return 'LIVE';
+    case 'stopped': return 'STOPPED';
+    case 'error': return 'ERROR';
+    default: return 'OFFLINE';
+  }
+}
+
+/**
+ * Render a broadcast's elapsed time for the panel.
+ *
+ * @param {string|null} startedAt ISO timestamp from the controller.
+ * @param {number} [nowMs] Current epoch milliseconds.
+ * @returns {string} `H:MM:SS`, `M:SS`, or an empty string when not running.
+ */
+export function formatLiveUptime(startedAt, nowMs = Date.now()) {
+  if (!startedAt) return '';
+  const started = Date.parse(startedAt);
+  if (!Number.isFinite(started)) return '';
+  const seconds = Math.max(0, Math.floor((nowMs - started) / 1000));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  const pad = (value) => String(value).padStart(2, '0');
+  return hours ? `${hours}:${pad(minutes)}:${pad(rest)}` : `${minutes}:${pad(rest)}`;
+}
+
+/**
+ * Whether the panel should currently offer a start button.
+ *
+ * @param {object} live Public controller state.
+ * @returns {boolean}
+ */
+export function canStartLive(live) {
+  const status = String(live?.status || 'idle');
+  return status !== 'live' && status !== 'starting';
+}
+
+/**
+ * Operator-facing copy for the go-live summary. Never includes a stream key;
+ * the encoder's public `target` is already redacted.
+ *
+ * @param {object} live Public controller state.
+ * @param {{connected?: boolean, message?: string}} [options]
+ * @returns {{label: string, canStart: boolean, canStop: boolean, canProvision: boolean, summary: string}}
+ */
+export function summarizeOperatorLive(live = {}, { connected = false, message = '' } = {}) {
+  const canStart = Boolean(connected) && canStartLive(live);
+  const canStop = Boolean(connected) && !canStartLive(live);
+  let summary = String(message || '').trim();
+  if (!summary) {
+    if (!connected) {
+      summary = 'Sign in to go live without OBS.';
+    } else {
+      const parts = [];
+      if (live.target) parts.push(`PUBLISHING TO ${live.target}`);
+      if (live.settings) {
+        parts.push(`${live.settings.width}x${live.settings.height} @ ${live.settings.fps}FPS · ${live.settings.videoBitrateKbps}KBPS · ${live.settings.audioSource === 'track' ? 'AUDIO BED' : 'SILENT'}`);
+      }
+      const uptime = live.status === 'live' ? formatLiveUptime(live.startedAt) : '';
+      if (uptime) parts.push(`UP ${uptime}`);
+      if (live.framesSent) parts.push(`${live.framesSent} FRAMES SENT`);
+      if (live.error) parts.push(live.error);
+      summary = parts.join(' · ') || 'Idle. Create or paste an ingest target to begin.';
+    }
+  }
+  return {
+    label: liveStatusLabel(live.status),
+    canStart,
+    canStop,
+    canProvision: canStart,
+    summary,
+  };
+}
+
+/**
+ * Capture URL for the encoder: this origin's globe, not an operator-typed path.
+ *
+ * @param {string} [origin] `window.location.origin` in the browser.
+ * @returns {string}
+ */
+export function defaultLiveCaptureUrl(origin = '') {
+  const raw = String(origin || '').trim().replace(/\/+$/, '');
+  return raw ? `${raw}/` : 'http://localhost:5000/';
+}
+
+/**
+ * Body the operator panel posts to start the encoder.
+ *
+ * @param {object} fields Form values from the YouTube Settings panel.
+ * @returns {{ingestUrl: string, streamKey: string, captureUrl: string, audioSource: string}}
+ */
+export function buildOperatorLiveStartBody(fields = {}) {
+  return {
+    ingestUrl: text(fields.ingestUrl),
+    streamKey: text(fields.streamKey),
+    captureUrl: text(fields.captureUrl, defaultLiveCaptureUrl(fields.origin)),
+    audioSource: text(fields.audioSource),
+  };
+}
+
+/**
+ * Create a YouTube broadcast, an ingest stream, and bind them.
+ *
+ * Runs in the browser so it reuses the operator's YouTube sign-in cookie; the
+ * admin session never holds a Google token. `enableAutoStart` means YouTube
+ * flips the broadcast live by itself once ffmpeg's bytes arrive, so no
+ * separate transition call is needed.
+ *
+ * @param {Function} fetchImpl Fetch implementation.
+ * @param {{title: string, description?: string, privacyStatus?: string}} options
+ * @returns {Promise<{broadcastId: string, streamId: string, ingestUrl: string, streamKey: string, watchUrl: string}>}
+ */
+export async function provisionYoutubeIngest(fetchImpl, {
+  title,
+  description = '',
+  privacyStatus = 'unlisted',
+} = {}) {
+  const name = String(title || '').trim();
+  if (!name) throw new Error('A broadcast title is required');
+
+  async function call(resource, params, body) {
+    const query = new URLSearchParams(params).toString();
+    const response = await fetchImpl(`/api/youtube/youtube/v3/${resource}?${query}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let payload = {};
+    try { payload = await response.json(); } catch { /* empty body */ }
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || 'YouTube rejected the request');
+      error.kind = payload?.error?.kind || 'request';
+      throw error;
+    }
+    return payload;
+  }
+
+  const stream = await call('liveStreams', { part: 'snippet,cdn,status' }, {
+    snippet: { title: `${name} ingest` },
+    cdn: { frameRate: 'variable', ingestionType: 'rtmp', resolution: 'variable' },
+  });
+  const broadcast = await call('liveBroadcasts', { part: 'snippet,status,contentDetails' }, {
+    snippet: { title: name, description, scheduledStartTime: new Date().toISOString() },
+    status: { privacyStatus, selfDeclaredMadeForKids: false },
+    contentDetails: { enableAutoStart: true, enableAutoStop: true },
+  });
+  await call('liveBroadcasts/bind', {
+    part: 'id,contentDetails',
+    id: broadcast.id,
+    streamId: stream.id,
+  });
+
+  return {
+    broadcastId: String(broadcast.id || ''),
+    streamId: String(stream.id || ''),
+    ingestUrl: String(stream?.cdn?.ingestionInfo?.ingestionAddress || ''),
+    streamKey: String(stream?.cdn?.ingestionInfo?.streamName || ''),
+    watchUrl: broadcast.id ? `https://www.youtube.com/watch?v=${broadcast.id}` : '',
+  };
+}
+
+/**
  * Derive the rail comments panel readouts from loaded state. Kept pure so the
  * empty, disconnected, and paging cases are testable without a DOM.
  *
@@ -165,7 +346,51 @@ export function createYoutubeClient({ fetchImpl = globalThis.fetch } = {}) {
     }
     return payload;
   }
-  return { get };
+  return { get, fetchImpl };
+}
+
+/**
+ * Same-origin client for the operator ffmpeg/RTMP encoder.
+ *
+ * Mutating calls carry `X-GEV-YouTube` so a cross-origin form cannot start a
+ * broadcast with the YouTube session cookie.
+ *
+ * @param {object} [options]
+ * @param {typeof fetch} [options.fetchImpl]
+ * @returns {{status: Function, startLive: Function, stopLive: Function}}
+ */
+export function createYoutubeLiveClient({ fetchImpl = globalThis.fetch } = {}) {
+  if (typeof fetchImpl !== 'function') throw new TypeError('YouTube live client requires fetch');
+
+  async function request(path, { method = 'GET', body } = {}) {
+    const headers = { Accept: 'application/json' };
+    if (method !== 'GET') {
+      headers[YOUTUBE_LIVE_REQUEST_HEADER] = '1';
+      if (body !== undefined) headers['Content-Type'] = 'application/json';
+    }
+    const response = await fetchImpl(`/api/youtube/live${path}`, {
+      method,
+      headers,
+      credentials: 'same-origin',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let payload = {};
+    try { payload = await response.json(); } catch { /* empty body */ }
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || 'YouTube live request failed');
+      error.kind = payload?.error?.kind || 'request';
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
+    }
+    return payload;
+  }
+
+  return {
+    status: () => request(''),
+    startLive: (options) => request('/start', { method: 'POST', body: options }),
+    stopLive: () => request('/stop', { method: 'POST' }),
+  };
 }
 
 async function getYoutubeAuthStatus(fetchImpl = globalThis.fetch) {
@@ -306,9 +531,18 @@ export class YouTubeCommentsPanelView {
  * not become coupled to globe rendering or share-link state.
  */
 export class YouTubePanelController {
-  constructor(root, { client = createYoutubeClient(), commentsPanel = null, viewAgentClient = createViewAgentClient() } = {}) {
+  constructor(root, {
+    client = createYoutubeClient(),
+    liveClient = createYoutubeLiveClient(),
+    commentsPanel = null,
+    viewAgentClient = createViewAgentClient(),
+    captureOrigin = typeof globalThis.location?.origin === 'string' ? globalThis.location.origin : '',
+  } = {}) {
     this.root = root;
     this.client = client;
+    this.liveClient = liveClient;
+    this.captureOrigin = captureOrigin;
+    this._livePollTimer = null;
     this.state = {
       channel: null,
       videos: [],
@@ -331,6 +565,10 @@ export class YouTubePanelController {
       commentsLoading: false,
       viewAgentEnabled: false,
       viewAgentStatus: 'VIEW AGENT OFF',
+      live: { status: 'idle', log: [] },
+      liveWatchUrl: '',
+      liveBusy: false,
+      liveMessage: '',
     };
     this._stored = readStoredState();
     this.state.videoId = text(this._stored.videoId);
@@ -419,6 +657,12 @@ export class YouTubePanelController {
     });
     this._el('youtube-api-load-btn')?.addEventListener('click', () => void this._loadResource());
     this._el('youtube-comments-next')?.addEventListener('click', () => void this._loadComments(false));
+    this._el('youtube-live-form')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void this._startLive();
+    });
+    this._el('youtube-live-stop')?.addEventListener('click', () => void this._stopLive());
+    this._el('youtube-live-provision')?.addEventListener('click', () => void this._provisionLive());
   }
 
   _populateResources() {
@@ -479,6 +723,7 @@ export class YouTubePanelController {
       this.state.uploadsId = text(channel?.contentDetails?.relatedPlaylists?.uploads);
       this._render();
       await this._loadVideos();
+      void this._loadLive();
       setText(this._el('youtube-connection-state'), 'CONNECTED');
       this._setStatus('CONNECTED');
     } catch (error) {
@@ -506,6 +751,7 @@ export class YouTubePanelController {
       this.state.videoId = '';
       this.state.liveChatId = '';
       this.state.connection = 'disconnected';
+      this._stopLivePolling();
       this._setStatus('SIGNED OUT · SIGN IN TO LOAD CHANNEL');
       this._setBusy(false);
       this._render();
@@ -665,7 +911,178 @@ export class YouTubePanelController {
   destroy() {
     this.state.generation += 1;
     this._stopChat();
+    this._stopLivePolling();
     this.viewAgent.cancel();
+  }
+
+  /** @returns {string} */
+  _liveValue(id, fallback = '') {
+    const field = this._el(id);
+    return field ? String(field.value ?? '').trim() : fallback;
+  }
+
+  /** @returns {Promise<void>} */
+  async _loadLive() {
+    if (this.state.connection !== 'connected') return;
+    try {
+      const payload = await this.liveClient.status();
+      this.state.live = payload.live || this.state.live;
+      this.state.liveMessage = '';
+    } catch (error) {
+      this.state.liveMessage = error.message;
+    }
+    this._render();
+    this._scheduleLivePoll();
+  }
+
+  /** @returns {void} */
+  _stopLivePolling() {
+    if (this._livePollTimer) {
+      clearTimeout(this._livePollTimer);
+      this._livePollTimer = null;
+    }
+  }
+
+  /** @returns {void} */
+  _scheduleLivePoll() {
+    this._stopLivePolling();
+    if (this.state.connection !== 'connected') return;
+    const status = String(this.state.live?.status || '');
+    if (status !== 'live' && status !== 'starting') return;
+    this._livePollTimer = setTimeout(() => void this._loadLive(), LIVE_POLL_MS);
+  }
+
+  /**
+   * Ask YouTube for a broadcast and ingest key, then fill the form.
+   *
+   * @returns {Promise<void>}
+   */
+  async _provisionLive() {
+    if (this.state.connection !== 'connected') {
+      this.state.liveMessage = 'Sign in to YouTube to create a broadcast.';
+      this._render();
+      return;
+    }
+    const title = this._liveValue('youtube-live-title');
+    if (!title) {
+      this.state.liveMessage = 'Enter a broadcast title first.';
+      this._render();
+      return;
+    }
+    this.state.liveBusy = true;
+    this.state.liveMessage = 'Creating the YouTube broadcast...';
+    this._render();
+    try {
+      const result = await provisionYoutubeIngest(this.client.fetchImpl || globalThis.fetch, {
+        title,
+        privacyStatus: this._liveValue('youtube-live-privacy', 'unlisted') || 'unlisted',
+      });
+      const ingest = this._el('youtube-live-ingest');
+      const key = this._el('youtube-live-key');
+      if (ingest) ingest.value = result.ingestUrl;
+      if (key) key.value = result.streamKey;
+      this.state.liveWatchUrl = result.watchUrl;
+      this.state.liveMessage = result.streamKey
+        ? 'Broadcast created. Start the encoder to go live.'
+        : 'Broadcast created but YouTube returned no ingest key.';
+    } catch (error) {
+      this.state.liveMessage = error.kind === 'insufficient-scope'
+        ? 'Reconnect YouTube to grant live-control permission.'
+        : error.message;
+    }
+    this.state.liveBusy = false;
+    this._render();
+  }
+
+  /** @returns {Promise<void>} */
+  async _startLive() {
+    if (this.state.connection !== 'connected') {
+      this.state.liveMessage = 'Sign in to YouTube to go live.';
+      this._render();
+      return;
+    }
+    this.state.liveBusy = true;
+    this.state.liveMessage = '';
+    this._render();
+    try {
+      const payload = await this.liveClient.startLive(buildOperatorLiveStartBody({
+        ingestUrl: this._liveValue('youtube-live-ingest'),
+        streamKey: this._liveValue('youtube-live-key'),
+        origin: this.captureOrigin,
+      }));
+      this.state.live = payload.live || this.state.live;
+      if (!canStartLive(this.state.live)) {
+        // ffmpeg holds the key now; nothing is gained by leaving a copy in a
+        // form field that survives until the panel is reloaded.
+        const key = this._el('youtube-live-key');
+        if (key) key.value = '';
+      }
+    } catch (error) {
+      this.state.liveMessage = error.message;
+      if (error.payload?.live) this.state.live = error.payload.live;
+    }
+    this.state.liveBusy = false;
+    this._render();
+    this._scheduleLivePoll();
+  }
+
+  /** @returns {Promise<void>} */
+  async _stopLive() {
+    if (this.state.connection !== 'connected') {
+      this.state.liveMessage = 'Sign in to YouTube to stop a broadcast.';
+      this._render();
+      return;
+    }
+    this.state.liveBusy = true;
+    this._render();
+    try {
+      const payload = await this.liveClient.stopLive();
+      this.state.live = payload.live || this.state.live;
+    } catch (error) {
+      this.state.liveMessage = error.message;
+    }
+    this.state.liveBusy = false;
+    this._stopLivePolling();
+    this._render();
+  }
+
+  /** @returns {void} */
+  _renderLive() {
+    const connected = this.state.connection === 'connected';
+    const view = summarizeOperatorLive(this.state.live, {
+      connected,
+      message: this.state.liveMessage,
+    });
+    const chip = this._el('youtube-live-state');
+    if (chip) {
+      chip.textContent = view.label;
+      chip.dataset.liveStatus = String(this.state.live?.status || 'idle');
+    }
+    const start = this._el('youtube-live-start');
+    if (start) {
+      start.disabled = this.state.liveBusy || !view.canStart;
+      start.textContent = this.state.live?.status === 'starting' ? 'STARTING...' : 'START BROADCAST';
+    }
+    const stop = this._el('youtube-live-stop');
+    if (stop) stop.disabled = this.state.liveBusy || !view.canStop;
+    const provision = this._el('youtube-live-provision');
+    if (provision) provision.disabled = this.state.liveBusy || !view.canProvision;
+
+    const summary = this._el('youtube-live-summary');
+    if (summary) summary.textContent = view.summary;
+
+    const watch = this._el('youtube-live-watch');
+    if (watch) {
+      watch.href = this.state.liveWatchUrl || '#';
+      watch.hidden = !this.state.liveWatchUrl;
+    }
+
+    const log = this._el('youtube-live-log');
+    if (log) {
+      const lines = this.state.live?.log || [];
+      log.textContent = lines.join('\n');
+      log.hidden = !lines.length;
+    }
   }
 
   setActionRunner(runner) {
@@ -836,6 +1253,7 @@ export class YouTubePanelController {
     if (feedView) feedView.hidden = this.state.mode === 'api';
     const next = this._el('youtube-comments-next');
     if (next) next.disabled = !this.state.commentsNextPageToken || this.state.mode !== 'comments';
+    this._renderLive();
     this.commentsPanel?.render({
       connection: this.state.connection,
       video: video || null,

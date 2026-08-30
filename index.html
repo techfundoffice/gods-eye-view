@@ -657,7 +657,7 @@
     </div>
   </div>
 
-  <!-- YouTube Live read-only workspace with per-user Google OAuth -->
+  <!-- YouTube workspace: OAuth, comments, and operator go-live via ffmpeg -->
   <div id="youtube-panel" class="panel-collapsible collapsed" data-panel-id="youtube-panel" aria-label="YouTube settings">
     <div class="panel-glow"></div>
     <div class="youtube-panel-inner">
@@ -675,6 +675,56 @@
       </div>
       <div class="youtube-connect-help">SIGN IN WITH YOUR GOOGLE / YOUTUBE ACCOUNT · NO REPLIT ACCOUNT REQUIRED</div>
       <div id="youtube-account" class="youtube-account" hidden></div>
+
+      <section id="youtube-go-live" class="youtube-go-live" aria-label="Go live on YouTube">
+        <div class="youtube-live-row">
+          <span class="youtube-live-heading">GO LIVE</span>
+          <span id="youtube-live-state" class="youtube-live-state" data-live-status="idle" role="status"
+            aria-live="polite">OFFLINE</span>
+          <a id="youtube-live-watch" class="youtube-live-watch" href="#" target="_blank" rel="noopener" hidden>OPEN ON YOUTUBE</a>
+        </div>
+        <p class="youtube-connect-help">
+          ffmpeg encodes the globe to YouTube Live — no OBS. Create a broadcast, or paste a Studio ingest URL and key.
+        </p>
+        <form id="youtube-live-form" class="youtube-live-form" autocomplete="off">
+          <div class="youtube-live-grid">
+            <label class="youtube-field" for="youtube-live-title">
+              <span>BROADCAST TITLE</span>
+              <input id="youtube-live-title" type="text" name="live-title" placeholder="God's Eye View — live" />
+            </label>
+            <label class="youtube-field" for="youtube-live-privacy">
+              <span>PRIVACY</span>
+              <select id="youtube-live-privacy" name="live-privacy" aria-label="Broadcast privacy">
+                <option value="unlisted" selected>Unlisted</option>
+                <option value="private">Private</option>
+                <option value="public">Public</option>
+              </select>
+            </label>
+          </div>
+          <div class="youtube-live-grid">
+            <label class="youtube-field" for="youtube-live-ingest">
+              <span>RTMP INGEST URL</span>
+              <input id="youtube-live-ingest" type="text" name="live-ingest"
+                placeholder="rtmp://a.rtmp.youtube.com/live2" />
+            </label>
+            <label class="youtube-field" for="youtube-live-key">
+              <span>STREAM KEY</span>
+              <input id="youtube-live-key" type="password" name="live-key" autocomplete="off"
+                placeholder="xxxx-xxxx-xxxx-xxxx" />
+            </label>
+          </div>
+          <div class="youtube-live-actions">
+            <button id="youtube-live-provision" class="scene-btn" type="button" disabled>CREATE ON YOUTUBE</button>
+            <button id="youtube-live-start" class="scene-btn" type="submit" disabled>START BROADCAST</button>
+            <button id="youtube-live-stop" class="scene-btn" type="button" disabled>STOP</button>
+          </div>
+        </form>
+        <p id="youtube-live-summary" class="youtube-summary" role="status" aria-live="polite">
+          Sign in to go live without OBS.
+        </p>
+        <pre id="youtube-live-log" class="youtube-live-log" aria-label="Encoder log" hidden></pre>
+      </section>
+
       <label class="youtube-field" for="youtube-channel-select">
         <span>CHANNEL</span>
         <select id="youtube-channel-select" aria-label="YouTube channel"></select>
@@ -698,6 +748,7 @@
         </label>
       </div>
       <div id="youtube-view-agent-status" class="youtube-view-agent-status" role="status" aria-live="polite">VIEW AGENT OFF</div>
+
       <div class="youtube-tabs" role="tablist" aria-label="YouTube data view">
         <button id="youtube-chat-tab" type="button" role="tab" aria-selected="true" class="active">CHAT</button>
         <button id="youtube-comments-tab" type="button" role="tab" aria-selected="false">COMMENTS</button>
@@ -986,7 +1037,7 @@
         <h2 id="admin-console-title">ADMIN</h2>
         <span id="admin-status" class="admin-status" role="status" aria-live="polite">LOCKED</span>
         <span class="panel-divider"></span>
-        <button id="admin-signout" class="scene-btn" type="button">SIGN OUT</button>
+        <button id="admin-signout" class="scene-btn" type="button" hidden>SIGN OUT</button>
         <button id="admin-close" class="scene-btn" type="button" aria-label="Close the admin console">CLOSE</button>
       </header>
 
@@ -1029,7 +1080,7 @@
 
         <p id="admin-menu-errors" class="admin-menu-errors" role="status" aria-live="polite" hidden></p>
 
-        <div class="admin-pane" data-admin-pane="create-plugin">
+        <div class="admin-pane" data-admin-pane="create-plugin" hidden>
           <div class="admin-pane-side">
             <div class="admin-pane-side-header">
               <span>BUILDS</span>

@@ -12,6 +12,21 @@
  */
 
 import { createPluginRegistry, mountPlugin } from './adminPluginRegistry.js';
+import {
+  LIVE_POLL_MS,
+  canStartLive,
+  formatLiveUptime,
+  liveStatusLabel,
+  provisionYoutubeIngest,
+} from './youtubeLive.js';
+
+export {
+  LIVE_POLL_MS,
+  canStartLive,
+  formatLiveUptime,
+  liveStatusLabel,
+  provisionYoutubeIngest,
+};
 
 /** Header the admin middleware requires on mutating calls. */
 export const ADMIN_REQUEST_HEADER = 'X-GEV-Admin';
@@ -41,120 +56,6 @@ export const ADMIN_MENU_ITEMS = Object.freeze([
     description: 'Capture the globe with headless Chromium and push it to YouTube over RTMP.',
   },
 ]);
-
-/** Poll cadence while a broadcast is running. */
-export const LIVE_POLL_MS = 3000;
-
-/**
- * One-word status for the broadcast, for the console's state chip.
- *
- * @param {string} status Controller status.
- * @returns {string}
- */
-export function liveStatusLabel(status) {
-  switch (String(status || '')) {
-    case 'starting': return 'STARTING';
-    case 'live': return 'LIVE';
-    case 'stopped': return 'STOPPED';
-    case 'error': return 'ERROR';
-    default: return 'OFFLINE';
-  }
-}
-
-/**
- * Render a broadcast's elapsed time for the console.
- *
- * @param {string|null} startedAt ISO timestamp from the controller.
- * @param {number} [nowMs] Current epoch milliseconds.
- * @returns {string} `H:MM:SS`, `M:SS`, or an empty string when not running.
- */
-export function formatLiveUptime(startedAt, nowMs = Date.now()) {
-  if (!startedAt) return '';
-  const started = Date.parse(startedAt);
-  if (!Number.isFinite(started)) return '';
-  const seconds = Math.max(0, Math.floor((nowMs - started) / 1000));
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const rest = seconds % 60;
-  const pad = (value) => String(value).padStart(2, '0');
-  return hours ? `${hours}:${pad(minutes)}:${pad(rest)}` : `${minutes}:${pad(rest)}`;
-}
-
-/**
- * Whether the console should currently offer a start button.
- *
- * @param {object} live Public controller state.
- * @returns {boolean}
- */
-export function canStartLive(live) {
-  const status = String(live?.status || 'idle');
-  return status !== 'live' && status !== 'starting';
-}
-
-/**
- * Create a YouTube broadcast, an ingest stream, and bind them.
- *
- * Runs in the browser so it reuses the operator's YouTube sign-in cookie; the
- * admin session never holds a Google token. `enableAutoStart` means YouTube
- * flips the broadcast live by itself once ffmpeg's bytes arrive, so no
- * separate transition call is needed.
- *
- * @param {Function} fetchImpl Fetch implementation.
- * @param {{title: string, description?: string, privacyStatus?: string}} options
- * @returns {Promise<{broadcastId: string, streamId: string, ingestUrl: string, streamKey: string, watchUrl: string}>}
- */
-export async function provisionYoutubeIngest(fetchImpl, {
-  title,
-  description = '',
-  privacyStatus = 'unlisted',
-} = {}) {
-  const name = String(title || '').trim();
-  if (!name) throw new Error('A broadcast title is required');
-
-  async function call(resource, params, body) {
-    const query = new URLSearchParams(params).toString();
-    const response = await fetchImpl(`/api/youtube/youtube/v3/${resource}?${query}`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        Accept: 'application/json',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    let payload = {};
-    try { payload = await response.json(); } catch { /* empty body */ }
-    if (!response.ok) {
-      const error = new Error(payload?.error?.message || 'YouTube rejected the request');
-      error.kind = payload?.error?.kind || 'request';
-      throw error;
-    }
-    return payload;
-  }
-
-  const stream = await call('liveStreams', { part: 'snippet,cdn,status' }, {
-    snippet: { title: `${name} ingest` },
-    cdn: { frameRate: 'variable', ingestionType: 'rtmp', resolution: 'variable' },
-  });
-  const broadcast = await call('liveBroadcasts', { part: 'snippet,status,contentDetails' }, {
-    snippet: { title: name, description, scheduledStartTime: new Date().toISOString() },
-    status: { privacyStatus, selfDeclaredMadeForKids: false },
-    contentDetails: { enableAutoStart: true, enableAutoStop: true },
-  });
-  await call('liveBroadcasts/bind', {
-    part: 'id,contentDetails',
-    id: broadcast.id,
-    streamId: stream.id,
-  });
-
-  return {
-    broadcastId: String(broadcast.id || ''),
-    streamId: String(stream.id || ''),
-    ingestUrl: String(stream?.cdn?.ingestionInfo?.ingestionAddress || ''),
-    streamKey: String(stream?.cdn?.ingestionInfo?.streamName || ''),
-    watchUrl: broadcast.id ? `https://www.youtube.com/watch?v=${broadcast.id}` : '',
-  };
-}
 
 /**
  * One-word status for a plugin build.
@@ -199,6 +100,44 @@ export function transcriptRoleLabel(role) {
  */
 export function isAdminUnlocked(state) {
   return Boolean(state?.configured && state?.authenticated);
+}
+
+/** Class on `#admin-console` that CSS uses to paint operator chrome. */
+export const ADMIN_UNLOCKED_CLASS = 'admin-unlocked';
+
+/**
+ * Paint the locked-vs-unlocked admin overlay.
+ *
+ * Class `admin-unlocked` on the console root is the CSS gate: without it,
+ * dashboard, plugin panes, menu, and sign-out are `display: none !important`.
+ * `hidden` stays in step so the accessibility tree matches the paint.
+ *
+ * @param {Element|null} root `#admin-console`
+ * @param {object|null|undefined} session Payload from `GET /api/admin/session`.
+ * @param {{ view?: string }} [options] Active dashboard view id when unlocked.
+ * @returns {{ unlocked: boolean, showGate: boolean, showDashboard: boolean }}
+ */
+export function applyAdminLockPaint(root, session, { view = '' } = {}) {
+  const unlocked = isAdminUnlocked(session);
+  const showGate = !unlocked;
+  const showDashboard = unlocked;
+  if (!root?.classList) return { unlocked, showGate, showDashboard };
+
+  root.classList.toggle(ADMIN_UNLOCKED_CLASS, unlocked);
+
+  const gate = root.querySelector?.('#admin-gate');
+  const dashboard = root.querySelector?.('#admin-dashboard');
+  const signout = root.querySelector?.('#admin-signout');
+  if (gate) gate.hidden = unlocked;
+  if (dashboard) dashboard.hidden = !unlocked;
+  if (signout) signout.hidden = !unlocked;
+
+  const panes = root.querySelectorAll?.('[data-admin-pane]') || [];
+  for (const pane of panes) {
+    pane.hidden = !unlocked || pane.dataset?.adminPane !== view;
+  }
+
+  return { unlocked, showGate, showDashboard };
 }
 
 /**
@@ -514,8 +453,10 @@ class AdminConsoleController {
 
   /** @returns {Promise<void>} */
   async _loadPlugins() {
+    if (!isAdminUnlocked(this.state.session)) return;
     try {
       const payload = await this.client.listPlugins();
+      if (!isAdminUnlocked(this.state.session)) return;
       this.state.plugins = payload.plugins || [];
     } catch (error) {
       this.state.message = error.message;
@@ -652,12 +593,14 @@ class AdminConsoleController {
    * @returns {Promise<void>}
    */
   async _loadMenu() {
+    if (!isAdminUnlocked(this.state.session)) return;
     let result = { plugins: [], errors: [] };
     try {
       result = await this.registry.load();
     } catch (error) {
       result = { plugins: [], errors: [{ id: '', message: error?.message || 'Could not load plugins' }] };
     }
+    if (!isAdminUnlocked(this.state.session)) return;
     this.state.menuPlugins = result.plugins;
     this.state.menuErrors = result.errors;
     // A plugin that has been deleted from the manifest cannot stay on screen.
@@ -997,11 +940,7 @@ class AdminConsoleController {
     const status = this._el('admin-status');
     if (status) status.textContent = describeSessionState(session);
 
-    const unlocked = isAdminUnlocked(session);
-    const gate = this._el('admin-gate');
-    const dashboard = this._el('admin-dashboard');
-    if (gate) gate.hidden = unlocked;
-    if (dashboard) dashboard.hidden = !unlocked;
+    const { unlocked } = applyAdminLockPaint(this.root, session, { view: this.state.view });
 
     const unconfigured = this._el('admin-unconfigured');
     if (unconfigured) unconfigured.hidden = Boolean(session.configured);
@@ -1014,16 +953,15 @@ class AdminConsoleController {
       notice.hidden = !this.state.message;
     }
 
+    if (!unlocked) {
+      this._clearGeneratedMenu();
+      return;
+    }
+
     this.root.querySelectorAll('[data-admin-view]').forEach((button) => {
       const active = button.dataset.adminView === this.state.view;
       button.classList.toggle('active', active);
       button.setAttribute('aria-current', active ? 'page' : 'false');
-    });
-    // Panes are hidden on their own account, not only by virtue of sitting
-    // inside a hidden dashboard: one stylesheet slip upstream must not be
-    // enough to paint the admin section for a locked visitor.
-    this.root.querySelectorAll('[data-admin-pane]').forEach((pane) => {
-      pane.hidden = !unlocked || pane.dataset.adminPane !== this.state.view;
     });
 
     this._renderMenu();
@@ -1031,6 +969,17 @@ class AdminConsoleController {
     this._renderTranscript();
     this._renderMcp();
     this._renderLive();
+  }
+
+  /** Drop generated plugin tiles so a locked overlay cannot keep them. @returns {void} */
+  _clearGeneratedMenu() {
+    const nav = this._el('admin-menu');
+    if (!nav) return;
+    const generated = nav.querySelectorAll?.('[data-admin-generated]');
+    if (generated) {
+      for (const node of generated) node.remove?.();
+    }
+    this._menuSignature = '';
   }
 
   /** @returns {void} */

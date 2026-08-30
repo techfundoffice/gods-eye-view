@@ -226,8 +226,11 @@ test('operator routes are closed to anyone without a session', async () => {
   for (const request of [
     { url: '/plugins' },
     { method: 'POST', url: '/plugins', headers: WRITE, body: { name: 'X' } },
+    { url: '/menu' },
     { url: '/mcp/settings' },
     { method: 'POST', url: '/mcp/keys', headers: WRITE, body: { label: 'x' } },
+    { url: '/live' },
+    { method: 'POST', url: '/live/start', headers: WRITE, body: { ingestUrl: 'rtmp://x/live2' } },
   ]) {
     const response = await call(middleware, request);
     assert.equal(response.status, 401, `${request.method || 'GET'} ${request.url} requires sign-in`);
@@ -400,6 +403,28 @@ test('an unknown admin route is a 404', async () => {
   const { middleware } = harness();
   const cookie = await signIn(middleware);
   assert.equal((await call(middleware, { url: '/nowhere', cookie })).status, 404);
+});
+
+test('Composio is not an admin route — signed-in /composio 404s, unconfigured still 503s', async () => {
+  const { middleware } = harness();
+  const cookie = await signIn(middleware);
+  const signedIn = await call(middleware, { url: '/composio', cookie });
+  assert.equal(signedIn.status, 404);
+  assert.equal(signedIn.body.error.kind, 'route');
+
+  const mcpSettings = await call(middleware, { url: '/mcp/settings', cookie });
+  assert.equal(mcpSettings.status, 200);
+  assert.equal(mcpSettings.body.endpoint, '/api/admin/mcp');
+
+  const unconfigured = createAdminMiddleware({
+    store: memoryStore(),
+    auth: createAdminAuth({ credential: null, store: memoryStore() }),
+    builder: stubBuilder(),
+    live: stubLive(),
+  });
+  const blocked = await call(unconfigured, { url: '/composio' });
+  assert.equal(blocked.status, 503);
+  assert.equal(blocked.body.error.kind, 'unconfigured');
 });
 
 test('a successful login reports the session it just minted', async () => {
