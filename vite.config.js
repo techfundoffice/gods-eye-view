@@ -51,6 +51,7 @@ import { createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
 import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.js';
 import { createYoutubeCommentHarnessMiddleware } from './src/youtubeCommentHarnessServer.js';
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
+import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
 import { createAdminMiddleware } from './src/adminServer.js';
@@ -7478,9 +7479,13 @@ function youtubeProxy() {
     live: sharedLiveSession().asEncoder(),
     authorizeRequest: oauth.authorizeRequest,
   });
+  const innerTubeChatMiddleware = createYoutubeInnerTubeChatMiddleware({
+    authorizeRequest: oauth.authorizeRequest,
+  });
   function install(middlewares) {
     middlewares.use('/api/youtube/auth', oauth.middleware);
     middlewares.use('/api/youtube/live', liveMiddleware);
+    middlewares.use('/api/youtube/live-chat', innerTubeChatMiddleware);
     middlewares.use('/api/youtube-view-agent', viewAgentMiddleware);
     middlewares.use('/api/youtube-comment-harness', commentHarnessMiddleware);
     middlewares.use('/api/youtube', middleware);

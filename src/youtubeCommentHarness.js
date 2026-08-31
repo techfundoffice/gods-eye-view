@@ -482,16 +482,14 @@ export function createYoutubeHarnessSource({ fetchImpl = globalThis.fetch } = {}
       }, signal);
       return (payload?.items || []).map(normalizeCommentThread);
     },
-    async fetchLiveChat(liveChatId, pageToken, signal) {
-      const payload = await client.get('liveChatMessages', {
-        part: 'snippet,authorDetails',
-        liveChatId,
-        maxResults: 200,
-        pageToken: pageToken || '',
+    async fetchLiveChat(videoId, pageToken, signal) {
+      const payload = await client.getLiveChat({
+        videoId,
+        continuation: pageToken || '',
       }, signal);
       return {
         items: (payload?.items || []).map(normalizeLiveChatMessage),
-        nextPageToken: boundedText(payload?.nextPageToken, 160),
+        nextPageToken: boundedText(payload?.nextPageToken, 4096),
         pollingIntervalMillis: Number(payload?.pollingIntervalMillis) || HARNESS_POLL_MS,
       };
     },
@@ -955,11 +953,11 @@ export function createYoutubeCommentHarness(options = {}) {
         }
       }
       if (source === 'liveChat') {
-        if (!liveChatId) {
-          setStatus('NO ACTIVE LIVE CHAT');
+        if (!videoId) {
+          setStatus('SELECT A VIDEO');
           return;
         }
-        const payload = await youtubeSource.fetchLiveChat(liveChatId, chatPageToken, signal);
+        const payload = await youtubeSource.fetchLiveChat(videoId, chatPageToken, signal);
         if (jobGeneration !== generation || !enabled) return;
         chatPageToken = payload?.nextPageToken || chatPageToken;
         await ingest(payload?.items || [], { source: 'liveChat', videoId });

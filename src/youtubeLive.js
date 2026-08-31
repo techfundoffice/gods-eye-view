@@ -355,7 +355,28 @@ export function createYoutubeClient({ fetchImpl = globalThis.fetch } = {}) {
     }
     return payload;
   }
-  return { get, fetchImpl };
+  async function getLiveChat({ videoId, continuation } = {}, signal) {
+    const query = new URLSearchParams();
+    query.set('videoId', text(videoId));
+    if (continuation) query.set('continuation', String(continuation));
+    const response = await fetchImpl(`/api/youtube/live-chat?${query}`, {
+      method: 'GET',
+      signal,
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    });
+    let payload = {};
+    try { payload = await response.json(); } catch { /* proxy always intends JSON */ }
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || 'YouTube live chat request failed');
+      error.kind = payload?.error?.kind || 'upstream';
+      error.status = response.status;
+      error.reasons = payload?.error?.reasons || [];
+      throw error;
+    }
+    return payload;
+  }
+  return { get, getLiveChat, fetchImpl };
 }
 
 /**
@@ -821,7 +842,7 @@ export class YouTubePanelController {
       return;
     }
     await this._loadComments(true);
-    if (this.state.enabled && this.state.liveChatId) await this._startChat(true);
+    if (this.state.enabled && this.state.videoId) await this._startChat(true);
   }
 
   async _loadComments(reset) {
@@ -862,8 +883,8 @@ export class YouTubePanelController {
   }
 
   async _startChat(reset = false) {
-    if (!this.state.liveChatId) {
-      this._setStatus('NO ACTIVE LIVE CHAT');
+    if (!this.state.videoId) {
+      this._setStatus('SELECT A VIDEO');
       this._render();
       return;
     }
@@ -879,12 +900,17 @@ export class YouTubePanelController {
       const controller = new AbortController();
       this.state.abortController = controller;
       try {
-        const payload = await this.client.get('liveChatMessages', {
-          part: 'snippet,authorDetails',
-          liveChatId: this.state.liveChatId,
-          maxResults: 200,
-          pageToken: this.state.chatPageToken,
-        }, controller.signal);
+        const payload = typeof this.client.getLiveChat === 'function'
+          ? await this.client.getLiveChat({
+            videoId: this.state.videoId,
+            continuation: this.state.chatPageToken,
+          }, controller.signal)
+          : await this.client.get('liveChatMessages', {
+            part: 'snippet,authorDetails',
+            liveChatId: this.state.liveChatId,
+            maxResults: 200,
+            pageToken: this.state.chatPageToken,
+          }, controller.signal);
         if (this.state.abortController === controller) this.state.abortController = null;
         if (!this.state.enabled || generation !== this.state.generation) return;
         const incoming = (payload?.items || []).map(normalizeLiveChatMessage);
@@ -1153,6 +1179,8 @@ export class YouTubePanelController {
       quota: 'YOUTUBE QUOTA EXHAUSTED',
       'comments-disabled': 'COMMENTS DISABLED',
       'not-found': 'VIDEO UNAVAILABLE',
+      ended: 'LIVE ENDED',
+      'no-chat': 'NO ACTIVE LIVE CHAT',
       forbidden: 'PERMISSION NOT GRANTED',
       'rate-limit': 'RATE LIMITED · BACKING OFF',
     };
@@ -1193,12 +1221,12 @@ export class YouTubePanelController {
       : 'Connect YouTube to load your channel');
     const video = this.state.videos.find((item) => item.id === this.state.videoId);
     setText(this._el('youtube-video-summary'), video
-      ? `${text(video.snippet?.title, 'VIDEO')} · ${number(video.statistics?.viewCount).toLocaleString()} VIEWS · ${this.state.liveChatId ? 'LIVE CHAT READY' : 'NO ACTIVE CHAT'}`
+      ? `${text(video.snippet?.title, 'VIDEO')} · ${number(video.statistics?.viewCount).toLocaleString()} VIEWS · LIVE CHAT AVAILABLE`
       : 'Select a video to inspect comments and live state');
     const chatToggle = this._el('youtube-chat-toggle');
     if (chatToggle) {
       chatToggle.textContent = this.state.enabled ? 'STOP CHAT' : 'START CHAT';
-      chatToggle.disabled = !this.state.liveChatId;
+      chatToggle.disabled = !this.state.videoId;
       chatToggle.setAttribute('aria-pressed', String(this.state.enabled));
     }
     const agentToggle = this._el('youtube-view-agent-toggle');
