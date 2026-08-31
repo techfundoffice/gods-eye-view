@@ -16,7 +16,11 @@ Updated: August 30, 2026
 > allowlist runs on the server and again in the browser before
 > `createGevActionRunner` dispatch. If the Cursor adapter cannot enforce a
 > tool-less session, the harness stays **disabled** with that explanation and
-> never starts an agent. Stale completions after disable, cleanup, video
+> never starts an agent. Isolation / tool-less failure always wins on the
+> STATUS line, including after a YouTube refresh that reports disconnected or
+> unavailable; connection copy stays on the connection row (`YOUTUBE
+> DISCONNECTED` / `YOUTUBE UNAVAILABLE`) so ENABLE remaining disabled still has
+> an explanation. Stale completions after disable, cleanup, video
 > change, or generation bump do not apply. YouTube access remains read-only;
 > tokens stay server-side.
 

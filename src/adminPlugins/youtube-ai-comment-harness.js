@@ -14,6 +14,7 @@ import {
   createYoutubeCommentHarness,
   createYoutubeHarnessSource,
   createNextChatAdapter,
+  harnessOperatorStatus,
 } from '../youtubeCommentHarness.js';
 
 /**
@@ -176,7 +177,7 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
 
   function paint(snapshot) {
     const state = snapshot || harness.getSnapshot();
-    statusEl.textContent = state.status || 'DISABLED';
+    statusEl.textContent = harnessOperatorStatus(state);
     statusEl.classList.toggle('warn', !state.enabled || !state.isolationOk);
     const connectionLabel = state.connection === 'connected'
       ? (state.videoTitle || state.videoId ? `CONNECTED · ${state.videoTitle || state.videoId}` : 'CONNECTED')
@@ -239,6 +240,7 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
     setSource: (value) => harness.setSource(value),
     setVideo: (value) => harness.setVideo(value),
     setToolIsolation: (value, reason) => harness.setToolIsolation(value, reason),
+    refreshYoutube: () => harness.refreshYoutube(),
     stop: () => harness.stop(),
   };
   try {

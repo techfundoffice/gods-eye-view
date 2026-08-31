@@ -22,6 +22,7 @@ import {
   rejectInterpretation,
   resolveGevActionRunner,
   toolIsolationState,
+  harnessOperatorStatus,
   validateHarnessInterpretation,
 } from './youtubeCommentHarness.js';
 import { createYoutubeCommentHarnessMiddleware } from './youtubeCommentHarnessServer.js';
@@ -282,6 +283,101 @@ test('missing tool isolation leaves the harness disabled and never starts interp
   assert.equal(published.length, 1);
   assert.equal(interpretCalls, 0);
   assert.equal(runnerCalls.length, 0);
+});
+
+test('an unconfigured unsafe adapter still names the empty tool surface', () => {
+  const state = toolIsolationState(false, false);
+  assert.equal(state.ok, false);
+  assert.match(state.reason, /not configured/i);
+  assert.match(state.reason, /tool-less/i);
+  assert.match(harnessOperatorStatus({
+    isolationOk: false,
+    isolationReason: state.reason,
+    status: 'YOUTUBE DISCONNECTED',
+  }), /tool-less/i);
+});
+
+test('setConfigured on an unsafe adapter keeps the empty tool-surface explanation', () => {
+  const harness = createYoutubeCommentHarness({
+    supportsToolIsolation: false,
+    configured: true,
+    interpret: async () => { throw new Error('must not start an agent session'); },
+    runner: async () => { throw new Error('must not run'); },
+  });
+  const snap = harness.setConfigured(false);
+  assert.equal(snap.isolationOk, false);
+  assert.equal(snap.enabled, false);
+  assert.match(snap.isolationReason, /not configured/i);
+  assert.match(snap.isolationReason, /tool-less/i);
+  assert.match(snap.status, /not configured/i);
+  assert.match(snap.status, /tool-less/i);
+  assert.doesNotMatch(snap.status, /YOUTUBE DISCONNECTED/);
+});
+
+test('refreshYoutube keeps the tool-isolation explanation when YouTube is disconnected', async () => {
+  const isolation = toolIsolationState(false, true);
+  let statusCalls = 0;
+  const harness = createYoutubeCommentHarness({
+    supportsToolIsolation: false,
+    interpret: async () => { throw new Error('must not start an agent session'); },
+    runner: async () => { throw new Error('must not run'); },
+    youtubeSource: {
+      async status() {
+        statusCalls += 1;
+        return { connected: false, configured: true };
+      },
+    },
+  });
+  assert.match(harness.getSnapshot().status, /tool-less/i);
+  const snap = await harness.refreshYoutube();
+  assert.equal(statusCalls, 1);
+  assert.equal(snap.isolationOk, false);
+  assert.equal(snap.enabled, false);
+  assert.equal(snap.connection, 'disconnected');
+  assert.equal(snap.status, `DISABLED · ${isolation.reason}`);
+  assert.doesNotMatch(snap.status, /YOUTUBE DISCONNECTED/);
+  assert.equal(harnessOperatorStatus({
+    isolationOk: false,
+    isolationReason: isolation.reason,
+    status: 'YOUTUBE DISCONNECTED',
+  }), `DISABLED · ${isolation.reason}`);
+});
+
+test('refreshYoutube keeps the tool-isolation explanation when YouTube is unavailable', async () => {
+  const isolation = toolIsolationState(false, true);
+  const harness = createYoutubeCommentHarness({
+    supportsToolIsolation: false,
+    interpret: async () => { throw new Error('must not start an agent session'); },
+    runner: async () => { throw new Error('must not run'); },
+    youtubeSource: {
+      async status() {
+        return { connected: false, configured: false };
+      },
+    },
+  });
+  const snap = await harness.refreshYoutube();
+  assert.equal(snap.isolationOk, false);
+  assert.equal(snap.enabled, false);
+  assert.equal(snap.connection, 'unavailable');
+  assert.equal(snap.status, `DISABLED · ${isolation.reason}`);
+  assert.doesNotMatch(snap.status, /YOUTUBE UNAVAILABLE/);
+});
+
+test('refreshYoutube reports disconnected on STATUS when isolation is ok', async () => {
+  const harness = createYoutubeCommentHarness({
+    supportsToolIsolation: true,
+    interpret: async () => { throw new Error('must not interpret while disabled'); },
+    runner: async () => { throw new Error('must not run'); },
+    youtubeSource: {
+      async status() {
+        return { connected: false, configured: true };
+      },
+    },
+  });
+  const snap = await harness.refreshYoutube();
+  assert.equal(snap.isolationOk, true);
+  assert.equal(snap.connection, 'disconnected');
+  assert.equal(snap.status, 'YOUTUBE DISCONNECTED');
 });
 
 test('stale completion after disable, video change, or destroy does not call the runner', async () => {

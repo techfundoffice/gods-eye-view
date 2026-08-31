@@ -258,13 +258,33 @@ export function boundedViewSummary(context = {}) {
  * @returns {{ok: boolean, reason: string}}
  */
 export function toolIsolationState(supportsToolIsolation, configured = true) {
+  if (!supportsToolIsolation) {
+    return {
+      ok: false,
+      reason: configured
+        ? UNSAFE_ADAPTER_REASON
+        : `Cursor view agent is not configured. ${UNSAFE_ADAPTER_REASON}`,
+    };
+  }
   if (!configured) {
     return { ok: false, reason: 'Cursor view agent is not configured' };
   }
-  if (!supportsToolIsolation) {
-    return { ok: false, reason: UNSAFE_ADAPTER_REASON };
-  }
   return { ok: true, reason: '' };
+}
+
+/**
+ * Operator-facing harness status. Isolation failure always wins over YouTube
+ * connection copy so ENABLE being disabled still has an explanation.
+ *
+ * @param {object} [state]
+ * @returns {string}
+ */
+export function harnessOperatorStatus(state = {}) {
+  if (state.isolationOk === false) {
+    const reason = boundedText(state.isolationReason, 160);
+    return reason ? `DISABLED · ${reason}` : 'DISABLED';
+  }
+  return boundedText(state.status, 200) || 'DISABLED';
 }
 
 /**
@@ -501,10 +521,8 @@ export function createYoutubeCommentHarness(options = {}) {
   let generation = 0;
   let enabled = false;
   let configured = options.configured !== false;
-  let isolation = toolIsolationState(
-    options.supportsToolIsolation === true,
-    configured,
-  );
+  let supportsIsolation = options.supportsToolIsolation === true;
+  let isolation = toolIsolationState(supportsIsolation, configured);
   let videoId = boundedText(options.videoId, 80);
   let videoTitle = boundedText(options.videoTitle, 120);
   let liveChatId = boundedText(options.liveChatId, 80);
@@ -533,7 +551,9 @@ export function createYoutubeCommentHarness(options = {}) {
   }
 
   function setStatus(next, { nextChat: mirror = true } = {}) {
-    status = boundedText(next, 200) || status;
+    status = isolation.ok
+      ? (boundedText(next, 200) || status)
+      : `DISABLED · ${isolation.reason}`;
     if (mirror) nextChat.setStatus?.(status);
     emit();
   }
@@ -599,7 +619,11 @@ export function createYoutubeCommentHarness(options = {}) {
       })),
       source,
       connection,
-      status,
+      status: harnessOperatorStatus({
+        isolationOk: isolation.ok,
+        isolationReason: isolation.reason,
+        status,
+      }),
       generation,
       nextChat: {
         available: nextChat.available?.() !== false,
@@ -1033,7 +1057,8 @@ export function createYoutubeCommentHarness(options = {}) {
 
   function setToolIsolation(supports, reason = '') {
     const previous = isolation.ok;
-    isolation = toolIsolationState(Boolean(supports), configured);
+    supportsIsolation = Boolean(supports);
+    isolation = toolIsolationState(supportsIsolation, configured);
     if (reason && !isolation.ok) isolation = { ok: false, reason: boundedText(reason, 160) };
     if (!isolation.ok && enabled) {
       enabled = false;
@@ -1049,7 +1074,7 @@ export function createYoutubeCommentHarness(options = {}) {
 
   function setConfigured(next) {
     configured = Boolean(next);
-    return setToolIsolation(isolation.ok, isolation.reason);
+    return setToolIsolation(supportsIsolation);
   }
 
   function stop(reason = 'STOPPED · pending work cancelled') {
@@ -1084,14 +1109,15 @@ export function createYoutubeCommentHarness(options = {}) {
         setVideos(list);
         if (!videoId && videos[0]) setVideo(videos[0]);
       }
-      if (connection !== 'connected' && !enabled) {
+      if (connection !== 'connected' && !enabled && isolation.ok) {
         setStatus(connection === 'unavailable' ? 'YOUTUBE UNAVAILABLE' : 'YOUTUBE DISCONNECTED');
       } else {
         emit();
       }
     } catch {
       connection = 'disconnected';
-      setStatus('YOUTUBE DISCONNECTED');
+      if (isolation.ok) setStatus('YOUTUBE DISCONNECTED');
+      else emit();
     }
     return getSnapshot();
   }

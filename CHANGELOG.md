@@ -13,7 +13,8 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
   the existing GEV action runner. Unsafe, ambiguous, duplicate, stale, and
   tool-seeking requests stay visible and do not change the globe. If the
   interpreter cannot run with an empty tool surface, the harness stays
-  disabled.
+  disabled and STATUS keeps that explanation; YouTube disconnected /
+  unavailable stays on the connection row.
 
 - The bottom LOCATION finder suggests matching places as you type. A query
   like `Disneyland` lists Anaheim, Florida, France, Japan, and other distinct

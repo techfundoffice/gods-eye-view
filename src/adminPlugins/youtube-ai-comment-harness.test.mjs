@@ -13,6 +13,8 @@ import { isAdminUnlocked } from '../adminConsole.js';
 import {
   createYoutubeCommentHarness,
   HARNESS_LABEL,
+  harnessOperatorStatus,
+  toolIsolationState,
 } from '../youtubeCommentHarness.js';
 import youtubeCommentHarnessPlugin, {
   renderYoutubeCommentHarnessPane,
@@ -194,6 +196,102 @@ test('plugin pane paints controls, counters, and lists', () => {
   assert.equal(container.querySelector('#ych-rate-limited').textContent, '0');
   assert.equal(container.querySelector('#ych-failed').textContent, '0');
   assert.match(container.textContent, /Youtube AI Comment Harness/);
+  cleanup();
+});
+
+test('unsafe adapter stays explained on the pane after disconnected YouTube refresh', async () => {
+  const isolation = toolIsolationState(false, true);
+  const document = makeDocument();
+  const container = document.createElement('div');
+  let statusCalls = 0;
+  const cleanup = renderYoutubeCommentHarnessPane(container, {
+    document,
+    supportsToolIsolation: false,
+    youtubeSource: {
+      async status() {
+        statusCalls += 1;
+        return { connected: false, configured: true };
+      },
+      async listVideos() { return []; },
+    },
+    nextChat: {
+      queue: [],
+      available: () => true,
+      publish: () => ({ ok: true }),
+      setStatus() {},
+    },
+    interpret: async () => { throw new Error('must not start an agent session'); },
+    runner: async () => { throw new Error('must not run'); },
+  });
+  const api = container.__gevYoutubeCommentHarness;
+  assert.ok(api, 'plugin must expose the harness API');
+  const snap = await api.refreshYoutube();
+  assert.ok(statusCalls >= 1, 'plugin mount must refresh YouTube status');
+  assert.equal(snap.isolationOk, false);
+  assert.equal(snap.enabled, false);
+  assert.equal(snap.connection, 'disconnected');
+  const status = container.querySelector('#ych-status').textContent;
+  assert.equal(status, harnessOperatorStatus(snap));
+  assert.equal(status, `DISABLED · ${isolation.reason}`);
+  assert.match(status, /tool-less/i);
+  assert.doesNotMatch(status, /YOUTUBE DISCONNECTED/);
+  assert.match(container.querySelector('#ych-connection').textContent, /YOUTUBE DISCONNECTED/);
+  assert.equal(container.querySelector('#ych-enabled').disabled, true);
+  cleanup();
+});
+
+test('unsafe adapter stays explained on the pane after unavailable YouTube refresh', async () => {
+  const isolation = toolIsolationState(false, true);
+  const document = makeDocument();
+  const container = document.createElement('div');
+  const cleanup = renderYoutubeCommentHarnessPane(container, {
+    document,
+    supportsToolIsolation: false,
+    youtubeSource: {
+      async status() {
+        return { connected: false, configured: false };
+      },
+      async listVideos() { return []; },
+    },
+    nextChat: {
+      queue: [],
+      available: () => true,
+      publish: () => ({ ok: true }),
+      setStatus() {},
+    },
+    interpret: async () => { throw new Error('must not start an agent session'); },
+    runner: async () => { throw new Error('must not run'); },
+  });
+  const api = container.__gevYoutubeCommentHarness;
+  const snap = await api.refreshYoutube();
+  assert.equal(snap.isolationOk, false);
+  assert.equal(snap.enabled, false);
+  assert.equal(snap.connection, 'unavailable');
+  const status = container.querySelector('#ych-status').textContent;
+  assert.equal(status, `DISABLED · ${isolation.reason}`);
+  assert.match(status, /tool-less/i);
+  assert.doesNotMatch(status, /YOUTUBE UNAVAILABLE/);
+  assert.match(container.querySelector('#ych-connection').textContent, /YOUTUBE UNAVAILABLE/);
+  assert.equal(container.querySelector('#ych-enabled').disabled, true);
+  cleanup();
+});
+
+test('unconfigured unsafe adapter names both reasons on STATUS', () => {
+  const isolation = toolIsolationState(false, false);
+  const document = makeDocument();
+  const container = document.createElement('div');
+  const cleanup = renderYoutubeCommentHarnessPane(container, {
+    document,
+    supportsToolIsolation: false,
+    configured: false,
+    interpret: async () => { throw new Error('must not start an agent session'); },
+    runner: async () => { throw new Error('must not run'); },
+  });
+  const status = container.querySelector('#ych-status').textContent;
+  assert.equal(status, `DISABLED · ${isolation.reason}`);
+  assert.match(status, /not configured/i);
+  assert.match(status, /tool-less/i);
+  assert.equal(container.querySelector('#ych-enabled').disabled, true);
   cleanup();
 });
 
