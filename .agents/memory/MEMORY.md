@@ -3,3 +3,4 @@
 - [Admin plugin loading](admin-plugin-loading.md) — the manifest/route/registry contract that carries a generated plugin into the ADMIN dashboard menu.
 - [Cesium worker reconnects](cesium-worker-reconnects.md) — preview restarts can interrupt lazy geometry imports; recover the render loop for verified worker-fetch failures.
 - [Cursor ACP isolation](cursor-acp-isolation.md) — stock Cursor ACP cannot safely host tool-less comment interpretation without a separate network sandbox.
+- [Public live-chat binding](public-live-chat-binding.md) — public chat follows only the server-owned active broadcast; clients never select a video or receive provider credentials.

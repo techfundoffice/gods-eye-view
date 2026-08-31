@@ -11017,7 +11017,7 @@ body.cockpit-mode .admin-launch {
   display: flex;
   flex-direction: column;
   width: min(360px, calc(100vw - 24px));
-  max-height: calc(26vh - 88px);
+  max-height: min(560px, calc(100vh - 190px));
   color: var(--text-primary);
   font-family: var(--font-mono);
   pointer-events: none;
@@ -11071,6 +11071,29 @@ body.cockpit-mode .admin-launch {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.18em;
+}
+
+.gev-nextchat-live-badge {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border: 1px solid rgba(150, 160, 170, 0.4);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.gev-nextchat-live-badge[data-state='live'] {
+  border-color: rgba(255, 80, 80, 0.75);
+  background: rgba(255, 30, 30, 0.14);
+  color: #ff6b6b;
+  box-shadow: 0 0 12px rgba(255, 40, 40, 0.25);
+}
+
+.gev-nextchat-live-badge[data-state='error'] {
+  border-color: rgba(255, 179, 71, 0.7);
+  color: #ffb347;
 }
 
 #gev-nextchat-new {
@@ -11152,6 +11175,8 @@ body.cockpit-mode .admin-launch {
 }
 
 .gev-nextchat-viewer .gev-nextchat-text {
+  padding: 5px 7px;
+  border-left: 2px solid rgba(255, 70, 70, 0.62);
   background: rgba(255, 179, 71, 0.08);
 }
 
@@ -11210,4 +11235,21 @@ body.scene-playback-mode #gev-nextchat {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
+}
+
+@media (max-width: 720px) {
+  #gev-nextchat {
+    top: 64px;
+    right: 12px;
+    width: min(420px, calc(100vw - 24px));
+    max-height: calc(100vh - 190px);
+  }
+
+  .gev-nextchat-body {
+    grid-template-columns: 1fr;
+  }
+
+  .gev-nextchat-sessions {
+    display: none;
+  }
 }

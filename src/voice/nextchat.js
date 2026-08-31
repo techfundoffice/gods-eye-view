@@ -7,6 +7,7 @@
  */
 
 export const NEXTCHAT_STORAGE_KEY = 'godsEyeView.nextchat.sessions.v1';
+export const NEXTCHAT_MAX_MESSAGES = 100;
 /** Cap for waiting on the Realtime data channel after start() returns at SDP. */
 export const VOICE_CHANNEL_WAIT_MS = 20000;
 
@@ -229,6 +230,9 @@ export function appendViewerMessage(state, payload, now = Date.now()) {
       },
       streaming: false,
     });
+    if (session.messages.length > NEXTCHAT_MAX_MESSAGES) {
+      session.messages.splice(0, session.messages.length - NEXTCHAT_MAX_MESSAGES);
+    }
     if (session.title === 'New chat') session.title = titleFromUserText(`${author}: ${content}`);
     return session;
   }, now);
@@ -610,6 +614,7 @@ function renderThread(threadEl, session) {
     row.append(who, body);
     threadEl.appendChild(row);
   }
+  threadEl.scrollTop = threadEl.scrollHeight;
 }
 
 /**
