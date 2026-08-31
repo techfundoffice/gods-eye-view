@@ -41,24 +41,6 @@
     <span class="admin-launch-dot" aria-hidden="true"></span>
     <span class="admin-launch-label">ADMIN</span>
   </button>
-  <a id="go-live-launch" class="go-live-launch" href="/go-live.html"
-    title="Take the globe live on YouTube">
-    <span class="admin-launch-dot" aria-hidden="true"></span>
-    <span class="admin-launch-label">GO LIVE</span>
-  </a>
-  <aside id="go-live-phone" class="go-live-phone">
-    <img src="/go-live-studio-qr.png" width="140" height="140" alt="QR code that opens YouTube Studio Go live" />
-    <p>Scan to open <a href="https://studio.youtube.com/channel/UCse5uFZOiANS1FPBI_AR5nw/livestreaming" target="_blank" rel="noopener">YouTube Studio → Go live</a>. Copy the current stream key, then paste it here.</p>
-    <form id="go-live-phone-form" autocomplete="off">
-      <label for="go-live-phone-key">Current Studio stream key
-        <input id="go-live-phone-key" name="streamKey" type="password" autocomplete="off" required minlength="4" placeholder="xxxx-xxxx-xxxx-xxxx or rtmps://…/live2/…" />
-      </label>
-      <button type="submit" id="go-live-phone-go">Start globe ingest</button>
-      <button type="button" id="go-live-phone-paste">Paste and start</button>
-    </form>
-    <p id="go-live-phone-status" role="status" aria-live="polite"></p>
-    <p class="go-live-phone-more"><a href="/go-live.html">Full go-live page</a> · <a href="https://replit.com/integrations/youtube" target="_blank" rel="noopener">Reconnect on Replit</a></p>
-  </aside>
 
   <!-- Top-center camera and share actions -->
   <nav id="top-center-actions" aria-label="Globe actions">
@@ -695,55 +677,6 @@
       <div class="youtube-connect-help">SIGN IN WITH YOUR GOOGLE / YOUTUBE ACCOUNT · NO REPLIT ACCOUNT REQUIRED</div>
       <div id="youtube-account" class="youtube-account" hidden></div>
 
-      <section id="youtube-go-live" class="youtube-go-live" aria-label="Go live on YouTube">
-        <div class="youtube-live-row">
-          <span class="youtube-live-heading">GO LIVE</span>
-          <span id="youtube-live-state" class="youtube-live-state" data-live-status="idle" role="status"
-            aria-live="polite">OFFLINE</span>
-          <a id="youtube-live-watch" class="youtube-live-watch" href="#" target="_blank" rel="noopener" hidden>OPEN ON YOUTUBE</a>
-        </div>
-        <p class="youtube-connect-help">
-          ffmpeg encodes the globe to YouTube Live — no OBS. Paste a current Studio stream key to start ingest, or sign in to create a broadcast.
-        </p>
-        <form id="youtube-live-form" class="youtube-live-form" autocomplete="off">
-          <div class="youtube-live-grid">
-            <label class="youtube-field" for="youtube-live-title">
-              <span>BROADCAST TITLE</span>
-              <input id="youtube-live-title" type="text" name="live-title" placeholder="God's Eye View — live" />
-            </label>
-            <label class="youtube-field" for="youtube-live-privacy">
-              <span>PRIVACY</span>
-              <select id="youtube-live-privacy" name="live-privacy" aria-label="Broadcast privacy">
-                <option value="unlisted" selected>Unlisted</option>
-                <option value="private">Private</option>
-                <option value="public">Public</option>
-              </select>
-            </label>
-          </div>
-          <div class="youtube-live-grid">
-            <label class="youtube-field" for="youtube-live-ingest">
-              <span>RTMP INGEST URL</span>
-              <input id="youtube-live-ingest" type="text" name="live-ingest"
-                placeholder="rtmp://a.rtmp.youtube.com/live2" />
-            </label>
-            <label class="youtube-field" for="youtube-live-key">
-              <span>STREAM KEY</span>
-              <input id="youtube-live-key" type="password" name="live-key" autocomplete="off"
-                placeholder="xxxx-xxxx-xxxx-xxxx" />
-            </label>
-          </div>
-          <div class="youtube-live-actions">
-            <button id="youtube-live-provision" class="scene-btn" type="button" disabled>CREATE ON YOUTUBE</button>
-            <button id="youtube-live-start" class="scene-btn" type="submit" disabled>START BROADCAST</button>
-            <button id="youtube-live-stop" class="scene-btn" type="button" disabled>STOP</button>
-          </div>
-        </form>
-        <p id="youtube-live-summary" class="youtube-summary" role="status" aria-live="polite">
-          Paste a current Studio stream key, or sign in to create a broadcast.
-        </p>
-        <pre id="youtube-live-log" class="youtube-live-log" aria-label="Encoder log" hidden></pre>
-      </section>
-
       <label class="youtube-field" for="youtube-channel-select">
         <span>CHANNEL</span>
         <select id="youtube-channel-select" aria-label="YouTube channel"></select>
@@ -1211,7 +1144,13 @@
             <li data-live-phase="encoder"><span>Encoder</span><strong>ffmpeg and Chromium are checked on start.</strong></li>
             <li data-live-phase="ingest"><span>Ingest</span><strong>Encoder is not publishing.</strong></li>
             <li data-live-phase="youtube"><span>YouTube live</span><strong>YouTube has not received the stream yet.</strong></li>
+            <li data-live-phase="odbc"><span>ODBC persistence</span><strong>Optional audit is not configured.</strong></li>
           </ul>
+
+          <aside class="admin-ygl-studio" id="admin-live-studio">
+            <img id="admin-live-studio-qr" src="/go-live-studio-qr.png" width="140" height="140" alt="QR code that opens YouTube Studio Go live" />
+            <p>Scan or open <a id="admin-live-studio-link" href="https://studio.youtube.com/channel/UCse5uFZOiANS1FPBI_AR5nw/livestreaming" target="_blank" rel="noopener">YouTube Studio → Go live</a>. Copy the current stream key, then paste it here. Or create a broadcast from the signed-in YouTube account.</p>
+          </aside>
 
           <form id="admin-live-form" class="admin-live-form" autocomplete="off">
             <label class="admin-field" for="admin-live-broadcast">
@@ -1245,8 +1184,9 @@
               <label class="admin-field" for="admin-live-key">
                 <span>STREAM KEY (PASTE FROM STUDIO — NEVER FILLED BY CREATE/SELECT)</span>
                 <input id="admin-live-key" type="password" name="live-key" autocomplete="off"
-                  placeholder="xxxx-xxxx-xxxx-xxxx" />
+                  placeholder="xxxx-xxxx-xxxx-xxxx or rtmps://…/live2/…" />
               </label>
+              <button id="admin-live-paste" class="scene-btn" type="button">PASTE KEY</button>
             </div>
 
             <div class="admin-live-grid admin-live-grid-encoder">
@@ -1322,109 +1262,6 @@
     </div>
   </div>
 
-  <script>
-    (function goLivePhoneIngest() {
-      const form = document.getElementById('go-live-phone-form');
-      const input = document.getElementById('go-live-phone-key');
-      const submit = document.getElementById('go-live-phone-go');
-      const status = document.getElementById('go-live-phone-status');
-      const aside = document.getElementById('go-live-phone');
-      if (!form || !input || !submit || !status) return;
-
-      function setStatus(message, ok) {
-        status.textContent = message || '';
-        if (ok) status.setAttribute('data-ok', '1');
-        else status.removeAttribute('data-ok');
-      }
-
-      function splitPaste(raw) {
-        const pasted = String(raw || '').trim();
-        let streamKey = pasted;
-        let ingestUrl = 'rtmps://a.rtmp.youtube.com/live2';
-        const token = pasted.split(/\s+/)[0] || '';
-        try {
-          if (/^rtmps?:\/\//i.test(token)) {
-            const parsed = new URL(token);
-            const parts = parsed.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
-            if (parts.length >= 2) {
-              ingestUrl = `${parsed.protocol}//${parsed.host}/${parts.slice(0, -1).join('/')}`;
-              streamKey = parts[parts.length - 1];
-            }
-          }
-        } catch {
-          // server also splits Studio URLs
-        }
-        return { streamKey, ingestUrl };
-      }
-
-      const pasteBtn = document.getElementById('go-live-phone-paste');
-      if (pasteBtn) {
-        pasteBtn.addEventListener('click', async () => {
-          try {
-            const text = await navigator.clipboard.readText();
-            const trimmed = String(text || '').trim();
-            if (trimmed.length < 4) {
-              setStatus('Clipboard does not have a stream key. Copy it from Studio, then tap again.');
-              return;
-            }
-            input.value = trimmed;
-            form.requestSubmit();
-          } catch {
-            setStatus('Allow clipboard access, or paste the key into the field.');
-          }
-        });
-      }
-
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const { streamKey, ingestUrl } = splitPaste(input.value);
-        setStatus('');
-        submit.disabled = true;
-        try {
-          const response = await fetch('/api/youtube/live/ingest-key', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-GEV-YouTube': '1',
-            },
-            body: JSON.stringify({
-              streamKey,
-              ingestUrl,
-              watchUrl: 'https://www.youtube.com/watch?v=CVSB4QJhVTU',
-            }),
-          });
-          const body = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            setStatus(body.error?.message || 'Unable to start ingest.');
-            submit.disabled = false;
-            return;
-          }
-          input.value = '';
-          setStatus('Globe encoder is publishing. Confirming YouTube…', true);
-          for (let i = 0; i < 45; i += 1) {
-            const session = await fetch('/api/youtube/live/session', { credentials: 'same-origin' })
-              .then((res) => (res.ok ? res.json() : null))
-              .catch(() => null);
-            const liveStatus = session?.sessionStatus || session?.live?.status || '';
-            if (liveStatus === 'live') {
-              setStatus('The globe is live on YouTube.', true);
-              if (aside) aside.hidden = true;
-              return;
-            }
-            if (liveStatus === 'encoding' || liveStatus === 'ingesting' || liveStatus === 'waiting-for-youtube') {
-              setStatus('Encoder is publishing. YouTube is picking up the stream.', true);
-            }
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-          }
-          submit.disabled = false;
-        } catch {
-          setStatus('Network error starting ingest.');
-          submit.disabled = false;
-        }
-      });
-    }());
-  </script>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

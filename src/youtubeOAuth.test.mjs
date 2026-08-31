@@ -174,7 +174,7 @@ test('OAuth callback rejects mismatched state before token exchange', async () =
     cookie,
   });
   assert.equal(response.status, 302);
-  assert.equal(response.headers.location, '/go-live.html?youtube_auth=invalid_state');
+  assert.equal(response.headers.location, '/?admin=1&youtube_auth=invalid_state');
   assert.equal(calls, 0);
 });
 
@@ -212,7 +212,7 @@ test('OAuth callback stores tokens server-side and exposes only account identity
     cookie,
   });
   assert.equal(callback.status, 302);
-  assert.equal(callback.headers.location, '/go-live.html?youtube_auth=success');
+  assert.equal(callback.headers.location, '/?admin=1&youtube_auth=success');
 
   const status = await invoke(oauth.middleware, { cookie });
   assert.equal(status.json.authenticated, true);
@@ -262,7 +262,7 @@ test('OAuth callback can finish without the start cookie if state is valid', asy
     host: 'other-host.example',
   });
   assert.equal(callback.status, 302);
-  assert.equal(callback.headers.location, '/go-live.html?youtube_auth=success');
+  assert.equal(callback.headers.location, '/?admin=1&youtube_auth=success');
   const tokenRequest = requests.find((request) => String(request.url).includes('/token'));
   assert.match(String(tokenRequest.options.body), /redirect_uri=https%3A%2F%2Fapp\.example%2Fapi%2Fyoutube%2Fauth%2Fcallback/);
   const ready = await invoke(oauth.middleware, { url: '/operator-ready' });

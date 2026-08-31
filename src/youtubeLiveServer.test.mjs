@@ -326,11 +326,11 @@ test('GET /session is public and never requires a YouTube cookie', async () => {
   assert.equal(response.body.broadcast, null);
 });
 
-test('POST /ingest-key starts the encoder without OAuth and redacts the stream key', async () => {
+test('POST /ingest-key is refused without ADMIN and never starts the encoder', async () => {
   const started = [];
   const middleware = createYoutubeLiveMiddleware({
     live: {
-      status: () => ({ status: started.length ? 'encoding' : 'idle', target: 'rtmps://a.rtmp.youtube.com/live2/***', log: [] }),
+      status: () => ({ status: 'idle', target: '', log: [] }),
       start: async (body) => {
         started.push(body);
         return { status: 'encoding', target: 'rtmps://a.rtmp.youtube.com/live2/***', log: [] };
@@ -345,36 +345,24 @@ test('POST /ingest-key starts the encoder without OAuth and redacts the stream k
     url: '/ingest-key',
     body: { streamKey: KEY, watchUrl: 'https://www.youtube.com/watch?v=abc123def45' },
   });
-  assert.equal(blocked.status, 403);
+  assert.equal(blocked.status, 401);
+  assert.equal(blocked.body.error.kind, 'authentication');
   assert.equal(started.length, 0);
 
-  const missing = await invoke(middleware, {
+  const withHeader = await invoke(middleware, {
     method: 'POST',
     url: '/ingest-key',
     headers: MUTATE,
-    body: { watchUrl: 'https://www.youtube.com/watch?v=abc123def45' },
+    body: { streamKey: KEY },
   });
-  assert.equal(missing.status, 400);
-  assert.equal(missing.body.error.kind, 'invalid');
+  assert.equal(withHeader.status, 401);
+  assert.equal(started.length, 0);
 
-  const startedRes = await invoke(middleware, {
+  const unsignedStop = await invoke(middleware, {
     method: 'POST',
-    url: '/ingest-key',
+    url: '/stop',
     headers: MUTATE,
-    body: {
-      streamKey: KEY,
-      ingestUrl: 'rtmps://a.rtmp.youtube.com/live2',
-      watchUrl: 'https://www.youtube.com/watch?v=abc123def45',
-    },
   });
-  assert.equal(startedRes.status, 202);
-  assert.equal(startedRes.body.live.status, 'encoding');
-  assert.equal(startedRes.body.broadcast.watchUrl, 'https://www.youtube.com/watch?v=abc123def45');
-  assert.equal(started[0].streamKey, KEY);
-  assert.ok(!JSON.stringify(startedRes.body).includes(KEY));
-
-  const session = await invoke(middleware, { url: '/session' });
-  assert.equal(session.status, 200);
-  assert.equal(session.body.broadcast.watchUrl, 'https://www.youtube.com/watch?v=abc123def45');
-  assert.ok(!JSON.stringify(session.body).includes(KEY));
+  assert.equal(unsignedStop.status, 401);
+  assert.equal(JSON.stringify(blocked.body).includes(KEY), false);
 });

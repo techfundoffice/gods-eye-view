@@ -1,15 +1,15 @@
 /**
- * `/api/youtube/live` — operator go-live without the ADMIN password.
+ * `/api/youtube/live` — shared encoder status and loopback go-now.
  *
- * Start/stop reuse the same ffmpeg controller as `/api/admin/live`. The gate
- * here is a signed-in YouTube session (the Google cookie the Settings panel
- * already holds), plus a custom header so a cross-origin form post cannot
- * drive the encoder. The stream key is accepted on start and never returned.
+ * Mutating ingest (stream-key start / stop) is ADMIN-only. The public
+ * homepage no longer starts a broadcast. Start/stop reuse the same ffmpeg
+ * controller as `/api/admin/live`. Loopback `go-now` / `preflight` stay for
+ * the managed watcher. GET `/session` remains a redacted public snapshot.
  *
  * @module youtubeLiveServer
  */
 
-import { createLiveStreamController, resolveChromiumPath, resolveFfmpegPath, splitYoutubeIngestPaste } from './liveStream.js';
+import { createLiveStreamController, resolveChromiumPath, resolveFfmpegPath } from './liveStream.js';
 import { autoGoLiveEnabled, isLoopbackAddress } from './youtubeOAuth.js';
 
 /** Largest live-control body accepted, in bytes. */
@@ -119,43 +119,12 @@ export function createYoutubeLiveMiddleware({
       }
 
       if (action === 'ingest-key' && req.method === 'POST') {
-        if (!req.headers?.[YOUTUBE_LIVE_REQUEST_HEADER]) {
-          sendJson(res, 403, {
-            error: { kind: 'csrf', message: `Missing ${YOUTUBE_LIVE_REQUEST_HEADER} header` },
-          });
-          return;
-        }
-        const body = await readJsonBody(req);
-        const split = splitYoutubeIngestPaste(
-          String(body.streamKey || '').trim(),
-          String(body.ingestUrl || 'rtmps://a.rtmp.youtube.com/live2').trim(),
-        );
-        const streamKey = split.streamKey;
-        if (!streamKey) {
-          sendJson(res, 400, {
-            error: { kind: 'invalid', message: 'A YouTube stream key is required.' },
-          });
-          return;
-        }
-        const ingestUrl = split.ingestUrl;
-        const watchUrl = String(body.watchUrl || '').trim();
-        if (watchUrl) lastPublicWatchUrl = watchUrl;
-        try {
-          const result = await live.start({ streamKey, ingestUrl });
-          sendJson(res, result.status === 'error' ? 502 : 202, {
-            live: result,
-            broadcast: watchUrl ? { watchUrl } : null,
-            sessionStatus: result.status,
-          });
-        } catch (error) {
-          sendJson(res, error?.status === 409 ? 409 : 400, {
-            error: {
-              kind: error?.status === 409 ? 'conflict' : 'invalid',
-              message: error?.message || 'Unable to start the broadcast',
-            },
-            live: live.status(),
-          });
-        }
+        sendJson(res, 401, {
+          error: {
+            kind: 'authentication',
+            message: 'Sign in to ADMIN to paste a Studio stream key and start ingest.',
+          },
+        });
         return;
       }
 
@@ -163,6 +132,16 @@ export function createYoutubeLiveMiddleware({
         if (!req.headers?.[YOUTUBE_LIVE_REQUEST_HEADER]) {
           sendJson(res, 403, {
             error: { kind: 'csrf', message: `Missing ${YOUTUBE_LIVE_REQUEST_HEADER} header` },
+          });
+          return;
+        }
+        const authorization = await authorizeRequest(req);
+        if (!authorization) {
+          sendJson(res, 401, {
+            error: {
+              kind: 'authentication',
+              message: 'Sign in to ADMIN or YouTube to stop the broadcast.',
+            },
           });
           return;
         }

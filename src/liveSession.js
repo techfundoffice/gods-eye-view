@@ -29,6 +29,7 @@ import {
   transitionYoutubeBroadcast,
   youtubeLiveOperatorMessage,
 } from './youtubeBroadcast.js';
+import { describeOdbcPersistence, recordLiveAuditEvent } from './odbcLiveAudit.js';
 
 export { YOUTUBE_NOT_RECEIVED };
 
@@ -103,6 +104,7 @@ export function describeLiveSession(encoderState, {
   health = null,
   account = describeAccountPhase(null),
   encoderReady = describeEncoderReadiness(),
+  odbc = describeOdbcPersistence(),
 } = {}) {
   const status = deriveLiveSessionStatus(encoderState, health, binding);
   const broadcastView = binding ? redactBroadcastView(binding) : null;
@@ -142,6 +144,11 @@ export function describeLiveSession(encoderState, {
       healthStatus: health?.healthStatus || '',
       broadcastStatus: health?.broadcastStatus || (broadcastView?.lifeCycleStatus || ''),
       message: youtubePhaseMessage(status, health, binding),
+    },
+    odbc: {
+      ready: Boolean(odbc?.ready),
+      available: Boolean(odbc?.available),
+      message: odbc?.message || describeOdbcPersistence().message,
     },
   };
 
@@ -221,6 +228,8 @@ export function createLiveSessionController({
   pollMs = LIVE_SESSION_POLL_MS,
   now = () => Date.now(),
   encoderReady = describeEncoderReadiness,
+  odbc = describeOdbcPersistence,
+  audit = recordLiveAuditEvent,
 } = {}) {
   let binding = null;
   let health = null;
@@ -234,7 +243,13 @@ export function createLiveSessionController({
       health,
       account,
       encoderReady: typeof encoderReady === 'function' ? encoderReady() : encoderReady,
+      odbc: typeof odbc === 'function' ? odbc() : odbc,
     });
+  }
+
+  function auditLater(event, live) {
+    if (typeof audit !== 'function') return;
+    void Promise.resolve(audit({ event, live })).catch(() => {});
   }
 
   function stopPolling() {
@@ -394,6 +409,7 @@ export function createLiveSessionController({
     }
     const publicState = snapshot();
     assertNoStreamKey(publicState, streamKey);
+    auditLater(publicState.status, publicState);
     return publicState;
   }
 
@@ -449,7 +465,9 @@ export function createLiveSessionController({
     stopPolling();
     health = null;
     await encoder.stop();
-    return snapshot();
+    const publicState = snapshot();
+    auditLater('stopped', publicState);
+    return publicState;
   }
 
   return {

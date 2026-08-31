@@ -20,17 +20,20 @@ import {
   HARNESS_MAX_QUEUE,
   HARNESS_MAX_TEXT,
   normalizeIncomingMessage,
+  normalizeSource,
   parseTaskMarker,
+  sharedLiveVideoFromSession,
   rejectInterpretation,
   resolveGevActionRunner,
   toolIsolationState,
   harnessOperatorStatus,
   validateHarnessInterpretation,
 } from './youtubeCommentHarness.js';
+import { createYoutubeCommentHarnessMiddleware } from './youtubeCommentHarnessServer.js';
 import {
-  createOpenAiCommentInterpreter,
-  createYoutubeCommentHarnessMiddleware,
-} from './youtubeCommentHarnessServer.js';
+  supportsVerifiedToolIsolation,
+  toollessCursor,
+} from './youtubeToollessCursor.js';
 
 const CRUISE_COMMENT = '#Task view the street view of the Ensenada Port where a Royal Caribbean cruise ship is docked';
 
@@ -181,20 +184,20 @@ test('own-page get_live_chat items ingest into the shipped NextChat store as vie
   assert.equal(messages[1].content, '#Task fly to Ensenada');
 });
 
-test('live chat polling uses a video id and does not require a Data API liveChatId', async () => {
+test('InnerTube polling uses a video id and does not require a Data API liveChatId', async () => {
   const fetched = [];
   const timers = [];
   const { harness, published } = makeHarness({
     supportsToolIsolation: true,
     videoId: 'abcdefghijk',
-    source: 'liveChat',
+    source: 'innerTube',
     clock: {
       setTimeout(fn) { timers.push(fn); return timers.length; },
       clearTimeout() { timers.length = 0; },
     },
     youtubeSource: {
       async status() { return { connected: true, configured: true }; },
-      async fetchLiveChat(videoId, token) {
+      async fetchInnerTubeChat(videoId, token) {
         fetched.push({ videoId, token });
         return {
           items: [{
@@ -214,7 +217,49 @@ test('live chat polling uses a video id and does not require a Data API liveChat
   assert.deepEqual(fetched[0], { videoId: 'abcdefghijk', token: '' });
   assert.equal(published[0].author, 'DockHand');
   assert.equal(published[0].text, 'Ahoy from InnerTube');
+  assert.equal(published[0].metadata.source, 'innerTube');
   harness.setEnabled(false);
+});
+
+test('official live chat degrades when the Data API liveChatId is missing', async () => {
+  const timers = [];
+  const { harness, statuses } = makeHarness({
+    supportsToolIsolation: true,
+    videoId: 'abcdefghijk',
+    source: 'liveChat',
+    clock: {
+      setTimeout(fn) { timers.push(fn); return timers.length; },
+      clearTimeout() { timers.length = 0; },
+    },
+    youtubeSource: {
+      async status() { return { connected: true, configured: true }; },
+      async fetchOfficialLiveChat() {
+        const error = new Error('Official live chat is unavailable for this video.');
+        error.kind = 'unavailable';
+        throw error;
+      },
+    },
+  });
+  harness.setEnabled(true);
+  await timers[0]();
+  assert.match(statuses.join('\n'), /unavailable/i);
+  harness.setEnabled(false);
+});
+
+test('normalizeSource treats InnerTube as an explicit alternate', () => {
+  assert.equal(normalizeSource('comment'), 'comment');
+  assert.equal(normalizeSource('liveChat'), 'liveChat');
+  assert.equal(normalizeSource('chat'), 'liveChat');
+  assert.equal(normalizeSource('innerTube'), 'innerTube');
+  assert.equal(normalizeSource('innertube'), 'innerTube');
+  assert.deepEqual(sharedLiveVideoFromSession({
+    live: { broadcast: { id: 'vid-1', title: 'Live', watchUrl: 'https://www.youtube.com/watch?v=vid-1' } },
+  }), {
+    id: 'vid-1',
+    title: 'Live',
+    liveChatId: '',
+    watchUrl: 'https://www.youtube.com/watch?v=vid-1',
+  });
 });
 
 test('the default harness live-chat source calls /api/youtube/live-chat', async () => {
@@ -404,14 +449,14 @@ test('missing tool isolation still enables display/poll and never starts interpr
   const { harness, runnerCalls, published } = makeHarness({
     supportsToolIsolation: false,
     videoId: 'abcdefghijk',
-    source: 'liveChat',
+    source: 'innerTube',
     clock: {
       setTimeout(fn) { timers.push(fn); return timers.length; },
       clearTimeout() { timers.length = 0; },
     },
     youtubeSource: {
       async status() { return { connected: true, configured: true }; },
-      async fetchLiveChat(videoId, token) {
+      async fetchInnerTubeChat(videoId, token) {
         fetched.push({ videoId, token });
         return {
           items: [{
@@ -451,51 +496,6 @@ test('missing tool isolation still enables display/poll and never starts interpr
   assert.equal(interpretCalls, 0);
   assert.equal(runnerCalls.length, 0);
   harness.setEnabled(false);
-});
-
-test('isolation-off get_live_chat ingest still writes the shipped NextChat store', async () => {
-  const store = createNextchatStore(memoryStorage());
-  const parsed = parseLiveChatResponse({
-    continuationContents: {
-      liveChatContinuation: {
-        actions: [{
-          addChatItemAction: {
-            item: {
-              liveChatTextMessageRenderer: {
-                id: 'msg-iso-1',
-                timestampUsec: '1756540800000000',
-                authorName: { simpleText: 'DockHand' },
-                message: { runs: [{ text: 'Ahoy from our live page' }] },
-              },
-            },
-          },
-        }],
-      },
-    },
-  });
-  let interpretCalls = 0;
-  const harness = createYoutubeCommentHarness({
-    supportsToolIsolation: false,
-    interpret: async () => {
-      interpretCalls += 1;
-      throw new Error('must not start an agent session');
-    },
-    runner: async () => { throw new Error('must not run'); },
-    getNextchatApi: () => ({
-      store,
-      publishViewerMessage(payload) {
-        return publishNextChatMessage(payload, store);
-      },
-    }),
-  });
-  assert.equal(harness.setEnabled(true).enabled, true);
-  await harness.ingest(parsed.items, { source: 'liveChat', videoId: 'abcdefghijk' });
-  const message = store.getActiveSession().messages[0];
-  assert.equal(message.role, 'viewer');
-  assert.equal(message.author, 'DockHand');
-  assert.equal(message.content, 'Ahoy from our live page');
-  assert.equal(message.metadata.source, 'liveChat');
-  assert.equal(interpretCalls, 0);
 });
 
 test('an unconfigured unsafe adapter still names the empty tool surface', () => {
@@ -785,23 +785,10 @@ test('server status is honest when the adapter cannot isolate tools', async () =
   assert.match(response.body.reason, /tool-less/);
 });
 
-test('the production model interpreter sends no tools and returns response text', async () => {
-  let request;
-  const interpret = createOpenAiCommentInterpreter({
-    apiKey: 'test-key',
-    fetchImpl: async (_url, options) => {
-      request = JSON.parse(options.body);
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ output_text: '{"kind":"reject","intent":null,"reason":"No","confidence":0}' }),
-      };
-    },
-  });
-  const text = await interpret({ taskBody: 'hello', context: {} });
-  assert.match(text, /"kind":"reject"/);
-  assert.equal(Object.hasOwn(request, 'tools'), false);
-  assert.equal(Object.hasOwn(request, 'tool_choice'), false);
+test('the production Cursor interpreter has a verified no-auto-approval tool boundary', () => {
+  assert.equal(supportsVerifiedToolIsolation(toollessCursor), true);
+  assert.deepEqual(Object.keys(toollessCursor.builtinTools), []);
+  assert.equal(toollessCursor.supportsBuiltinToolApprovals, true);
 });
 
 test('server status and interpretation require an ADMIN session', async () => {
@@ -829,7 +816,7 @@ test('server refuses to start an agent session without tool isolation', async ()
     supportsToolIsolation: false,
     authorizeAdminRequest: async () => ({ sub: 'admin' }),
     authorizeRequest: async () => ({ sessionId: 's' }),
-    interpretTask: async () => { created = true; return '{}'; },
+    createAgent: () => { created = true; return {}; },
   }), {
     body: { comment: { taskBody: 'fly to Ensenada', text: '#Task fly to Ensenada' } },
   });
@@ -839,16 +826,22 @@ test('server refuses to start an agent session without tool isolation', async ()
 });
 
 test('server validates structured output and never returns credentials', async () => {
+  const session = { destroy: async () => {} };
   const middleware = createYoutubeCommentHarnessMiddleware({
     configured: true,
     supportsToolIsolation: true,
     authorizeAdminRequest: async () => ({ sub: 'admin' }),
     authorizeRequest: async () => ({ sessionId: 's' }),
-    interpretTask: async () => JSON.stringify({
-      kind: 'view_request',
-      intent: { action: 'fly_to_location', args: { query: 'Ensenada Port' } },
-      reason: 'Port',
-      confidence: 0.9,
+    createAgent: () => ({
+      createSession: async () => session,
+      generate: async () => ({
+        text: JSON.stringify({
+          kind: 'view_request',
+          intent: { action: 'fly_to_location', args: { query: 'Ensenada Port' } },
+          reason: 'Port',
+          confidence: 0.9,
+        }),
+      }),
     }),
   });
   const response = await invoke(middleware, {

@@ -226,7 +226,7 @@ function requiresSecureCookie(req) {
 }
 
 function callbackErrorLocation(code) {
-  return `/go-live.html?youtube_auth=${encodeURIComponent(code)}`;
+  return `/?admin=1&youtube_auth=${encodeURIComponent(code)}`;
 }
 
 async function logOAuthEvent(event) {

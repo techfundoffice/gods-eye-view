@@ -6,6 +6,12 @@
     "module": "./google-earth.js"
   },
   {
+    "id": "youtube-go-live",
+    "label": "YouTube Go Live",
+    "description": "Publish the globe to YouTube Live from an authenticated ADMIN session.",
+    "module": "./youtube-go-live.js"
+  },
+  {
     "id": "youtube-ai-comment-harness",
     "label": "Youtube AI Comment Harness",
     "description": "Read YouTube comments into NextChat and apply validated #Task globe views.",

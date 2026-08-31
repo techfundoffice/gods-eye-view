@@ -45,6 +45,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { defineConfig } from 'vite';
 import { loadAndApplyGevEnv } from './src/gevEnv.js';
+import { applyEncoderRuntimeEnv } from './src/encoderRuntime.js';
 import cesium from 'vite-plugin-cesium';
 import { createYoutubeProxyMiddleware } from './src/youtubeProxy.js';
 import { autoGoLiveEnabled, createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
@@ -7674,6 +7675,7 @@ export default defineConfig(({ mode }) => {
   // still win. Empty inherited ADMIN credentials do not shadow .env, and
   // `$` in scrypt hashes / passwords is preserved — see src/gevEnv.js.
   loadAndApplyGevEnv(mode, __dirname);
+  applyEncoderRuntimeEnv();
   const env = { ...process.env };
   return {
     plugins: [

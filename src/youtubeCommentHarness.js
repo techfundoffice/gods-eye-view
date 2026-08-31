@@ -26,7 +26,7 @@ export const HARNESS_POLL_MS = 10_000;
 export const HARNESS_LABEL = 'Youtube AI Comment Harness';
 export const HARNESS_PLUGIN_ID = 'youtube-ai-comment-harness';
 
-const UNSAFE_ADAPTER_REASON = 'AI adapter cannot enforce a tool-less interpretation boundary';
+const UNSAFE_ADAPTER_REASON = 'Cursor adapter cannot yet enforce a tool-less session';
 
 /**
  * @param {unknown} value
@@ -62,12 +62,36 @@ export function createEmptyCounters() {
   };
 }
 
+export const HARNESS_SOURCES = Object.freeze(['comment', 'liveChat', 'innerTube']);
+
 /**
  * @param {unknown} source
- * @returns {'comment'|'liveChat'}
+ * @returns {'comment'|'liveChat'|'innerTube'}
  */
 export function normalizeSource(source) {
-  return source === 'liveChat' || source === 'chat' ? 'liveChat' : 'comment';
+  const value = String(source || '').trim();
+  if (value === 'liveChat' || value === 'chat') return 'liveChat';
+  if (value === 'innerTube' || value === 'innertube' || value === 'inner-tube') return 'innerTube';
+  return 'comment';
+}
+
+/**
+ * Shared Go Live broadcast the harness should prefer.
+ *
+ * @param {object} [session]
+ * @returns {{id: string, title: string, liveChatId: string, watchUrl: string}|null}
+ */
+export function sharedLiveVideoFromSession(session) {
+  const live = session?.live && typeof session.live === 'object' ? session.live : session;
+  const broadcast = live?.broadcast || session?.broadcast;
+  const id = boundedText(broadcast?.id || broadcast?.videoId, 80);
+  if (!id) return null;
+  return {
+    id,
+    title: boundedText(broadcast.title || broadcast.id, 120),
+    liveChatId: boundedText(broadcast.liveChatId, 80),
+    watchUrl: boundedText(broadcast.watchUrl, 240),
+  };
 }
 
 /**
@@ -264,18 +288,18 @@ export function toolIsolationState(supportsToolIsolation, configured = true) {
       ok: false,
       reason: configured
         ? UNSAFE_ADAPTER_REASON
-        : `AI comment interpreter is not configured. ${UNSAFE_ADAPTER_REASON}`,
+        : `Cursor view agent is not configured. ${UNSAFE_ADAPTER_REASON}`,
     };
   }
   if (!configured) {
-    return { ok: false, reason: 'AI comment interpreter is not configured' };
+    return { ok: false, reason: 'Cursor view agent is not configured' };
   }
   return { ok: true, reason: '' };
 }
 
 /**
- * Operator-facing harness status. Display/poll can run without interpretation;
- * a missing tool-less model configuration only gates `#Task` interpretation.
+ * Operator-facing harness status. Display/poll can run without Cursor
+ * isolation; a missing tool-less session only gates `#Task` interpretation.
  * YouTube connection copy stays off this line when the harness is idle so
  * the connection row remains the place for DISCONNECTED / UNAVAILABLE.
  *
@@ -411,6 +435,19 @@ function viewerKey(message) {
 export function createYoutubeHarnessSource({ fetchImpl = globalThis.fetch } = {}) {
   const client = createYoutubeClient({ fetchImpl });
 
+  async function fetchLiveChat(videoId, pageToken, signal) {
+    const payload = await client.getLiveChat({
+      videoId,
+      continuation: pageToken || '',
+    }, signal);
+    return {
+      items: (payload?.items || []).map(normalizeLiveChatMessage),
+      nextPageToken: boundedText(payload?.nextPageToken, 4096),
+      pollingIntervalMillis: Number(payload?.pollingIntervalMillis) || HARNESS_POLL_MS,
+      source: 'innerTube',
+    };
+  }
+
   return {
     async status() {
       try {
@@ -487,16 +524,39 @@ export function createYoutubeHarnessSource({ fetchImpl = globalThis.fetch } = {}
       }, signal);
       return (payload?.items || []).map(normalizeCommentThread);
     },
-    async fetchLiveChat(videoId, pageToken, signal) {
-      const payload = await client.getLiveChat({
-        videoId,
-        continuation: pageToken || '',
+    fetchLiveChat,
+    fetchInnerTubeChat: fetchLiveChat,
+    async fetchOfficialLiveChat(videoId, liveChatId, pageToken, signal) {
+      const chatId = boundedText(liveChatId, 80);
+      if (!chatId) {
+        const error = new Error('Official live chat is unavailable for this video.');
+        error.kind = 'unavailable';
+        throw error;
+      }
+      const payload = await client.get('liveChatMessages', {
+        part: 'snippet,authorDetails',
+        liveChatId: chatId,
+        pageToken: pageToken || undefined,
       }, signal);
       return {
         items: (payload?.items || []).map(normalizeLiveChatMessage),
         nextPageToken: boundedText(payload?.nextPageToken, 4096),
         pollingIntervalMillis: Number(payload?.pollingIntervalMillis) || HARNESS_POLL_MS,
+        source: 'liveChat',
       };
+    },
+    async listSharedLive() {
+      try {
+        const response = await fetchImpl('/api/admin/live', {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+        if (!response.ok) return null;
+        const payload = await response.json().catch(() => ({}));
+        return sharedLiveVideoFromSession(payload);
+      } catch {
+        return null;
+      }
     },
   };
 }
@@ -961,20 +1021,43 @@ export function createYoutubeCommentHarness(options = {}) {
           return;
         }
       }
-      if (source === 'liveChat') {
-        if (!videoId) {
-          setStatus('SELECT A VIDEO');
+      if (!videoId) {
+        setStatus('SELECT A VIDEO');
+        return;
+      }
+      if (source === 'innerTube') {
+        const fetchInner = youtubeSource.fetchInnerTubeChat || youtubeSource.fetchLiveChat;
+        if (typeof fetchInner !== 'function') {
+          setStatus('INNERTUBE LIVE CHAT UNAVAILABLE');
           return;
         }
-        const payload = await youtubeSource.fetchLiveChat(videoId, chatPageToken, signal);
-        if (jobGeneration !== generation || !enabled) return;
-        chatPageToken = payload?.nextPageToken || chatPageToken;
-        await ingest(payload?.items || [], { source: 'liveChat', videoId });
+        try {
+          const payload = await fetchInner(videoId, chatPageToken, signal);
+          if (jobGeneration !== generation || !enabled) return;
+          chatPageToken = payload?.nextPageToken || chatPageToken;
+          await ingest(payload?.items || [], { source: 'innerTube', videoId });
+        } catch (error) {
+          if (error?.name === 'AbortError' || jobGeneration !== generation || !enabled) return;
+          setStatus(safeErrorMessage(error) || 'INNERTUBE LIVE CHAT UNAVAILABLE');
+          return;
+        }
+      } else if (source === 'liveChat') {
+        const fetchOfficial = youtubeSource.fetchOfficialLiveChat;
+        if (typeof fetchOfficial !== 'function') {
+          setStatus('OFFICIAL LIVE CHAT UNAVAILABLE');
+          return;
+        }
+        try {
+          const payload = await fetchOfficial(videoId, liveChatId, chatPageToken, signal);
+          if (jobGeneration !== generation || !enabled) return;
+          chatPageToken = payload?.nextPageToken || chatPageToken;
+          await ingest(payload?.items || [], { source: 'liveChat', videoId });
+        } catch (error) {
+          if (error?.name === 'AbortError' || jobGeneration !== generation || !enabled) return;
+          setStatus(safeErrorMessage(error) || 'OFFICIAL LIVE CHAT UNAVAILABLE');
+          return;
+        }
       } else {
-        if (!videoId) {
-          setStatus('SELECT A VIDEO');
-          return;
-        }
         const items = await youtubeSource.fetchComments(videoId, signal);
         if (jobGeneration !== generation || !enabled) return;
         await ingest(items || [], { source: 'comment', videoId });
@@ -1099,8 +1182,14 @@ export function createYoutubeCommentHarness(options = {}) {
       connection = auth?.connected ? 'connected' : (auth?.configured === false ? 'unavailable' : 'disconnected');
       if (connection === 'connected' && typeof youtubeSource.listVideos === 'function') {
         const list = await youtubeSource.listVideos();
-        setVideos(list);
-        if (!videoId && videos[0]) setVideo(videos[0]);
+        const shared = typeof youtubeSource.listSharedLive === 'function'
+          ? await youtubeSource.listSharedLive()
+          : (globalThis.window?.__gevSharedLiveVideo || null);
+        const merged = [...(shared?.id ? [shared] : []), ...(list || [])]
+          .filter((video, index, all) => video.id && all.findIndex((row) => row.id === video.id) === index);
+        setVideos(merged);
+        if (shared?.id && (!videoId || videoId === shared.id)) setVideo(shared);
+        else if (!videoId && videos[0]) setVideo(videos[0]);
       }
       if (connection !== 'connected' && !enabled && isolation.ok) {
         setStatus(connection === 'unavailable' ? 'YOUTUBE UNAVAILABLE' : 'YOUTUBE DISCONNECTED');

@@ -10885,6 +10885,31 @@ body.cockpit-mode .admin-launch {
 .admin-live-phases li[data-ready="true"] span { color: var(--accent); }
 .admin-live-phases li[data-ready="false"] strong { color: var(--text-secondary); }
 
+.admin-ygl-studio {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin: 0.75rem 0 1rem;
+}
+.admin-ygl-studio img,
+.admin-ygl-qr {
+  width: 140px;
+  height: 140px;
+  flex: 0 0 auto;
+  background: #fff;
+}
+.admin-ygl-studio p,
+.admin-ygl-studio-help {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.admin-ygl-locked {
+  margin: 1rem 0;
+  color: var(--text-secondary);
+}
+
 .admin-live-watch {
   margin-left: auto;
   font-size: 9px;

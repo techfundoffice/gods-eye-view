@@ -331,8 +331,8 @@ async function main() {
         };
       }, (s) => s.visible && s.phases.includes('youtube'), { label: 'the Go Live pane' });
       record('the Go Live pane opens from the menu', state.visible);
-      record('readiness rows cover account through YouTube confirmation',
-        ['account', 'broadcast', 'capture', 'encoder', 'ingest', 'youtube']
+      record('readiness rows cover account through YouTube confirmation and ODBC',
+        ['account', 'broadcast', 'capture', 'encoder', 'ingest', 'youtube', 'odbc']
           .every((id) => state.phases.includes(id)),
         state.phases.join(','));
       record('capture URL defaults to this origin', state.capture === state.origin, state.capture);

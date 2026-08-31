@@ -1241,13 +1241,6 @@ export class YouTubePanelController {
       agentToggle.setAttribute('aria-pressed', String(this.state.viewAgentEnabled));
     }
     setText(this._el('youtube-view-agent-status'), this.state.viewAgentStatus);
-    const goLiveLaunch = globalThis.document?.getElementById?.('go-live-launch');
-    const goLivePhone = globalThis.document?.getElementById?.('go-live-phone');
-    if (goLiveLaunch || goLivePhone) {
-      const show = this.state.connection === 'disconnected' || this.state.connection === 'reconnect';
-      if (goLiveLaunch) goLiveLaunch.hidden = !show;
-      if (goLivePhone) goLivePhone.hidden = !show;
-    }
     const connectButton = this._el('youtube-connect-btn');
     if (connectButton) {
       const connected = this.state.connection === 'connected';

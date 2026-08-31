@@ -11,7 +11,8 @@
  *   - MCP settings: `GET|POST /mcp/settings`, `POST /mcp/keys`,
  *     `DELETE /mcp/keys/:id`, and the external `POST /mcp` JSON-RPC endpoint.
  *   - Live stream: `GET /live`, `GET /live/broadcasts`, `POST /live/provision`,
- *     `POST /live/select`, `POST /live/start`, `POST /live/stop`.
+ *     `POST /live/select`, `POST /live/start`, `POST /live/ingest-key`,
+ *     `POST /live/stop`.
  *
  * Everything except `POST /mcp` requires the admin session cookie; `POST /mcp`
  * requires an API key instead and is refused outright while the MCP setting is
@@ -33,8 +34,8 @@ import { createAdminMcpServer } from './adminMcpServer.js';
 import { createPluginBuilder, readPluginManifest } from './adminPluginBuilder.js';
 import { normalizePluginManifest } from './adminPluginRegistry.js';
 import { createAdminStore } from './adminStore.js';
-import { publicComposioError } from './composioAdminServer.js';
 import { createLiveSessionController } from './liveSession.js';
+import { splitYoutubeIngestPaste } from './liveStream.js';
 import { youtubeLiveOperatorMessage } from './youtubeBroadcast.js';
 
 /** Largest admin request body accepted, in bytes. */
@@ -96,21 +97,6 @@ export function sendJson(res, status, payload) {
 }
 
 /**
- * Build the shared ADMIN-session policy used by the console and companion
- * plugin routes. Native Replit OIDC is preferred, with the configured password
- * session retained as a compatibility fallback.
- */
-export function createAdminSessionAuthorizer({ auth, replitAuth = null } = {}) {
-  return function authorizeAdminRequest(req) {
-    const replitSession = replitAuth?.authenticate?.(req);
-    if (replitSession) return replitSession;
-    if (!auth?.configured) return null;
-    const cookies = parseCookies(req?.headers?.cookie);
-    return auth.authenticate(cookies[ADMIN_SESSION_COOKIE]);
-  };
-}
-
-/**
  * Read and JSON-parse a bounded request body.
  *
  * @param {object} req Node request.
@@ -157,7 +143,6 @@ export function readJsonBody(req, limit = ADMIN_MAX_BODY_BYTES) {
  * @param {object} [options.store] Durable admin state.
  * @param {Function} [options.readManifest] Reads the generated-plugin manifest.
  * @param {string} [options.version] Version reported over MCP.
- * @param {object} [options.composio] Server-side Composio facade.
  * @returns {(req: object, res: object, next: Function) => void}
  */
 export function createAdminMiddleware({
@@ -169,17 +154,21 @@ export function createAdminMiddleware({
   youtubeAuth = { authorizeRequest: async () => null, proxy: null },
   readManifest = readPluginManifest,
   version = '1.0.0',
-  composio = null,
 } = {}) {
   const mcp = createAdminMcpServer({ builder, version });
-  const authorizeAdminRequest = createAdminSessionAuthorizer({ auth, replitAuth });
 
   /**
    * @param {object} req
    * @returns {object|null} Live session, or null.
    */
   function sessionFor(req) {
-    return authorizeAdminRequest(req);
+    if (replitAuth) {
+      const session = replitAuth.authenticate(req);
+      if (session) return session;
+    }
+    if (!auth.configured) return null;
+    const cookies = parseCookies(req.headers?.cookie);
+    return auth.authenticate(cookies[ADMIN_SESSION_COOKIE]);
   }
 
   const operatorConfigured = () => Boolean((replitAuth && replitAuth.configured) || auth.configured);
@@ -546,6 +535,39 @@ export function createAdminMiddleware({
           return;
         }
 
+        if (segments.length === 2 && second === 'ingest-key' && req.method === 'POST') {
+          const body = await readJsonBody(req);
+          const split = splitYoutubeIngestPaste(
+            String(body.streamKey || '').trim(),
+            String(body.ingestUrl || 'rtmps://a.rtmp.youtube.com/live2').trim(),
+          );
+          if (!split.streamKey) {
+            sendJson(res, 400, {
+              error: { kind: 'invalid', message: 'A YouTube stream key is required.' },
+            });
+            return;
+          }
+          try {
+            const result = typeof live.start === 'function'
+              ? await live.start({
+                streamKey: split.streamKey,
+                ingestUrl: split.ingestUrl,
+                captureUrl: body.captureUrl,
+              }, { authorization, proxy: youtubeAuth?.proxy, req })
+              : await live.start({ streamKey: split.streamKey, ingestUrl: split.ingestUrl });
+            sendJson(res, result.status === 'error' ? 502 : 202, { live: result });
+          } catch (error) {
+            sendJson(res, error?.status === 409 ? 409 : (error?.status || 400), {
+              error: {
+                kind: error?.kind || (error?.status === 409 ? 'conflict' : 'invalid'),
+                message: error?.message || 'Unable to start the broadcast',
+              },
+              live: live.status(),
+            });
+          }
+          return;
+        }
+
         if (segments.length === 2 && second === 'start' && req.method === 'POST') {
           const body = await readJsonBody(req);
           try {
@@ -568,53 +590,6 @@ export function createAdminMiddleware({
         }
         if (segments.length === 2 && second === 'stop' && req.method === 'POST') {
           sendJson(res, 200, { live: await live.stop() });
-          return;
-        }
-      }
-
-      if (first === 'composio') {
-        if (!composio) {
-          sendJson(res, 503, { error: { kind: 'unconfigured', message: 'Composio is not configured for this app.' } });
-          return;
-        }
-        if (segments.length === 2 && second === 'status' && req.method === 'GET') {
-          try {
-            sendJson(res, 200, { composio: await composio.status() });
-          } catch (error) {
-            sendJson(res, error?.status || 502, { error: publicComposioError(error), composio: {
-              configured: Boolean(composio.configured),
-              state: error?.kind === 'authentication' ? 'connection-error' : 'error',
-              health: 'error',
-              accounts: [],
-              tools: [],
-              capabilities: [],
-            } });
-          }
-          return;
-        }
-        if (segments.length === 2 && second === 'validate' && req.method === 'POST') {
-          const body = await readJsonBody(req);
-          try {
-            sendJson(res, 200, { result: await composio.validate({
-              capabilityId: body.capabilityId,
-              arguments: body.arguments,
-            }) });
-          } catch (error) {
-            sendJson(res, error?.status || 400, { error: publicComposioError(error) });
-          }
-          return;
-        }
-        if (segments.length === 3 && second === 'actions' && req.method === 'POST') {
-          const body = await readJsonBody(req);
-          try {
-            sendJson(res, 200, { result: await composio.execute({
-              capabilityId: body.capabilityId || third,
-              arguments: body.arguments,
-              connectedAccountId: body.connectedAccountId,
-            }) });
-          } catch (error) {
-            sendJson(res, error?.status || 400, { error: publicComposioError(error) });
-          }
           return;
         }
       }

@@ -183,38 +183,26 @@ test('the comments panel lives in the right rail and exposes every hook the view
   assert.ok(!rail.includes('id="youtube-video-select"'), 'rail panel duplicates video selection');
 });
 
-test('the operator YouTube Settings panel ships go-live start/stop/create controls', () => {
+test('the public homepage does not expose go-live broadcast controls', () => {
+  assert.equal(html.includes('id="go-live-launch"'), false);
+  assert.equal(html.includes('id="go-live-phone"'), false);
+  assert.equal(html.includes('id="go-live-phone-form"'), false);
   const panel = html.slice(
     html.indexOf('<div id="youtube-panel"'),
     html.indexOf('<!-- Scene Director Panel -->'),
   );
-  assert.match(panel, /id="youtube-go-live"/);
-  for (const id of [
-    'youtube-live-start',
-    'youtube-live-stop',
-    'youtube-live-provision',
-    'youtube-live-ingest',
-    'youtube-live-key',
-    'youtube-live-title',
-    'youtube-live-state',
-    'youtube-live-summary',
-  ]) {
-    assert.ok(panel.includes(`id="${id}"`), `${id} is missing from YouTube Settings`);
-  }
-  assert.match(panel, /type="password"/);
-  assert.match(panel, /CREATE ON YOUTUBE/);
-  assert.match(panel, /START BROADCAST/);
-  // ADMIN-only is not the operator front.
-  assert.ok(!panel.includes('id="admin-live-start"'), 'operator panel must not be the ADMIN live pane');
+  assert.equal(panel.includes('id="youtube-go-live"'), false);
+  assert.equal(panel.includes('id="youtube-live-key"'), false);
+  assert.equal(panel.includes('id="youtube-live-start"'), false);
+  assert.match(html, /id="admin-launch"/);
+  assert.match(html, /id="admin-live-start"/);
+  assert.match(html, /id="admin-live-studio-qr"/);
 });
 
-test('the shipped controller binds those controls to the live client, not a second encoder', () => {
-  assert.match(source, /this\.liveClient\.startLive\(/);
-  assert.match(source, /this\.liveClient\.stopLive\(/);
-  assert.match(source, /youtube-live-provision/);
-  assert.match(source, /provisionYoutubeIngest\(/);
-  assert.match(source, /buildOperatorLiveStartBody\(/);
-  assert.equal(source.includes('/api/admin/live'), false, 'operator go-live must not call the ADMIN live routes');
+test('the shipped live client still talks to /api/youtube/live, not a second encoder', () => {
+  assert.match(source, /createYoutubeLiveClient/);
+  assert.match(source, /\/api\/youtube\/live/);
+  assert.equal(source.includes('/api/admin/live'), false, 'the YouTube panel client must not call the ADMIN live routes');
 });
 
 test('broadcast status maps to a panel label and gates the start button', () => {
@@ -230,8 +218,9 @@ test('broadcast status maps to a panel label and gates the start button', () => 
 
 test('operator live summary never reprints the stream key', () => {
   const idle = summarizeOperatorLive({}, { connected: false });
-  assert.equal(idle.canStart, false);
-  assert.match(idle.summary, /Sign in/);
+  assert.equal(idle.canStart, true);
+  assert.equal(idle.canProvision, false);
+  assert.match(idle.summary, /Studio stream key/);
 
   const live = summarizeOperatorLive({
     status: 'live',
@@ -415,12 +404,7 @@ test('START CHAT is enabled from a selected video, not from activeLiveChatId', (
     liveClient: { status: async () => ({ live: { status: 'idle' } }), startLive: async () => ({}), stopLive: async () => ({}) },
     viewAgentClient: { interpret: async () => ({ action: 'ignore' }) },
   });
-  controller.state.videos = [{
-    id: 'abcdefghijk',
-    snippet: { title: 'Globe live' },
-    statistics: { viewCount: 3 },
-    gevCompatibleLiveBroadcast: true,
-  }];
+  controller.state.videos = [{ id: 'abcdefghijk', snippet: { title: 'Globe live' }, statistics: { viewCount: 3 } }];
   controller.state.videoId = 'abcdefghijk';
   controller.state.liveChatId = '';
   controller._render();
@@ -432,27 +416,6 @@ test('START CHAT is enabled from a selected video, not from activeLiveChatId', (
   controller.destroy();
 });
 
-test('START CHAT stays disabled for an uploaded video outside the compatible broadcast inventory', () => {
-  installDomStub();
-  const root = makeYoutubeRoot();
-  const controller = new YouTubePanelController(root, {
-    client: { get: async () => ({ items: [] }), getLiveChat: async () => ({ items: [] }) },
-    liveClient: { status: async () => ({ live: { status: 'idle' } }), startLive: async () => ({}), stopLive: async () => ({}) },
-    viewAgentClient: { interpret: async () => ({ action: 'ignore' }) },
-  });
-  controller.state.videos = [{
-    id: 'abcdefghijk',
-    snippet: { title: 'Uploaded recording' },
-    statistics: { viewCount: 3 },
-    gevCompatibleLiveBroadcast: false,
-  }];
-  controller.state.videoId = 'abcdefghijk';
-  controller._render();
-  assert.equal(root.els['youtube-chat-toggle'].disabled, true);
-  assert.doesNotMatch(root.els['youtube-video-summary'].textContent, /LIVE CHAT AVAILABLE/);
-  controller.destroy();
-});
-
 test('the YouTube Settings controller start/stop calls the live client and clears the key', async () => {
   installDomStub();
   const calls = [];
@@ -460,6 +423,10 @@ test('the YouTube Settings controller start/stop calls the live client and clear
     status: async () => ({ live: { status: 'idle', log: [], target: '' } }),
     startLive: async (body) => {
       calls.push(['start', body]);
+      return { live: { status: 'live', target: 'rtmp://a.rtmp.youtube.com/live2/***', log: [] } };
+    },
+    ingestKey: async (body) => {
+      calls.push(['ingest', body]);
       return { live: { status: 'live', target: 'rtmp://a.rtmp.youtube.com/live2/***', log: [] } };
     },
     stopLive: async () => {
@@ -476,10 +443,10 @@ test('the YouTube Settings controller start/stop calls the live client and clear
   });
   controller.state.connection = 'connected';
   await controller._startLive();
-  assert.equal(calls[0][0], 'start');
+  assert.equal(calls[0][0], 'ingest');
   assert.equal(calls[0][1].ingestUrl, 'rtmp://a.rtmp.youtube.com/live2');
   assert.equal(calls[0][1].streamKey, KEY);
-  assert.equal(calls[0][1].captureUrl, 'http://localhost:4173/');
+  assert.equal(calls[0][1].watchUrl, 'https://www.youtube.com/watch?v=CVSB4QJhVTU');
   assert.equal(root.els['youtube-live-key'].value, '', 'key field is cleared after start');
   assert.ok(!String(root.els['youtube-live-summary'].textContent).includes(KEY));
   assert.equal(root.els['youtube-live-state'].textContent, 'LIVE');

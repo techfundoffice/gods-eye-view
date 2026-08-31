@@ -350,15 +350,51 @@ test('the ADMIN Go Live pane ships readiness rows and a broadcast selector', () 
   const pane = html.slice(html.indexOf('data-admin-pane="live-stream"'), html.indexOf('id="admin-plugin-host"'));
   assert.match(pane, /id="admin-live-phases"/);
   assert.match(pane, /id="admin-live-broadcast"/);
-  for (const phase of ['account', 'broadcast', 'capture', 'encoder', 'ingest', 'youtube']) {
+  for (const phase of ['account', 'broadcast', 'capture', 'encoder', 'ingest', 'youtube', 'odbc']) {
     assert.match(pane, new RegExp(`data-live-phase="${phase}"`));
   }
+  assert.match(pane, /id="admin-live-studio-qr"/);
+  assert.match(pane, /id="admin-live-paste"/);
   assert.equal(pane.includes('value="http://localhost:5000/"'), false);
 
   const source = readFileSync(new URL('./adminConsole.js', import.meta.url), 'utf8');
   assert.match(source, /this\.client\.provisionLive\(/);
   assert.match(source, /buildAdminLiveStartBody\(/);
   assert.equal(source.includes('/api/youtube/youtube/v3/liveStreams'), false);
+});
+
+test('POST /live/ingest-key starts from an ADMIN session and redacts the key', async () => {
+  const started = [];
+  const middleware = adminWith({
+    status: () => ({ status: started.length ? 'encoding' : 'idle', log: [], target: 'rtmps://a.rtmp.youtube.com/live2/***' }),
+    start: async (options) => {
+      started.push(options);
+      return { status: 'encoding', log: [], target: 'rtmps://a.rtmp.youtube.com/live2/***' };
+    },
+    stop: async () => ({ status: 'stopped' }),
+    bindAuth() {},
+  });
+  const missing = await invoke(middleware, {
+    method: 'POST',
+    url: '/live/ingest-key',
+    headers: MUTATE,
+    body: JSON.stringify({}),
+  });
+  assert.equal(missing.status, 400);
+  assert.equal(started.length, 0);
+
+  const startedRes = await invoke(middleware, {
+    method: 'POST',
+    url: '/live/ingest-key',
+    headers: MUTATE,
+    body: JSON.stringify({
+      streamKey: KEY,
+      ingestUrl: 'rtmps://a.rtmp.youtube.com/live2',
+    }),
+  });
+  assert.equal(startedRes.status, 202);
+  assert.equal(started[0].streamKey, KEY);
+  assert.ok(!JSON.stringify(startedRes.body).includes(KEY));
 });
 
 test('GET /live during waiting-for-youtube is not claimed as live', async () => {

@@ -134,11 +134,13 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
 
   const sourceSelect = el(doc, 'select', 'admin-ych-select');
   sourceSelect.id = 'ych-source';
-  const commentOpt = el(doc, 'option', '', 'Comments');
+  const commentOpt = el(doc, 'option', '', 'Comments (Data API)');
   commentOpt.value = 'comment';
-  const chatOpt = el(doc, 'option', '', 'Live chat');
+  const chatOpt = el(doc, 'option', '', 'Official live chat (Data API)');
   chatOpt.value = 'liveChat';
-  sourceSelect.append(commentOpt, chatOpt);
+  const innerOpt = el(doc, 'option', '', 'InnerTube live chat');
+  innerOpt.value = 'innerTube';
+  sourceSelect.append(commentOpt, chatOpt, innerOpt);
 
   const videoSelect = el(doc, 'select', 'admin-ych-select');
   videoSelect.id = 'ych-video';
@@ -184,11 +186,20 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
       : state.connection === 'unavailable'
         ? 'YOUTUBE UNAVAILABLE'
         : 'YOUTUBE DISCONNECTED';
-    connectionEl.textContent = `${connectionLabel} · ${state.source === 'liveChat' ? 'LIVE CHAT' : 'COMMENTS'}`;
+    const sourceLabel = state.source === 'innerTube'
+      ? 'INNERTUBE'
+      : state.source === 'liveChat'
+        ? 'OFFICIAL LIVE CHAT'
+        : 'COMMENTS';
+    connectionEl.textContent = `${connectionLabel} · ${sourceLabel}`;
+    sourceSelect.value = state.source === 'innerTube'
+      ? 'innerTube'
+      : state.source === 'liveChat'
+        ? 'liveChat'
+        : 'comment';
     enableBtn.textContent = state.enabled ? 'DISABLE' : 'ENABLE';
     enableBtn.setAttribute('aria-pressed', String(Boolean(state.enabled)));
     enableBtn.disabled = false;
-    sourceSelect.value = state.source === 'liveChat' ? 'liveChat' : 'comment';
     const options = [el(doc, 'option', '', state.videos.length ? 'Select a video' : 'No video selected')];
     options[0].value = '';
     for (const video of state.videos) {

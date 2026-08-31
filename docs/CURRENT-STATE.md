@@ -15,9 +15,7 @@ Updated: August 31, 2026
 > Replay / missing chat / consent interstitial stay labeled (`LIVE ENDED`,
 > `NO ACTIVE LIVE CHAT`, `YOUTUBE UNAVAILABLE`). Every chat item is published
 > into the homepage ChatGPT-style overlay (`#gev-nextchat`) as a `viewer`
-> message: author name plus full comment text as text content only. ENABLE
-> starts that display/poll even when Cursor cannot enforce a tool-less
-> session; `#Task` interpretation stays gated until isolation is ok. Comments,
+> message: author name plus full comment text as text content only. Comments,
 > channel/video lists, and Go Live still use Data API v3. START CHAT is
 > enabled from the selected own video, not from `activeLiveChatId`.
 
@@ -34,13 +32,14 @@ Updated: August 31, 2026
 > JSON (`kind: view_request | reject`); the existing `validateViewIntent`
 > allowlist runs on the server and again in the browser before
 > `createGevActionRunner` dispatch. If the Cursor adapter cannot enforce a
-> tool-less session, ENABLE still starts comment/live-chat display into
-> NextChat; `#Task` interpretation stays gated (`#TASK GATED` on STATUS) and
-> never starts an agent. Isolation copy does not disable ENABLE. After a
-> YouTube refresh that reports disconnected or unavailable, connection copy
-> stays on the connection row (`YOUTUBE DISCONNECTED` / `YOUTUBE UNAVAILABLE`).
-> Stale completions after disable, cleanup, video change, or generation bump
-> do not apply. YouTube access remains read-only; tokens stay server-side.
+> tool-less session, the harness stays **disabled** with that explanation and
+> never starts an agent. Isolation / tool-less failure always wins on the
+> STATUS line, including after a YouTube refresh that reports disconnected or
+> unavailable; connection copy stays on the connection row (`YOUTUBE
+> DISCONNECTED` / `YOUTUBE UNAVAILABLE`) so ENABLE remaining disabled still has
+> an explanation. Stale completions after disable, cleanup, video
+> change, or generation bump do not apply. YouTube access remains read-only;
+> tokens stay server-side.
 
 > **2026-08-30 — LOCATION finder suggests places as you type.** Typing in
 > `#location-search` (bottom command-dock LOCATION bar, next to GEV MIC and
@@ -155,8 +154,13 @@ Updated: August 31, 2026
 > session is the unit/middleware suite plus the ADMIN pane markup
 > (`#admin-live-phases`, `#admin-live-broadcast`).
 
+> **2026-08-31 — ADMIN YouTube Go Live restored; public go-live removed.**
+> Broadcast controls live in the authenticated ADMIN YouTube Go Live plugin
+> and the core Go Live pane. The homepage keeps `#admin-launch` only.
+> `/api/youtube/live/ingest-key` is 401 for signed-out visitors.
+
 > **2026-08-29 — operator YouTube Settings can go live through ffmpeg.** The
-> globe chrome **YOUTUBE SETTINGS** panel (`#youtube-panel`, `#youtube-go-live`)
+> globe chrome **YOUTUBE SETTINGS** panel (`#youtube-panel`)
 > starts and stops a YouTube Live broadcast without OBS: Create on YouTube
 > (liveStreams.insert → liveBroadcasts.insert with `enableAutoStart` → bind)
 > or paste a Studio RTMP ingest URL + stream key, then Start. The server
