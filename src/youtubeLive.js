@@ -1,6 +1,7 @@
 /**
- * YouTube Data API client and the small operator-facing YouTube workspace.
- * Browser code talks only to the same-origin server proxy.
+ * YouTube Data API client, own-page live-chat client, and the small
+ * operator-facing YouTube workspace. Browser code talks only to the
+ * same-origin server proxy.
  */
 
 export const YOUTUBE_API_PREFIX = '/youtube/v3';
@@ -15,6 +16,19 @@ export const LIVE_POLL_MS = 3000;
  */
 export const YOUTUBE_LIVE_REQUEST_HEADER = 'X-GEV-YouTube';
 import { ViewerCommentAgentController, createViewAgentClient } from './youtubeViewAgent.js';
+
+const COMPATIBLE_BROADCAST_STATUSES = new Set([
+  'created',
+  'ready',
+  'testStarting',
+  'testing',
+  'liveStarting',
+  'live',
+]);
+
+function isCompatibleBroadcastStatus(status) {
+  return COMPATIBLE_BROADCAST_STATUSES.has(String(status || ''));
+}
 
 export const YOUTUBE_RESOURCE_REGISTRY = Object.freeze([
   { id: 'channels', label: 'Channels', part: 'snippet,statistics,contentDetails', params: () => ({ mine: 'true' }) },
@@ -803,6 +817,10 @@ export class YouTubePanelController {
         maxResults: 25,
       }).catch(() => ({ items: [] })),
     ]);
+    const compatibleBroadcastIds = new Set((livePage?.items || [])
+      .filter((item) => isCompatibleBroadcastStatus(item?.status?.lifeCycleStatus))
+      .map((item) => text(item?.id))
+      .filter(Boolean));
     const ids = [...new Set([
       ...(uploadPage?.items || []).map((item) => text(item?.contentDetails?.videoId || item?.snippet?.resourceId?.videoId)),
       ...(livePage?.items || []).map((item) => text(item?.id)),
@@ -817,7 +835,10 @@ export class YouTubePanelController {
       id: ids.join(','),
       maxResults: 50,
     });
-    this.state.videos = details?.items || [];
+    this.state.videos = (details?.items || []).map((video) => ({
+      ...video,
+      gevCompatibleLiveBroadcast: compatibleBroadcastIds.has(text(video?.id)),
+    }));
     if (!this.state.videos.some((video) => video.id === this.state.videoId)) {
       this.state.videoId = this.state.videos[0]?.id || '';
     }
@@ -883,8 +904,9 @@ export class YouTubePanelController {
   }
 
   async _startChat(reset = false) {
-    if (!this.state.videoId) {
-      this._setStatus('SELECT A VIDEO');
+    const video = this.state.videos.find((candidate) => candidate.id === this.state.videoId);
+    if (!video?.gevCompatibleLiveBroadcast) {
+      this._setStatus(this.state.videoId ? 'SELECT AN ACTIVE OR UPCOMING BROADCAST' : 'SELECT A VIDEO');
       this._render();
       return;
     }
@@ -1209,7 +1231,7 @@ export class YouTubePanelController {
       for (const video of this.state.videos) {
         const option = document.createElement('option');
         option.value = video.id;
-        option.textContent = `${video.liveStreamingDetails?.activeLiveChatId ? 'LIVE · ' : ''}${text(video.snippet?.title, video.id)}`;
+        option.textContent = `${video.gevCompatibleLiveBroadcast ? 'BROADCAST · ' : ''}${text(video.snippet?.title, video.id)}`;
         option.selected = video.id === this.state.videoId;
         videoSelect.append(option);
       }
@@ -1221,12 +1243,12 @@ export class YouTubePanelController {
       : 'Connect YouTube to load your channel');
     const video = this.state.videos.find((item) => item.id === this.state.videoId);
     setText(this._el('youtube-video-summary'), video
-      ? `${text(video.snippet?.title, 'VIDEO')} · ${number(video.statistics?.viewCount).toLocaleString()} VIEWS · LIVE CHAT AVAILABLE`
+      ? `${text(video.snippet?.title, 'VIDEO')} · ${number(video.statistics?.viewCount).toLocaleString()} VIEWS${video.gevCompatibleLiveBroadcast ? ' · LIVE CHAT AVAILABLE' : ''}`
       : 'Select a video to inspect comments and live state');
     const chatToggle = this._el('youtube-chat-toggle');
     if (chatToggle) {
       chatToggle.textContent = this.state.enabled ? 'STOP CHAT' : 'START CHAT';
-      chatToggle.disabled = !this.state.videoId;
+      chatToggle.disabled = !video?.gevCompatibleLiveBroadcast;
       chatToggle.setAttribute('aria-pressed', String(this.state.enabled));
     }
     const agentToggle = this._el('youtube-view-agent-toggle');

@@ -220,3 +220,45 @@ test('a missing ffmpeg is an error status, not live', async () => {
   assert.match(response.body.live.error, /ffmpeg/i);
   assert.ok(!JSON.stringify(response.body).includes(KEY));
 });
+
+test('go-now requires caller-bound YouTube, ADMIN, and anti-CSRF authorization', async () => {
+  let calls = 0;
+  const middleware = createYoutubeLiveMiddleware({
+    authorizeRequest: async () => ({ sessionId: 'yt-1', canWrite: true }),
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
+    goNow: async ({ authorization, body }) => {
+      calls += 1;
+      assert.equal(authorization.sessionId, 'yt-1');
+      assert.equal(body.title, "God's Eye View LIVE");
+      return {
+        broadcast: { id: 'b1', watchUrl: 'https://www.youtube.com/watch?v=b1' },
+        live: { status: 'encoding' },
+      };
+    },
+  });
+
+  const remote = await invoke(middleware, {
+    method: 'POST',
+    url: '/go-now',
+    body: { title: "God's Eye View LIVE" },
+    headers: MUTATE,
+  });
+  // invoke() defaults socket to 127.0.0.1 — override via a custom call
+  assert.equal(remote.status, 202);
+  assert.equal(remote.body.broadcast.watchUrl, 'https://www.youtube.com/watch?v=b1');
+  assert.equal(calls, 1);
+
+  const unsigned = createYoutubeLiveMiddleware({
+    authorizeRequest: async () => null,
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
+    goNow: async () => { throw new Error('should not run'); },
+  });
+  const denied = await invoke(unsigned, {
+    method: 'POST',
+    url: '/go-now',
+    headers: { ...MUTATE, 'x-forwarded-for': '203.0.113.9' },
+    body: {},
+  });
+  assert.equal(denied.status, 401);
+  assert.equal(calls, 1);
+});

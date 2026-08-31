@@ -4,6 +4,7 @@ import {
   YOUTUBE_MANAGE_SCOPE,
   createYoutubeOAuthMiddleware,
   hasYoutubeManageScope,
+  isLoopbackAddress,
   resolveYoutubeScopes,
   youtubeWriteEnabledFromEnv,
 } from './youtubeOAuth.js';
@@ -14,12 +15,14 @@ function invoke(middleware, {
   cookie = '',
   host = 'app.example',
   forwardedProto = 'https',
+  remoteAddress = '127.0.0.1',
 } = {}) {
   return new Promise((resolve, reject) => {
     const headers = {};
     const req = {
       method,
       url,
+      socket: { remoteAddress },
       headers: {
         host,
         cookie,
@@ -276,3 +279,24 @@ test('the OAuth proxy forwards live-control method and JSON body', async () => {
   assert.equal(calls[0].init.method, 'DELETE');
   assert.equal(calls[0].init.body, undefined);
 });
+
+test('loopback address parsing is informational and operator-ready is caller-bound', async () => {
+  assert.equal(isLoopbackAddress('127.0.0.1'), true);
+  assert.equal(isLoopbackAddress('::1'), true);
+  assert.equal(isLoopbackAddress('::ffff:127.0.0.1'), true);
+  assert.equal(isLoopbackAddress('8.8.8.8'), false);
+
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async () => { throw new Error('not expected'); },
+  });
+  const remote = await invoke(oauth.middleware, {
+    url: '/operator-ready',
+    remoteAddress: '203.0.113.9',
+  });
+  assert.equal(remote.status, 200);
+  assert.deepEqual(remote.json, { authenticated: false, canWrite: false, ready: false });
+});
+

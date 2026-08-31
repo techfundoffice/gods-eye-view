@@ -194,6 +194,7 @@ test('client-supplied keys and non-video identifiers are refused', async () => {
 test('signed-out live-chat requests are 401 and never hit YouTube', async () => {
   let fetched = false;
   const middleware = createYoutubeInnerTubeChatMiddleware({
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
     authorizeRequest: async () => null,
     chat: { poll: async () => { fetched = true; return {}; } },
   });
@@ -203,9 +204,39 @@ test('signed-out live-chat requests are 401 and never hit YouTube', async () => 
   assert.equal(fetched, false);
 });
 
-test('the live-chat route returns normalized items and never the WEB client key', async () => {
+test('live-chat needs YouTube ownership but not a separate ADMIN session', async () => {
+  let inventoryCalls = 0;
+  let polled = false;
   const middleware = createYoutubeInnerTubeChatMiddleware({
     authorizeRequest: async () => ({ sessionId: 's1' }),
+    listOwnBroadcasts: async () => { inventoryCalls += 1; return [{ id: 'abcdefghijk' }]; },
+    chat: { poll: async () => { polled = true; return { videoId: 'abcdefghijk' }; } },
+  });
+  const response = await invoke(middleware);
+  assert.equal(response.status, 200);
+  assert.equal(inventoryCalls, 1);
+  assert.equal(polled, true);
+});
+
+test('live-chat refuses a valid public video id outside the signed-in account inventory', async () => {
+  let polled = false;
+  const middleware = createYoutubeInnerTubeChatMiddleware({
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
+    authorizeRequest: async () => ({ sessionId: 's1' }),
+    listOwnBroadcasts: async () => [{ id: 'ownedvid001' }],
+    chat: { poll: async () => { polled = true; return {}; } },
+  });
+  const response = await invoke(middleware, { url: '/?videoId=abcdefghijk' });
+  assert.equal(response.status, 404);
+  assert.equal(response.body.error.kind, 'not-found');
+  assert.equal(polled, false);
+});
+
+test('the live-chat route returns normalized items and never the WEB client key', async () => {
+  const middleware = createYoutubeInnerTubeChatMiddleware({
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
+    authorizeRequest: async () => ({ sessionId: 's1' }),
+    listOwnBroadcasts: async () => [{ id: 'abcdefghijk' }],
     chat: {
       poll: async (request) => {
         assert.equal(request.videoId, 'abcdefghijk');
@@ -232,9 +263,42 @@ test('the live-chat route returns normalized items and never the WEB client key'
   assert.equal(Object.hasOwn(response.body, 'apiKey'), false);
 });
 
+test('repeated live-chat polls reuse the owned-broadcast inventory within its TTL', async () => {
+  let inventoryCalls = 0;
+  let currentTime = 1_000;
+  const middleware = createYoutubeInnerTubeChatMiddleware({
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
+    authorizeRequest: async () => ({ sessionId: 'same-youtube-session' }),
+    listOwnBroadcasts: async () => {
+      inventoryCalls += 1;
+      return [{ id: 'abcdefghijk' }];
+    },
+    chat: {
+      poll: async ({ videoId }) => ({
+        items: [],
+        nextPageToken: 'NEXT',
+        pollingIntervalMillis: 5_000,
+        videoId,
+      }),
+    },
+    ownershipCacheTtlMs: 60_000,
+    now: () => currentTime,
+  });
+
+  assert.equal((await invoke(middleware, { url: '/?videoId=abcdefghijk' })).status, 200);
+  assert.equal((await invoke(middleware, { url: '/?videoId=abcdefghijk&continuation=NEXT' })).status, 200);
+  assert.equal(inventoryCalls, 1);
+
+  currentTime += 60_001;
+  assert.equal((await invoke(middleware, { url: '/?videoId=abcdefghijk&continuation=NEXT2' })).status, 200);
+  assert.equal(inventoryCalls, 2);
+});
+
 test('POST is refused; invalid video ids are 400', async () => {
   const middleware = createYoutubeInnerTubeChatMiddleware({
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
     authorizeRequest: async () => ({ sessionId: 's1' }),
+    listOwnBroadcasts: async () => [{ id: 'abcdefghijk' }],
     chat: { poll: async () => ({ items: [] }) },
   });
   const posted = await invoke(middleware, { method: 'POST' });

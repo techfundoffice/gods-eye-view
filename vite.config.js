@@ -54,13 +54,25 @@ import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
-import { createAdminMiddleware } from './src/adminServer.js';
+import {
+  createAdminMiddleware,
+  createAdminSessionAuthorizer,
+} from './src/adminServer.js';
+import { createAdminAuth } from './src/adminAuth.js';
+import { createAdminStore } from './src/adminStore.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
+import {
+  createYoutubeApiCaller,
+  listCompatibleBroadcasts,
+} from './src/youtubeBroadcast.js';
 import { mapPlaceSuggestions } from './src/locationSuggest.js';
 import { publicApiCatalogProxy } from './src/publicApiProxies.js';
 
 let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
+let replitAdminAuthSingleton = null;
+let adminStoreSingleton = null;
+let adminAuthSingleton = null;
 
 /**
  * One OAuth middleware so ADMIN live-control and `/api/youtube` share sessions.
@@ -85,6 +97,26 @@ function sharedLiveSession() {
     });
   }
   return liveSessionSingleton;
+}
+
+function sharedReplitAdminAuth() {
+  if (!replitAdminAuthSingleton) replitAdminAuthSingleton = createReplitAdminAuth();
+  return replitAdminAuthSingleton;
+}
+
+function sharedAdminServices() {
+  if (!adminStoreSingleton) adminStoreSingleton = createAdminStore();
+  if (!adminAuthSingleton) adminAuthSingleton = createAdminAuth({ store: adminStoreSingleton });
+  const replitAuth = sharedReplitAdminAuth();
+  return {
+    store: adminStoreSingleton,
+    auth: adminAuthSingleton,
+    replitAuth,
+    authorizeRequest: createAdminSessionAuthorizer({
+      auth: adminAuthSingleton,
+      replitAuth,
+    }),
+  };
 }
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
@@ -7462,8 +7494,13 @@ function normalizeAisTimestamp(value) {
  * cover the whole Data API v3 surface; writes are limited to the YouTube Live
  * lifecycle and only when YOUTUBE_WRITE_ENABLED is left on.
  */
-function youtubeProxy() {
-  const oauth = sharedYoutubeOAuth();
+export function youtubeProxy({
+  oauth = sharedYoutubeOAuth(),
+  adminAuthorization = sharedAdminServices(),
+  commentHarnessConfigured = Boolean(process.env.OPENAI_API_KEY),
+  commentHarnessInterpreter,
+} = {}) {
+  const authorizeAdminRequest = (req) => adminAuthorization.authorizeRequest(req);
   const middleware = createYoutubeProxyMiddleware({
     proxy: oauth.proxy,
     authorizeRequest: oauth.authorizeRequest,
@@ -7473,14 +7510,35 @@ function youtubeProxy() {
     authorizeRequest: oauth.authorizeRequest,
   });
   const commentHarnessMiddleware = createYoutubeCommentHarnessMiddleware({
+    configured: commentHarnessConfigured,
+    supportsToolIsolation: true,
+    authorizeAdminRequest,
     authorizeRequest: oauth.authorizeRequest,
+    ...(commentHarnessInterpreter ? { interpretTask: commentHarnessInterpreter } : {}),
   });
+  const liveSession = sharedLiveSession();
   const liveMiddleware = createYoutubeLiveMiddleware({
-    live: sharedLiveSession().asEncoder(),
+    live: liveSession.asEncoder(),
     authorizeRequest: oauth.authorizeRequest,
+    authorizeAdminRequest,
+    goNow: async ({ authorization, req, body }) => {
+      liveSession.bindAuth(authorization, oauth.proxy);
+      const title = String(body?.title || "God's Eye View LIVE").trim() || "God's Eye View LIVE";
+      const privacyStatus = String(body?.privacyStatus || 'public').trim() || 'public';
+      const provisioned = await liveSession.provision({
+        title,
+        description: String(body?.description || 'Live from God\'s Eye View').trim(),
+        privacyStatus,
+      });
+      const live = await liveSession.start({}, { authorization, proxy: oauth.proxy, req });
+      return { broadcast: provisioned.broadcast, live };
+    },
   });
   const innerTubeChatMiddleware = createYoutubeInnerTubeChatMiddleware({
     authorizeRequest: oauth.authorizeRequest,
+    listOwnBroadcasts: (authorization) => listCompatibleBroadcasts(
+      createYoutubeApiCaller(oauth.proxy, authorization),
+    ),
   });
   function install(middlewares) {
     middlewares.use('/api/youtube/auth', oauth.middleware);
@@ -7511,12 +7569,14 @@ function youtubeProxy() {
  */
 function adminConsoleApi() {
   const { version } = createRequire(import.meta.url)('./package.json');
-  const replitAuth = createReplitAdminAuth();
+  const admin = sharedAdminServices();
   const middleware = createAdminMiddleware({
     version: version || '0.0.0',
     live: sharedLiveSession(),
     youtubeAuth: sharedYoutubeOAuth(),
-    replitAuth,
+    store: admin.store,
+    auth: admin.auth,
+    replitAuth: admin.replitAuth,
   });
   function install(middlewares) {
     middlewares.use('/api/admin', middleware);

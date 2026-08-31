@@ -415,7 +415,12 @@ test('START CHAT is enabled from a selected video, not from activeLiveChatId', (
     liveClient: { status: async () => ({ live: { status: 'idle' } }), startLive: async () => ({}), stopLive: async () => ({}) },
     viewAgentClient: { interpret: async () => ({ action: 'ignore' }) },
   });
-  controller.state.videos = [{ id: 'abcdefghijk', snippet: { title: 'Globe live' }, statistics: { viewCount: 3 } }];
+  controller.state.videos = [{
+    id: 'abcdefghijk',
+    snippet: { title: 'Globe live' },
+    statistics: { viewCount: 3 },
+    gevCompatibleLiveBroadcast: true,
+  }];
   controller.state.videoId = 'abcdefghijk';
   controller.state.liveChatId = '';
   controller._render();
@@ -424,6 +429,27 @@ test('START CHAT is enabled from a selected video, not from activeLiveChatId', (
   controller.state.videoId = '';
   controller._render();
   assert.equal(root.els['youtube-chat-toggle'].disabled, true);
+  controller.destroy();
+});
+
+test('START CHAT stays disabled for an uploaded video outside the compatible broadcast inventory', () => {
+  installDomStub();
+  const root = makeYoutubeRoot();
+  const controller = new YouTubePanelController(root, {
+    client: { get: async () => ({ items: [] }), getLiveChat: async () => ({ items: [] }) },
+    liveClient: { status: async () => ({ live: { status: 'idle' } }), startLive: async () => ({}), stopLive: async () => ({}) },
+    viewAgentClient: { interpret: async () => ({ action: 'ignore' }) },
+  });
+  controller.state.videos = [{
+    id: 'abcdefghijk',
+    snippet: { title: 'Uploaded recording' },
+    statistics: { viewCount: 3 },
+    gevCompatibleLiveBroadcast: false,
+  }];
+  controller.state.videoId = 'abcdefghijk';
+  controller._render();
+  assert.equal(root.els['youtube-chat-toggle'].disabled, true);
+  assert.doesNotMatch(root.els['youtube-video-summary'].textContent, /LIVE CHAT AVAILABLE/);
   controller.destroy();
 });
 

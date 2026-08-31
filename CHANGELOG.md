@@ -7,12 +7,15 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Changed
 
-- Live chat no longer polls YouTube Data API `liveChatMessages.list`. The
-  operator YouTube Settings panel and the Youtube AI Comment Harness read chat
-  through same-origin `/api/youtube/live-chat`, which uses YouTube's web
-  InnerTube `get_live_chat` surface so a live session does not burn Data API
-  quota. Sign-in is still required. Comments, video lists, and Go Live are
-  unchanged.
+- Live chat on **our own YouTube Live page** no longer polls Data API
+  `liveChatMessages.list`. YouTube Settings and the Youtube AI Comment Harness
+  read that page's chat through same-origin `/api/youtube/live-chat` (the same
+  watch-page chat YouTube already shows on our broadcast) so a long stream does
+  not burn Data API quota. Those comments appear in the homepage ChatGPT-style
+  overlay (`#gev-nextchat`) as viewer messages (author + full text). ENABLE
+  starts that display even when Cursor cannot enforce a tool-less session;
+  `#Task` globe actions stay gated. Sign-in is still required. Comments lists,
+  video lists, and Go Live are unchanged.
 
 ## [Unreleased] — 2026-08-30
 

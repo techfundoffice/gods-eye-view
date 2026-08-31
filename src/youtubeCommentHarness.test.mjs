@@ -9,6 +9,7 @@ import {
   initNextchat,
   publishNextChatMessage,
 } from './voice/nextchat.js';
+import { parseLiveChatResponse } from './youtubeInnerTubeChat.js';
 import {
   boundedViewSummary,
   createEmptyCounters,
@@ -26,7 +27,10 @@ import {
   harnessOperatorStatus,
   validateHarnessInterpretation,
 } from './youtubeCommentHarness.js';
-import { createYoutubeCommentHarnessMiddleware } from './youtubeCommentHarnessServer.js';
+import {
+  createOpenAiCommentInterpreter,
+  createYoutubeCommentHarnessMiddleware,
+} from './youtubeCommentHarnessServer.js';
 
 const CRUISE_COMMENT = '#Task view the street view of the Ensenada Port where a Royal Caribbean cruise ship is docked';
 
@@ -110,6 +114,71 @@ test('incoming YouTube items normalize to schemaVersion 1 and keep the author', 
   assert.equal(message.text.includes('\u0000'), false);
   assert.equal(message.text.length, HARNESS_MAX_TEXT);
   assert.equal(message.receivedAt, '2026-08-30T12:00:00.000Z');
+});
+
+test('own-page get_live_chat items ingest into the shipped NextChat store as viewer author+text', async () => {
+  const store = createNextchatStore(memoryStorage());
+  const parsed = parseLiveChatResponse({
+    continuationContents: {
+      liveChatContinuation: {
+        actions: [
+          {
+            addChatItemAction: {
+              item: {
+                liveChatTextMessageRenderer: {
+                  id: 'msg-own-1',
+                  timestampUsec: '1756540800000000',
+                  authorName: { simpleText: 'DockHand' },
+                  authorExternalChannelId: 'UC9',
+                  message: { runs: [{ text: 'Ahoy from our live page' }] },
+                },
+              },
+            },
+          },
+          {
+            addChatItemAction: {
+              item: {
+                liveChatTextMessageRenderer: {
+                  id: 'msg-own-2',
+                  timestampUsec: '1756540801000000',
+                  authorName: { simpleText: 'CruiseWatcher' },
+                  message: { runs: [{ text: '#Task fly to Ensenada' }] },
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+  });
+  assert.equal(parsed.items[0].authorDetails.displayName, 'DockHand');
+  assert.equal(parsed.items[0].snippet.displayMessage, 'Ahoy from our live page');
+
+  const harness = createYoutubeCommentHarness({
+    supportsToolIsolation: true,
+    interpret: async () => ({ kind: 'reject', intent: null, reason: 'not applied', confidence: 0 }),
+    runner: async () => { throw new Error('must not run'); },
+    getNextchatApi: () => ({
+      store,
+      publishViewerMessage(payload) {
+        return publishNextChatMessage(payload, store);
+      },
+    }),
+  });
+  harness.setEnabled(true);
+  await harness.ingest(parsed.items, { source: 'liveChat', videoId: 'abcdefghijk' });
+
+  const messages = store.getActiveSession().messages;
+  assert.equal(messages.length, 2);
+  assert.equal(messages[0].role, 'viewer');
+  assert.equal(messages[0].author, 'DockHand');
+  assert.equal(messages[0].content, 'Ahoy from our live page');
+  assert.equal(messages[0].metadata.source, 'liveChat');
+  assert.equal(messages[0].metadata.commentId, 'msg-own-1');
+  assert.equal(messages[0].metadata.videoId, 'abcdefghijk');
+  assert.equal(messages[1].role, 'viewer');
+  assert.equal(messages[1].author, 'CruiseWatcher');
+  assert.equal(messages[1].content, '#Task fly to Ensenada');
 });
 
 test('live chat polling uses a video id and does not require a Data API liveChatId', async () => {
@@ -328,10 +397,38 @@ test('queue bounds drop extra #Task items as rate-limited', async () => {
   assert.equal(runnerCalls.length, 0);
 });
 
-test('missing tool isolation leaves the harness disabled and never starts interpret', async () => {
+test('missing tool isolation still enables display/poll and never starts interpret', async () => {
   let interpretCalls = 0;
+  const fetched = [];
+  const timers = [];
   const { harness, runnerCalls, published } = makeHarness({
     supportsToolIsolation: false,
+    videoId: 'abcdefghijk',
+    source: 'liveChat',
+    clock: {
+      setTimeout(fn) { timers.push(fn); return timers.length; },
+      clearTimeout() { timers.length = 0; },
+    },
+    youtubeSource: {
+      async status() { return { connected: true, configured: true }; },
+      async fetchLiveChat(videoId, token) {
+        fetched.push({ videoId, token });
+        return {
+          items: [{
+            id: 'lc-iso-1',
+            author: 'DockHand',
+            text: 'Ahoy without isolation',
+            publishedAt: '2026-08-31T00:00:00.000Z',
+          }, {
+            id: 'lc-iso-2',
+            author: 'Ada',
+            text: '#Task fly to Ensenada',
+            publishedAt: '2026-08-31T00:00:01.000Z',
+          }],
+          nextPageToken: 'CONT',
+        };
+      },
+    },
     interpret: async () => {
       interpretCalls += 1;
       throw new Error('must not start an agent session');
@@ -339,14 +436,66 @@ test('missing tool isolation leaves the harness disabled and never starts interp
   });
   const isolation = toolIsolationState(false, true);
   assert.equal(isolation.ok, false);
-  harness.setEnabled(true);
-  const snap = harness.getSnapshot();
-  assert.equal(snap.enabled, false);
-  assert.match(snap.status, /tool-less|DISABLED/i);
-  await harness.ingest([{ id: 't1', author: 'Ada', text: '#Task fly to Ensenada' }]);
-  assert.equal(published.length, 1);
+  const enabled = harness.setEnabled(true);
+  assert.equal(enabled.enabled, true);
+  assert.match(enabled.status, /HARNESS READY|#TASK GATED|tool-less/i);
+  assert.match(enabled.status, /#TASK GATED/);
+  assert.equal(typeof timers[0], 'function');
+  await timers[0]();
+  assert.deepEqual(fetched[0], { videoId: 'abcdefghijk', token: '' });
+  assert.equal(published[0].role, 'viewer');
+  assert.equal(published[0].author, 'DockHand');
+  assert.equal(published[0].text, 'Ahoy without isolation');
+  assert.equal(published[1].author, 'Ada');
+  assert.equal(published[1].text, '#Task fly to Ensenada');
   assert.equal(interpretCalls, 0);
   assert.equal(runnerCalls.length, 0);
+  harness.setEnabled(false);
+});
+
+test('isolation-off get_live_chat ingest still writes the shipped NextChat store', async () => {
+  const store = createNextchatStore(memoryStorage());
+  const parsed = parseLiveChatResponse({
+    continuationContents: {
+      liveChatContinuation: {
+        actions: [{
+          addChatItemAction: {
+            item: {
+              liveChatTextMessageRenderer: {
+                id: 'msg-iso-1',
+                timestampUsec: '1756540800000000',
+                authorName: { simpleText: 'DockHand' },
+                message: { runs: [{ text: 'Ahoy from our live page' }] },
+              },
+            },
+          },
+        }],
+      },
+    },
+  });
+  let interpretCalls = 0;
+  const harness = createYoutubeCommentHarness({
+    supportsToolIsolation: false,
+    interpret: async () => {
+      interpretCalls += 1;
+      throw new Error('must not start an agent session');
+    },
+    runner: async () => { throw new Error('must not run'); },
+    getNextchatApi: () => ({
+      store,
+      publishViewerMessage(payload) {
+        return publishNextChatMessage(payload, store);
+      },
+    }),
+  });
+  assert.equal(harness.setEnabled(true).enabled, true);
+  await harness.ingest(parsed.items, { source: 'liveChat', videoId: 'abcdefghijk' });
+  const message = store.getActiveSession().messages[0];
+  assert.equal(message.role, 'viewer');
+  assert.equal(message.author, 'DockHand');
+  assert.equal(message.content, 'Ahoy from our live page');
+  assert.equal(message.metadata.source, 'liveChat');
+  assert.equal(interpretCalls, 0);
 });
 
 test('an unconfigured unsafe adapter still names the empty tool surface', () => {
@@ -373,6 +522,7 @@ test('setConfigured on an unsafe adapter keeps the empty tool-surface explanatio
   assert.equal(snap.enabled, false);
   assert.match(snap.isolationReason, /not configured/i);
   assert.match(snap.isolationReason, /tool-less/i);
+  assert.match(snap.status, /#TASK GATED/);
   assert.match(snap.status, /not configured/i);
   assert.match(snap.status, /tool-less/i);
   assert.doesNotMatch(snap.status, /YOUTUBE DISCONNECTED/);
@@ -392,19 +542,21 @@ test('refreshYoutube keeps the tool-isolation explanation when YouTube is discon
       },
     },
   });
+  assert.match(harness.getSnapshot().status, /#TASK GATED/);
   assert.match(harness.getSnapshot().status, /tool-less/i);
   const snap = await harness.refreshYoutube();
   assert.equal(statusCalls, 1);
   assert.equal(snap.isolationOk, false);
   assert.equal(snap.enabled, false);
   assert.equal(snap.connection, 'disconnected');
-  assert.equal(snap.status, `DISABLED · ${isolation.reason}`);
+  assert.match(snap.status, /#TASK GATED/);
+  assert.match(snap.status, /tool-less/i);
   assert.doesNotMatch(snap.status, /YOUTUBE DISCONNECTED/);
-  assert.equal(harnessOperatorStatus({
+  assert.match(harnessOperatorStatus({
     isolationOk: false,
     isolationReason: isolation.reason,
     status: 'YOUTUBE DISCONNECTED',
-  }), `DISABLED · ${isolation.reason}`);
+  }), /#TASK GATED/);
 });
 
 test('refreshYoutube keeps the tool-isolation explanation when YouTube is unavailable', async () => {
@@ -423,7 +575,8 @@ test('refreshYoutube keeps the tool-isolation explanation when YouTube is unavai
   assert.equal(snap.isolationOk, false);
   assert.equal(snap.enabled, false);
   assert.equal(snap.connection, 'unavailable');
-  assert.equal(snap.status, `DISABLED · ${isolation.reason}`);
+  assert.match(snap.status, /#TASK GATED/);
+  assert.match(snap.status, /tool-less/i);
   assert.doesNotMatch(snap.status, /YOUTUBE UNAVAILABLE/);
 });
 
@@ -624,6 +777,7 @@ test('server status is honest when the adapter cannot isolate tools', async () =
   const response = await invoke(createYoutubeCommentHarnessMiddleware({
     configured: true,
     supportsToolIsolation: false,
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
   }), { method: 'GET', url: '/status' });
   assert.equal(response.status, 200);
   assert.equal(response.body.supportsToolIsolation, false);
@@ -631,13 +785,51 @@ test('server status is honest when the adapter cannot isolate tools', async () =
   assert.match(response.body.reason, /tool-less/);
 });
 
+test('the production model interpreter sends no tools and returns response text', async () => {
+  let request;
+  const interpret = createOpenAiCommentInterpreter({
+    apiKey: 'test-key',
+    fetchImpl: async (_url, options) => {
+      request = JSON.parse(options.body);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ output_text: '{"kind":"reject","intent":null,"reason":"No","confidence":0}' }),
+      };
+    },
+  });
+  const text = await interpret({ taskBody: 'hello', context: {} });
+  assert.match(text, /"kind":"reject"/);
+  assert.equal(Object.hasOwn(request, 'tools'), false);
+  assert.equal(Object.hasOwn(request, 'tool_choice'), false);
+});
+
+test('server status and interpretation require an ADMIN session', async () => {
+  let youtubeAuthCalls = 0;
+  const middleware = createYoutubeCommentHarnessMiddleware({
+    configured: true,
+    supportsToolIsolation: true,
+    authorizeAdminRequest: async () => null,
+    authorizeRequest: async () => { youtubeAuthCalls += 1; return { sessionId: 'youtube' }; },
+  });
+  const status = await invoke(middleware, { method: 'GET', url: '/status' });
+  assert.equal(status.status, 401);
+  assert.equal(status.body.error.kind, 'admin-authentication');
+  const interpret = await invoke(middleware, {
+    body: { comment: { taskBody: 'zoom to globe' } },
+  });
+  assert.equal(interpret.status, 401);
+  assert.equal(youtubeAuthCalls, 0);
+});
+
 test('server refuses to start an agent session without tool isolation', async () => {
   let created = false;
   const response = await invoke(createYoutubeCommentHarnessMiddleware({
     configured: true,
     supportsToolIsolation: false,
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
     authorizeRequest: async () => ({ sessionId: 's' }),
-    createAgent: () => { created = true; return {}; },
+    interpretTask: async () => { created = true; return '{}'; },
   }), {
     body: { comment: { taskBody: 'fly to Ensenada', text: '#Task fly to Ensenada' } },
   });
@@ -647,21 +839,16 @@ test('server refuses to start an agent session without tool isolation', async ()
 });
 
 test('server validates structured output and never returns credentials', async () => {
-  const session = { destroy: async () => {} };
   const middleware = createYoutubeCommentHarnessMiddleware({
     configured: true,
     supportsToolIsolation: true,
+    authorizeAdminRequest: async () => ({ sub: 'admin' }),
     authorizeRequest: async () => ({ sessionId: 's' }),
-    createAgent: () => ({
-      createSession: async () => session,
-      generate: async () => ({
-        text: JSON.stringify({
-          kind: 'view_request',
-          intent: { action: 'fly_to_location', args: { query: 'Ensenada Port' } },
-          reason: 'Port',
-          confidence: 0.9,
-        }),
-      }),
+    interpretTask: async () => JSON.stringify({
+      kind: 'view_request',
+      intent: { action: 'fly_to_location', args: { query: 'Ensenada Port' } },
+      reason: 'Port',
+      confidence: 0.9,
     }),
   });
   const response = await invoke(middleware, {

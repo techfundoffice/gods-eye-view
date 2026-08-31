@@ -95,6 +95,21 @@ export function sendJson(res, status, payload) {
 }
 
 /**
+ * Build the shared ADMIN-session policy used by the console and companion
+ * plugin routes. Native Replit OIDC is preferred, with the configured password
+ * session retained as a compatibility fallback.
+ */
+export function createAdminSessionAuthorizer({ auth, replitAuth = null } = {}) {
+  return function authorizeAdminRequest(req) {
+    const replitSession = replitAuth?.authenticate?.(req);
+    if (replitSession) return replitSession;
+    if (!auth?.configured) return null;
+    const cookies = parseCookies(req?.headers?.cookie);
+    return auth.authenticate(cookies[ADMIN_SESSION_COOKIE]);
+  };
+}
+
+/**
  * Read and JSON-parse a bounded request body.
  *
  * @param {object} req Node request.
@@ -154,19 +169,14 @@ export function createAdminMiddleware({
   version = '1.0.0',
 } = {}) {
   const mcp = createAdminMcpServer({ builder, version });
+  const authorizeAdminRequest = createAdminSessionAuthorizer({ auth, replitAuth });
 
   /**
    * @param {object} req
    * @returns {object|null} Live session, or null.
    */
   function sessionFor(req) {
-    if (replitAuth) {
-      const session = replitAuth.authenticate(req);
-      if (session) return session;
-    }
-    if (!auth.configured) return null;
-    const cookies = parseCookies(req.headers?.cookie);
-    return auth.authenticate(cookies[ADMIN_SESSION_COOKIE]);
+    return authorizeAdminRequest(req);
   }
 
   const operatorConfigured = () => Boolean((replitAuth && replitAuth.configured) || auth.configured);

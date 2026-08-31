@@ -1,9 +1,9 @@
 /**
- * `/api/youtube/live-chat` — read-only InnerTube live chat for a video id.
+ * `/api/youtube/live-chat` — read-only chat on our own YouTube Live page.
  *
- * Gated on the signed-in YouTube session so the server is not an open chat
- * relay. The browser sends only `videoId` + optional continuation; the WEB
- * client key and watch-page HTML never leave this process.
+ * Gated on the signed-in YouTube session so this is the operator's broadcast,
+ * not an open chat relay. The browser sends only `videoId` + optional
+ * continuation; the WEB client key and watch-page HTML never leave this process.
  *
  * @module youtubeInnerTubeChatServer
  */
@@ -13,6 +13,9 @@ import {
   innerTubeError,
   normalizeVideoId,
 } from './youtubeInnerTubeChat.js';
+
+const OWN_BROADCAST_CACHE_TTL_MS = 10 * 60 * 1000;
+const OWN_BROADCAST_CACHE_MAX_SESSIONS = 64;
 
 /**
  * @param {string} url
@@ -57,8 +60,36 @@ function publicChatPayload(result) {
  */
 export function createYoutubeInnerTubeChatMiddleware({
   authorizeRequest = async () => null,
+  listOwnBroadcasts = async () => [],
   chat = createYoutubeInnerTubeChat(),
+  ownershipCacheTtlMs = OWN_BROADCAST_CACHE_TTL_MS,
+  now = () => Date.now(),
 } = {}) {
+  const ownershipCache = new Map();
+
+  async function ownedBroadcasts(authorization) {
+    const sessionId = String(authorization?.sessionId || '');
+    if (!sessionId) return listOwnBroadcasts(authorization);
+    const current = now();
+    const cached = ownershipCache.get(sessionId);
+    if (cached && cached.expiresAt > current) return cached.promise;
+
+    const promise = Promise.resolve(listOwnBroadcasts(authorization))
+      .then((broadcasts) => Array.isArray(broadcasts) ? broadcasts : [])
+      .catch((error) => {
+        if (ownershipCache.get(sessionId)?.promise === promise) ownershipCache.delete(sessionId);
+        throw error;
+      });
+    ownershipCache.set(sessionId, {
+      expiresAt: current + Math.max(1_000, Number(ownershipCacheTtlMs) || OWN_BROADCAST_CACHE_TTL_MS),
+      promise,
+    });
+    while (ownershipCache.size > OWN_BROADCAST_CACHE_MAX_SESSIONS) {
+      ownershipCache.delete(ownershipCache.keys().next().value);
+    }
+    return promise;
+  }
+
   return async function youtubeInnerTubeChatMiddleware(req, res, next) {
     const method = String(req.method || 'GET').toUpperCase();
     if (method !== 'GET' && method !== 'HEAD') {
@@ -72,15 +103,18 @@ export function createYoutubeInnerTubeChatMiddleware({
       const authorization = await authorizeRequest(req);
       if (!authorization) {
         sendJson(res, 401, {
-          error: { kind: 'authentication', message: 'Sign in to YouTube to read live chat.' },
+          error: { kind: 'authentication', message: 'Sign in to YouTube to read chat on your live page.' },
         });
         return;
       }
-
       const query = parseLiveChatQuery(req.url);
       const videoId = normalizeVideoId(query.videoId);
       if (!videoId) {
         throw innerTubeError('invalid-request', 'A YouTube video id is required.', 400);
+      }
+      const broadcasts = await ownedBroadcasts(authorization);
+      if (!broadcasts.some((broadcast) => String(broadcast?.id || '') === videoId)) {
+        throw innerTubeError('not-found', 'That YouTube broadcast was not found, or it is not yours.', 404);
       }
 
       const result = await chat.poll({

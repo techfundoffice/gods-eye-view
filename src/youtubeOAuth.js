@@ -62,6 +62,18 @@ export function hasYoutubeManageScope(scopes) {
   return Array.isArray(scopes) && scopes.includes(YOUTUBE_MANAGE_SCOPE);
 }
 
+/**
+ * True when the TCP peer is this host. Used to keep operator-ready / go-now
+ * off the public internet — they read in-process OAuth sessions without a cookie.
+ *
+ * @param {string} [address]
+ * @returns {boolean}
+ */
+export function isLoopbackAddress(address) {
+  const ip = String(address || '').trim().toLowerCase();
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+}
+
 function parseScopes(value) {
   return String(value || '').split(/\s+/).filter(Boolean);
 }
@@ -420,6 +432,15 @@ export function createYoutubeOAuthMiddleware({
       if (current) sessions.delete(current.id);
       clearSessionCookie(req, res);
       return sendJson(res, 200, { authenticated: false });
+    }
+    if (url.pathname === '/operator-ready') {
+      if (req.method !== 'GET') return sendJson(res, 405, { error: { kind: 'method-not-allowed', message: 'Operator-ready is read-only.' } });
+      const authorization = await authorizeRequest(req);
+      return sendJson(res, 200, {
+        authenticated: Boolean(authorization),
+        canWrite: Boolean(authorization?.canWrite),
+        ready: Boolean(authorization?.canWrite),
+      });
     }
     if (typeof next === 'function') return next();
     sendJson(res, 404, { error: { kind: 'not-found', message: 'YouTube auth route not found.' } });

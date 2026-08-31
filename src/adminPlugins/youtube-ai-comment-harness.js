@@ -1,7 +1,7 @@
 /**
  * ADMIN plugin: Youtube AI Comment Harness.
  *
- * Reads YouTube comments / InnerTube live chat, shows them in NextChat, and routes
+ * Reads comments and live chat from our own YouTube page into NextChat, and routes
  * leading `#Task` comments through a constrained interpreter into the
  * existing GEV action runner.
  *
@@ -112,7 +112,7 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
     doc,
     'p',
     'admin-ych-lead',
-    'Reads YouTube comments and live chat into NextChat. Only leading #Task comments can propose a validated globe view.',
+    'Reads comments and live chat from our YouTube page into NextChat. Only leading #Task comments can propose a validated globe view.',
   );
 
   const statusEl = el(doc, 'p', 'admin-ych-status', 'DISABLED');
@@ -187,7 +187,7 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
     connectionEl.textContent = `${connectionLabel} · ${state.source === 'liveChat' ? 'LIVE CHAT' : 'COMMENTS'}`;
     enableBtn.textContent = state.enabled ? 'DISABLE' : 'ENABLE';
     enableBtn.setAttribute('aria-pressed', String(Boolean(state.enabled)));
-    enableBtn.disabled = !state.isolationOk && !state.enabled;
+    enableBtn.disabled = false;
     sourceSelect.value = state.source === 'liveChat' ? 'liveChat' : 'comment';
     const options = [el(doc, 'option', '', state.videos.length ? 'Select a video' : 'No video selected')];
     options[0].value = '';

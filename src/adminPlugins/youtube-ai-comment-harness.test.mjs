@@ -11,16 +11,27 @@ import {
 } from '../adminPluginRegistry.js';
 import { isAdminUnlocked } from '../adminConsole.js';
 import {
+  createNextchatStore,
+  publishNextChatMessage,
+} from '../voice/nextchat.js';
+import {
   createYoutubeCommentHarness,
   HARNESS_LABEL,
   harnessOperatorStatus,
-  toolIsolationState,
 } from '../youtubeCommentHarness.js';
 import youtubeCommentHarnessPlugin, {
   renderYoutubeCommentHarnessPane,
 } from './youtube-ai-comment-harness.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
+
+function memoryStorage(seed) {
+  const data = new Map(Object.entries(seed || {}));
+  return {
+    getItem(key) { return data.has(key) ? data.get(key) : null; },
+    setItem(key, value) { data.set(key, String(value)); },
+  };
+}
 
 class Node {
   constructor(tagName = 'div') {
@@ -200,7 +211,6 @@ test('plugin pane paints controls, counters, and lists', () => {
 });
 
 test('unsafe adapter stays explained on the pane after disconnected YouTube refresh', async () => {
-  const isolation = toolIsolationState(false, true);
   const document = makeDocument();
   const container = document.createElement('div');
   let statusCalls = 0;
@@ -232,16 +242,15 @@ test('unsafe adapter stays explained on the pane after disconnected YouTube refr
   assert.equal(snap.connection, 'disconnected');
   const status = container.querySelector('#ych-status').textContent;
   assert.equal(status, harnessOperatorStatus(snap));
-  assert.equal(status, `DISABLED · ${isolation.reason}`);
+  assert.match(status, /#TASK GATED/);
   assert.match(status, /tool-less/i);
   assert.doesNotMatch(status, /YOUTUBE DISCONNECTED/);
   assert.match(container.querySelector('#ych-connection').textContent, /YOUTUBE DISCONNECTED/);
-  assert.equal(container.querySelector('#ych-enabled').disabled, true);
+  assert.equal(container.querySelector('#ych-enabled').disabled, false);
   cleanup();
 });
 
 test('unsafe adapter stays explained on the pane after unavailable YouTube refresh', async () => {
-  const isolation = toolIsolationState(false, true);
   const document = makeDocument();
   const container = document.createElement('div');
   const cleanup = renderYoutubeCommentHarnessPane(container, {
@@ -268,16 +277,15 @@ test('unsafe adapter stays explained on the pane after unavailable YouTube refre
   assert.equal(snap.enabled, false);
   assert.equal(snap.connection, 'unavailable');
   const status = container.querySelector('#ych-status').textContent;
-  assert.equal(status, `DISABLED · ${isolation.reason}`);
+  assert.match(status, /#TASK GATED/);
   assert.match(status, /tool-less/i);
   assert.doesNotMatch(status, /YOUTUBE UNAVAILABLE/);
   assert.match(container.querySelector('#ych-connection').textContent, /YOUTUBE UNAVAILABLE/);
-  assert.equal(container.querySelector('#ych-enabled').disabled, true);
+  assert.equal(container.querySelector('#ych-enabled').disabled, false);
   cleanup();
 });
 
 test('unconfigured unsafe adapter names both reasons on STATUS', () => {
-  const isolation = toolIsolationState(false, false);
   const document = makeDocument();
   const container = document.createElement('div');
   const cleanup = renderYoutubeCommentHarnessPane(container, {
@@ -288,10 +296,53 @@ test('unconfigured unsafe adapter names both reasons on STATUS', () => {
     runner: async () => { throw new Error('must not run'); },
   });
   const status = container.querySelector('#ych-status').textContent;
-  assert.equal(status, `DISABLED · ${isolation.reason}`);
+  assert.match(status, /#TASK GATED/);
   assert.match(status, /not configured/i);
   assert.match(status, /tool-less/i);
-  assert.equal(container.querySelector('#ych-enabled').disabled, true);
+  assert.equal(container.querySelector('#ych-enabled').disabled, false);
+  cleanup();
+});
+
+test('ENABLE with an unsafe adapter still publishes live chat as viewer text', async () => {
+  const store = createNextchatStore(memoryStorage());
+  let interpretCalls = 0;
+  const document = makeDocument();
+  const container = document.createElement('div');
+  const cleanup = renderYoutubeCommentHarnessPane(container, {
+    document,
+    supportsToolIsolation: false,
+    youtubeSource: {
+      async status() { return { connected: true, configured: true }; },
+      async listVideos() { return [{ id: 'abcdefghijk', title: 'Our live' }]; },
+    },
+    nextChat: {
+      queue: [],
+      available: () => true,
+      publish(payload) { return publishNextChatMessage(payload, store); },
+      setStatus() {},
+    },
+    interpret: async () => {
+      interpretCalls += 1;
+      throw new Error('must not start an agent session');
+    },
+    runner: async () => { throw new Error('must not run'); },
+  });
+  const enable = container.querySelector('#ych-enabled');
+  assert.equal(enable.disabled, false);
+  await enable.click();
+  const api = container.__gevYoutubeCommentHarness;
+  assert.equal(api.getSnapshot().enabled, true);
+  await api.ingest([{
+    id: 'msg-own-1',
+    author: 'DockHand',
+    text: 'Ahoy from our live page',
+  }], { source: 'liveChat', videoId: 'abcdefghijk' });
+  const message = store.getActiveSession().messages[0];
+  assert.equal(message.role, 'viewer');
+  assert.equal(message.author, 'DockHand');
+  assert.equal(message.content, 'Ahoy from our live page');
+  assert.equal(interpretCalls, 0);
+  assert.match(api.getSnapshot().status, /#TASK GATED/);
   cleanup();
 });
 

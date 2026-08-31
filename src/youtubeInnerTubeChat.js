@@ -1,10 +1,11 @@
 /**
- * Read-only YouTube live chat via InnerTube (the web `get_live_chat` surface).
+ * Read-only live chat on our own YouTube Live watch page.
  *
- * Protocol follows Agash/YTLiveChat: fetch `/watch?v=` for the WEB client key
- * and continuation, then POST `youtubei/v1/live_chat/get_live_chat`. This path
- * does not spend YouTube Data API quota. It is unofficial; payloads can change.
- * Callers must keep tokens and HTML on the server.
+ * The signed-in operator's broadcast already shows chat in the YouTube player.
+ * This module reads that same page: fetch `/watch?v=` for the WEB client key
+ * and continuation, then POST `youtubei/v1/live_chat/get_live_chat` (protocol
+ * as in Agash/YTLiveChat). It does not spend Data API quota. Keep tokens and
+ * HTML on the server.
  *
  * @module youtubeInnerTubeChat
  */
@@ -381,8 +382,9 @@ function evictOldest(cache) {
 }
 
 /**
- * Server-side InnerTube live-chat poller. HTML bootstrap and WEB client keys
- * stay in this process; the browser only sees normalized messages.
+ * Server-side poller for chat on our own live watch page. HTML bootstrap and
+ * WEB client keys stay in this process; the browser only sees normalized
+ * messages.
  *
  * @param {object} [options]
  * @returns {{poll: Function, cache: Map}}

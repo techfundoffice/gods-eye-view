@@ -2,20 +2,24 @@
 
 Updated: August 31, 2026
 
-> **2026-08-31 — live chat reads InnerTube, not liveChatMessages.list.** Operator
-> **YOUTUBE SETTINGS** START CHAT and the ADMIN **Youtube AI Comment Harness**
-> live-chat source poll `/api/youtube/live-chat` (video id + continuation). The
-> server bootstraps the WEB client from `youtube.com/watch?v=` and POSTs
-> `youtubei/v1/live_chat/get_live_chat` — the same unofficial surface as
-> [Agash/YTLiveChat](https://github.com/Agash/YTLiveChat). That path does not
-> spend YouTube Data API quota. It is read-only: no sending, bans, or
-> moderators. The browser never sees the WEB client key or watch-page HTML;
-> only a signed-in YouTube session may call the route, and the query is a
-> video id (not a client-supplied URL). Replay / missing chat / consent
-> interstitial stay labeled (`LIVE ENDED`, `NO ACTIVE LIVE CHAT`,
-> `YOUTUBE UNAVAILABLE`). Comments, channel/video lists, and Go Live still
-> use Data API v3. START CHAT is enabled from a selected video, not from
-> `activeLiveChatId`.
+> **2026-08-31 — live chat is our own YouTube Live page, not Data API quota.**
+> Operator **YOUTUBE SETTINGS** START CHAT and the ADMIN **Youtube AI Comment
+> Harness** live-chat source read chat on the signed-in operator's own live
+> watch page. `/api/youtube/live-chat` (that video id + continuation) uses the
+> same `get_live_chat` surface the YouTube player already uses on that page —
+> protocol as in [Agash/YTLiveChat](https://github.com/Agash/YTLiveChat) — so a
+> multi-hour stream of *our* broadcast does not spend `liveChatMessages.list`
+> quota. Read-only: no sending, bans, or moderators. The browser never sees the
+> WEB client key or watch-page HTML; only the signed-in YouTube session may
+> call the route, and the query is a video id (not a client-supplied URL).
+> Replay / missing chat / consent interstitial stay labeled (`LIVE ENDED`,
+> `NO ACTIVE LIVE CHAT`, `YOUTUBE UNAVAILABLE`). Every chat item is published
+> into the homepage ChatGPT-style overlay (`#gev-nextchat`) as a `viewer`
+> message: author name plus full comment text as text content only. ENABLE
+> starts that display/poll even when Cursor cannot enforce a tool-less
+> session; `#Task` interpretation stays gated until isolation is ok. Comments,
+> channel/video lists, and Go Live still use Data API v3. START CHAT is
+> enabled from the selected own video, not from `activeLiveChatId`.
 
 > **2026-08-30 — Youtube AI Comment Harness ADMIN plugin.** After ADMIN unlock,
 > **Plugins** includes **Youtube AI Comment Harness**
@@ -30,14 +34,13 @@ Updated: August 31, 2026
 > JSON (`kind: view_request | reject`); the existing `validateViewIntent`
 > allowlist runs on the server and again in the browser before
 > `createGevActionRunner` dispatch. If the Cursor adapter cannot enforce a
-> tool-less session, the harness stays **disabled** with that explanation and
-> never starts an agent. Isolation / tool-less failure always wins on the
-> STATUS line, including after a YouTube refresh that reports disconnected or
-> unavailable; connection copy stays on the connection row (`YOUTUBE
-> DISCONNECTED` / `YOUTUBE UNAVAILABLE`) so ENABLE remaining disabled still has
-> an explanation. Stale completions after disable, cleanup, video
-> change, or generation bump do not apply. YouTube access remains read-only;
-> tokens stay server-side.
+> tool-less session, ENABLE still starts comment/live-chat display into
+> NextChat; `#Task` interpretation stays gated (`#TASK GATED` on STATUS) and
+> never starts an agent. Isolation copy does not disable ENABLE. After a
+> YouTube refresh that reports disconnected or unavailable, connection copy
+> stays on the connection row (`YOUTUBE DISCONNECTED` / `YOUTUBE UNAVAILABLE`).
+> Stale completions after disable, cleanup, video change, or generation bump
+> do not apply. YouTube access remains read-only; tokens stay server-side.
 
 > **2026-08-30 — LOCATION finder suggests places as you type.** Typing in
 > `#location-search` (bottom command-dock LOCATION bar, next to GEV MIC and

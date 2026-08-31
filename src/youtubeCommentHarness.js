@@ -1,7 +1,8 @@
 /**
- * Youtube AI Comment Harness — normalize viewer messages, publish them to
- * NextChat, and route only leading `#Task` comments through a constrained
- * view-intent interpreter into the existing GEV action runner.
+ * Youtube AI Comment Harness — normalize viewer messages from our YouTube
+ * page, publish them to NextChat, and route only leading `#Task` comments
+ * through a constrained view-intent interpreter into the existing GEV action
+ * runner.
  *
  * @module youtubeCommentHarness
  */
@@ -25,7 +26,7 @@ export const HARNESS_POLL_MS = 10_000;
 export const HARNESS_LABEL = 'Youtube AI Comment Harness';
 export const HARNESS_PLUGIN_ID = 'youtube-ai-comment-harness';
 
-const UNSAFE_ADAPTER_REASON = 'Cursor adapter cannot yet enforce a tool-less session';
+const UNSAFE_ADAPTER_REASON = 'AI adapter cannot enforce a tool-less interpretation boundary';
 
 /**
  * @param {unknown} value
@@ -263,28 +264,32 @@ export function toolIsolationState(supportsToolIsolation, configured = true) {
       ok: false,
       reason: configured
         ? UNSAFE_ADAPTER_REASON
-        : `Cursor view agent is not configured. ${UNSAFE_ADAPTER_REASON}`,
+        : `AI comment interpreter is not configured. ${UNSAFE_ADAPTER_REASON}`,
     };
   }
   if (!configured) {
-    return { ok: false, reason: 'Cursor view agent is not configured' };
+    return { ok: false, reason: 'AI comment interpreter is not configured' };
   }
   return { ok: true, reason: '' };
 }
 
 /**
- * Operator-facing harness status. Isolation failure always wins over YouTube
- * connection copy so ENABLE being disabled still has an explanation.
+ * Operator-facing harness status. Display/poll can run without interpretation;
+ * a missing tool-less model configuration only gates `#Task` interpretation.
+ * YouTube connection copy stays off this line when the harness is idle so
+ * the connection row remains the place for DISCONNECTED / UNAVAILABLE.
  *
  * @param {object} [state]
  * @returns {string}
  */
 export function harnessOperatorStatus(state = {}) {
-  if (state.isolationOk === false) {
-    const reason = boundedText(state.isolationReason, 160);
-    return reason ? `DISABLED · ${reason}` : 'DISABLED';
-  }
-  return boundedText(state.status, 200) || 'DISABLED';
+  const enabled = Boolean(state.enabled);
+  const base = boundedText(state.status, 200) || (enabled ? 'HARNESS READY' : 'DISABLED');
+  if (state.isolationOk !== false) return base;
+  const reason = boundedText(state.isolationReason, 160);
+  const gate = reason ? `#TASK GATED · ${reason}` : '#TASK GATED';
+  if (base.includes('#TASK GATED')) return base;
+  return `${base} · ${gate}`;
 }
 
 /**
@@ -527,7 +532,7 @@ export function createYoutubeCommentHarness(options = {}) {
   let videos = Array.isArray(options.videos) ? options.videos.slice() : [];
   let source = normalizeSource(options.source);
   let connection = options.connection || 'disconnected';
-  let status = isolation.ok ? 'DISABLED' : `DISABLED · ${isolation.reason}`;
+  let status = 'DISABLED';
   let pollTimer = null;
   let pollAbort = null;
   let interpretAbort = null;
@@ -549,10 +554,15 @@ export function createYoutubeCommentHarness(options = {}) {
   }
 
   function setStatus(next, { nextChat: mirror = true } = {}) {
-    status = isolation.ok
-      ? (boundedText(next, 200) || status)
-      : `DISABLED · ${isolation.reason}`;
-    if (mirror) nextChat.setStatus?.(status);
+    status = boundedText(next, 200) || status;
+    if (mirror) {
+      nextChat.setStatus?.(harnessOperatorStatus({
+        isolationOk: isolation.ok,
+        isolationReason: isolation.reason,
+        status,
+        enabled,
+      }));
+    }
     emit();
   }
 
@@ -621,6 +631,7 @@ export function createYoutubeCommentHarness(options = {}) {
         isolationOk: isolation.ok,
         isolationReason: isolation.reason,
         status,
+        enabled,
       }),
       generation,
       nextChat: {
@@ -648,7 +659,6 @@ export function createYoutubeCommentHarness(options = {}) {
         result: 'not applied',
         at: now(),
       });
-      setStatus(`DISABLED · ${isolation.reason}`);
       return;
     }
     const runner = resolveGevActionRunner(options.runner);
@@ -902,7 +912,6 @@ export function createYoutubeCommentHarness(options = {}) {
           result: 'not applied',
           at: now(),
         });
-        setStatus(`DISABLED · ${isolation.reason}`);
         continue;
       }
       if (taskQueue.length >= HARNESS_MAX_QUEUE) {
@@ -992,11 +1001,6 @@ export function createYoutubeCommentHarness(options = {}) {
 
   function setEnabled(next) {
     const want = Boolean(next);
-    if (want && !isolation.ok) {
-      enabled = false;
-      setStatus(`DISABLED · ${isolation.reason}`);
-      return getSnapshot();
-    }
     if (want === enabled) return getSnapshot();
     enabled = want;
     if (!enabled) {
@@ -1054,19 +1058,10 @@ export function createYoutubeCommentHarness(options = {}) {
   }
 
   function setToolIsolation(supports, reason = '') {
-    const previous = isolation.ok;
     supportsIsolation = Boolean(supports);
     isolation = toolIsolationState(supportsIsolation, configured);
     if (reason && !isolation.ok) isolation = { ok: false, reason: boundedText(reason, 160) };
-    if (!isolation.ok && enabled) {
-      enabled = false;
-      stopPolling();
-      bumpGeneration(`DISABLED · ${isolation.reason}`);
-    } else if (previous !== isolation.ok && !enabled) {
-      setStatus(isolation.ok ? 'DISABLED' : `DISABLED · ${isolation.reason}`);
-    } else {
-      emit();
-    }
+    emit();
     return getSnapshot();
   }
 

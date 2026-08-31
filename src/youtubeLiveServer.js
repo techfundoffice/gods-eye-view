@@ -95,12 +95,62 @@ export function readJsonBody(req, limit = YOUTUBE_LIVE_MAX_BODY_BYTES) {
 export function createYoutubeLiveMiddleware({
   live = createLiveStreamController(),
   authorizeRequest = async () => null,
+  authorizeAdminRequest = async () => null,
+  goNow = null,
 } = {}) {
   return async function youtubeLiveMiddleware(req, res, next) {
     const { segments } = parseYoutubeLiveRoute(req.url);
     const [action] = segments;
 
     try {
+      if (action === 'go-now' && req.method === 'POST') {
+        const authorization = await authorizeRequest(req);
+        if (!authorization) {
+          sendJson(res, 401, {
+            error: { kind: 'authentication', message: 'Sign in to YouTube to go live.' },
+          });
+          return;
+        }
+        if (!authorization.canWrite) {
+          sendJson(res, 403, {
+            error: { kind: 'scope', message: 'Reconnect YouTube with manage scope to go live.' },
+          });
+          return;
+        }
+        const admin = await authorizeAdminRequest(req);
+        if (!admin) {
+          sendJson(res, 401, {
+            error: { kind: 'admin-authentication', message: 'Admin sign-in required.' },
+          });
+          return;
+        }
+        if (!req.headers?.[YOUTUBE_LIVE_REQUEST_HEADER]) {
+          sendJson(res, 403, {
+            error: { kind: 'csrf', message: `Missing ${YOUTUBE_LIVE_REQUEST_HEADER} header` },
+          });
+          return;
+        }
+        if (typeof goNow !== 'function') {
+          sendJson(res, 503, {
+            error: { kind: 'unconfigured', message: 'Go-now is not wired on this server.' },
+          });
+          return;
+        }
+        const body = await readJsonBody(req);
+        try {
+          const result = await goNow({ authorization, req, body });
+          sendJson(res, result?.live?.status === 'error' ? 502 : 202, result);
+        } catch (error) {
+          sendJson(res, error?.status || 400, {
+            error: {
+              kind: error?.kind || 'invalid',
+              message: error?.message || 'Unable to go live',
+            },
+          });
+        }
+        return;
+      }
+
       const authorization = await authorizeRequest(req);
       if (!authorization) {
         sendJson(res, 401, {
