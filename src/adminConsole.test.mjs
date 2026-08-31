@@ -513,6 +513,14 @@ test('Escape closes the compact drawer first, then the console', () => {
   assert.equal(adminEscapeAction({ consoleOpen: true, compact: false, drawerOpen: true }), 'close-console');
 });
 
+test('the global ADMIN Escape handler captures before the globe handler', () => {
+  assert.match(
+    consoleSource,
+    /document\?\.addEventListener\('keydown',[\s\S]*?this\._onDocumentKeydown\(event\), true\)/,
+  );
+  assert.match(consoleSource, /this\.state\.navDrawerOpen[\s\S]*?ADMIN_NAV_DRAWER_OPEN_CLASS/);
+});
+
 test('applyAdminNavLayout sets compact and drawer classes, and refuses a drawer on a wide rail', () => {
   const overlay = makeAdminOverlay();
   const wide = applyAdminNavLayout(overlay.root, { compact: false, drawerOpen: true });

@@ -578,7 +578,9 @@ export class AdminConsoleController {
       this._render();
     });
 
-    globalThis.document?.addEventListener('keydown', (event) => this._onDocumentKeydown(event));
+    // Capture before the globe's document-level Escape handler. Otherwise the
+    // open drawer loses the event race and the whole ADMIN overlay closes.
+    globalThis.document?.addEventListener('keydown', (event) => this._onDocumentKeydown(event), true);
   }
 
   /**
@@ -591,10 +593,12 @@ export class AdminConsoleController {
    */
   _onDocumentKeydown(event) {
     if (event.key !== 'Escape' || this.root.hidden) return;
+    const drawerOpen = this.state.navDrawerOpen
+      || this.root.classList?.contains?.(ADMIN_NAV_DRAWER_OPEN_CLASS);
     const action = adminEscapeAction({
       consoleOpen: !this.root.hidden,
       compact: this.state.navCompact,
-      drawerOpen: this.state.navDrawerOpen,
+      drawerOpen,
     });
     if (action === 'close-drawer') {
       event.preventDefault?.();
