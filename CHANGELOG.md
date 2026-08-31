@@ -3,6 +3,17 @@
 This changelog records public product changes. For the authoritative description
 of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md).
 
+## [Unreleased] — 2026-08-31
+
+### Changed
+
+- Live chat no longer polls YouTube Data API `liveChatMessages.list`. The
+  operator YouTube Settings panel and the Youtube AI Comment Harness read chat
+  through same-origin `/api/youtube/live-chat`, which uses YouTube's web
+  InnerTube `get_live_chat` surface so a live session does not burn Data API
+  quota. Sign-in is still required. Comments, video lists, and Go Live are
+  unchanged.
+
 ## [Unreleased] — 2026-08-30
 
 ### Added

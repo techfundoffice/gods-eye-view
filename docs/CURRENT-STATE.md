@@ -1,6 +1,21 @@
 # God's Eye View Current State
 
-Updated: August 30, 2026
+Updated: August 31, 2026
+
+> **2026-08-31 — live chat reads InnerTube, not liveChatMessages.list.** Operator
+> **YOUTUBE SETTINGS** START CHAT and the ADMIN **Youtube AI Comment Harness**
+> live-chat source poll `/api/youtube/live-chat` (video id + continuation). The
+> server bootstraps the WEB client from `youtube.com/watch?v=` and POSTs
+> `youtubei/v1/live_chat/get_live_chat` — the same unofficial surface as
+> [Agash/YTLiveChat](https://github.com/Agash/YTLiveChat). That path does not
+> spend YouTube Data API quota. It is read-only: no sending, bans, or
+> moderators. The browser never sees the WEB client key or watch-page HTML;
+> only a signed-in YouTube session may call the route, and the query is a
+> video id (not a client-supplied URL). Replay / missing chat / consent
+> interstitial stay labeled (`LIVE ENDED`, `NO ACTIVE LIVE CHAT`,
+> `YOUTUBE UNAVAILABLE`). Comments, channel/video lists, and Go Live still
+> use Data API v3. START CHAT is enabled from a selected video, not from
+> `activeLiveChatId`.
 
 > **2026-08-30 — Youtube AI Comment Harness ADMIN plugin.** After ADMIN unlock,
 > **Plugins** includes **Youtube AI Comment Harness**

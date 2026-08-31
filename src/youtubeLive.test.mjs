@@ -7,6 +7,7 @@ import {
   buildOperatorLiveStartBody,
   canStartLive,
   computePollDelay,
+  createYoutubeClient,
   createYoutubeLiveClient,
   defaultLiveCaptureUrl,
   formatLiveUptime,
@@ -254,6 +255,34 @@ test('uptime formatting matches the ADMIN console helper', () => {
   assert.equal(formatLiveUptime(null), '');
 });
 
+test('the YouTube client reads live chat from InnerTube, not liveChatMessages', async () => {
+  const calls = [];
+  const client = createYoutubeClient({
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [{
+            id: 'msg-1',
+            snippet: { type: 'textMessageEvent', displayMessage: 'Hi', publishedAt: '2026-08-31T00:00:00Z' },
+            authorDetails: { displayName: 'Ada' },
+          }],
+          nextPageToken: 'CONT_NEXT',
+          pollingIntervalMillis: 5000,
+          source: 'innertube',
+        }),
+      };
+    },
+  });
+  const payload = await client.getLiveChat({ videoId: 'abcdefghijk', continuation: 'CONT' });
+  assert.equal(calls[0].url, '/api/youtube/live-chat?videoId=abcdefghijk&continuation=CONT');
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(payload.source, 'innertube');
+  assert.equal(payload.items[0].id, 'msg-1');
+});
+
 test('the operator live client posts to /api/youtube/live with the CSRF header', async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
@@ -377,6 +406,26 @@ function makeYoutubeRoot() {
     },
   };
 }
+
+test('START CHAT is enabled from a selected video, not from activeLiveChatId', () => {
+  installDomStub();
+  const root = makeYoutubeRoot();
+  const controller = new YouTubePanelController(root, {
+    client: { get: async () => ({ items: [] }), getLiveChat: async () => ({ items: [] }) },
+    liveClient: { status: async () => ({ live: { status: 'idle' } }), startLive: async () => ({}), stopLive: async () => ({}) },
+    viewAgentClient: { interpret: async () => ({ action: 'ignore' }) },
+  });
+  controller.state.videos = [{ id: 'abcdefghijk', snippet: { title: 'Globe live' }, statistics: { viewCount: 3 } }];
+  controller.state.videoId = 'abcdefghijk';
+  controller.state.liveChatId = '';
+  controller._render();
+  assert.equal(root.els['youtube-chat-toggle'].disabled, false);
+  assert.match(root.els['youtube-video-summary'].textContent, /LIVE CHAT AVAILABLE/);
+  controller.state.videoId = '';
+  controller._render();
+  assert.equal(root.els['youtube-chat-toggle'].disabled, true);
+  controller.destroy();
+});
 
 test('the YouTube Settings controller start/stop calls the live client and clears the key', async () => {
   installDomStub();

@@ -17,6 +17,8 @@ How to read this:
 | Source | Used for | License / terms | Attribution |
 |--------|----------|-----------------|-------------|
 | **Google Map Tiles API** (Photorealistic 3D Tiles) + Places/Geocoding | The 3D globe, voice scene context, on-demand nearby installation search, and LOCATION-finder as-you-type suggestions | Google Maps Platform ToS (proprietary, your own key + billing) | "Google" / "Google Maps" logo — **shown in-app**, required |
+| **YouTube Data API v3** (OAuth) | Operator comments, channel/video lists, and YouTube Live create/bind/go-live | [YouTube API Services ToS](https://developers.google.com/youtube/terms/api-services-terms-of-service) (your OAuth client + quota) | YouTube — operator account only; tokens stay server-side |
+| **YouTube InnerTube live chat** (`get_live_chat`) | Read-only live chat for the signed-in operator's selected video (YouTube Settings + Youtube AI Comment Harness) | Unofficial web chat surface used by youtube.com; [YouTube ToS](https://www.youtube.com/t/terms) still apply; not a Data API quota path | YouTube — read-only; no sending |
 | **OpenSky Network** | Primary worldwide live-flight snapshot | Non-commercial research/education license | Schäfer et al., *"Bringing Up OpenSky"*, IPSN 2014 + opensky-network.org |
 | **adsb.lol point API** | Bounded live-flight fallback when OpenSky has no usable snapshot | ODbL 1.0 | adsb.lol contributors; `api.adsb.lol/v2/lat/{lat}/lon/{lon}/dist/{radius}` |
 | **adsb.lol** | Military flights + aircraft traces | ODbL 1.0 | "adsb.lol" (ODbL) |
@@ -65,6 +67,8 @@ proxy and capped (200 points); USGS Water and openSenseMap are also
 viewport-bounded so a full-earth camera does not ingest an uncapped dump.
 
 ### Notes on the live sources
+
+- **YouTube.** Channel lists, comments, and broadcast control go through the official Data API v3 proxy (`/api/youtube`) with the operator's OAuth session. Live chat is a separate read-only InnerTube poll (`/api/youtube/live-chat`) so a multi-hour stream does not exhaust the Data API daily quota on `liveChatMessages.list`. That chat path is unofficial (YouTube can change the watch-page / `get_live_chat` schema at any time); it never sends messages, never accepts a client-supplied upstream URL, and is gated on the same signed-in YouTube session. Protocol reference: [Agash/YTLiveChat](https://github.com/Agash/YTLiveChat) (MIT).
 
 - **Google Maps Platform.** You supply your own API key and are bound by [Google's ToS](https://cloud.google.com/maps-platform/terms). Google Maps Content (tiles, geocodes, places) **may not be cached, stored, rehosted, or committed** — this app only ever uses it live, which is the compliant pattern. The "Google" attribution is displayed on the globe and must stay visible. Restrict your key (see [SECURITY.md](SECURITY.md)). The LOCATION finder requests as-you-type suggestions through same-origin `/api/google/place-suggest` (Places Autocomplete (New), no viewport bias); it does not store the payload.
 

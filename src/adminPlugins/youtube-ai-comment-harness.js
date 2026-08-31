@@ -1,7 +1,7 @@
 /**
  * ADMIN plugin: Youtube AI Comment Harness.
  *
- * Reads YouTube comments / live chat, shows them in NextChat, and routes
+ * Reads YouTube comments / InnerTube live chat, shows them in NextChat, and routes
  * leading `#Task` comments through a constrained interpreter into the
  * existing GEV action runner.
  *

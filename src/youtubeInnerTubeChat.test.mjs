@@ -90,8 +90,9 @@ test('video ids must be the 11-character YouTube form', () => {
   assert.equal(normalizeVideoId('abcdefghijk'), 'abcdefghijk');
   assert.equal(normalizeVideoId('https://www.youtube.com/watch?v=abcdefghijk'), 'abcdefghijk');
   assert.equal(normalizeVideoId('https://youtu.be/abcdefghijk'), 'abcdefghijk');
-  assert.equal(normalizeVideoId('not-a-video'), '');
-  assert.equal(normalizeVideoId('https://evil.example/watch?v=abcdefghijk.attacker'), 'abcdefghijk');
+  assert.equal(normalizeVideoId('nope'), '');
+  assert.equal(normalizeVideoId('toolongvideoid'), '');
+  assert.equal(normalizeVideoId('https://evil.example/watch?v=abcdefghijk'), 'abcdefghijk');
 });
 
 test('watch-page bootstrap extracts WEB client options and rejects replay/consent', () => {

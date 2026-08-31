@@ -13,6 +13,7 @@ import {
   boundedViewSummary,
   createEmptyCounters,
   createYoutubeCommentHarness,
+  createYoutubeHarnessSource,
   detectUnsafeInterpretation,
   HARNESS_LABEL,
   HARNESS_MAX_QUEUE,
@@ -109,6 +110,69 @@ test('incoming YouTube items normalize to schemaVersion 1 and keep the author', 
   assert.equal(message.text.includes('\u0000'), false);
   assert.equal(message.text.length, HARNESS_MAX_TEXT);
   assert.equal(message.receivedAt, '2026-08-30T12:00:00.000Z');
+});
+
+test('live chat polling uses a video id and does not require a Data API liveChatId', async () => {
+  const fetched = [];
+  const timers = [];
+  const { harness, published } = makeHarness({
+    supportsToolIsolation: true,
+    videoId: 'abcdefghijk',
+    source: 'liveChat',
+    clock: {
+      setTimeout(fn) { timers.push(fn); return timers.length; },
+      clearTimeout() { timers.length = 0; },
+    },
+    youtubeSource: {
+      async status() { return { connected: true, configured: true }; },
+      async fetchLiveChat(videoId, token) {
+        fetched.push({ videoId, token });
+        return {
+          items: [{
+            id: 'lc-1',
+            author: 'DockHand',
+            text: 'Ahoy from InnerTube',
+            publishedAt: '2026-08-31T00:00:00.000Z',
+          }],
+          nextPageToken: 'CONT_NEXT',
+        };
+      },
+    },
+  });
+  harness.setEnabled(true);
+  assert.equal(typeof timers[0], 'function');
+  await timers[0]();
+  assert.deepEqual(fetched[0], { videoId: 'abcdefghijk', token: '' });
+  assert.equal(published[0].author, 'DockHand');
+  assert.equal(published[0].text, 'Ahoy from InnerTube');
+  harness.setEnabled(false);
+});
+
+test('the default harness live-chat source calls /api/youtube/live-chat', async () => {
+  const calls = [];
+  const source = createYoutubeHarnessSource({
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [{
+            id: 'lc-2',
+            snippet: { displayMessage: 'Hi', publishedAt: '2026-08-31T00:00:00Z' },
+            authorDetails: { displayName: 'Ada', channelId: 'UC1' },
+          }],
+          nextPageToken: 'NEXT',
+          source: 'innertube',
+        }),
+      };
+    },
+  });
+  const payload = await source.fetchLiveChat('abcdefghijk', 'CONT');
+  assert.equal(calls[0].url, '/api/youtube/live-chat?videoId=abcdefghijk&continuation=CONT');
+  assert.equal(payload.items[0].id, 'lc-2');
+  assert.equal(payload.items[0].author, 'Ada');
+  assert.equal(payload.nextPageToken, 'NEXT');
 });
 
 test('live chat source and nested YouTube payloads preserve provider ids', () => {
