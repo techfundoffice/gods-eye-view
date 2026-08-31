@@ -6,10 +6,13 @@ import {
   isCompatibleBroadcastStatus,
   isTerminalBroadcastStatus,
   listCompatibleBroadcasts,
+  pickReusableBroadcast,
+  nextYoutubeLiveTransition,
   pollYoutubeBroadcast,
   provisionYoutubeBroadcast,
   redactBroadcastView,
   selectYoutubeBroadcast,
+  transitionYoutubeBroadcast,
   youtubeLiveOperatorMessage,
 } from './youtubeBroadcast.js';
 
@@ -83,6 +86,20 @@ test('provisioning creates a stream, a broadcast with auto-start and no monitor 
   assert.equal(seen[2].params.id, 'broadcast-1');
 
   await assert.rejects(() => provisionYoutubeBroadcast(call, { title: '  ' }), /title is required/);
+});
+
+test('pickReusableBroadcast prefers a named id, then a public ready live', () => {
+  const waiting = {
+    id: 'CVSB4QJhVTU',
+    privacy: 'public',
+    lifeCycleStatus: 'ready',
+  };
+  const unlisted = { id: 'other', privacy: 'unlisted', lifeCycleStatus: 'ready' };
+  const complete = { id: 'old', privacy: 'public', lifeCycleStatus: 'complete' };
+  assert.equal(pickReusableBroadcast([complete, unlisted, waiting]).id, 'CVSB4QJhVTU');
+  assert.equal(pickReusableBroadcast([unlisted, waiting], { preferId: 'other' }).id, 'other');
+  assert.equal(pickReusableBroadcast([complete]), null);
+  assert.equal(pickReusableBroadcast([]), null);
 });
 
 test('the public broadcast view never includes the stream key', () => {
@@ -229,6 +246,33 @@ test('quota and insufficient-scope become operator sentences', async () => {
   await assert.rejects(
     () => listCompatibleBroadcasts(scopeCall),
     (error) => error.kind === 'insufficient-scope' && /Reconnect YouTube/.test(error.message),
+  );
+});
+
+test('transition posts liveBroadcasts/transition and next-step is live once the stream is active', async () => {
+  const { call, seen } = recordingCall(() => ({
+    id: 'broadcast-1',
+    status: { lifeCycleStatus: 'live' },
+  }));
+  const result = await transitionYoutubeBroadcast(call, {
+    broadcastId: 'broadcast-1',
+    broadcastStatus: 'live',
+  });
+  assert.equal(result.status.lifeCycleStatus, 'live');
+  assert.equal(seen[0].resource, 'liveBroadcasts/transition');
+  assert.equal(seen[0].method, 'POST');
+  assert.equal(seen[0].params.id, 'broadcast-1');
+  assert.equal(seen[0].params.broadcastStatus, 'live');
+
+  assert.equal(nextYoutubeLiveTransition({ streamStatus: 'ready' }), null);
+  assert.equal(nextYoutubeLiveTransition({ streamStatus: 'active', received: false, preview: false }), 'live');
+  assert.equal(nextYoutubeLiveTransition({ streamStatus: 'active', received: true, preview: true }), 'live');
+  assert.equal(nextYoutubeLiveTransition({ streamStatus: 'active', received: true, preview: false }), null);
+  assert.equal(nextYoutubeLiveTransition({ streamStatus: 'active', terminal: true }), null);
+
+  await assert.rejects(
+    () => transitionYoutubeBroadcast(call, { broadcastId: 'broadcast-1', broadcastStatus: 'ready' }),
+    /testing, live, or complete/,
   );
 });
 

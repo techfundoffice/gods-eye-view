@@ -13,7 +13,7 @@ import {
   randomUUID,
   timingSafeEqual,
 } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 const GOOGLE_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -22,7 +22,9 @@ const GOOGLE_USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
 const YOUTUBE_API_URL = 'https://www.googleapis.com';
 const SESSION_COOKIE = 'gev_youtube_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+const OAUTH_STATE_TTL_MS = 6 * 60 * 60 * 1000;
+/** Reuse an in-flight PKCE if the operator taps Allow again within this window. */
+const OAUTH_START_REUSE_MS = 30 * 60 * 1000;
 const TOKEN_REFRESH_LEEWAY_MS = 60 * 1000;
 const PERSISTED_SESSION_ID = 'persisted-youtube';
 const YOUTUBE_IDENTITY_SCOPES = ['openid', 'email', 'profile'];
@@ -74,6 +76,14 @@ export function hasYoutubeManageScope(scopes) {
  * @param {string} [address]
  * @returns {boolean}
  */
+/**
+ * @param {object} [env]
+ * @returns {boolean}
+ */
+export function autoGoLiveEnabled(env = process.env) {
+  return ['1', 'true', 'yes', 'on'].includes(String(env.GEV_AUTO_GO_LIVE || '').trim().toLowerCase());
+}
+
 export function isLoopbackAddress(address) {
   const ip = String(address || '').trim().toLowerCase();
   return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
@@ -132,6 +142,59 @@ function sendJson(res, status, payload) {
   res.end(body);
 }
 
+function sendHtml(res, status, body) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Length', Buffer.byteLength(body));
+  res.end(body);
+}
+
+function requestUserAgent(req) {
+  return String(req.headers?.['user-agent'] || '').slice(0, 120);
+}
+
+/**
+ * Confirm page for GET /start. Chat, mail, and QR prefetchers hit this URL
+ * and must not create a PKCE challenge. A real tap uses ?go=1.
+ *
+ * @returns {string}
+ */
+export function youtubeAllowInterstitialHtml() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Allow YouTube — God's Eye View</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      background: #0a0a0f; color: #e8eef5;
+      font-family: Inter, system-ui, sans-serif; padding: 24px 16px;
+    }
+    main { width: min(28rem, 100%); text-align: center; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 10px; }
+    p { margin: 0 0 22px; line-height: 1.45; color: #b7c2ce; }
+    a {
+      display: inline-block; background: #00d4ff; color: #041018;
+      font-weight: 700; text-decoration: none; padding: 16px 28px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Allow YouTube on this phone</h1>
+    <p>Tap below, pick the YouTube account, then Allow. Do this here — not in a remote desktop browser.</p>
+    <a href="/api/youtube/auth/start?go=1">Continue to Google Allow</a>
+  </main>
+</body>
+</html>`;
+}
+
 function redirect(res, location) {
   res.statusCode = 302;
   res.setHeader('Location', location);
@@ -163,7 +226,18 @@ function requiresSecureCookie(req) {
 }
 
 function callbackErrorLocation(code) {
-  return `/?youtube_auth=${encodeURIComponent(code)}`;
+  return `/go-live.html?youtube_auth=${encodeURIComponent(code)}`;
+}
+
+async function logOAuthEvent(event) {
+  try {
+    await appendFile(
+      '/tmp/gev-oauth-events.jsonl',
+      `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`,
+    );
+  } catch {
+    // Operator log is best-effort.
+  }
 }
 
 function publicAccount(session) {
@@ -211,11 +285,14 @@ export function encodePersistedYoutubeSession(sessionSecret, record) {
 }
 
 /**
+ * Decrypt a persisted JSON record. Used for the session file and for the
+ * in-flight PKCE pending file (no refresh token required).
+ *
  * @param {string} sessionSecret
  * @param {string} raw
  * @returns {object|null}
  */
-export function decodePersistedYoutubeSession(sessionSecret, raw) {
+export function decodePersistedPayload(sessionSecret, raw) {
   try {
     const parsed = JSON.parse(String(raw || ''));
     if (parsed?.v !== 1 || !parsed.iv || !parsed.tag || !parsed.data) return null;
@@ -230,10 +307,20 @@ export function decodePersistedYoutubeSession(sessionSecret, raw) {
       decipher.final(),
     ]).toString('utf8');
     const record = JSON.parse(plain);
-    return record?.refreshToken ? record : null;
+    return record && typeof record === 'object' ? record : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * @param {string} sessionSecret
+ * @param {string} raw
+ * @returns {object|null}
+ */
+export function decodePersistedYoutubeSession(sessionSecret, raw) {
+  const record = decodePersistedPayload(sessionSecret, raw);
+  return record?.refreshToken ? record : null;
 }
 
 export function createYoutubeOAuthMiddleware({
@@ -251,11 +338,15 @@ export function createYoutubeOAuthMiddleware({
   onSignedIn = null,
   persistPath = process.env.YOUTUBE_SESSION_PATH || '',
   refreshToken = process.env.YOUTUBE_REFRESH_TOKEN || '',
+  loginHint = process.env.YOUTUBE_LOGIN_HINT || '',
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('YouTube OAuth requires fetch');
   const configured = Boolean(clientId && clientSecret && sessionSecret);
   const scopes = resolveYoutubeScopes(writeEnabled);
   const persistEnabled = Boolean(persistPath && sessionSecret);
+  const pendingPath = persistEnabled
+    ? `${String(persistPath).replace(/\.json$/i, '')}-pending.json`
+    : '';
 
   function persistableRecord(session) {
     if (!session?.refreshToken) return null;
@@ -285,6 +376,53 @@ export function createYoutubeOAuthMiddleware({
       await unlink(persistPath);
     } catch (error) {
       if (error?.code !== 'ENOENT') throw error;
+    }
+  }
+
+  async function writePendingStates() {
+    if (!pendingPath) return;
+    const pending = [];
+    for (const [state, entry] of oauthStates) {
+      if (!entry || Number(entry.expiresAt || 0) <= now()) continue;
+      pending.push({
+        state,
+        sessionId: entry.sessionId,
+        codeVerifier: entry.codeVerifier,
+        redirectUri: entry.redirectUri,
+        expiresAt: entry.expiresAt,
+        createdAt: entry.createdAt || 0,
+      });
+    }
+    if (!pending.length) {
+      try {
+        await unlink(pendingPath);
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
+      return;
+    }
+    await mkdir(dirname(pendingPath), { recursive: true });
+    await writeFile(pendingPath, encodePersistedYoutubeSession(sessionSecret, { pending }), { mode: 0o600 });
+  }
+
+  async function restorePendingStates() {
+    if (!pendingPath) return;
+    try {
+      const record = decodePersistedPayload(sessionSecret, await readFile(pendingPath, 'utf8'));
+      for (const row of record?.pending || []) {
+        if (!row?.state || Number(row.expiresAt || 0) <= now()) continue;
+        oauthStates.set(row.state, {
+          sessionId: row.sessionId,
+          codeVerifier: row.codeVerifier,
+          redirectUri: row.redirectUri,
+          expiresAt: row.expiresAt,
+          createdAt: Number(row.createdAt || 0),
+        });
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        // Corrupt pending file must not block sign-in.
+      }
     }
   }
 
@@ -322,6 +460,7 @@ export function createYoutubeOAuthMiddleware({
 
   async function restorePersistedSession() {
     if (!configured) return;
+    await restorePendingStates();
     let record = null;
     if (persistEnabled) {
       try {
@@ -407,13 +546,13 @@ export function createYoutubeOAuthMiddleware({
     res.setHeader('Set-Cookie', serializeCookie('', 0, requiresSecureCookie(req)));
   }
 
-  async function exchangeCode({ code, codeVerifier, req }) {
+  async function exchangeCode({ code, codeVerifier, redirect }) {
     const body = new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
       code,
       code_verifier: codeVerifier,
-      redirect_uri: getRedirectUri(req),
+      redirect_uri: redirect,
       grant_type: 'authorization_code',
     });
     const response = await fetchImpl(GOOGLE_TOKEN_URL, {
@@ -524,9 +663,61 @@ export function createYoutubeOAuthMiddleware({
     return fetchImpl(`${YOUTUBE_API_URL}${requestPath}`, init);
   }
 
-  async function handleStart(req, res) {
+  function buildAuthorizeUrl(state, sessionId, codeVerifier, redirect) {
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirect,
+      response_type: 'code',
+      scope: scopes.join(' '),
+      access_type: 'offline',
+      prompt: 'consent',
+      state: signedState(state, sessionId),
+      code_challenge: createChallenge(codeVerifier),
+      code_challenge_method: 'S256',
+    });
+    const hint = String(loginHint || '').trim();
+    if (hint) params.set('login_hint', hint);
+    return `${GOOGLE_AUTHORIZE_URL}?${params}`;
+  }
+
+  function findReusablePending(redirect) {
+    const oldest = now() - OAUTH_START_REUSE_MS;
+    let best = null;
+    for (const [state, entry] of oauthStates) {
+      if (!entry || entry.redirectUri !== redirect || Number(entry.expiresAt || 0) <= now()) continue;
+      const createdAt = Number(entry.createdAt || 0) || (Number(entry.expiresAt) - oauthStateTtlMs);
+      if (createdAt < oldest) continue;
+      if (!best || createdAt > best.createdAt) {
+        best = { state, sessionId: entry.sessionId, codeVerifier: entry.codeVerifier, createdAt };
+      }
+    }
+    return best;
+  }
+
+  async function handleStart(req, res, url) {
+    await restored;
     if (!configured) {
       sendJson(res, 503, { error: { kind: 'configuration', message: 'YouTube sign-in is not configured.' } });
+      return;
+    }
+    const commit = url.searchParams.get('go') === '1' || url.searchParams.get('go') === 'true';
+    if (!commit) {
+      void logOAuthEvent({ event: 'interstitial', ua: requestUserAgent(req) });
+      sendHtml(res, 200, youtubeAllowInterstitialHtml());
+      return;
+    }
+    const redirectUriForStart = getRedirectUri(req);
+    const reused = findReusablePending(redirectUriForStart);
+    if (reused) {
+      if (!sessions.has(reused.sessionId)) {
+        sessions.set(reused.sessionId, {
+          createdAt: now(),
+          expiresAt: now() + sessionTtlMs,
+        });
+      }
+      setSessionCookie(req, res, reused.sessionId);
+      void logOAuthEvent({ event: 'start', reused: true, redirectUri: redirectUriForStart, ua: requestUserAgent(req) });
+      redirect(res, buildAuthorizeUrl(reused.state, reused.sessionId, reused.codeVerifier, redirectUriForStart));
       return;
     }
     const existing = getSession(req);
@@ -542,26 +733,21 @@ export function createYoutubeOAuthMiddleware({
     oauthStates.set(state, {
       sessionId,
       codeVerifier,
+      redirectUri: redirectUriForStart,
+      createdAt: now(),
       expiresAt: now() + oauthStateTtlMs,
     });
     setSessionCookie(req, res, sessionId);
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: getRedirectUri(req),
-      response_type: 'code',
-      scope: scopes.join(' '),
-      access_type: 'offline',
-      prompt: 'consent',
-      state: signedState(state, sessionId),
-      code_challenge: createChallenge(codeVerifier),
-      code_challenge_method: 'S256',
-    });
-    redirect(res, `${GOOGLE_AUTHORIZE_URL}?${params}`);
+    void logOAuthEvent({ event: 'start', reused: false, redirectUri: redirectUriForStart, ua: requestUserAgent(req) });
+    void writePendingStates().catch(() => {});
+    redirect(res, buildAuthorizeUrl(state, sessionId, codeVerifier, redirectUriForStart));
   }
 
   async function handleCallback(req, res, url) {
+    await restored;
     const params = url.searchParams;
     if (params.get('error')) {
+      void logOAuthEvent({ event: 'callback', result: 'denied' });
       clearSessionCookie(req, res);
       redirect(res, callbackErrorLocation('denied'));
       return;
@@ -570,21 +756,41 @@ export function createYoutubeOAuthMiddleware({
     const signed = params.get('state');
     const [state] = String(signed || '').split('.');
     const pending = state ? oauthStates.get(state) : null;
-    if (!current || !pending || pending.sessionId !== current.id || !verifyState(signed, current.id)
-      || pending.expiresAt <= now() || !params.get('code')) {
+    const sessionId = pending?.sessionId || current?.id;
+    const stateOk = Boolean(
+      pending
+      && sessionId
+      && verifyState(signed, sessionId)
+      && pending.expiresAt > now()
+      && params.get('code')
+      && (!current || current.id === pending.sessionId),
+    );
+    if (!stateOk) {
+      void logOAuthEvent({ event: 'callback', result: 'invalid_state' });
       clearSessionCookie(req, res);
       redirect(res, callbackErrorLocation('invalid_state'));
       return;
     }
+    if (!sessions.has(pending.sessionId)) {
+      sessions.set(pending.sessionId, {
+        createdAt: now(),
+        expiresAt: now() + sessionTtlMs,
+      });
+    }
+    const session = sessions.get(pending.sessionId);
     oauthStates.delete(state);
+    void writePendingStates().catch(() => {});
     try {
-      const token = await exchangeCode({ code: params.get('code'), codeVerifier: pending.codeVerifier, req });
+      const token = await exchangeCode({
+        code: params.get('code'),
+        codeVerifier: pending.codeVerifier,
+        redirect: pending.redirectUri || getRedirectUri(req),
+      });
       const userResponse = await fetchImpl(GOOGLE_USERINFO_URL, {
         headers: { Accept: 'application/json', Authorization: `Bearer ${token.access_token}` },
       });
       const user = await userResponse.json().catch(() => ({}));
       if (!userResponse.ok || !user.sub) throw authError('Google account identity could not be verified.');
-      const session = current.value;
       session.googleSub = String(user.sub);
       session.email = String(user.email || '');
       session.name = String(user.name || user.email || 'YouTube account');
@@ -599,11 +805,12 @@ export function createYoutubeOAuthMiddleware({
       } catch {
         // Disk persist is best-effort; the in-memory session still works.
       }
-      setSessionCookie(req, res, current.id);
+      void logOAuthEvent({ event: 'callback', result: 'success', canWrite: writeEnabled && hasYoutubeManageScope(session.scopes) });
+      setSessionCookie(req, res, pending.sessionId);
       redirect(res, callbackErrorLocation('success'));
       if (typeof onSignedIn === 'function') {
         const authorization = {
-          sessionId: current.id,
+          sessionId: pending.sessionId,
           scopes: session.scopes || [],
           canWrite: writeEnabled && hasYoutubeManageScope(session.scopes),
           getAccessToken: () => getAccessToken(session),
@@ -611,7 +818,8 @@ export function createYoutubeOAuthMiddleware({
         void Promise.resolve(onSignedIn(authorization)).catch(() => {});
       }
     } catch {
-      sessions.delete(current.id);
+      void logOAuthEvent({ event: 'callback', result: 'error' });
+      sessions.delete(pending.sessionId);
       clearSessionCookie(req, res);
       redirect(res, callbackErrorLocation('error'));
     }
@@ -621,7 +829,7 @@ export function createYoutubeOAuthMiddleware({
     const url = new URL(req.url || '/', 'http://localhost');
     if (url.pathname === '/start') {
       if (req.method !== 'GET') return sendJson(res, 405, { error: { kind: 'method-not-allowed', message: 'OAuth start is read-only.' } });
-      return handleStart(req, res);
+      return handleStart(req, res, url);
     }
     if (url.pathname === '/callback') {
       if (req.method !== 'GET') return sendJson(res, 405, { error: { kind: 'method-not-allowed', message: 'OAuth callback requires GET.' } });
@@ -635,6 +843,7 @@ export function createYoutubeOAuthMiddleware({
         configured,
         writeEnabled,
         canWrite: writeEnabled && hasYoutubeManageScope(current?.value?.scopes),
+        autoGoLive: autoGoLiveEnabled(),
       });
     }
     if (url.pathname === '/signout') {

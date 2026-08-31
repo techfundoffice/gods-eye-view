@@ -9828,6 +9828,145 @@ body.scene-playback-mode #first-run-launcher {
    ADMIN — launcher label and password-gated console
    ═══════════════════════════════════════════════ */
 
+.go-live-launch {
+  position: fixed;
+  top: 114px;
+  right: 36px;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--btn-radius);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2.4px;
+  text-decoration: none;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+
+.go-live-launch[hidden] {
+  display: none;
+}
+
+.go-live-phone {
+  position: fixed;
+  top: 150px;
+  right: 36px;
+  z-index: 10050;
+  width: min(260px, calc(100vw - 24px));
+  padding: 10px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--btn-radius);
+  color: var(--text-secondary, #b7c2ce);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  text-align: center;
+  backdrop-filter: blur(12px);
+}
+
+.go-live-phone img {
+  display: block;
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 8px;
+  background: #fff;
+}
+
+.go-live-phone p {
+  margin: 0;
+}
+
+.go-live-phone a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.go-live-phone form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  text-align: left;
+}
+
+.go-live-phone label {
+  display: grid;
+  gap: 4px;
+  color: var(--text-secondary, #b7c2ce);
+}
+
+.go-live-phone input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #121821;
+  color: #e8eef5;
+  border: 1px solid #2a3848;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.go-live-phone button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #00d4ff;
+  color: #041018;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.go-live-phone button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+#go-live-phone-paste {
+  background: transparent;
+  color: #7ee0ff;
+  border: 1px solid #2a3848;
+}
+
+.go-live-phone-more {
+  margin-top: 8px;
+}
+
+#go-live-phone-status:empty {
+  display: none;
+}
+
+#go-live-phone-status {
+  margin-top: 8px;
+  color: #ff8a8a;
+}
+
+#go-live-phone-status[data-ok="1"] {
+  color: #8ef0c2;
+}
+
+.go-live-phone[hidden] {
+  display: none;
+}
+
+body.ui-clean-view .go-live-launch,
+body.cockpit-mode .go-live-launch,
+body.ui-clean-view .go-live-phone,
+body.cockpit-mode .go-live-phone {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .admin-launch {
   position: fixed;
   top: 78px;
@@ -10684,38 +10823,6 @@ body.cockpit-mode .admin-launch {
   line-height: 1.6;
 }
 
-.admin-pane-composio {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
-
-.admin-composio-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.admin-composio-requirements,
-.admin-composio-result {
-  margin: 0;
-  padding: 10px 12px;
-  overflow: auto;
-  max-height: 24vh;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font: 10px/1.6 var(--font-mono);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.admin-composio-result {
-  color: var(--text-primary);
-}
-
 .admin-pane-live {
   display: flex;
   flex-direction: column;
@@ -10838,7 +10945,6 @@ body.cockpit-mode .admin-launch {
 
 @media (max-width: 900px) {
   .admin-pane { grid-template-columns: 1fr; }
-  .admin-composio-grid { grid-template-columns: 1fr; }
   .admin-plugin-list { max-height: 22vh; }
   .admin-live-grid,
   .admin-live-grid-encoder { grid-template-columns: 1fr; }

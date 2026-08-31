@@ -141,6 +141,48 @@ export function normalizeIngestTarget(ingestUrl, streamKey) {
 }
 
 /**
+ * Split a YouTube Studio paste that may be a bare stream key or a full
+ * `rtmp(s)://…/live2/<key>` URL. Studio's copy button often yields the latter.
+ *
+ * @param {string} raw Pasted key or ingest URL.
+ * @param {string} [fallbackIngestUrl]
+ * @returns {{ingestUrl: string, streamKey: string}}
+ */
+export function splitYoutubeIngestPaste(raw, fallbackIngestUrl = 'rtmps://a.rtmp.youtube.com/live2') {
+  const text = String(raw || '').trim();
+  const fallback = String(fallbackIngestUrl || 'rtmps://a.rtmp.youtube.com/live2').trim();
+  if (!text) return { ingestUrl: fallback, streamKey: '' };
+
+  const firstLine = text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || '';
+  const token = firstLine.split(/\s+/)[0] || '';
+  if (/^rtmps?:\/\//i.test(token)) {
+    let parsed;
+    try {
+      parsed = new URL(token);
+    } catch {
+      return { ingestUrl: fallback, streamKey: firstLine };
+    }
+    if (!LIVE_ALLOWED_INGEST_PROTOCOLS.includes(parsed.protocol)) {
+      return { ingestUrl: fallback, streamKey: firstLine };
+    }
+    const parts = parsed.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
+    if (parts.length >= 2) {
+      return {
+        ingestUrl: `${parsed.protocol}//${parsed.host}/${parts.slice(0, -1).join('/')}`,
+        streamKey: parts[parts.length - 1],
+      };
+    }
+    const rest = text.slice(text.indexOf(firstLine) + firstLine.length).trim().split(/\s+/)[0] || '';
+    const path = parsed.pathname.replace(/\/+$/, '');
+    return {
+      ingestUrl: `${parsed.protocol}//${parsed.host}${path}`,
+      streamKey: rest,
+    };
+  }
+  return { ingestUrl: fallback, streamKey: firstLine.split(/\s+/)[0] || text };
+}
+
+/**
  * Validate an optional audio bed for the broadcast.
  *
  * ffmpeg will happily open `concat:`, `file:`, and a dozen other protocols, so
@@ -349,6 +391,31 @@ export function chromiumCaptureHints(captureUrl, env = process.env) {
     extraHeaders: { Host: publicHost },
     loopbackUrl: `http://127.0.0.1:${port}/`,
     publicHost,
+  };
+}
+
+/**
+ * Chromium must open the HTTP loopback URL on this process. Mapping the
+ * public HTTPS host to 127.0.0.1 still uses port 443 and fails with
+ * net::ERR_INVALID_ARGUMENT.
+ *
+ * @param {string} captureUrl
+ * @param {object} [hints] From {@link chromiumCaptureHints}
+ * @returns {{captureUrl: string, hostResolverRules: string|null, extraHeaders: object|null}}
+ */
+export function encoderCaptureFromHints(captureUrl, hints = null) {
+  const loopback = String(hints?.loopbackUrl || '').trim();
+  if (loopback) {
+    return {
+      captureUrl: loopback,
+      hostResolverRules: null,
+      extraHeaders: null,
+    };
+  }
+  return {
+    captureUrl,
+    hostResolverRules: hints?.hostResolverRules || null,
+    extraHeaders: hints?.extraHeaders || null,
   };
 }
 

@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import {
   YOUTUBE_MANAGE_SCOPE,
   createYoutubeOAuthMiddleware,
+  decodePersistedPayload,
+  decodePersistedYoutubeSession,
+  encodePersistedYoutubeSession,
   hasYoutubeManageScope,
   isLoopbackAddress,
   resolveYoutubeScopes,
@@ -57,8 +63,40 @@ test('OAuth status is minimal and reports configuration without exposing credent
     configured: true,
     writeEnabled: true,
     canWrite: false,
+    autoGoLive: false,
   });
   assert.doesNotMatch(response.body, /client-secret|session-secret|access_token|refresh_token/);
+});
+
+test('GET /start without go=1 is an interstitial and does not create PKCE', async () => {
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async () => { throw new Error('not expected'); },
+  });
+  const response = await invoke(oauth.middleware, { url: '/start' });
+  assert.equal(response.status, 200);
+  assert.match(response.headers['content-type'], /text\/html/);
+  assert.match(response.body, /Continue to Google Allow/);
+  assert.match(response.body, /start\?go=1/);
+  assert.equal(oauth.oauthStates.size, 0);
+  assert.doesNotMatch(response.body, /client-secret|code_verifier|accounts\.google\.com/);
+});
+
+test('a second go=1 start reuses the in-flight PKCE so a preview tap cannot invalidate Allow', async () => {
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async () => { throw new Error('not expected'); },
+  });
+  const first = await invoke(oauth.middleware, { url: '/start?go=1' });
+  const second = await invoke(oauth.middleware, { url: '/start?go=1' });
+  assert.equal(first.status, 302);
+  assert.equal(second.status, 302);
+  assert.equal(first.headers.location, second.headers.location);
+  assert.equal(oauth.oauthStates.size, 1);
 });
 
 test('OAuth start uses state, PKCE, offline access, and exact callback URI', async () => {
@@ -68,7 +106,7 @@ test('OAuth start uses state, PKCE, offline access, and exact callback URI', asy
     sessionSecret: 'session-secret-long-enough',
     fetchImpl: async () => { throw new Error('not expected'); },
   });
-  const response = await invoke(oauth.middleware, { url: '/start' });
+  const response = await invoke(oauth.middleware, { url: '/start?go=1' });
   assert.equal(response.status, 302);
   assert.match(response.headers['set-cookie'], /HttpOnly/);
   assert.match(response.headers['set-cookie'], /SameSite=Lax/);
@@ -80,6 +118,19 @@ test('OAuth start uses state, PKCE, offline access, and exact callback URI', asy
   assert.equal(target.searchParams.get('access_type'), 'offline');
   assert.match(target.searchParams.get('scope'), /youtube\.readonly/);
   assert.ok(target.searchParams.get('state'));
+  assert.equal(target.searchParams.get('login_hint'), null);
+});
+
+test('OAuth start sends login_hint when configured', async () => {
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    loginHint: 'operator@example.com',
+    fetchImpl: async () => { throw new Error('not expected'); },
+  });
+  const response = await invoke(oauth.middleware, { url: '/start?go=1' });
+  assert.equal(new URL(response.headers.location).searchParams.get('login_hint'), 'operator@example.com');
 });
 
 test('OAuth cookie permits insecure transport only on localhost development', async () => {
@@ -90,7 +141,7 @@ test('OAuth cookie permits insecure transport only on localhost development', as
     fetchImpl: async () => { throw new Error('not expected'); },
   });
   const response = await invoke(oauth.middleware, {
-    url: '/start',
+    url: '/start?go=1',
     host: 'localhost:5000',
     forwardedProto: '',
   });
@@ -99,7 +150,7 @@ test('OAuth cookie permits insecure transport only on localhost development', as
   assert.equal(new URL(response.headers.location).searchParams.get('redirect_uri'), 'http://localhost:5000/api/youtube/auth/callback');
 
   const ipv6 = await invoke(oauth.middleware, {
-    url: '/start',
+    url: '/start?go=1',
     host: '[::1]:5000',
     forwardedProto: '',
   });
@@ -116,14 +167,14 @@ test('OAuth callback rejects mismatched state before token exchange', async () =
     sessionSecret: 'session-secret-long-enough',
     fetchImpl: async () => { calls += 1; throw new Error('must not run'); },
   });
-  const start = await invoke(oauth.middleware, { url: '/start' });
+  const start = await invoke(oauth.middleware, { url: '/start?go=1' });
   const cookie = start.headers['set-cookie'].split(';')[0];
   const response = await invoke(oauth.middleware, {
     url: '/callback?code=code&state=forged.invalid',
     cookie,
   });
   assert.equal(response.status, 302);
-  assert.equal(response.headers.location, '/?youtube_auth=invalid_state');
+  assert.equal(response.headers.location, '/go-live.html?youtube_auth=invalid_state');
   assert.equal(calls, 0);
 });
 
@@ -153,7 +204,7 @@ test('OAuth callback stores tokens server-side and exposes only account identity
     sessionSecret: 'session-secret-long-enough',
     fetchImpl,
   });
-  const start = await invoke(oauth.middleware, { url: '/start' });
+  const start = await invoke(oauth.middleware, { url: '/start?go=1' });
   const cookie = start.headers['set-cookie'].split(';')[0];
   const state = new URL(start.headers.location).searchParams.get('state');
   const callback = await invoke(oauth.middleware, {
@@ -161,7 +212,7 @@ test('OAuth callback stores tokens server-side and exposes only account identity
     cookie,
   });
   assert.equal(callback.status, 302);
-  assert.equal(callback.headers.location, '/?youtube_auth=success');
+  assert.equal(callback.headers.location, '/go-live.html?youtube_auth=success');
 
   const status = await invoke(oauth.middleware, { cookie });
   assert.equal(status.json.authenticated, true);
@@ -178,6 +229,80 @@ test('OAuth callback stores tokens server-side and exposes only account identity
   const tokenRequest = requests.find((request) => request.url.includes('/token'));
   assert.match(String(tokenRequest.options.body), /code_verifier=/);
   assert.match(String(tokenRequest.options.body), /redirect_uri=https%3A%2F%2Fapp\.example%2Fapi%2Fyoutube%2Fauth%2Fcallback/);
+});
+
+test('OAuth callback can finish without the start cookie if state is valid', async () => {
+  const requests = [];
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async (url, options = {}) => {
+      requests.push({ url, options });
+      if (String(url).includes('/token')) {
+        return new Response(JSON.stringify({
+          access_token: 'access-secret',
+          refresh_token: 'refresh-secret',
+          expires_in: 3600,
+          scope: `openid email ${YOUTUBE_MANAGE_SCOPE}`,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({
+        sub: 'google-user',
+        name: 'Test Creator',
+        email: 'creator@example.test',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+  const start = await invoke(oauth.middleware, { url: '/start?go=1' });
+  const state = new URL(start.headers.location).searchParams.get('state');
+  const callback = await invoke(oauth.middleware, {
+    url: `/callback?code=authorization-code&state=${encodeURIComponent(state)}`,
+    cookie: '',
+    host: 'other-host.example',
+  });
+  assert.equal(callback.status, 302);
+  assert.equal(callback.headers.location, '/go-live.html?youtube_auth=success');
+  const tokenRequest = requests.find((request) => String(request.url).includes('/token'));
+  assert.match(String(tokenRequest.options.body), /redirect_uri=https%3A%2F%2Fapp\.example%2Fapi%2Fyoutube%2Fauth%2Fcallback/);
+  const ready = await invoke(oauth.middleware, { url: '/operator-ready' });
+  assert.equal(ready.json.ready, true);
+});
+
+test('a successful callback notifies onSignedIn without exposing tokens', async () => {
+  const signedIn = [];
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async (url) => {
+      if (String(url).includes('/token')) {
+        return new Response(JSON.stringify({
+          access_token: 'access-secret',
+          refresh_token: 'refresh-secret',
+          expires_in: 3600,
+          scope: `openid email ${YOUTUBE_MANAGE_SCOPE}`,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({
+        sub: 'google-user',
+        name: 'Test Creator',
+        email: 'creator@example.test',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+    onSignedIn: (authorization) => { signedIn.push(authorization); },
+  });
+  const start = await invoke(oauth.middleware, { url: '/start?go=1' });
+  const cookie = start.headers['set-cookie'].split(';')[0];
+  const state = new URL(start.headers.location).searchParams.get('state');
+  await invoke(oauth.middleware, {
+    url: `/callback?code=authorization-code&state=${encodeURIComponent(state)}`,
+    cookie,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(signedIn.length, 1);
+  assert.equal(signedIn[0].canWrite, true);
+  assert.equal(await signedIn[0].getAccessToken(), 'access-secret');
 });
 
 test('live control adds the manage scope and read-only mode withholds it', () => {
@@ -210,14 +335,14 @@ test('OAuth start requests the manage scope only when live control is enabled', 
   };
   const writable = await invoke(
     createYoutubeOAuthMiddleware({ ...options, writeEnabled: true }).middleware,
-    { url: '/start' },
+    { url: '/start?go=1' },
   );
   const scope = new URL(writable.headers.location).searchParams.get('scope');
   assert.ok(scope.split(' ').includes(YOUTUBE_MANAGE_SCOPE));
 
   const readOnly = await invoke(
     createYoutubeOAuthMiddleware({ ...options, writeEnabled: false }).middleware,
-    { url: '/start' },
+    { url: '/start?go=1' },
   );
   const readOnlyScope = new URL(readOnly.headers.location).searchParams.get('scope');
   assert.equal(readOnlyScope.split(' ').includes(YOUTUBE_MANAGE_SCOPE), false);
@@ -280,7 +405,7 @@ test('the OAuth proxy forwards live-control method and JSON body', async () => {
   assert.equal(calls[0].init.body, undefined);
 });
 
-test('loopback address parsing is informational and operator-ready is caller-bound', async () => {
+test('loopback addresses are recognized and operator-ready stays off the public internet', async () => {
   assert.equal(isLoopbackAddress('127.0.0.1'), true);
   assert.equal(isLoopbackAddress('::1'), true);
   assert.equal(isLoopbackAddress('::ffff:127.0.0.1'), true);
@@ -296,7 +421,182 @@ test('loopback address parsing is informational and operator-ready is caller-bou
     url: '/operator-ready',
     remoteAddress: '203.0.113.9',
   });
-  assert.equal(remote.status, 200);
-  assert.deepEqual(remote.json, { authenticated: false, canWrite: false, ready: false });
+  assert.equal(remote.status, 403);
+  assert.equal(remote.json.error.kind, 'forbidden');
+
+  const local = await invoke(oauth.middleware, { url: '/operator-ready' });
+  assert.equal(local.status, 200);
+  assert.deepEqual(local.json, { authenticated: false, canWrite: false, ready: false });
 });
 
+test('persisted session file round-trips without exposing the refresh token in plaintext', () => {
+  const encoded = encodePersistedYoutubeSession('session-secret-long-enough', {
+    refreshToken: 'refresh-secret',
+    googleSub: 'sub-1',
+    scopes: [YOUTUBE_MANAGE_SCOPE],
+  });
+  assert.doesNotMatch(encoded, /refresh-secret/);
+  const decoded = decodePersistedYoutubeSession('session-secret-long-enough', encoded);
+  assert.equal(decoded.refreshToken, 'refresh-secret');
+  assert.equal(decodePersistedYoutubeSession('wrong-secret', encoded), null);
+});
+
+test('OAuth callback writes an encrypted session file and restore hydrates go-live', async () => {
+  const persistPath = path.join(await mkdtemp(path.join(tmpdir(), 'gev-yt-')), 'youtube-oauth.json');
+  const fetchImpl = async (url) => {
+    if (String(url).includes('/token')) {
+      return new Response(JSON.stringify({
+        access_token: 'access-secret',
+        refresh_token: 'refresh-secret',
+        expires_in: 3600,
+        scope: `openid email ${YOUTUBE_MANAGE_SCOPE}`,
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({
+      sub: 'google-user',
+      name: 'Test Creator',
+      email: 'creator@example.test',
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const first = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl,
+    persistPath,
+  });
+  const start = await invoke(first.middleware, { url: '/start?go=1' });
+  const cookie = start.headers['set-cookie'].split(';')[0];
+  const state = new URL(start.headers.location).searchParams.get('state');
+  await invoke(first.middleware, {
+    url: `/callback?code=authorization-code&state=${encodeURIComponent(state)}`,
+    cookie,
+  });
+  const raw = await readFile(persistPath, 'utf8');
+  assert.doesNotMatch(raw, /refresh-secret|access-secret/);
+  assert.ok(decodePersistedYoutubeSession('session-secret-long-enough', raw)?.refreshToken);
+
+  const restored = [];
+  const second = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl,
+    persistPath,
+    onSignedIn: (authorization) => { restored.push(authorization); },
+  });
+  const ready = await invoke(second.middleware, { url: '/operator-ready' });
+  assert.equal(ready.json.ready, true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(restored.length, 1);
+  assert.equal(restored[0].canWrite, true);
+  assert.equal(await restored[0].getAccessToken(), 'access-secret');
+});
+
+test('OAuth start persists PKCE pending state so callback survives a process restart', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'gev-yt-'));
+  const persistPath = path.join(dir, 'youtube-oauth.json');
+  const pendingPath = path.join(dir, 'youtube-oauth-pending.json');
+  const fetchImpl = async (url) => {
+    if (String(url).includes('/token')) {
+      return new Response(JSON.stringify({
+        access_token: 'access-secret',
+        refresh_token: 'refresh-secret',
+        expires_in: 3600,
+        scope: `openid email ${YOUTUBE_MANAGE_SCOPE}`,
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({
+      sub: 'google-user',
+      name: 'Test Creator',
+      email: 'creator@example.test',
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const first = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl,
+    persistPath,
+  });
+  const start = await invoke(first.middleware, { url: '/start?go=1' });
+  const state = new URL(start.headers.location).searchParams.get('state');
+  const deadline = Date.now() + 1000;
+  let pendingRaw = '';
+  while (Date.now() < deadline) {
+    try {
+      pendingRaw = await readFile(pendingPath, 'utf8');
+      break;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 15));
+    }
+  }
+  if (!pendingRaw) throw new Error('pending PKCE file was not written');
+  assert.doesNotMatch(pendingRaw, /codeVerifier|refresh-secret/);
+  const pending = decodePersistedPayload('session-secret-long-enough', pendingRaw);
+  assert.equal(pending.pending.length, 1);
+
+  const second = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl,
+    persistPath,
+  });
+  const callback = await invoke(second.middleware, {
+    url: `/callback?code=authorization-code&state=${encodeURIComponent(state)}`,
+  });
+  assert.match(callback.headers.location, /youtube_auth=success/);
+  const ready = await invoke(second.middleware, { url: '/operator-ready' });
+  assert.equal(ready.json.ready, true);
+});
+
+test('YOUTUBE_REFRESH_TOKEN seeds a writable session when no file exists', async () => {
+  const persistPath = path.join(await mkdtemp(path.join(tmpdir(), 'gev-yt-')), 'missing.json');
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    persistPath,
+    refreshToken: 'env-refresh-secret',
+    fetchImpl: async (url) => {
+      if (String(url).includes('/token')) {
+        return new Response(JSON.stringify({
+          access_token: 'access-from-refresh',
+          expires_in: 3600,
+          scope: YOUTUBE_MANAGE_SCOPE,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({
+        sub: 'google-user',
+        name: 'Seeded',
+        email: 'seeded@example.test',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+  const ready = await invoke(oauth.middleware, { url: '/operator-ready' });
+  assert.equal(ready.json.ready, true);
+  const found = await oauth.findWritableAuthorization();
+  assert.equal(await found.getAccessToken(), 'access-from-refresh');
+});
+
+test('findWritableAuthorization returns the first manage-scope session', async () => {
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async () => { throw new Error('not expected'); },
+  });
+  assert.equal(await oauth.findWritableAuthorization(), null);
+  oauth.sessions.set('sess-1', {
+    googleSub: 'sub-1',
+    accessToken: 'tok',
+    tokenExpiresAt: Date.now() + 10 * 60_000,
+    expiresAt: Date.now() + 60 * 60_000,
+    scopes: [YOUTUBE_MANAGE_SCOPE],
+  });
+  const found = await oauth.findWritableAuthorization();
+  assert.equal(found.sessionId, 'sess-1');
+  assert.equal(found.canWrite, true);
+  assert.equal(await found.getAccessToken(), 'tok');
+});

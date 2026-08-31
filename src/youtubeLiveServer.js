@@ -9,7 +9,8 @@
  * @module youtubeLiveServer
  */
 
-import { createLiveStreamController } from './liveStream.js';
+import { createLiveStreamController, resolveChromiumPath, resolveFfmpegPath, splitYoutubeIngestPaste } from './liveStream.js';
+import { autoGoLiveEnabled, isLoopbackAddress } from './youtubeOAuth.js';
 
 /** Largest live-control body accepted, in bytes. */
 export const YOUTUBE_LIVE_MAX_BODY_BYTES = 64 * 1024;
@@ -95,38 +96,105 @@ export function readJsonBody(req, limit = YOUTUBE_LIVE_MAX_BODY_BYTES) {
 export function createYoutubeLiveMiddleware({
   live = createLiveStreamController(),
   authorizeRequest = async () => null,
-  authorizeAdminRequest = async () => null,
+  findWritableAuthorization = async () => null,
   goNow = null,
+  sessionStatus = null,
 } = {}) {
+  let lastPublicWatchUrl = '';
+
   return async function youtubeLiveMiddleware(req, res, next) {
     const { segments } = parseYoutubeLiveRoute(req.url);
     const [action] = segments;
 
     try {
-      if (action === 'go-now' && req.method === 'POST') {
-        const authorization = await authorizeRequest(req);
-        if (!authorization) {
-          sendJson(res, 401, {
-            error: { kind: 'authentication', message: 'Sign in to YouTube to go live.' },
-          });
-          return;
-        }
-        if (!authorization.canWrite) {
-          sendJson(res, 403, {
-            error: { kind: 'scope', message: 'Reconnect YouTube with manage scope to go live.' },
-          });
-          return;
-        }
-        const admin = await authorizeAdminRequest(req);
-        if (!admin) {
-          sendJson(res, 401, {
-            error: { kind: 'admin-authentication', message: 'Admin sign-in required.' },
-          });
-          return;
-        }
+      if (action === 'session' && req.method === 'GET') {
+        const session = typeof sessionStatus === 'function' ? sessionStatus() : null;
+        const liveState = live.status();
+        sendJson(res, 200, {
+          live: liveState,
+          broadcast: session?.broadcast || (lastPublicWatchUrl ? { watchUrl: lastPublicWatchUrl } : null),
+          sessionStatus: session?.status || liveState?.status || '',
+        });
+        return;
+      }
+
+      if (action === 'ingest-key' && req.method === 'POST') {
         if (!req.headers?.[YOUTUBE_LIVE_REQUEST_HEADER]) {
           sendJson(res, 403, {
             error: { kind: 'csrf', message: `Missing ${YOUTUBE_LIVE_REQUEST_HEADER} header` },
+          });
+          return;
+        }
+        const body = await readJsonBody(req);
+        const split = splitYoutubeIngestPaste(
+          String(body.streamKey || '').trim(),
+          String(body.ingestUrl || 'rtmps://a.rtmp.youtube.com/live2').trim(),
+        );
+        const streamKey = split.streamKey;
+        if (!streamKey) {
+          sendJson(res, 400, {
+            error: { kind: 'invalid', message: 'A YouTube stream key is required.' },
+          });
+          return;
+        }
+        const ingestUrl = split.ingestUrl;
+        const watchUrl = String(body.watchUrl || '').trim();
+        if (watchUrl) lastPublicWatchUrl = watchUrl;
+        try {
+          const result = await live.start({ streamKey, ingestUrl });
+          sendJson(res, result.status === 'error' ? 502 : 202, {
+            live: result,
+            broadcast: watchUrl ? { watchUrl } : null,
+            sessionStatus: result.status,
+          });
+        } catch (error) {
+          sendJson(res, error?.status === 409 ? 409 : 400, {
+            error: {
+              kind: error?.status === 409 ? 'conflict' : 'invalid',
+              message: error?.message || 'Unable to start the broadcast',
+            },
+            live: live.status(),
+          });
+        }
+        return;
+      }
+
+      if (action === 'stop' && req.method === 'POST') {
+        if (!req.headers?.[YOUTUBE_LIVE_REQUEST_HEADER]) {
+          sendJson(res, 403, {
+            error: { kind: 'csrf', message: `Missing ${YOUTUBE_LIVE_REQUEST_HEADER} header` },
+          });
+          return;
+        }
+        sendJson(res, 200, { live: await live.stop() });
+        return;
+      }
+
+      if (action === 'preflight' && req.method === 'GET') {
+        if (!isLoopbackAddress(req.socket?.remoteAddress || req.connection?.remoteAddress)) {
+          sendJson(res, 403, { error: { kind: 'forbidden', message: 'Preflight is loopback only.' } });
+          return;
+        }
+        const authorization = await findWritableAuthorization();
+        sendJson(res, 200, {
+          ready: Boolean(authorization?.canWrite),
+          authenticated: Boolean(authorization),
+          autoGoLive: autoGoLiveEnabled(),
+          chrome: Boolean(resolveChromiumPath()),
+          ffmpeg: Boolean(resolveFfmpegPath()),
+        });
+        return;
+      }
+
+      if (action === 'go-now' && req.method === 'POST') {
+        if (!isLoopbackAddress(req.socket?.remoteAddress || req.connection?.remoteAddress)) {
+          sendJson(res, 403, { error: { kind: 'forbidden', message: 'Go-now is loopback only.' } });
+          return;
+        }
+        const authorization = await findWritableAuthorization();
+        if (!authorization) {
+          sendJson(res, 401, {
+            error: { kind: 'authentication', message: 'Sign in to YouTube to go live.' },
           });
           return;
         }
@@ -168,7 +236,12 @@ export function createYoutubeLiveMiddleware({
       }
 
       if (!action && req.method === 'GET') {
-        sendJson(res, 200, { live: live.status() });
+        const session = typeof sessionStatus === 'function' ? sessionStatus() : null;
+        sendJson(res, 200, {
+          live: live.status(),
+          broadcast: session?.broadcast || null,
+          sessionStatus: session?.status || live.status()?.status || '',
+        });
         return;
       }
 
@@ -186,11 +259,6 @@ export function createYoutubeLiveMiddleware({
             live: live.status(),
           });
         }
-        return;
-      }
-
-      if (action === 'stop' && req.method === 'POST') {
-        sendJson(res, 200, { live: await live.stop() });
         return;
       }
 

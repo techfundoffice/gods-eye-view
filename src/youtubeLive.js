@@ -17,19 +17,6 @@ export const LIVE_POLL_MS = 3000;
 export const YOUTUBE_LIVE_REQUEST_HEADER = 'X-GEV-YouTube';
 import { ViewerCommentAgentController, createViewAgentClient } from './youtubeViewAgent.js';
 
-const COMPATIBLE_BROADCAST_STATUSES = new Set([
-  'created',
-  'ready',
-  'testStarting',
-  'testing',
-  'liveStarting',
-  'live',
-]);
-
-function isCompatibleBroadcastStatus(status) {
-  return COMPATIBLE_BROADCAST_STATUSES.has(String(status || ''));
-}
-
 export const YOUTUBE_RESOURCE_REGISTRY = Object.freeze([
   { id: 'channels', label: 'Channels', part: 'snippet,statistics,contentDetails', params: () => ({ mine: 'true' }) },
   { id: 'playlistItems', label: 'Upload items', part: 'snippet,contentDetails', params: (state) => state.uploadsId ? ({ playlistId: state.uploadsId }) : ({}) },
@@ -184,12 +171,12 @@ export function canStartLive(live) {
  * @returns {{label: string, canStart: boolean, canStop: boolean, canProvision: boolean, summary: string}}
  */
 export function summarizeOperatorLive(live = {}, { connected = false, message = '' } = {}) {
-  const canStart = Boolean(connected) && canStartLive(live);
-  const canStop = Boolean(connected) && !canStartLive(live);
+  const canStart = canStartLive(live);
+  const canStop = !canStartLive(live);
   let summary = String(message || '').trim();
   if (!summary) {
     if (!connected) {
-      summary = 'Sign in to go live without OBS.';
+      summary = 'Paste a current Studio stream key, or sign in to create a broadcast.';
     } else {
       const parts = [];
       if (live.target) parts.push(`PUBLISHING TO ${live.target}`);
@@ -207,7 +194,7 @@ export function summarizeOperatorLive(live = {}, { connected = false, message = 
     label: liveStatusLabel(live.status),
     canStart,
     canStop,
-    canProvision: canStart,
+    canProvision: Boolean(connected) && canStartLive(live),
     summary,
   };
 }
@@ -433,6 +420,7 @@ export function createYoutubeLiveClient({ fetchImpl = globalThis.fetch } = {}) {
   return {
     status: () => request(''),
     startLive: (options) => request('/start', { method: 'POST', body: options }),
+    ingestKey: (options) => request('/ingest-key', { method: 'POST', body: options }),
     stopLive: () => request('/stop', { method: 'POST' }),
   };
 }
@@ -653,7 +641,7 @@ export class YouTubePanelController {
       });
     }
     this._el('youtube-connect-btn')?.addEventListener('click', () => {
-      window.location.assign('/api/youtube/auth/start');
+      window.location.assign('/api/youtube/auth/start?go=1');
     });
     this._el('youtube-signout-btn')?.addEventListener('click', () => void this.signOut());
     this._el('youtube-refresh-btn')?.addEventListener('click', () => void this.refresh());
@@ -817,10 +805,6 @@ export class YouTubePanelController {
         maxResults: 25,
       }).catch(() => ({ items: [] })),
     ]);
-    const compatibleBroadcastIds = new Set((livePage?.items || [])
-      .filter((item) => isCompatibleBroadcastStatus(item?.status?.lifeCycleStatus))
-      .map((item) => text(item?.id))
-      .filter(Boolean));
     const ids = [...new Set([
       ...(uploadPage?.items || []).map((item) => text(item?.contentDetails?.videoId || item?.snippet?.resourceId?.videoId)),
       ...(livePage?.items || []).map((item) => text(item?.id)),
@@ -835,10 +819,7 @@ export class YouTubePanelController {
       id: ids.join(','),
       maxResults: 50,
     });
-    this.state.videos = (details?.items || []).map((video) => ({
-      ...video,
-      gevCompatibleLiveBroadcast: compatibleBroadcastIds.has(text(video?.id)),
-    }));
+    this.state.videos = details?.items || [];
     if (!this.state.videos.some((video) => video.id === this.state.videoId)) {
       this.state.videoId = this.state.videos[0]?.id || '';
     }
@@ -904,9 +885,8 @@ export class YouTubePanelController {
   }
 
   async _startChat(reset = false) {
-    const video = this.state.videos.find((candidate) => candidate.id === this.state.videoId);
-    if (!video?.gevCompatibleLiveBroadcast) {
-      this._setStatus(this.state.videoId ? 'SELECT AN ACTIVE OR UPCOMING BROADCAST' : 'SELECT A VIDEO');
+    if (!this.state.videoId) {
+      this._setStatus('SELECT A VIDEO');
       this._render();
       return;
     }
@@ -1054,8 +1034,10 @@ export class YouTubePanelController {
 
   /** @returns {Promise<void>} */
   async _startLive() {
-    if (this.state.connection !== 'connected') {
-      this.state.liveMessage = 'Sign in to YouTube to go live.';
+    const streamKey = this._liveValue('youtube-live-key');
+    const ingestUrl = this._liveValue('youtube-live-ingest');
+    if (this.state.connection !== 'connected' && !streamKey) {
+      this.state.liveMessage = 'Paste a current Studio stream key, or sign in to create a broadcast.';
       this._render();
       return;
     }
@@ -1063,11 +1045,17 @@ export class YouTubePanelController {
     this.state.liveMessage = '';
     this._render();
     try {
-      const payload = await this.liveClient.startLive(buildOperatorLiveStartBody({
-        ingestUrl: this._liveValue('youtube-live-ingest'),
-        streamKey: this._liveValue('youtube-live-key'),
-        origin: this.captureOrigin,
-      }));
+      const payload = streamKey
+        ? await this.liveClient.ingestKey({
+          streamKey,
+          ingestUrl,
+          watchUrl: 'https://www.youtube.com/watch?v=CVSB4QJhVTU',
+        })
+        : await this.liveClient.startLive(buildOperatorLiveStartBody({
+          ingestUrl,
+          streamKey,
+          origin: this.captureOrigin,
+        }));
       this.state.live = payload.live || this.state.live;
       if (!canStartLive(this.state.live)) {
         // ffmpeg holds the key now; nothing is gained by leaving a copy in a
@@ -1086,11 +1074,6 @@ export class YouTubePanelController {
 
   /** @returns {Promise<void>} */
   async _stopLive() {
-    if (this.state.connection !== 'connected') {
-      this.state.liveMessage = 'Sign in to YouTube to stop a broadcast.';
-      this._render();
-      return;
-    }
     this.state.liveBusy = true;
     this._render();
     try {
@@ -1231,7 +1214,7 @@ export class YouTubePanelController {
       for (const video of this.state.videos) {
         const option = document.createElement('option');
         option.value = video.id;
-        option.textContent = `${video.gevCompatibleLiveBroadcast ? 'BROADCAST · ' : ''}${text(video.snippet?.title, video.id)}`;
+        option.textContent = `${video.liveStreamingDetails?.activeLiveChatId ? 'LIVE · ' : ''}${text(video.snippet?.title, video.id)}`;
         option.selected = video.id === this.state.videoId;
         videoSelect.append(option);
       }
@@ -1243,12 +1226,12 @@ export class YouTubePanelController {
       : 'Connect YouTube to load your channel');
     const video = this.state.videos.find((item) => item.id === this.state.videoId);
     setText(this._el('youtube-video-summary'), video
-      ? `${text(video.snippet?.title, 'VIDEO')} · ${number(video.statistics?.viewCount).toLocaleString()} VIEWS${video.gevCompatibleLiveBroadcast ? ' · LIVE CHAT AVAILABLE' : ''}`
+      ? `${text(video.snippet?.title, 'VIDEO')} · ${number(video.statistics?.viewCount).toLocaleString()} VIEWS · LIVE CHAT AVAILABLE`
       : 'Select a video to inspect comments and live state');
     const chatToggle = this._el('youtube-chat-toggle');
     if (chatToggle) {
       chatToggle.textContent = this.state.enabled ? 'STOP CHAT' : 'START CHAT';
-      chatToggle.disabled = !video?.gevCompatibleLiveBroadcast;
+      chatToggle.disabled = !this.state.videoId;
       chatToggle.setAttribute('aria-pressed', String(this.state.enabled));
     }
     const agentToggle = this._el('youtube-view-agent-toggle');
@@ -1258,6 +1241,13 @@ export class YouTubePanelController {
       agentToggle.setAttribute('aria-pressed', String(this.state.viewAgentEnabled));
     }
     setText(this._el('youtube-view-agent-status'), this.state.viewAgentStatus);
+    const goLiveLaunch = globalThis.document?.getElementById?.('go-live-launch');
+    const goLivePhone = globalThis.document?.getElementById?.('go-live-phone');
+    if (goLiveLaunch || goLivePhone) {
+      const show = this.state.connection === 'disconnected' || this.state.connection === 'reconnect';
+      if (goLiveLaunch) goLiveLaunch.hidden = !show;
+      if (goLivePhone) goLivePhone.hidden = !show;
+    }
     const connectButton = this._el('youtube-connect-btn');
     if (connectButton) {
       const connected = this.state.connection === 'connected';

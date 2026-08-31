@@ -258,6 +258,53 @@ test('quota during YouTube poll does not stop the encoder', async () => {
   assert.equal(session.status().status, 'stopped');
 });
 
+test('waitForLive transitions a ready broadcast after the ingest is active', async () => {
+  let lifeCycleStatus = 'ready';
+  const seen = [];
+  const call = async (resource, options = {}) => {
+    seen.push({ resource, params: options.params || {} });
+    if (resource === 'liveBroadcasts/transition') {
+      lifeCycleStatus = String(options.params.broadcastStatus || '');
+      return { id: 'broadcast-1', status: { lifeCycleStatus } };
+    }
+    if (resource === 'liveStreams') {
+      return { items: [{ status: { streamStatus: 'active', healthStatus: { status: 'good' } } }] };
+    }
+    return { items: [{ status: { lifeCycleStatus } }] };
+  };
+  const session = createLiveSessionController({
+    encoder: encoderWith(),
+    encoderReady: () => ({ ready: true, message: 'ok' }),
+    pollMs: 10_000,
+  });
+  await session.provision({ title: 'Globe live' }, async (resource) => {
+    if (resource === 'liveStreams') {
+      return {
+        id: 'stream-1',
+        cdn: { ingestionInfo: { rtmpsIngestionAddress: 'rtmps://a.rtmp.youtube.com/live2', streamName: KEY } },
+      };
+    }
+    if (resource === 'liveBroadcasts/bind') return {};
+    return { id: 'broadcast-1', status: { lifeCycleStatus: 'ready' } };
+  });
+  await session.start({ broadcastId: 'broadcast-1', captureUrl: 'http://localhost:4173/' }, { call });
+  await waitForFrames(session);
+  let t = 0;
+  const confirmed = await session.waitForLive({
+    timeoutMs: 500,
+    intervalMs: 10,
+    call,
+    now: () => t,
+    sleep: async (ms) => { t += ms; },
+  });
+  assert.equal(confirmed.status, 'live');
+  assert.equal(confirmed.phases.youtube.broadcastStatus, 'live');
+  assert.ok(seen.some((row) => (
+    row.resource === 'liveBroadcasts/transition' && row.params.broadcastStatus === 'live'
+  )));
+  await session.stop();
+});
+
 test('labels cover every public status the ADMIN chip can show', () => {
   assert.equal(liveStatusLabel('waiting-for-youtube'), 'WAITING FOR YOUTUBE');
   assert.equal(liveStatusLabel('ingesting'), 'INGESTING');

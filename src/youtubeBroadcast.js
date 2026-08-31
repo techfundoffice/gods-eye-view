@@ -51,6 +51,30 @@ export function isTerminalBroadcastStatus(status) {
 }
 
 /**
+ * Prefer an already-created public broadcast (the channel may already be
+ * waiting for ingest) instead of inserting a second live.
+ *
+ * @param {object[]} items From {@link listCompatibleBroadcasts} or similar
+ * @param {{preferId?: string, preferPublic?: boolean}} [options]
+ * @returns {object|null}
+ */
+export function pickReusableBroadcast(items, { preferId = '', preferPublic = true } = {}) {
+  const rows = (Array.isArray(items) ? items : []).filter(
+    (row) => row?.id && isCompatibleBroadcastStatus(row.lifeCycleStatus),
+  );
+  const want = String(preferId || '').trim();
+  if (want) {
+    const hit = rows.find((row) => row.id === want);
+    if (hit) return hit;
+  }
+  if (preferPublic) {
+    const pub = rows.find((row) => String(row.privacy || '') === 'public');
+    if (pub) return pub;
+  }
+  return rows[0] || null;
+}
+
+/**
  * Operator-facing sentence for a classified YouTube error kind.
  *
  * @param {string} kind
@@ -62,7 +86,7 @@ export function youtubeLiveOperatorMessage(kind, fallback = '') {
     case 'insufficient-scope':
       return 'Reconnect YouTube to grant live-control permission.';
     case 'authentication':
-      return 'Sign in to YouTube from the YouTube Settings panel.';
+      return 'Paste a current Studio stream key, or sign in to create a broadcast.';
     case 'quota':
       return 'YouTube API quota is exhausted; retry after the quota reset.';
     case 'not-found':
@@ -406,6 +430,49 @@ export async function pollYoutubeBroadcast(call, { broadcastId, streamId } = {})
     terminal: isTerminalBroadcastStatus(broadcastStatus),
     message,
   };
+}
+
+/** Statuses YouTube accepts on liveBroadcasts.transition. */
+export const YOUTUBE_TRANSITION_STATUSES = Object.freeze(['testing', 'live', 'complete']);
+
+/**
+ * Flip a bound broadcast to testing or live once the ingest is active.
+ *
+ * enableAutoStart usually does this; some channels still need the explicit
+ * call, especially when monitor-stream is off and the broadcast sits in ready.
+ *
+ * @param {Function} call
+ * @param {{broadcastId: string, broadcastStatus: string}} options
+ * @returns {Promise<object>}
+ */
+export async function transitionYoutubeBroadcast(call, { broadcastId, broadcastStatus } = {}) {
+  const id = String(broadcastId || '').trim();
+  const status = String(broadcastStatus || '').trim();
+  if (!id) throw new Error('A broadcast id is required');
+  if (!YOUTUBE_TRANSITION_STATUSES.includes(status)) {
+    throw new Error('broadcastStatus must be testing, live, or complete');
+  }
+  return youtubeCall(call, 'liveBroadcasts/transition', {
+    method: 'POST',
+    params: {
+      part: 'id,snippet,status,contentDetails',
+      id,
+      broadcastStatus: status,
+    },
+  });
+}
+
+/**
+ * Next lifecycle push once the bound stream is active.
+ *
+ * @param {object|null} health From {@link pollYoutubeBroadcast}
+ * @returns {'live'|'testing'|null}
+ */
+export function nextYoutubeLiveTransition(health) {
+  if (!health || health.terminal) return null;
+  if (health.streamStatus !== 'active') return null;
+  if (health.received && !health.preview) return null;
+  return 'live';
 }
 
 /**

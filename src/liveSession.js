@@ -13,6 +13,7 @@ import {
   chromiumCaptureHints,
   createLiveStreamController,
   describeEncoderReadiness,
+  encoderCaptureFromHints,
   isActiveLiveStatus,
   resolveLiveCaptureTarget,
 } from './liveStream.js';
@@ -20,10 +21,12 @@ import {
   YOUTUBE_NOT_RECEIVED,
   createYoutubeApiCaller,
   listCompatibleBroadcasts,
+  nextYoutubeLiveTransition,
   pollYoutubeBroadcast,
   provisionYoutubeBroadcast,
   redactBroadcastView,
   selectYoutubeBroadcast,
+  transitionYoutubeBroadcast,
   youtubeLiveOperatorMessage,
 } from './youtubeBroadcast.js';
 
@@ -31,6 +34,9 @@ export { YOUTUBE_NOT_RECEIVED };
 
 /** Poll cadence while waiting for YouTube to mark the stream active. */
 export const LIVE_SESSION_POLL_MS = 3000;
+
+/** How long go-now waits for YouTube to report live after ingest starts. */
+export const LIVE_SESSION_CONFIRM_MS = 90_000;
 
 /**
  * Account-readiness row from the current YouTube OAuth authorization.
@@ -43,7 +49,7 @@ export function describeAccountPhase(authorization) {
     return {
       ready: false,
       canWrite: false,
-      message: 'Sign in to YouTube from the YouTube Settings panel.',
+      message: 'Paste a current Studio stream key, or sign in to create a broadcast.',
     };
   }
   if (authorization.canWrite === false) {
@@ -349,6 +355,7 @@ export function createLiveSessionController({
       env,
     });
     const hints = chromiumCaptureHints(captureUrl, env);
+    const encoderCapture = encoderCaptureFromHints(captureUrl, hints);
 
     let ingestUrl = String(input.ingestUrl || '').trim();
     let streamKey = String(input.streamKey || '').trim();
@@ -375,11 +382,11 @@ export function createLiveSessionController({
 
     const started = await encoder.start({
       ...input,
-      captureUrl,
+      captureUrl: encoderCapture.captureUrl,
       ingestUrl,
       streamKey,
-      hostResolverRules: hints.hostResolverRules,
-      extraHeaders: hints.extraHeaders,
+      hostResolverRules: encoderCapture.hostResolverRules,
+      extraHeaders: encoderCapture.extraHeaders,
     });
     if (started.status === 'encoding' && binding?.streamId) {
       armPoll();
@@ -388,6 +395,54 @@ export function createLiveSessionController({
     const publicState = snapshot();
     assertNoStreamKey(publicState, streamKey);
     return publicState;
+  }
+
+  /**
+   * Poll YouTube until the bound stream is live, transitioning if auto-start
+   * leaves the broadcast in ready/testing after ingest is active.
+   *
+   * @param {object} [options]
+   * @returns {Promise<object>} Public session snapshot.
+   */
+  async function waitForLive({
+    timeoutMs = LIVE_SESSION_CONFIRM_MS,
+    intervalMs = pollMs,
+    call = youtubeCall,
+    now: nowFn = now,
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  } = {}) {
+    const deadline = nowFn() + Math.max(0, Number(timeoutMs) || 0);
+    const wait = Math.max(50, Number(intervalMs) || pollMs);
+    const tried = new Set();
+    while (nowFn() < deadline) {
+      if (binding?.streamId && typeof call === 'function') {
+        await pollNow(call).catch(() => {});
+      }
+      const snap = snapshot();
+      if (snap.status === 'live' && health?.received && !health?.preview) return snap;
+      if (health?.terminal) return snap;
+      const next = nextYoutubeLiveTransition(health);
+      if (next && binding?.broadcastId && typeof call === 'function' && !tried.has(next)) {
+        tried.add(next);
+        try {
+          await transitionYoutubeBroadcast(call, {
+            broadcastId: binding.broadcastId,
+            broadcastStatus: next,
+          });
+          await pollNow(call).catch(() => {});
+          const after = snapshot();
+          if (after.status === 'live' && health?.received && !health?.preview) return after;
+        } catch {
+          // Auto-start may still win on the next poll.
+        }
+      }
+      if (nowFn() + wait >= deadline) break;
+      await sleep(wait);
+    }
+    if (binding?.streamId && typeof call === 'function') {
+      await pollNow(call).catch(() => {});
+    }
+    return snapshot();
   }
 
   async function stop() {
@@ -406,6 +461,7 @@ export function createLiveSessionController({
     listBroadcasts,
     bindAuth,
     pollNow,
+    waitForLive,
     asEncoder: () => ({ start, stop, status: snapshot }),
   };
 }

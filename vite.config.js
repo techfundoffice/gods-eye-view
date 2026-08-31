@@ -47,7 +47,7 @@ import { defineConfig } from 'vite';
 import { loadAndApplyGevEnv } from './src/gevEnv.js';
 import cesium from 'vite-plugin-cesium';
 import { createYoutubeProxyMiddleware } from './src/youtubeProxy.js';
-import { createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
+import { autoGoLiveEnabled, createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
 import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.js';
 import { createYoutubeCommentHarnessMiddleware } from './src/youtubeCommentHarnessServer.js';
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
@@ -59,6 +59,7 @@ import { createReplitAdminAuth } from './src/replitAdminAuth.js';
 import {
   createYoutubeApiCaller,
   listCompatibleBroadcasts,
+  pickReusableBroadcast,
 } from './src/youtubeBroadcast.js';
 import {
   supportsVerifiedToolIsolation,
@@ -77,10 +78,18 @@ let replitAdminAuthSingleton = null;
  *
  * @returns {object}
  */
+function youtubeRedirectUri() {
+  const explicit = String(process.env.YOUTUBE_OAUTH_REDIRECT_URI || '').trim();
+  if (explicit) return explicit;
+  const capture = String(process.env.LIVE_CAPTURE_URL || '').trim().replace(/\/$/, '');
+  return capture ? `${capture}/api/youtube/auth/callback` : '';
+}
+
 function sharedYoutubeOAuth() {
   if (!youtubeOAuthSingleton) {
     youtubeOAuthSingleton = createYoutubeOAuthMiddleware({
       persistPath: process.env.YOUTUBE_SESSION_PATH || path.join(process.cwd(), '.local/youtube-oauth.json'),
+      redirectUri: youtubeRedirectUri(),
     });
   }
   return youtubeOAuthSingleton;
@@ -7507,13 +7516,30 @@ export function youtubeProxy({
     liveSession.bindAuth(authorization, oauth.proxy);
     const title = String(body?.title || "God's Eye View LIVE").trim() || "God's Eye View LIVE";
     const privacyStatus = String(body?.privacyStatus || 'public').trim() || 'public';
-    const provisioned = await liveSession.provision({
-      title,
-      description: String(body?.description || 'Live from God\'s Eye View').trim(),
-      privacyStatus,
-    });
+    const preferId = String(body?.broadcastId || process.env.YOUTUBE_BROADCAST_ID || '').trim();
+    let provisioned = null;
+    try {
+      const listed = await liveSession.listBroadcasts();
+      const reused = pickReusableBroadcast(listed, { preferId });
+      if (reused?.id) {
+        provisioned = await liveSession.select({ broadcastId: reused.id });
+      }
+    } catch {
+      provisioned = null;
+    }
+    if (!provisioned) {
+      provisioned = await liveSession.provision({
+        title,
+        description: String(body?.description || 'Live from God\'s Eye View').trim(),
+        privacyStatus,
+      });
+    }
     const live = await liveSession.start({}, { authorization, proxy: oauth.proxy, req });
-    return { broadcast: provisioned.broadcast, live };
+    const confirmMs = Number(process.env.YOUTUBE_LIVE_CONFIRM_MS || 90_000);
+    const confirmed = await liveSession.waitForLive({
+      timeoutMs: Number.isFinite(confirmMs) && confirmMs > 0 ? confirmMs : 90_000,
+    });
+    return { broadcast: provisioned.broadcast, live: confirmed || live };
   }
   if (typeof oauth.setOnSignedIn === 'function') {
     oauth.setOnSignedIn(async (authorization) => {
@@ -7538,12 +7564,45 @@ export function youtubeProxy({
       }
     });
   }
+  const envWatchUrl = () => String(process.env.YOUTUBE_WATCH_URL || '').trim();
   const liveMiddleware = createYoutubeLiveMiddleware({
     live: liveSession.asEncoder(),
     authorizeRequest: oauth.authorizeRequest,
     findWritableAuthorization: oauth.findWritableAuthorization,
     goNow: goLiveNow,
+    sessionStatus: () => {
+      const snap = liveSession.status();
+      const watchUrl = snap.broadcast?.watchUrl || envWatchUrl();
+      const active = ['starting', 'encoding', 'ingesting', 'waiting-for-youtube', 'live'].includes(
+        String(snap.status || ''),
+      );
+      if (watchUrl && !snap.broadcast?.watchUrl && active) {
+        return { ...snap, broadcast: { ...(snap.broadcast || {}), watchUrl } };
+      }
+      return snap;
+    },
   });
+  const envStreamKey = String(process.env.YOUTUBE_STREAM_KEY || '').trim();
+  if (autoGoLiveEnabled() && envStreamKey) {
+    const ingestUrl = String(process.env.YOUTUBE_INGEST_URL || 'rtmps://a.rtmp.youtube.com/live2').trim();
+    const watchUrl = envWatchUrl();
+    void liveSession.start({ streamKey: envStreamKey, ingestUrl }).then(async (live) => {
+      await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+        status: live?.status || 'posted',
+        watchUrl,
+        liveStatus: live?.status || '',
+        source: 'env-stream-key',
+        at: new Date().toISOString(),
+      })}\n`);
+    }).catch(async (error) => {
+      await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+        status: 'error',
+        error: { kind: error?.kind || 'invalid', message: error?.message || 'env stream-key start failed' },
+        source: 'env-stream-key',
+        at: new Date().toISOString(),
+      })}\n`);
+    });
+  }
   const innerTubeChatMiddleware = createYoutubeInnerTubeChatMiddleware({
     authorizeAdminRequest,
     authorizeRequest: oauth.authorizeRequest,

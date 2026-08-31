@@ -10,14 +10,14 @@ import {
 const KEY = 'abcd-1234-efgh-5678';
 const MUTATE = { [YOUTUBE_LIVE_REQUEST_HEADER]: '1' };
 
-function invoke(middleware, { method = 'GET', url = '/', body = '', headers = {} } = {}) {
+function invoke(middleware, { method = 'GET', url = '/', body = '', headers = {}, remoteAddress = '127.0.0.1' } = {}) {
   return new Promise((resolve, reject) => {
     const listeners = new Map();
     const req = {
       method,
       url,
       headers: { cookie: 'gev_youtube_session=session-1', ...headers },
-      socket: { remoteAddress: '127.0.0.1' },
+      socket: { remoteAddress },
       on(event, handler) {
         listeners.set(event, handler);
         if (listeners.has('data') && listeners.has('end')) {
@@ -221,11 +221,35 @@ test('a missing ffmpeg is an error status, not live', async () => {
   assert.ok(!JSON.stringify(response.body).includes(KEY));
 });
 
-test('go-now requires caller-bound YouTube, ADMIN, and anti-CSRF authorization', async () => {
+test('preflight is loopback-only and reports encoder readiness without a cookie', async () => {
+  const previous = process.env.GEV_AUTO_GO_LIVE;
+  process.env.GEV_AUTO_GO_LIVE = '1';
+  try {
+    const middleware = createYoutubeLiveMiddleware({
+      authorizeRequest: async () => null,
+      findWritableAuthorization: async () => null,
+    });
+    const remote = await invoke(middleware, { url: '/preflight', remoteAddress: '203.0.113.9' });
+    assert.equal(remote.status, 403);
+
+    const local = await invoke(middleware, { url: '/preflight' });
+    assert.equal(local.status, 200);
+    assert.equal(local.body.ready, false);
+    assert.equal(local.body.authenticated, false);
+    assert.equal(local.body.autoGoLive, true);
+    assert.equal(typeof local.body.chrome, 'boolean');
+    assert.equal(typeof local.body.ffmpeg, 'boolean');
+  } finally {
+    if (previous === undefined) delete process.env.GEV_AUTO_GO_LIVE;
+    else process.env.GEV_AUTO_GO_LIVE = previous;
+  }
+});
+
+test('go-now is loopback-only and uses the in-process writable session', async () => {
   let calls = 0;
   const middleware = createYoutubeLiveMiddleware({
-    authorizeRequest: async () => ({ sessionId: 'yt-1', canWrite: true }),
-    authorizeAdminRequest: async () => ({ sub: 'admin' }),
+    authorizeRequest: async () => null,
+    findWritableAuthorization: async () => ({ sessionId: 'yt-1', canWrite: true }),
     goNow: async ({ authorization, body }) => {
       calls += 1;
       assert.equal(authorization.sessionId, 'yt-1');
@@ -241,24 +265,116 @@ test('go-now requires caller-bound YouTube, ADMIN, and anti-CSRF authorization',
     method: 'POST',
     url: '/go-now',
     body: { title: "God's Eye View LIVE" },
-    headers: MUTATE,
+    headers: {},
   });
   // invoke() defaults socket to 127.0.0.1 — override via a custom call
   assert.equal(remote.status, 202);
   assert.equal(remote.body.broadcast.watchUrl, 'https://www.youtube.com/watch?v=b1');
   assert.equal(calls, 1);
 
+  const blocked = await new Promise((resolve, reject) => {
+    const req = {
+      method: 'POST',
+      url: '/go-now',
+      headers: {},
+      socket: { remoteAddress: '203.0.113.9' },
+      on(event, handler) {
+        if (event === 'end') queueMicrotask(handler);
+        return this;
+      },
+    };
+    const res = {
+      statusCode: 200,
+      writableEnded: false,
+      setHeader() {},
+      end(payload) {
+        this.writableEnded = true;
+        resolve({ status: this.statusCode, body: payload ? JSON.parse(payload) : {} });
+      },
+    };
+    Promise.resolve(middleware(req, res, reject)).catch(reject);
+  });
+  assert.equal(blocked.status, 403);
+  assert.equal(blocked.body.error.kind, 'forbidden');
+
   const unsigned = createYoutubeLiveMiddleware({
     authorizeRequest: async () => null,
-    authorizeAdminRequest: async () => ({ sub: 'admin' }),
+    findWritableAuthorization: async () => null,
     goNow: async () => { throw new Error('should not run'); },
   });
-  const denied = await invoke(unsigned, {
-    method: 'POST',
-    url: '/go-now',
-    headers: { ...MUTATE, 'x-forwarded-for': '203.0.113.9' },
-    body: {},
-  });
+  const denied = await invoke(unsigned, { method: 'POST', url: '/go-now', body: {} });
   assert.equal(denied.status, 401);
-  assert.equal(calls, 1);
+});
+
+test('GET /session is public and never requires a YouTube cookie', async () => {
+  const middleware = createYoutubeLiveMiddleware({
+    live: {
+      status: () => ({ status: 'idle', target: '', log: [] }),
+      start: async () => { throw new Error('should not start'); },
+      stop: async () => ({ status: 'stopped' }),
+    },
+    authorizeRequest: async () => null,
+    sessionStatus: () => ({
+      status: 'idle',
+      broadcast: null,
+    }),
+  });
+  const response = await invoke(middleware, { url: '/session' });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.live.status, 'idle');
+  assert.equal(response.body.sessionStatus, 'idle');
+  assert.equal(response.body.broadcast, null);
+});
+
+test('POST /ingest-key starts the encoder without OAuth and redacts the stream key', async () => {
+  const started = [];
+  const middleware = createYoutubeLiveMiddleware({
+    live: {
+      status: () => ({ status: started.length ? 'encoding' : 'idle', target: 'rtmps://a.rtmp.youtube.com/live2/***', log: [] }),
+      start: async (body) => {
+        started.push(body);
+        return { status: 'encoding', target: 'rtmps://a.rtmp.youtube.com/live2/***', log: [] };
+      },
+      stop: async () => ({ status: 'stopped' }),
+    },
+    authorizeRequest: async () => null,
+  });
+
+  const blocked = await invoke(middleware, {
+    method: 'POST',
+    url: '/ingest-key',
+    body: { streamKey: KEY, watchUrl: 'https://www.youtube.com/watch?v=abc123def45' },
+  });
+  assert.equal(blocked.status, 403);
+  assert.equal(started.length, 0);
+
+  const missing = await invoke(middleware, {
+    method: 'POST',
+    url: '/ingest-key',
+    headers: MUTATE,
+    body: { watchUrl: 'https://www.youtube.com/watch?v=abc123def45' },
+  });
+  assert.equal(missing.status, 400);
+  assert.equal(missing.body.error.kind, 'invalid');
+
+  const startedRes = await invoke(middleware, {
+    method: 'POST',
+    url: '/ingest-key',
+    headers: MUTATE,
+    body: {
+      streamKey: KEY,
+      ingestUrl: 'rtmps://a.rtmp.youtube.com/live2',
+      watchUrl: 'https://www.youtube.com/watch?v=abc123def45',
+    },
+  });
+  assert.equal(startedRes.status, 202);
+  assert.equal(startedRes.body.live.status, 'encoding');
+  assert.equal(startedRes.body.broadcast.watchUrl, 'https://www.youtube.com/watch?v=abc123def45');
+  assert.equal(started[0].streamKey, KEY);
+  assert.ok(!JSON.stringify(startedRes.body).includes(KEY));
+
+  const session = await invoke(middleware, { url: '/session' });
+  assert.equal(session.status, 200);
+  assert.equal(session.body.broadcast.watchUrl, 'https://www.youtube.com/watch?v=abc123def45');
+  assert.ok(!JSON.stringify(session.body).includes(KEY));
 });
