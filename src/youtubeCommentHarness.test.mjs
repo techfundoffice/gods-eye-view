@@ -826,22 +826,16 @@ test('server refuses to start an agent session without tool isolation', async ()
 });
 
 test('server validates structured output and never returns credentials', async () => {
-  const session = { destroy: async () => {} };
   const middleware = createYoutubeCommentHarnessMiddleware({
     configured: true,
     supportsToolIsolation: true,
     authorizeAdminRequest: async () => ({ sub: 'admin' }),
     authorizeRequest: async () => ({ sessionId: 's' }),
-    createAgent: () => ({
-      createSession: async () => session,
-      generate: async () => ({
-        text: JSON.stringify({
-          kind: 'view_request',
-          intent: { action: 'fly_to_location', args: { query: 'Ensenada Port' } },
-          reason: 'Port',
-          confidence: 0.9,
-        }),
-      }),
+    interpretTask: async () => JSON.stringify({
+      kind: 'view_request',
+      intent: { action: 'fly_to_location', args: { query: 'Ensenada Port' } },
+      reason: 'Port',
+      confidence: 0.9,
     }),
   });
   const response = await invoke(middleware, {
