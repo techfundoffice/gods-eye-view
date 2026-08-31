@@ -10684,6 +10684,38 @@ body.cockpit-mode .admin-launch {
   line-height: 1.6;
 }
 
+.admin-pane-composio {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-composio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.admin-composio-requirements,
+.admin-composio-result {
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  max-height: 24vh;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font: 10px/1.6 var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.admin-composio-result {
+  color: var(--text-primary);
+}
+
 .admin-pane-live {
   display: flex;
   flex-direction: column;
@@ -10806,6 +10838,7 @@ body.cockpit-mode .admin-launch {
 
 @media (max-width: 900px) {
   .admin-pane { grid-template-columns: 1fr; }
+  .admin-composio-grid { grid-template-columns: 1fr; }
   .admin-plugin-list { max-height: 22vh; }
   .admin-live-grid,
   .admin-live-grid-encoder { grid-template-columns: 1fr; }

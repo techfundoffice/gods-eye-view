@@ -33,6 +33,7 @@ import { createAdminMcpServer } from './adminMcpServer.js';
 import { createPluginBuilder, readPluginManifest } from './adminPluginBuilder.js';
 import { normalizePluginManifest } from './adminPluginRegistry.js';
 import { createAdminStore } from './adminStore.js';
+import { publicComposioError } from './composioAdminServer.js';
 import { createLiveSessionController } from './liveSession.js';
 import { youtubeLiveOperatorMessage } from './youtubeBroadcast.js';
 
@@ -156,6 +157,7 @@ export function readJsonBody(req, limit = ADMIN_MAX_BODY_BYTES) {
  * @param {object} [options.store] Durable admin state.
  * @param {Function} [options.readManifest] Reads the generated-plugin manifest.
  * @param {string} [options.version] Version reported over MCP.
+ * @param {object} [options.composio] Server-side Composio facade.
  * @returns {(req: object, res: object, next: Function) => void}
  */
 export function createAdminMiddleware({
@@ -167,6 +169,7 @@ export function createAdminMiddleware({
   youtubeAuth = { authorizeRequest: async () => null, proxy: null },
   readManifest = readPluginManifest,
   version = '1.0.0',
+  composio = null,
 } = {}) {
   const mcp = createAdminMcpServer({ builder, version });
   const authorizeAdminRequest = createAdminSessionAuthorizer({ auth, replitAuth });
@@ -565,6 +568,53 @@ export function createAdminMiddleware({
         }
         if (segments.length === 2 && second === 'stop' && req.method === 'POST') {
           sendJson(res, 200, { live: await live.stop() });
+          return;
+        }
+      }
+
+      if (first === 'composio') {
+        if (!composio) {
+          sendJson(res, 503, { error: { kind: 'unconfigured', message: 'Composio is not configured for this app.' } });
+          return;
+        }
+        if (segments.length === 2 && second === 'status' && req.method === 'GET') {
+          try {
+            sendJson(res, 200, { composio: await composio.status() });
+          } catch (error) {
+            sendJson(res, error?.status || 502, { error: publicComposioError(error), composio: {
+              configured: Boolean(composio.configured),
+              state: error?.kind === 'authentication' ? 'connection-error' : 'error',
+              health: 'error',
+              accounts: [],
+              tools: [],
+              capabilities: [],
+            } });
+          }
+          return;
+        }
+        if (segments.length === 2 && second === 'validate' && req.method === 'POST') {
+          const body = await readJsonBody(req);
+          try {
+            sendJson(res, 200, { result: await composio.validate({
+              capabilityId: body.capabilityId,
+              arguments: body.arguments,
+            }) });
+          } catch (error) {
+            sendJson(res, error?.status || 400, { error: publicComposioError(error) });
+          }
+          return;
+        }
+        if (segments.length === 3 && second === 'actions' && req.method === 'POST') {
+          const body = await readJsonBody(req);
+          try {
+            sendJson(res, 200, { result: await composio.execute({
+              capabilityId: body.capabilityId || third,
+              arguments: body.arguments,
+              connectedAccountId: body.connectedAccountId,
+            }) });
+          } catch (error) {
+            sendJson(res, error?.status || 400, { error: publicComposioError(error) });
+          }
           return;
         }
       }

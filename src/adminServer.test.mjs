@@ -105,7 +105,29 @@ function call(middleware, {
 }
 
 /** Build a middleware with a known password and stub dependencies. */
-function harness({ store = memoryStore(), builder = stubBuilder() } = {}) {
+function stubComposio() {
+  return {
+    configured: true,
+    status: async () => ({
+      configured: true,
+      state: 'connected',
+      health: 'healthy',
+      accounts: [{ id: 'account-1', toolkit: 'github', status: 'ACTIVE', alias: 'work' }],
+      tools: [{
+        capabilityId: 'composio:GITHUB_GET_ME',
+        slug: 'GITHUB_GET_ME',
+        name: 'Get profile',
+        toolkit: 'github',
+        inputParameters: {},
+      }],
+      capabilities: ['composio:GITHUB_GET_ME'],
+    }),
+    validate: async ({ capabilityId }) => ({ ok: true, capabilityId, message: 'Validated.' }),
+    execute: async ({ capabilityId }) => ({ ok: true, capabilityId, message: 'Completed.' }),
+  };
+}
+
+function harness({ store = memoryStore(), builder = stubBuilder(), composio = stubComposio() } = {}) {
   const auth = createAdminAuth({
     credential: { hash: hashAdminPassword(PASSWORD), source: 'hash' },
     store,
@@ -114,7 +136,7 @@ function harness({ store = memoryStore(), builder = stubBuilder() } = {}) {
     auth,
     store,
     builder,
-    middleware: createAdminMiddleware({ store, auth, builder, live: stubLive(), version: '1.2.3' }),
+    middleware: createAdminMiddleware({ store, auth, builder, live: stubLive(), composio, version: '1.2.3' }),
   };
 }
 
@@ -231,6 +253,9 @@ test('operator routes are closed to anyone without a session', async () => {
     { method: 'POST', url: '/mcp/keys', headers: WRITE, body: { label: 'x' } },
     { url: '/live' },
     { method: 'POST', url: '/live/start', headers: WRITE, body: { ingestUrl: 'rtmp://x/live2' } },
+    { url: '/composio/status' },
+    { method: 'POST', url: '/composio/validate', headers: WRITE, body: {} },
+    { method: 'POST', url: '/composio/actions/run', headers: WRITE, body: {} },
   ]) {
     const response = await call(middleware, request);
     assert.equal(response.status, 401, `${request.method || 'GET'} ${request.url} requires sign-in`);
@@ -405,16 +430,30 @@ test('an unknown admin route is a 404', async () => {
   assert.equal((await call(middleware, { url: '/nowhere', cookie })).status, 404);
 });
 
-test('Composio is not an admin route — signed-in /composio 404s, unconfigured still 503s', async () => {
+test('Composio routes are ADMIN-only, CSRF-protected, and never expose a credential', async () => {
   const { middleware } = harness();
   const cookie = await signIn(middleware);
-  const signedIn = await call(middleware, { url: '/composio', cookie });
-  assert.equal(signedIn.status, 404);
-  assert.equal(signedIn.body.error.kind, 'route');
+  const status = await call(middleware, { url: '/composio/status', cookie });
+  assert.equal(status.status, 200);
+  assert.equal(status.body.composio.state, 'connected');
+  assert.equal(status.body.composio.accounts[0].toolkit, 'github');
+  assert.equal(/api.?key|secret|credential/i.test(JSON.stringify(status.body)), false);
 
-  const mcpSettings = await call(middleware, { url: '/mcp/settings', cookie });
-  assert.equal(mcpSettings.status, 200);
-  assert.equal(mcpSettings.body.endpoint, '/api/admin/mcp');
+  const noCsrf = await call(middleware, {
+    method: 'POST', url: '/composio/validate', cookie, body: { capabilityId: 'composio:GITHUB_GET_ME' },
+  });
+  assert.equal(noCsrf.status, 403);
+  assert.equal(noCsrf.body.error.kind, 'csrf');
+
+  const validated = await call(middleware, {
+    method: 'POST',
+    url: '/composio/validate',
+    headers: WRITE,
+    cookie,
+    body: { capabilityId: 'composio:GITHUB_GET_ME', arguments: {} },
+  });
+  assert.equal(validated.status, 200);
+  assert.equal(validated.body.result.capabilityId, 'composio:GITHUB_GET_ME');
 
   const unconfigured = createAdminMiddleware({
     store: memoryStore(),
@@ -422,9 +461,29 @@ test('Composio is not an admin route — signed-in /composio 404s, unconfigured 
     builder: stubBuilder(),
     live: stubLive(),
   });
-  const blocked = await call(unconfigured, { url: '/composio' });
+  const blocked = await call(unconfigured, { url: '/composio/status' });
   assert.equal(blocked.status, 503);
   assert.equal(blocked.body.error.kind, 'unconfigured');
+});
+
+test('Composio upstream errors are redacted before crossing the ADMIN boundary', async () => {
+  const credential = 'composio-secret-key';
+  const composio = {
+    configured: true,
+    status: async () => {
+      const error = new Error(`upstream rejected ${credential}`);
+      error.kind = 'authentication';
+      error.status = 502;
+      throw error;
+    },
+  };
+  const { middleware } = harness({ composio });
+  const cookie = await signIn(middleware);
+  const response = await call(middleware, { url: '/composio/status', cookie });
+  assert.equal(response.status, 502);
+  assert.equal(response.body.composio.state, 'connection-error');
+  assert.equal(JSON.stringify(response.body).includes(credential), false);
+  assert.equal(response.body.error.message, 'Composio rejected the configured server credential.');
 });
 
 test('a local ADMIN password still unlocks when Replit login is also configured', async () => {

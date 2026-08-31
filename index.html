@@ -1106,6 +1106,10 @@
                 <strong>MCP Server</strong>
                 <small>Expose this console to external MCP clients with an API key.</small>
               </button>
+              <button class="admin-menu-item" type="button" data-admin-view="composio" aria-current="false">
+                <strong>Composio</strong>
+                <small>Inspect approved connected tools and run only site-allowlisted actions.</small>
+              </button>
               <button class="admin-menu-item" type="button" data-admin-view="live-stream" aria-current="false">
                 <strong>Go Live</strong>
                 <small>Capture the globe with headless Chromium and push it to YouTube over RTMP.</small>
@@ -1171,6 +1175,38 @@
           <ul id="admin-mcp-keys" class="admin-mcp-keys"></ul>
           <span class="admin-mcp-label">CLIENT CONFIGURATION</span>
           <pre id="admin-mcp-snippet" class="admin-mcp-snippet"></pre>
+        </div>
+
+        <div class="admin-pane admin-pane-composio" data-admin-pane="composio" hidden>
+          <div class="admin-mcp-row">
+            <span class="admin-mcp-label">COMPOSIO CONTROL PLANE</span>
+            <span id="admin-composio-state" class="admin-mcp-state">CHECKING</span>
+            <button id="admin-composio-refresh" class="scene-btn" type="button">REFRESH</button>
+          </div>
+          <p id="admin-composio-detail" class="admin-mcp-help" role="status" aria-live="polite">
+            Composio status has not been checked.
+          </p>
+          <div class="admin-composio-grid">
+            <label class="admin-field" for="admin-composio-tool">
+              <span>APPROVED SITE CAPABILITY</span>
+              <select id="admin-composio-tool" name="composio-tool"></select>
+            </label>
+            <label class="admin-field" for="admin-composio-account">
+              <span>CONNECTED ACCOUNT</span>
+              <select id="admin-composio-account" name="composio-account"></select>
+            </label>
+          </div>
+          <span class="admin-mcp-label">ACTION INPUT REQUIREMENTS</span>
+          <pre id="admin-composio-requirements" class="admin-composio-requirements">No approved capability selected.</pre>
+          <label class="admin-field" for="admin-composio-inputs">
+            <span>INPUTS (JSON)</span>
+            <textarea id="admin-composio-inputs" rows="4" placeholder="{}">{}</textarea>
+          </label>
+          <div class="admin-live-actions">
+            <button id="admin-composio-test" class="scene-btn" type="button" disabled>VALIDATE SAFE</button>
+            <button id="admin-composio-run" class="scene-btn" type="button" disabled>RUN APPROVED ACTION</button>
+          </div>
+          <pre id="admin-composio-result" class="admin-composio-result" role="status" aria-live="polite">No test run yet.</pre>
         </div>
 
         <div class="admin-pane admin-pane-live" data-admin-pane="live-stream" hidden>

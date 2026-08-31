@@ -16,6 +16,8 @@ import {
   applyAdminLockPaint,
   applyAdminNavLayout,
   createAdminClient,
+  composioStatusLabel,
+  composioStatusMessage,
   describeSessionState,
   hasRunningBuild,
   initAdminConsole,
@@ -51,25 +53,28 @@ function fakeFetch(responses = []) {
   return { fetchImpl, calls };
 }
 
-test('the dashboard menu is the three shipped items and has no Composio surface', () => {
+test('the dashboard menu includes the gated Composio control plane', () => {
   assert.deepEqual(
     ADMIN_MENU_ITEMS.map((item) => item.id),
-    ['create-plugin', 'mcp-server', 'live-stream'],
+    ['create-plugin', 'mcp-server', 'composio', 'live-stream'],
   );
   assert.deepEqual(
     ADMIN_MENU_ITEMS.map((item) => item.label),
-    ['Create Plugin', 'MCP Server', 'Go Live'],
+    ['Create Plugin', 'MCP Server', 'Composio', 'Go Live'],
   );
   for (const item of ADMIN_MENU_ITEMS) {
     assert.ok(item.id && item.description, `${item.label} has an id and a description`);
   }
 
-  const menuBlob = JSON.stringify(ADMIN_MENU_ITEMS);
-  assert.equal(/composio/i.test(menuBlob), false, 'ADMIN_MENU_ITEMS must not name Composio');
-
   const dashboard = html.match(/<div id="admin-dashboard"[\s\S]*?<div id="admin-plugin-host"/);
   assert.ok(dashboard, 'the dashboard markup is missing from index.html');
-  assert.equal(/composio/i.test(dashboard[0]), false, 'index.html dashboard must not name Composio');
+  assert.match(dashboard[0], /data-admin-view="composio"/);
+  assert.match(dashboard[0], /data-admin-pane="composio"/);
+  assert.match(dashboard[0], /id="admin-composio-state"/);
+  assert.match(dashboard[0], /id="admin-composio-tool"/);
+  assert.match(dashboard[0], /id="admin-composio-account"/);
+  assert.match(dashboard[0], /id="admin-composio-test"/);
+  assert.match(dashboard[0], /id="admin-composio-run"/);
   assert.match(dashboard[0], /data-admin-view="create-plugin"/);
   assert.match(dashboard[0], /data-admin-view="mcp-server"/);
   assert.match(dashboard[0], /data-admin-view="live-stream"/);
@@ -80,12 +85,7 @@ test('the dashboard menu is the three shipped items and has no Composio surface'
   assert.match(dashboard[0], /<strong>Create Plugin<\/strong>/);
   assert.match(dashboard[0], /<strong>Go Live<\/strong>/);
 
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const depNames = [
-    ...Object.keys(pkg.dependencies || {}),
-    ...Object.keys(pkg.devDependencies || {}),
-  ].join('\n');
-  assert.equal(/composio/i.test(depNames), false, 'package.json must not declare a Composio package');
+  assert.match(dashboard[0], /APPROVED SITE CAPABILITY/);
 });
 
 test('build status and transcript roles get operator-readable labels', () => {
@@ -108,6 +108,19 @@ test('the status line distinguishes unconfigured, locked, and signed in', () => 
     describeSessionState({ configured: true, authenticated: true, mcpEnabled: true }),
     'SIGNED IN · MCP ONLINE',
   );
+});
+
+test('Composio UI states distinguish loading, setup, disconnect, allowlist, and errors', () => {
+  assert.equal(composioStatusLabel('connected', false), 'CHECKING');
+  assert.equal(composioStatusLabel('unconfigured'), 'NOT CONFIGURED');
+  assert.equal(composioStatusLabel('disconnected'), 'DISCONNECTED');
+  assert.equal(composioStatusLabel('no-capabilities'), 'NO APPROVED TOOLS');
+  assert.equal(composioStatusLabel('connection-error'), 'CONNECTION ERROR');
+  assert.equal(composioStatusLabel('connected'), 'CONNECTED');
+  assert.match(composioStatusMessage({ configured: false }), /COMPOSIO_API_KEY/);
+  assert.match(composioStatusMessage({ configured: true, state: 'disconnected' }), /Connect an app/);
+  assert.match(composioStatusMessage({ configured: true, state: 'no-capabilities' }), /COMPOSIO_ALLOWED_TOOLS/);
+  assert.equal(composioStatusMessage({ configured: true, error: 'Safe failure' }), 'Safe failure');
 });
 
 test('a running build anywhere in the list keeps the console polling', () => {
@@ -172,7 +185,7 @@ test('a bodyless POST still carries the header but no content type', async () =>
 });
 
 test('every route the console needs is addressed and escaped', async () => {
-  const { fetchImpl, calls } = fakeFetch(new Array(9).fill({ body: {} }));
+  const { fetchImpl, calls } = fakeFetch(new Array(12).fill({ body: {} }));
   const client = createAdminClient({ fetchImpl });
   await client.listPlugins();
   await client.createPlugin('Watchlist', 'track ships');
@@ -182,6 +195,9 @@ test('every route the console needs is addressed and escaped', async () => {
   await client.setMcpEnabled(true);
   await client.createMcpKey('Laptop');
   await client.revokeMcpKey('key 1');
+  await client.composioStatus();
+  await client.validateComposio('composio:GITHUB_GET_ME', {});
+  await client.runComposioAction('composio:GITHUB_GET_ME', {}, 'account/1');
 
   assert.deepEqual(calls.map((entry) => `${entry.options.method} ${entry.url}`), [
     'GET /api/admin/plugins',
@@ -192,7 +208,15 @@ test('every route the console needs is addressed and escaped', async () => {
     'POST /api/admin/mcp/settings',
     'POST /api/admin/mcp/keys',
     'DELETE /api/admin/mcp/keys/key%201',
+    'GET /api/admin/composio/status',
+    'POST /api/admin/composio/validate',
+    'POST /api/admin/composio/actions/run',
   ]);
+  assert.deepEqual(JSON.parse(calls[9].options.body), {
+    capabilityId: 'composio:GITHUB_GET_ME',
+    arguments: {},
+  });
+  assert.equal(calls[9].options.headers[ADMIN_REQUEST_HEADER], '1');
 });
 
 test('a server error surfaces its message, kind, and status', async () => {
@@ -331,10 +355,14 @@ function makeAdminOverlay() {
   const createPane = makeNode('', { hidden: true, dataset: { adminPane: 'create-plugin' } });
   const mcpPane = makeNode('', { hidden: true, dataset: { adminPane: 'mcp-server' } });
   const livePane = makeNode('', { hidden: true, dataset: { adminPane: 'live-stream' } });
+  const composioPane = makeNode('', { hidden: true, dataset: { adminPane: 'composio' } });
   root.children.push(gate, signout, toggle, dashboard);
   dashboard.children.push(scrim, nav, workspace);
-  workspace.children.push(createPane, mcpPane, livePane);
-  return { root, gate, signout, toggle, scrim, nav, dashboard, workspace, createPane, mcpPane, livePane };
+  workspace.children.push(createPane, mcpPane, composioPane, livePane);
+  return {
+    root, gate, signout, toggle, scrim, nav, dashboard, workspace,
+    createPane, mcpPane, composioPane, livePane,
+  };
 }
 
 test('applyAdminLockPaint withholds dashboard, panes, and sign-out while locked', () => {
@@ -358,6 +386,7 @@ test('applyAdminLockPaint withholds dashboard, panes, and sign-out while locked'
   assert.equal(overlay.scrim.hidden, true);
   assert.equal(overlay.createPane.hidden, true);
   assert.equal(overlay.mcpPane.hidden, true);
+  assert.equal(overlay.composioPane.hidden, true);
   assert.equal(overlay.livePane.hidden, true);
   assert.equal(overlay.root.classList.contains(ADMIN_UNLOCKED_CLASS), false);
 });
@@ -378,6 +407,7 @@ test('applyAdminLockPaint reveals the dashboard only after a signed-in session',
   assert.equal(overlay.toggle.hidden, false);
   assert.equal(overlay.createPane.hidden, true);
   assert.equal(overlay.mcpPane.hidden, false);
+  assert.equal(overlay.composioPane.hidden, true);
   assert.equal(overlay.livePane.hidden, true);
   assert.equal(overlay.root.classList.contains(ADMIN_UNLOCKED_CLASS), true);
 });
@@ -440,6 +470,9 @@ test('every operator action refuses to run while the console is locked', () => {
     '_toggleMcp',
     '_createKey',
     '_revokeKey',
+    '_loadComposio',
+    '_validateComposio',
+    '_runComposio',
     '_provisionLive',
     '_startLive',
     '_stopLive',

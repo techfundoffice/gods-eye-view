@@ -53,6 +53,11 @@ export const ADMIN_MENU_ITEMS = Object.freeze([
     description: 'Expose this console to external MCP clients with an API key.',
   },
   {
+    id: 'composio',
+    label: 'Composio',
+    description: 'Inspect approved connected tools and run only site-allowlisted actions.',
+  },
+  {
     id: 'live-stream',
     label: 'Go Live',
     description: 'Capture the globe with headless Chromium and push it to YouTube over RTMP.',
@@ -143,6 +148,34 @@ export function pluginNavStatusMessage(status) {
     case 'error': return 'Could not load plugins.';
     default: return '';
   }
+}
+
+/** Operator label for each Composio connection state. */
+export function composioStatusLabel(status, loaded = true) {
+  if (!loaded) return 'CHECKING';
+  return {
+    unconfigured: 'NOT CONFIGURED',
+    disconnected: 'DISCONNECTED',
+    connected: 'CONNECTED',
+    'no-capabilities': 'NO APPROVED TOOLS',
+    'connection-error': 'CONNECTION ERROR',
+    error: 'ERROR',
+  }[String(status || '')] || 'UNKNOWN';
+}
+
+/** Actionable copy for each Composio connection state. */
+export function composioStatusMessage(composio = {}) {
+  if (composio.error) return String(composio.error);
+  if (!composio.configured) {
+    return 'Set COMPOSIO_API_KEY in the server environment. It is never accepted or rendered in this browser.';
+  }
+  if (composio.state === 'disconnected') {
+    return 'No connected accounts were found. Connect an app in Composio, then refresh.';
+  }
+  if (composio.state === 'no-capabilities') {
+    return 'Set COMPOSIO_ALLOWED_TOOLS to a narrow comma-separated server allowlist.';
+  }
+  return 'Credentials and approved capability metadata are healthy.';
 }
 
 /**
@@ -355,6 +388,15 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     selectLive: (broadcastId) => request('/live/select', { method: 'POST', body: { broadcastId } }),
     startLive: (options) => request('/live/start', { method: 'POST', body: options }),
     stopLive: () => request('/live/stop', { method: 'POST' }),
+    composioStatus: () => request('/composio/status'),
+    validateComposio: (capabilityId, args) => request('/composio/validate', {
+      method: 'POST',
+      body: { capabilityId, arguments: args },
+    }),
+    runComposioAction: (capabilityId, args, connectedAccountId) => request('/composio/actions/run', {
+      method: 'POST',
+      body: { capabilityId, arguments: args, connectedAccountId },
+    }),
   };
 }
 
@@ -423,6 +465,18 @@ export class AdminConsoleController {
       mcp: { enabled: false, endpoint: '/api/admin/mcp', keys: [] },
       mcpLoaded: false,
       freshToken: '',
+      composio: {
+        configured: false,
+        state: 'unconfigured',
+        health: 'not-configured',
+        accounts: [],
+        tools: [],
+        capabilities: [],
+      },
+      composioLoaded: false,
+      composioBusy: false,
+      composioResult: '',
+      composioSelectedCapability: '',
       live: { status: 'idle', log: [], framesSent: 0, target: '', error: null, phases: null },
       liveWatchUrl: '',
       liveBroadcasts: [],
@@ -440,6 +494,7 @@ export class AdminConsoleController {
     this._menuSignature = '';
     this._navMedia = null;
     this._onNavMedia = null;
+    this._composioGeneration = 0;
     this._bind();
   }
 
@@ -514,6 +569,13 @@ export class AdminConsoleController {
     this._el('admin-mcp-keys')?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-revoke-key]');
       if (button) void this._revokeKey(button.dataset.revokeKey);
+    });
+    this._el('admin-composio-refresh')?.addEventListener('click', () => void this._loadComposio());
+    this._el('admin-composio-test')?.addEventListener('click', () => void this._validateComposio());
+    this._el('admin-composio-run')?.addEventListener('click', () => void this._runComposio());
+    this._el('admin-composio-tool')?.addEventListener('change', (event) => {
+      this.state.composioSelectedCapability = String(event.target?.value || '');
+      this._render();
     });
 
     globalThis.document?.addEventListener('keydown', (event) => this._onDocumentKeydown(event));
@@ -666,6 +728,18 @@ export class AdminConsoleController {
     // rather than inherit this session's last view of it.
     this.state.mcp = { enabled: false, endpoint: '/api/admin/mcp', keys: [] };
     this.state.mcpLoaded = false;
+    this.state.composio = {
+      configured: false,
+      state: 'unconfigured',
+      health: 'not-configured',
+      accounts: [],
+      tools: [],
+      capabilities: [],
+    };
+    this.state.composioLoaded = false;
+    this.state.composioResult = '';
+    this.state.composioSelectedCapability = '';
+    this._composioGeneration += 1;
     this._render();
   }
 
@@ -752,6 +826,7 @@ export class AdminConsoleController {
     this._setNavDrawerOpen(false, { restoreFocus: false });
     this._render();
     if (view === 'mcp-server') void this._loadMcp();
+    if (view === 'composio') void this._loadComposio();
     if (view === 'live-stream') void this._loadLive();
     else this._stopLivePolling();
     const plugin = this.state.menuPlugins.find((entry) => entry.id === view);
@@ -998,6 +1073,91 @@ export class AdminConsoleController {
       this.state.message = error.message;
     }
     this._render();
+  }
+
+  /** Load redacted Composio account and capability metadata. */
+  async _loadComposio() {
+    if (!this._requireUnlocked()) return;
+    const generation = ++this._composioGeneration;
+    this.state.composioLoaded = false;
+    try {
+      const payload = await this.client.composioStatus();
+      if (generation !== this._composioGeneration || !isAdminUnlocked(this.state.session)) return;
+      this.state.composio = payload.composio || this.state.composio;
+      const tools = this.state.composio.tools || [];
+      if (!tools.some((tool) => tool.capabilityId === this.state.composioSelectedCapability)) {
+        this.state.composioSelectedCapability = tools[0]?.capabilityId || '';
+      }
+    } catch (error) {
+      if (generation !== this._composioGeneration || !isAdminUnlocked(this.state.session)) return;
+      this.state.composio = {
+        ...this.state.composio,
+        state: error.kind === 'authentication' ? 'connection-error' : 'error',
+        health: 'error',
+        accounts: [],
+        tools: [],
+        capabilities: [],
+        error: error.message,
+      };
+    }
+    this.state.composioLoaded = true;
+    this._render();
+  }
+
+  /** @returns {object} Parsed operator input object. */
+  _composioInputs() {
+    try {
+      const value = JSON.parse(String(this._el('admin-composio-inputs')?.value || '{}'));
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+      return value;
+    } catch {
+      throw new Error('Action inputs must be valid JSON object syntax.');
+    }
+  }
+
+  /** Validate an allowlisted capability without executing it. */
+  async _validateComposio() {
+    if (!this._requireUnlocked() || !this.state.composioLoaded) return;
+    const generation = this._composioGeneration;
+    this.state.composioBusy = true;
+    try {
+      const payload = await this.client.validateComposio(
+        this.state.composioSelectedCapability,
+        this._composioInputs(),
+      );
+      if (generation !== this._composioGeneration || !isAdminUnlocked(this.state.session)) return;
+      this.state.composioResult = payload.result?.message || 'Capability validated.';
+    } catch (error) {
+      if (generation !== this._composioGeneration || !isAdminUnlocked(this.state.session)) return;
+      this.state.composioResult = error.message;
+    } finally {
+      if (generation !== this._composioGeneration || !isAdminUnlocked(this.state.session)) return;
+      this.state.composioBusy = false;
+      this._render();
+    }
+  }
+
+  /** Execute only the selected server-allowlisted capability. */
+  async _runComposio() {
+    if (!this._requireUnlocked() || !this.state.composioLoaded) return;
+    const generation = this._composioGeneration;
+    this.state.composioBusy = true;
+    try {
+      const payload = await this.client.runComposioAction(
+        this.state.composioSelectedCapability,
+        this._composioInputs(),
+        String(this._el('admin-composio-account')?.value || ''),
+      );
+      if (generation !== this._composioGeneration || !isAdminUnlocked(this.state.session)) return;
+      this.state.composioResult = payload.result?.message || 'Approved action completed.';
+    } catch (error) {
+      if (generation !== this._composioGeneration || !isAdminUnlocked(this.state.session)) return;
+      this.state.composioResult = error.message;
+    } finally {
+      if (generation !== this._composioGeneration || !isAdminUnlocked(this.state.session)) return;
+      this.state.composioBusy = false;
+      this._render();
+    }
   }
 
   /**
@@ -1411,7 +1571,66 @@ export class AdminConsoleController {
     this._renderPluginList();
     this._renderTranscript();
     this._renderMcp();
+    this._renderComposio();
     this._renderLive();
+  }
+
+  /** Paint Composio's configured/disconnected/error and capability states. */
+  _renderComposio() {
+    const composio = this.state.composio || {};
+    const state = this._el('admin-composio-state');
+    if (state) state.textContent = composioStatusLabel(composio.state, this.state.composioLoaded);
+
+    const detail = this._el('admin-composio-detail');
+    if (detail) detail.textContent = composioStatusMessage(composio);
+
+    const accountSelect = this._el('admin-composio-account');
+    if (accountSelect) {
+      const selected = accountSelect.value;
+      accountSelect.replaceChildren();
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Choose connected account';
+      accountSelect.append(placeholder);
+      for (const account of composio.accounts || []) {
+        const option = document.createElement('option');
+        option.value = account.id;
+        option.disabled = !account.usable;
+        option.textContent = `${account.toolkit || 'app'} · ${account.alias || account.status || account.id}`;
+        accountSelect.append(option);
+      }
+      if ([...accountSelect.options].some((option) => option.value === selected)) accountSelect.value = selected;
+    }
+
+    const toolSelect = this._el('admin-composio-tool');
+    if (toolSelect) {
+      toolSelect.replaceChildren();
+      for (const tool of composio.tools || []) {
+        const option = document.createElement('option');
+        option.value = tool.capabilityId;
+        option.textContent = `${tool.name} · ${tool.toolkit}`;
+        toolSelect.append(option);
+      }
+      toolSelect.value = this.state.composioSelectedCapability;
+    }
+
+    const selectedTool = (composio.tools || [])
+      .find((tool) => tool.capabilityId === this.state.composioSelectedCapability);
+    const requirements = this._el('admin-composio-requirements');
+    if (requirements) requirements.textContent = selectedTool
+      ? JSON.stringify({
+        capabilityId: selectedTool.capabilityId,
+        action: selectedTool.name,
+        inputs: selectedTool.inputParameters,
+      }, null, 2)
+      : 'No approved capability selected.';
+    const test = this._el('admin-composio-test');
+    if (test) test.disabled = this.state.composioBusy || !selectedTool;
+    const run = this._el('admin-composio-run');
+    if (run) run.disabled = this.state.composioBusy || !selectedTool
+      || !(composio.accounts || []).some((account) => account.usable);
+    const result = this._el('admin-composio-result');
+    if (result) result.textContent = this.state.composioResult || 'No test run yet.';
   }
 
   /** Drop generated plugin tiles so a locked overlay cannot keep them. @returns {void} */

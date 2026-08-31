@@ -60,6 +60,7 @@ import {
 } from './src/adminServer.js';
 import { createAdminAuth } from './src/adminAuth.js';
 import { createAdminStore } from './src/adminStore.js';
+import { createComposioAdminService } from './src/composioAdminServer.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
 import {
   createYoutubeApiCaller,
@@ -73,6 +74,7 @@ let liveSessionSingleton = null;
 let replitAdminAuthSingleton = null;
 let adminStoreSingleton = null;
 let adminAuthSingleton = null;
+let composioAdminSingleton = null;
 
 /**
  * One OAuth middleware so ADMIN live-control and `/api/youtube` share sessions.
@@ -117,6 +119,11 @@ function sharedAdminServices() {
       replitAuth,
     }),
   };
+}
+
+function sharedComposioAdmin() {
+  if (!composioAdminSingleton) composioAdminSingleton = createComposioAdminService();
+  return composioAdminSingleton;
 }
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
@@ -7567,16 +7574,21 @@ export function youtubeProxy({
  * configured: with no credential every route answers `unconfigured`, so an
  * unconfigured deployment exposes nothing.
  */
-function adminConsoleApi() {
-  const { version } = createRequire(import.meta.url)('./package.json');
-  const admin = sharedAdminServices();
+export function adminConsoleApi({
+  version = createRequire(import.meta.url)('./package.json').version || '0.0.0',
+  admin = sharedAdminServices(),
+  composio = sharedComposioAdmin(),
+  live = sharedLiveSession(),
+  youtubeAuth = sharedYoutubeOAuth(),
+} = {}) {
   const middleware = createAdminMiddleware({
-    version: version || '0.0.0',
-    live: sharedLiveSession(),
-    youtubeAuth: sharedYoutubeOAuth(),
+    version,
+    live,
+    youtubeAuth,
     store: admin.store,
     auth: admin.auth,
     replitAuth: admin.replitAuth,
+    composio,
   });
   function install(middlewares) {
     middlewares.use('/api/admin', middleware);
