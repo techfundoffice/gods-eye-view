@@ -82,6 +82,31 @@ export function requiresSecureCookie(req) {
 }
 
 /**
+ * Build the same ADMIN-session verifier used by the console for sibling
+ * server plugins. Native Replit Login is checked first; the password-backed
+ * session is the fallback.
+ *
+ * @param {object} [options]
+ * @param {object} [options.auth] Password/session auth facade.
+ * @param {object|null} [options.replitAuth] Native Replit Login facade.
+ * @returns {(req: object) => object|null}
+ */
+export function createAdminSessionAuthorizer({
+  auth = createAdminAuth(),
+  replitAuth = null,
+} = {}) {
+  return function authorizeAdminSession(req) {
+    if (replitAuth) {
+      const session = replitAuth.authenticate(req);
+      if (session) return session;
+    }
+    if (!auth?.configured) return null;
+    const cookies = parseCookies(req?.headers?.cookie);
+    return auth.authenticate(cookies[ADMIN_SESSION_COOKIE]);
+  };
+}
+
+/**
  * @param {object} res Node response.
  * @param {number} status
  * @param {object} payload

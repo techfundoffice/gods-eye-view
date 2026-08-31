@@ -67,6 +67,26 @@ export const DATA_CREDITS = [
     html: 'Earthquakes: Data courtesy of the U.S. Geological Survey',
   },
   {
+    key: 'eonet',
+    html:
+      'Natural hazards: ' +
+      '<a href="https://eonet.gsfc.nasa.gov/" target="_blank" rel="noopener">NASA EONET</a> ' +
+      '(Earth Observatory Natural Event Tracker)',
+  },
+  {
+    key: 'openfema',
+    html:
+      'Disaster declarations: ' +
+      '<a href="https://www.fema.gov/about/openfema/data-sets" target="_blank" rel="noopener">OpenFEMA</a>',
+  },
+  {
+    key: 'reliefweb',
+    html:
+      'Emergency reports: ' +
+      '<a href="https://reliefweb.int/" target="_blank" rel="noopener">ReliefWeb</a>, ' +
+      'United Nations Office for the Coordination of Humanitarian Affairs',
+  },
+  {
     key: 'openaq',
     html:
       'Air quality stations: ' +

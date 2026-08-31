@@ -55,7 +55,8 @@ import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
-import { createAdminMiddleware } from './src/adminServer.js';
+import { createAdminAuth } from './src/adminAuth.js';
+import { createAdminMiddleware, createAdminSessionAuthorizer } from './src/adminServer.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
 import {
   createYoutubeApiCaller,
@@ -72,6 +73,7 @@ import { publicApiCatalogProxy } from './src/publicApiProxies.js';
 let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
 let replitAdminAuthSingleton = null;
+let adminAuthSingleton = null;
 
 /**
  * One OAuth middleware so ADMIN live-control and `/api/youtube` share sessions.
@@ -113,6 +115,17 @@ function sharedLiveSession() {
 function sharedReplitAdminAuth() {
   if (!replitAdminAuthSingleton) replitAdminAuthSingleton = createReplitAdminAuth();
   return replitAdminAuthSingleton;
+}
+
+/**
+ * Keep password-backed ADMIN sessions shared by the console and sibling
+ * middleware. The session id is opaque and remains in the HttpOnly cookie.
+ *
+ * @returns {object}
+ */
+function sharedAdminAuth() {
+  if (!adminAuthSingleton) adminAuthSingleton = createAdminAuth();
+  return adminAuthSingleton;
 }
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
@@ -5231,7 +5244,7 @@ function openAiRealtimeProxy() {
             // Fully expressible with tools that already exist, so
             // GEV_REALTIME_TOOLS is deliberately untouched — deleting this one
             // string is the whole rollback.
-            'NAMED VIEWS are shorthand for tool calls you already have — there is no "mode" tool for them. Treat ONLY these as the shorthand: "infrastructure mode" / "the infrastructure view" / "show me global infrastructure" means three set_layer_visibility calls (local-datacenters, local-dams, telegeography-submarine-cables) plus zoom_to_globe; "environmental mode" / "earth watch" / "active events", said as the name of a view, means set_layer_visibility for local-firms and earthquakes plus zoom_to_globe. Anything vaguer is NOT this shorthand — an open-ended question about the world or the news is an ordinary question: answer it, or use analyst_query over the layers already on. Never switch a whole view on to answer a question nobody asked to see. When you do run one, make every call before speaking, then give one confirmation naming the resulting state; if the fires layer comes back unavailable because no FIRMS key is configured, say so plainly — the earthquakes still loaded. "Live contacts" and "space missions" are NOT this pattern: they stay set_context_mode{mode:"contacts"} and set_context_mode{mode:"space-missions"}.',
+            'NAMED VIEWS are shorthand for tool calls you already have — there is no "mode" tool for them. Treat ONLY these as the shorthand: "infrastructure mode" / "the infrastructure view" / "show me global infrastructure" means three set_layer_visibility calls (local-datacenters, local-dams, telegeography-submarine-cables) plus zoom_to_globe; "environmental mode" / "earth watch" / "active events", said as the name of a view, means set_layer_visibility for natural-hazards, local-firms, and earthquakes plus zoom_to_globe. Anything vaguer is NOT this shorthand — an open-ended question about the world or the news is an ordinary question: answer it, or use analyst_query over the layers already on. Never switch a whole view on to answer a question nobody asked to see. When you do run one, make every call before speaking, then give one confirmation naming the resulting state; if the fires layer comes back unavailable because no FIRMS key is configured, say so plainly — the earthquakes still loaded. "Live contacts" and "space missions" are NOT this pattern: they stay set_context_mode{mode:"contacts"} and set_context_mode{mode:"space-missions"}.',
             'For visual filter requests, call set_visual_style with one of the allowed style IDs.',
             'Disambiguation table — basemap vs layer vs style: basemap switching requires an explicit stack name — "Bing aerial" means set_map_stack bing-aerial, "aerial with labels" means bing-labels, "OSM"/"road map" means osm, "Google 3D"/"photorealistic" means photoreal. Any mention of "satellite" or "satellites" ALWAYS means the satellites DATA LAYER via set_layer_visibility, never a basemap. "surveillance"/"night vision"/"thermal" are visual STYLES via set_visual_style.',
             'HUD requests ("hud on/off", "switch to operator/minimal/tactical layout") use set_hud. Detection requests ("detection on", "dense mode", "balanced mode", "sparse mode", "set density to 25", "use weighted allocation") use set_detection. Density snaps to 0/25/50/75/100 and derives Sparse/Balanced/Dense; panoptic is a legacy alias for Dense.',
@@ -5801,11 +5814,12 @@ const GEV_REALTIME_TOOLS = [
         layerId: {
           type: 'string',
           description:
-            'Common-name mapping for the non-obvious ids: space mission(s) → rocket-launches; fires/wildfires/active fires → local-firms (NASA FIRMS); ships/vessels/boats → ais-live-vessels; undersea/submarine cables → telegeography-submarine-cables; datacenters → local-datacenters; dams → local-dams; bikes/bike share → bikeshare; street traffic/congestion → traffic; traffic cameras → cctv; internet radio/stations → radio.',
+            'Common-name mapping for the non-obvious ids: natural hazards/active events → natural-hazards; space mission(s) → rocket-launches; fires/wildfires/active fires → local-firms (NASA FIRMS); ships/vessels/boats → ais-live-vessels; undersea/submarine cables → telegeography-submarine-cables; datacenters → local-datacenters; dams → local-dams; bikes/bike share → bikeshare; street traffic/congestion → traffic; traffic cameras → cctv; internet radio/stations → radio.',
           enum: [
             'flights',
             'military',
             'earthquakes',
+            'natural-hazards',
             'satellites',
             'rocket-launches',
             'traffic',
@@ -5838,6 +5852,7 @@ const GEV_REALTIME_TOOLS = [
             'flights',
             'military',
             'earthquakes',
+            'natural-hazards',
             'satellites',
             'traffic',
             'cctv',
@@ -7493,10 +7508,18 @@ function normalizeAisTimestamp(value) {
 export function youtubeProxy({
   oauth = sharedYoutubeOAuth(),
   adminAuth = sharedReplitAdminAuth(),
+  adminAuthorization = null,
   harness = toollessCursor,
   commentHarnessConfigured = Boolean(process.env.CURSOR_API_KEY),
 } = {}) {
-  const authorizeAdminRequest = (req) => adminAuth.authenticate(req);
+  const authorizeAdminRequest = adminAuthorization
+    ? (typeof adminAuthorization === 'function'
+      ? adminAuthorization
+      : adminAuthorization.authorizeRequest)
+    : createAdminSessionAuthorizer({
+      auth: sharedAdminAuth(),
+      replitAuth: adminAuth,
+    });
   const middleware = createYoutubeProxyMiddleware({
     proxy: oauth.proxy,
     authorizeRequest: oauth.authorizeRequest,
@@ -7641,10 +7664,12 @@ export function youtubeProxy({
 function adminConsoleApi() {
   const { version } = createRequire(import.meta.url)('./package.json');
   const replitAuth = sharedReplitAdminAuth();
+  const auth = sharedAdminAuth();
   const middleware = createAdminMiddleware({
     version: version || '0.0.0',
     live: sharedLiveSession(),
     youtubeAuth: sharedYoutubeOAuth(),
+    auth,
     replitAuth,
   });
   function install(middlewares) {

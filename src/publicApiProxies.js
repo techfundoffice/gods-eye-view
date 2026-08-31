@@ -5,6 +5,8 @@
  * @module publicApiProxies
  */
 
+import { naturalHazardsProxy } from './naturalHazardsProxy.js';
+
 const USER_AGENT = 'GodsEyeView/1.0 (https://github.com/bilawalsidhu/gods-eye-view)';
 const FETCH_MS = 20_000;
 const MAX_LIMIT = 200;
@@ -254,6 +256,7 @@ async function handleRidb(req, res) {
 }
 
 const ROUTES = Object.freeze({
+  '/api/natural-hazards': naturalHazardsProxy(),
   '/api/openaq': handleOpenAq,
   '/api/open-charge-map': handleOpenChargeMap,
   '/api/gbif': handleGbif,

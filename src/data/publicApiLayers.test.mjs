@@ -296,7 +296,7 @@ test('every filter-accepted catalog source is registered on the DATA panel', () 
   }
   assert.equal(PUBLIC_API_LAYERS.length, accepted.length);
   const existing = [
-    'earthquakes', 'flights', 'local-firms', 'ais-live-vessels', 'satellites',
+    'earthquakes', 'natural-hazards', 'flights', 'local-firms', 'ais-live-vessels', 'satellites',
     'rocket-launches', 'bikeshare', 'cctv', 'radio', 'traffic',
     'local-dams', 'local-datacenters', 'telegeography-submarine-cables',
     'military', 'military-awareness', 'military-installations',

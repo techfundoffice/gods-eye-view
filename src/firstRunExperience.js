@@ -99,7 +99,9 @@ export const FIRST_RUN_MISSIONS = Object.freeze({
   }),
   environmental: Object.freeze({
     kind: 'globe',
-    // Live USGS earthquakes AND NASA FIRMS active fires. The launcher optimizes
+    // The unified Natural Hazards layer adds NASA EONET storms/volcanoes and
+    // emergency context while the existing USGS and FIRMS layers remain
+    // independently available. The launcher optimizes
     // for the FULLY CONFIGURED experience (product decision, 2026-08-23): the tile
     // promises both, so it turns on both, and the subcopy in index.html says so.
     //
@@ -112,7 +114,7 @@ export const FIRST_RUN_MISSIONS = Object.freeze({
     // machine shared by every layer and not a thing to refactor the night
     // before a launch. LEDGERED post-launch. Until it lands, keyless visitors
     // are judged on the layer row, which tells them the truth.
-    layerIds: Object.freeze(['earthquakes', 'local-firms']),
+    layerIds: Object.freeze(['natural-hazards', 'earthquakes', 'local-firms']),
     busyText: 'Scanning active events…',
   }),
   explore: Object.freeze({ kind: 'none' }),

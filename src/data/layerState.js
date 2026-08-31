@@ -291,6 +291,7 @@ export const LAYER_STATE_REGISTRY = Object.freeze([
   Object.freeze({ id: 'military', token: 'm', disposition: 'enabled+mirrored-options', optionOwner: 'flights' }),
   Object.freeze({ id: 'military-awareness', token: 'g', disposition: 'enabled-only' }),
   Object.freeze({ id: 'military-installations', token: 'i', disposition: 'enabled-only' }),
+  Object.freeze({ id: 'natural-hazards', token: '9', disposition: 'enabled-only' }),
   Object.freeze({ id: 'nps-parks', token: '7', disposition: 'enabled-only' }),
   Object.freeze({ id: 'nws-alerts', token: 'j', disposition: 'enabled-only' }),
   Object.freeze({ id: 'open-charge-map', token: 'k', disposition: 'enabled-only' }),

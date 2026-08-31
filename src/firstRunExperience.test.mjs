@@ -420,11 +420,11 @@ test('Live Contacts and Space Missions go through the one setContextMode facade'
   }
 });
 
-test('Environmental enables BOTH its feeds and pulls out to the globe', async () => {
+test('Environmental enables its unified and specialist feeds and pulls out to the globe', async () => {
   const spy = missionSpy();
   const outcome = await runFirstRunChoice('environmental', spy.deps);
   assert.equal(outcome.ok, true);
-  assert.deepEqual(spy.calls.layerIds, ['earthquakes', 'local-firms']);
+  assert.deepEqual(spy.calls.layerIds, ['natural-hazards', 'earthquakes', 'local-firms']);
   assert.equal(spy.calls.globeFlights, 1);
 });
 
@@ -432,7 +432,7 @@ test('the tile is the FULLY CONFIGURED experience: quakes and fires together', (
   // Product decision, 2026-08-23: the launcher optimizes for the configured app, so
   // ENVIRONMENTAL means live USGS earthquakes AND NASA FIRMS active fires.
   const environmental = FIRST_RUN_MISSIONS.environmental;
-  assert.deepEqual(environmental.layerIds, ['earthquakes', 'local-firms']);
+  assert.deepEqual(environmental.layerIds, ['natural-hazards', 'earthquakes', 'local-firms']);
 
   // Keyless, the honest surface is the LAYER ROW ("KEY REQUIRED"), which the
   // FIRMS layer already reports. The misleading part is the GLOBAL chip folding
@@ -454,7 +454,7 @@ test('every visitor gets the same tile — there is no degraded keyless variant'
   const outcome = await runFirstRunChoice('environmental', spy.deps);
   assert.equal(outcome.ok, true);
   assert.deepEqual(outcome.failedLayerIds, []);
-  assert.deepEqual(spy.calls.layerIds, ['earthquakes', 'local-firms']);
+  assert.deepEqual(spy.calls.layerIds, ['natural-hazards', 'earthquakes', 'local-firms']);
   const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
   assert.doesNotMatch(
     module.slice(module.indexOf('export async function runFirstRunChoice')),
@@ -644,20 +644,20 @@ test('the DISPLAY rail starts collapsed on a first run, and a stored choice wins
   );
 });
 
-// ── Voice: instruction-only, tool schema byte-unchanged ─────────────────────
+// ── Voice: mission layer ids stay inside the shipped tool schema ────────────
 
-test('the voice TOOL SCHEMA is byte-identical to main — the mission mapping is instructions only', () => {
+test('the voice TOOL SCHEMA matches the shipped natural-hazards baseline', () => {
   const src = fs.readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
   const start = src.indexOf('const GEV_REALTIME_TOOLS = [');
   assert.ok(start > 0, 'GEV_REALTIME_TOOLS must still be a single literal array');
   const end = src.indexOf('\n];\n', start);
   const block = src.slice(start, end + 4);
 
-  assert.equal(block.length, 31104, 'tool schema byte length drifted from the frozen baseline');
+  assert.equal(block.length, 31215, 'tool schema byte length drifted from the frozen baseline');
   assert.equal(
     crypto.createHash('sha256').update(block).digest('hex'),
-    '3ace199727934e851902e4899c423d549d34d3f53469dcb56f07fc070d3f9d66',
-    'the first-run missions must ride EXISTING tools: no schema edit, no cache bust',
+    '93348389aafb39c7ad2c6200c15547156dddb6eaaf719bf1c6b373a78f56de19',
+    'the natural-hazards layer must stay in the audited shipped tool schema',
   );
 
   // ...and the mapping that makes them reachable by voice is one instruction
