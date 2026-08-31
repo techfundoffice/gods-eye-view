@@ -5,12 +5,16 @@
  * browser receives an opaque, HttpOnly session id and a minimal account view.
  */
 import {
+  createCipheriv,
+  createDecipheriv,
   createHash,
   createHmac,
   randomBytes,
   randomUUID,
   timingSafeEqual,
 } from 'node:crypto';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 const GOOGLE_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -20,6 +24,7 @@ const SESSION_COOKIE = 'gev_youtube_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const TOKEN_REFRESH_LEEWAY_MS = 60 * 1000;
+const PERSISTED_SESSION_ID = 'persisted-youtube';
 const YOUTUBE_IDENTITY_SCOPES = ['openid', 'email', 'profile'];
 export const YOUTUBE_READONLY_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
 export const YOUTUBE_MANAGE_SCOPE = 'https://www.googleapis.com/auth/youtube';
@@ -177,6 +182,60 @@ function authError(message, cause) {
   return error;
 }
 
+function derivePersistKey(secret) {
+  return createHash('sha256').update(`gev-youtube-session:${secret}`).digest();
+}
+
+/**
+ * Encrypt a refresh-token record for the operator session file.
+ * The file is local-only (.local/, gitignored); this keeps a disk copy from
+ * being readable as plaintext if the workspace is copied.
+ *
+ * @param {string} sessionSecret
+ * @param {object} record
+ * @returns {string}
+ */
+export function encodePersistedYoutubeSession(sessionSecret, record) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', derivePersistKey(sessionSecret), iv);
+  const data = Buffer.concat([
+    cipher.update(Buffer.from(JSON.stringify(record), 'utf8')),
+    cipher.final(),
+  ]);
+  return JSON.stringify({
+    v: 1,
+    iv: iv.toString('base64url'),
+    tag: cipher.getAuthTag().toString('base64url'),
+    data: data.toString('base64url'),
+  });
+}
+
+/**
+ * @param {string} sessionSecret
+ * @param {string} raw
+ * @returns {object|null}
+ */
+export function decodePersistedYoutubeSession(sessionSecret, raw) {
+  try {
+    const parsed = JSON.parse(String(raw || ''));
+    if (parsed?.v !== 1 || !parsed.iv || !parsed.tag || !parsed.data) return null;
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      derivePersistKey(sessionSecret),
+      Buffer.from(parsed.iv, 'base64url'),
+    );
+    decipher.setAuthTag(Buffer.from(parsed.tag, 'base64url'));
+    const plain = Buffer.concat([
+      decipher.update(Buffer.from(parsed.data, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8');
+    const record = JSON.parse(plain);
+    return record?.refreshToken ? record : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createYoutubeOAuthMiddleware({
   clientId = process.env.YOUTUBE_OAUTH_CLIENT_ID || process.env.GOOGLE_OAUTH_CLIENT_ID || '',
   clientSecret = process.env.YOUTUBE_OAUTH_CLIENT_SECRET || process.env.GOOGLE_OAUTH_CLIENT_SECRET || '',
@@ -189,10 +248,115 @@ export function createYoutubeOAuthMiddleware({
   sessionTtlMs = SESSION_TTL_MS,
   oauthStateTtlMs = OAUTH_STATE_TTL_MS,
   writeEnabled = youtubeWriteEnabledFromEnv(),
+  onSignedIn = null,
+  persistPath = process.env.YOUTUBE_SESSION_PATH || '',
+  refreshToken = process.env.YOUTUBE_REFRESH_TOKEN || '',
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('YouTube OAuth requires fetch');
   const configured = Boolean(clientId && clientSecret && sessionSecret);
   const scopes = resolveYoutubeScopes(writeEnabled);
+  const persistEnabled = Boolean(persistPath && sessionSecret);
+
+  function persistableRecord(session) {
+    if (!session?.refreshToken) return null;
+    return {
+      refreshToken: session.refreshToken,
+      accessToken: session.accessToken || '',
+      tokenExpiresAt: Number(session.tokenExpiresAt || 0),
+      googleSub: session.googleSub || '',
+      email: session.email || '',
+      name: session.name || '',
+      picture: session.picture || '',
+      scopes: Array.isArray(session.scopes) ? session.scopes : [],
+      expiresAt: Number(session.expiresAt || 0),
+    };
+  }
+
+  async function writePersistedSession(session) {
+    const record = persistableRecord(session);
+    if (!persistEnabled || !record) return;
+    await mkdir(dirname(persistPath), { recursive: true });
+    await writeFile(persistPath, encodePersistedYoutubeSession(sessionSecret, record), { mode: 0o600 });
+  }
+
+  async function clearPersistedSession() {
+    if (!persistEnabled) return;
+    try {
+      await unlink(persistPath);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+  }
+
+  function putSessionFromRecord(id, record) {
+    const session = {
+      createdAt: now(),
+      expiresAt: Number(record.expiresAt) || now() + sessionTtlMs,
+      googleSub: String(record.googleSub || ''),
+      email: String(record.email || ''),
+      name: String(record.name || ''),
+      picture: String(record.picture || ''),
+      accessToken: String(record.accessToken || ''),
+      refreshToken: String(record.refreshToken || ''),
+      scopes: Array.isArray(record.scopes) ? record.scopes : parseScopes(record.scopes),
+      tokenExpiresAt: Number(record.tokenExpiresAt || 0),
+    };
+    sessions.set(id, session);
+    return session;
+  }
+
+  async function hydrateSessionIdentity(session) {
+    if (session.googleSub && session.accessToken) return session;
+    if (!session.accessToken) return session;
+    const userResponse = await fetchImpl(GOOGLE_USERINFO_URL, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${session.accessToken}` },
+    });
+    const user = await userResponse.json().catch(() => ({}));
+    if (!userResponse.ok || !user.sub) return session;
+    session.googleSub = String(user.sub);
+    session.email = String(user.email || session.email || '');
+    session.name = String(user.name || user.email || session.name || 'YouTube account');
+    session.picture = String(user.picture || session.picture || '');
+    return session;
+  }
+
+  async function restorePersistedSession() {
+    if (!configured) return;
+    let record = null;
+    if (persistEnabled) {
+      try {
+        record = decodePersistedYoutubeSession(sessionSecret, await readFile(persistPath, 'utf8'));
+      } catch (error) {
+        if (error?.code !== 'ENOENT') record = null;
+      }
+    }
+    if (!record && refreshToken) {
+      record = { refreshToken, scopes };
+    }
+    if (!record?.refreshToken) return;
+    const session = putSessionFromRecord(PERSISTED_SESSION_ID, record);
+    try {
+      await getAccessToken(session);
+      await hydrateSessionIdentity(session);
+      session.expiresAt = now() + sessionTtlMs;
+      await writePersistedSession(session);
+    } catch {
+      sessions.delete(PERSISTED_SESSION_ID);
+      await clearPersistedSession().catch(() => {});
+    }
+  }
+
+  const restored = restorePersistedSession();
+  let restoreNotified = false;
+  async function notifyRestoredOnce() {
+    await restored;
+    if (restoreNotified || typeof onSignedIn !== 'function') return;
+    const authorization = await findWritableAuthorization();
+    if (!authorization || restoreNotified) return;
+    restoreNotified = true;
+    void Promise.resolve(onSignedIn(authorization)).catch(() => {});
+  }
+  void notifyRestoredOnce();
 
   function getRedirectUri(req) {
     return redirectUri || `${requestOrigin(req)}/api/youtube/auth/callback`;
@@ -288,6 +452,7 @@ export function createYoutubeOAuthMiddleware({
     if (payload.refresh_token) session.refreshToken = payload.refresh_token;
     // Google may narrow a grant on refresh; trust the response over what we asked for.
     if (payload.scope) session.scopes = parseScopes(payload.scope);
+    void writePersistedSession(session).catch(() => {});
     return session.accessToken;
   }
 
@@ -312,6 +477,38 @@ export function createYoutubeOAuthMiddleware({
     } catch {
       return null;
     }
+  }
+
+  /**
+   * First in-process YouTube session that still has a usable access token.
+   * Cookie-less callers (loopback go-now) use this after a human signs in
+   * through the Settings panel.
+   *
+   * @returns {Promise<object|null>}
+   */
+  async function findSignedInAuthorization() {
+    await restored;
+    cleanup();
+    for (const [id, session] of sessions) {
+      if (!session?.googleSub) continue;
+      try {
+        await getAccessToken(session);
+      } catch {
+        continue;
+      }
+      return {
+        sessionId: id,
+        scopes: session.scopes || [],
+        canWrite: writeEnabled && hasYoutubeManageScope(session.scopes),
+        getAccessToken: () => getAccessToken(session),
+      };
+    }
+    return null;
+  }
+
+  async function findWritableAuthorization() {
+    const authorization = await findSignedInAuthorization();
+    return authorization?.canWrite ? authorization : null;
   }
 
   async function proxy(_connectorName, requestPath, _req, auth, options = {}) {
@@ -397,8 +594,22 @@ export function createYoutubeOAuthMiddleware({
       session.scopes = parseScopes(token.scope);
       session.tokenExpiresAt = now() + Math.max(0, Number(token.expires_in || 3600) * 1000);
       session.expiresAt = now() + sessionTtlMs;
+      try {
+        await writePersistedSession(session);
+      } catch {
+        // Disk persist is best-effort; the in-memory session still works.
+      }
       setSessionCookie(req, res, current.id);
       redirect(res, callbackErrorLocation('success'));
+      if (typeof onSignedIn === 'function') {
+        const authorization = {
+          sessionId: current.id,
+          scopes: session.scopes || [],
+          canWrite: writeEnabled && hasYoutubeManageScope(session.scopes),
+          getAccessToken: () => getAccessToken(session),
+        };
+        void Promise.resolve(onSignedIn(authorization)).catch(() => {});
+      }
     } catch {
       sessions.delete(current.id);
       clearSessionCookie(req, res);
@@ -430,12 +641,18 @@ export function createYoutubeOAuthMiddleware({
       if (req.method !== 'POST') return sendJson(res, 405, { error: { kind: 'method-not-allowed', message: 'Sign out requires POST.' } });
       const current = getSession(req);
       if (current) sessions.delete(current.id);
+      sessions.delete(PERSISTED_SESSION_ID);
+      void clearPersistedSession().catch(() => {});
       clearSessionCookie(req, res);
       return sendJson(res, 200, { authenticated: false });
     }
     if (url.pathname === '/operator-ready') {
       if (req.method !== 'GET') return sendJson(res, 405, { error: { kind: 'method-not-allowed', message: 'Operator-ready is read-only.' } });
-      const authorization = await authorizeRequest(req);
+      if (!isLoopbackAddress(req.socket?.remoteAddress || req.connection?.remoteAddress)) {
+        sendJson(res, 403, { error: { kind: 'forbidden', message: 'Operator-ready is loopback only.' } });
+        return;
+      }
+      const authorization = await findSignedInAuthorization();
       return sendJson(res, 200, {
         authenticated: Boolean(authorization),
         canWrite: Boolean(authorization?.canWrite),
@@ -449,10 +666,16 @@ export function createYoutubeOAuthMiddleware({
   return {
     middleware,
     authorizeRequest,
+    findSignedInAuthorization,
+    findWritableAuthorization,
     proxy,
     sessions,
     oauthStates,
     configured,
     writeEnabled,
+    setOnSignedIn(handler) {
+      onSignedIn = handler;
+      void notifyRestoredOnce();
+    },
   };
 }

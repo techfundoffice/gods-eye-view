@@ -54,27 +54,22 @@ import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
-import {
-  createAdminMiddleware,
-  createAdminSessionAuthorizer,
-} from './src/adminServer.js';
-import { createAdminAuth } from './src/adminAuth.js';
-import { createAdminStore } from './src/adminStore.js';
-import { createComposioAdminService } from './src/composioAdminServer.js';
+import { createAdminMiddleware } from './src/adminServer.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
 import {
   createYoutubeApiCaller,
   listCompatibleBroadcasts,
 } from './src/youtubeBroadcast.js';
+import {
+  supportsVerifiedToolIsolation,
+  toollessCursor,
+} from './src/youtubeToollessCursor.js';
 import { mapPlaceSuggestions } from './src/locationSuggest.js';
 import { publicApiCatalogProxy } from './src/publicApiProxies.js';
 
 let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
 let replitAdminAuthSingleton = null;
-let adminStoreSingleton = null;
-let adminAuthSingleton = null;
-let composioAdminSingleton = null;
 
 /**
  * One OAuth middleware so ADMIN live-control and `/api/youtube` share sessions.
@@ -83,7 +78,11 @@ let composioAdminSingleton = null;
  * @returns {object}
  */
 function sharedYoutubeOAuth() {
-  if (!youtubeOAuthSingleton) youtubeOAuthSingleton = createYoutubeOAuthMiddleware();
+  if (!youtubeOAuthSingleton) {
+    youtubeOAuthSingleton = createYoutubeOAuthMiddleware({
+      persistPath: process.env.YOUTUBE_SESSION_PATH || path.join(process.cwd(), '.local/youtube-oauth.json'),
+    });
+  }
   return youtubeOAuthSingleton;
 }
 
@@ -104,26 +103,6 @@ function sharedLiveSession() {
 function sharedReplitAdminAuth() {
   if (!replitAdminAuthSingleton) replitAdminAuthSingleton = createReplitAdminAuth();
   return replitAdminAuthSingleton;
-}
-
-function sharedAdminServices() {
-  if (!adminStoreSingleton) adminStoreSingleton = createAdminStore();
-  if (!adminAuthSingleton) adminAuthSingleton = createAdminAuth({ store: adminStoreSingleton });
-  const replitAuth = sharedReplitAdminAuth();
-  return {
-    store: adminStoreSingleton,
-    auth: adminAuthSingleton,
-    replitAuth,
-    authorizeRequest: createAdminSessionAuthorizer({
-      auth: adminAuthSingleton,
-      replitAuth,
-    }),
-  };
-}
-
-function sharedComposioAdmin() {
-  if (!composioAdminSingleton) composioAdminSingleton = createComposioAdminService();
-  return composioAdminSingleton;
 }
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
@@ -7503,11 +7482,11 @@ function normalizeAisTimestamp(value) {
  */
 export function youtubeProxy({
   oauth = sharedYoutubeOAuth(),
-  adminAuthorization = sharedAdminServices(),
-  commentHarnessConfigured = Boolean(process.env.OPENAI_API_KEY),
-  commentHarnessInterpreter,
+  adminAuth = sharedReplitAdminAuth(),
+  harness = toollessCursor,
+  commentHarnessConfigured = Boolean(process.env.CURSOR_API_KEY),
 } = {}) {
-  const authorizeAdminRequest = (req) => adminAuthorization.authorizeRequest(req);
+  const authorizeAdminRequest = (req) => adminAuth.authenticate(req);
   const middleware = createYoutubeProxyMiddleware({
     proxy: oauth.proxy,
     authorizeRequest: oauth.authorizeRequest,
@@ -7518,30 +7497,55 @@ export function youtubeProxy({
   });
   const commentHarnessMiddleware = createYoutubeCommentHarnessMiddleware({
     configured: commentHarnessConfigured,
-    supportsToolIsolation: true,
+    harness,
+    supportsToolIsolation: supportsVerifiedToolIsolation(harness),
     authorizeAdminRequest,
     authorizeRequest: oauth.authorizeRequest,
-    ...(commentHarnessInterpreter ? { interpretTask: commentHarnessInterpreter } : {}),
   });
   const liveSession = sharedLiveSession();
+  async function goLiveNow({ authorization, req = null, body = {} } = {}) {
+    liveSession.bindAuth(authorization, oauth.proxy);
+    const title = String(body?.title || "God's Eye View LIVE").trim() || "God's Eye View LIVE";
+    const privacyStatus = String(body?.privacyStatus || 'public').trim() || 'public';
+    const provisioned = await liveSession.provision({
+      title,
+      description: String(body?.description || 'Live from God\'s Eye View').trim(),
+      privacyStatus,
+    });
+    const live = await liveSession.start({}, { authorization, proxy: oauth.proxy, req });
+    return { broadcast: provisioned.broadcast, live };
+  }
+  if (typeof oauth.setOnSignedIn === 'function') {
+    oauth.setOnSignedIn(async (authorization) => {
+      const enabled = ['1', 'true', 'yes', 'on'].includes(
+        String(process.env.GEV_AUTO_GO_LIVE || '').trim().toLowerCase(),
+      );
+      if (!enabled || !authorization?.canWrite) return;
+      try {
+        const result = await goLiveNow({ authorization });
+        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+          status: result.live?.status || 'posted',
+          watchUrl: result.broadcast?.watchUrl || '',
+          liveStatus: result.live?.status || '',
+          at: new Date().toISOString(),
+        })}\n`);
+      } catch (error) {
+        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+          status: 'error',
+          error: { kind: error?.kind || 'invalid', message: error?.message || 'go-live failed' },
+          at: new Date().toISOString(),
+        })}\n`);
+      }
+    });
+  }
   const liveMiddleware = createYoutubeLiveMiddleware({
     live: liveSession.asEncoder(),
     authorizeRequest: oauth.authorizeRequest,
-    authorizeAdminRequest,
-    goNow: async ({ authorization, req, body }) => {
-      liveSession.bindAuth(authorization, oauth.proxy);
-      const title = String(body?.title || "God's Eye View LIVE").trim() || "God's Eye View LIVE";
-      const privacyStatus = String(body?.privacyStatus || 'public').trim() || 'public';
-      const provisioned = await liveSession.provision({
-        title,
-        description: String(body?.description || 'Live from God\'s Eye View').trim(),
-        privacyStatus,
-      });
-      const live = await liveSession.start({}, { authorization, proxy: oauth.proxy, req });
-      return { broadcast: provisioned.broadcast, live };
-    },
+    findWritableAuthorization: oauth.findWritableAuthorization,
+    goNow: goLiveNow,
   });
   const innerTubeChatMiddleware = createYoutubeInnerTubeChatMiddleware({
+    authorizeAdminRequest,
     authorizeRequest: oauth.authorizeRequest,
     listOwnBroadcasts: (authorization) => listCompatibleBroadcasts(
       createYoutubeApiCaller(oauth.proxy, authorization),
@@ -7574,21 +7578,14 @@ export function youtubeProxy({
  * configured: with no credential every route answers `unconfigured`, so an
  * unconfigured deployment exposes nothing.
  */
-export function adminConsoleApi({
-  version = createRequire(import.meta.url)('./package.json').version || '0.0.0',
-  admin = sharedAdminServices(),
-  composio = sharedComposioAdmin(),
-  live = sharedLiveSession(),
-  youtubeAuth = sharedYoutubeOAuth(),
-} = {}) {
+function adminConsoleApi() {
+  const { version } = createRequire(import.meta.url)('./package.json');
+  const replitAuth = sharedReplitAdminAuth();
   const middleware = createAdminMiddleware({
-    version,
-    live,
-    youtubeAuth,
-    store: admin.store,
-    auth: admin.auth,
-    replitAuth: admin.replitAuth,
-    composio,
+    version: version || '0.0.0',
+    live: sharedLiveSession(),
+    youtubeAuth: sharedYoutubeOAuth(),
+    replitAuth,
   });
   function install(middlewares) {
     middlewares.use('/api/admin', middleware);
