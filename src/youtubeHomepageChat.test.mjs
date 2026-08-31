@@ -184,4 +184,72 @@ test('homepage interaction displays every comment and runs validated actions wit
   }]);
   assert.equal(calls.at(-1).action, 'fly_to_location');
   assert.equal(calls.at(-1).args.query, 'Paris');
+  assert.equal(calls.at(-1).args.waitForArrival, true);
+});
+
+test('an actionable comment received before globe startup is queued and runs when the runner attaches', async () => {
+  const calls = [];
+  let resolveCall;
+  const called = new Promise((resolve) => { resolveCall = resolve; });
+  const interaction = createYoutubeHomepageInteraction({
+    nextchat: {
+      publishViewerMessage() {},
+      setHarnessStatus() {},
+    },
+    runner: null,
+    now: () => 20_000,
+    documentRef: null,
+  });
+  await interaction.ingest([{
+    id: 'early-comment',
+    videoId: '',
+    author: 'EarlyViewer',
+    text: 'go to ensenada mexico',
+    actions: inferHomepageViewerActions('go to ensenada mexico'),
+  }]);
+  assert.equal(interaction.getState().pendingActions, 1);
+  assert.equal(interaction.getState().runnerReady, false);
+
+  interaction.setRunner(async (action, args) => {
+    calls.push({ action, args });
+    resolveCall();
+    return { ok: true };
+  });
+  await called;
+  assert.equal(interaction.getState().pendingActions, 0);
+  assert.deepEqual(calls, [{
+    action: 'fly_to_location',
+    args: { query: 'ensenada mexico', viewMode: 'close', waitForArrival: true },
+  }]);
+});
+
+test('viewer navigation dismisses the first-run launcher before moving the camera', async () => {
+  let clicked = 0;
+  const launcher = {
+    hidden: false,
+    classList: { contains: (value) => value === 'visible' },
+    querySelector: () => ({ click() { clicked += 1; } }),
+  };
+  const interaction = createYoutubeHomepageInteraction({
+    nextchat: {
+      publishViewerMessage() {},
+      setHarnessStatus() {},
+    },
+    runner: async () => ({ ok: true }),
+    now: () => 20_000,
+    documentRef: {
+      getElementById(id) {
+        if (id === 'first-run-launcher') return launcher;
+        return null;
+      },
+    },
+  });
+  await interaction.ingest([{
+    id: 'dismiss-overlay',
+    videoId: '',
+    author: 'Viewer',
+    text: 'go to ensenada mexico',
+    actions: inferHomepageViewerActions('go to ensenada mexico'),
+  }]);
+  assert.equal(clicked, 1);
 });

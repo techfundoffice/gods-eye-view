@@ -3,6 +3,7 @@ const MAX_POLL_MS = 30_000;
 const GLOBAL_ACTION_COOLDOWN_MS = 4_000;
 const VIEWER_ACTION_COOLDOWN_MS = 8_000;
 const MAX_SEEN = 500;
+const MAX_PENDING_ACTIONS = 20;
 
 function clampPoll(value) {
   const number = Number(value);
@@ -29,6 +30,7 @@ export function createYoutubeHomepageInteraction({
   let lastActionAt = 0;
   const viewerLastActionAt = new Map();
   const seen = new Set();
+  const pendingActions = [];
   const badge = documentRef?.getElementById?.('gev-nextchat-live-badge') || null;
 
   function setStatus(message, state = '') {
@@ -45,9 +47,21 @@ export function createYoutubeHomepageInteraction({
     while (seen.size > MAX_SEEN) seen.delete(seen.values().next().value);
   }
 
+  function dismissFirstRunLauncher() {
+    const launcher = documentRef?.getElementById?.('first-run-launcher');
+    if (!launcher || launcher.hidden || !launcher.classList?.contains?.('visible')) return;
+    launcher.querySelector?.('[data-first-run-choice="explore"]')?.click?.();
+  }
+
   async function applyMessageActions(message) {
     const actions = Array.isArray(message.actions) ? message.actions : [];
-    if (!actions.length || !actionRunner) return;
+    if (!actions.length) return;
+    if (!actionRunner) {
+      pendingActions.push(message);
+      while (pendingActions.length > MAX_PENDING_ACTIONS) pendingActions.shift();
+      setStatus(`YT LIVE · ${safeText(message.author, 80) || 'Viewer'} request queued until globe is ready`, 'live');
+      return;
+    }
     const current = now();
     const viewer = safeText(message.author, 80) || 'Viewer';
     if ((current - lastActionAt) < GLOBAL_ACTION_COOLDOWN_MS
@@ -58,9 +72,13 @@ export function createYoutubeHomepageInteraction({
     lastActionAt = current;
     viewerLastActionAt.set(viewer, current);
     setStatus(`YT LIVE · applying ${viewer}'s view request`, 'live');
+    dismissFirstRunLauncher();
     for (const intent of actions) {
       try {
-        const result = await actionRunner(intent.action, intent.args || {}, {
+        const args = intent.action === 'fly_to_location'
+          ? { ...(intent.args || {}), waitForArrival: true }
+          : (intent.args || {});
+        const result = await actionRunner(intent.action, args, {
           isCurrent: () => !stopped && message.videoId === videoId,
         });
         if (result?.ok === false) {
@@ -149,10 +167,23 @@ export function createYoutubeHomepageInteraction({
     },
     setRunner(nextRunner) {
       actionRunner = typeof nextRunner === 'function' ? nextRunner : null;
+      if (actionRunner && pendingActions.length) {
+        const queued = pendingActions.splice(0, pendingActions.length);
+        void (async () => {
+          for (const message of queued) await applyMessageActions(message);
+        })();
+      }
     },
     ingest,
     getState() {
-      return { videoId, continuation, seen: seen.size, running: !stopped };
+      return {
+        videoId,
+        continuation,
+        seen: seen.size,
+        pendingActions: pendingActions.length,
+        runnerReady: Boolean(actionRunner),
+        running: !stopped,
+      };
     },
   };
 }
