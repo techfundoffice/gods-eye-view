@@ -7591,12 +7591,18 @@ export function youtubeProxy({
   });
   const homepageChatMiddleware = createYoutubeHomepageChatMiddleware({
     getOwnerCall: async () => {
-      const authorization = await oauth.findWritableAuthorization();
-      if (!authorization) return null;
-      return {
-        call: createYoutubeApiCaller(oauth.proxy, authorization),
-        ownerKey: String(authorization.sessionId || authorization.sub || 'channel-owner'),
-      };
+      if (typeof oauth.findWritableAuthorization !== 'function') return null;
+      try {
+        const authorization = await oauth.findWritableAuthorization();
+        if (!authorization) return null;
+        return {
+          call: createYoutubeApiCaller(oauth.proxy, authorization),
+          ownerKey: String(authorization.sessionId || authorization.sub || 'channel-owner'),
+        };
+      } catch (error) {
+        if (error?.kind === 'authentication' || error?.status === 401) return null;
+        throw error;
+      }
     },
   });
   const envStreamKey = String(process.env.YOUTUBE_STREAM_KEY || '').trim();

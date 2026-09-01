@@ -368,7 +368,22 @@ export function createOwnerLiveDiscovery({
       if (cached && now() - cached.at < ttlMs) {
         return { ...cached.identity, generation };
       }
-      const identity = await discoverActiveYoutubeLive(call);
+      let identity;
+      try {
+        identity = await discoverActiveYoutubeLive(call);
+      } catch (error) {
+        if (error?.kind === 'quota' || error?.kind === 'rate-limit') {
+          identity = {
+            ...emptyDiscovery('unavailable'),
+            error: {
+              kind: error.kind,
+              message: error.message || 'YouTube API quota is exhausted.',
+            },
+          };
+        } else {
+          throw error;
+        }
+      }
       if (identity.videoId !== lastVideoId) {
         generation += 1;
         lastVideoId = identity.videoId || '';

@@ -208,7 +208,14 @@ export function createYoutubeHomepageChatMiddleware({
 
     if (!verifiedLive) {
       const commands = await commandRuntime?.statuses?.({ ...lastBinding, commandsEnabled: false }) || [];
-      sendJson(res, 200, publicFeedBody(identity, { commands }));
+      const extras = { commands };
+      if (identity.error?.kind || identity.error?.message) {
+        extras.error = {
+          kind: boundedText(identity.error.kind, 40),
+          message: boundedText(identity.error.message, 160),
+        };
+      }
+      sendJson(res, 200, publicFeedBody(identity, extras));
       return;
     }
 
