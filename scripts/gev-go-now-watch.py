@@ -7,6 +7,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 READY = 'http://127.0.0.1:5000/api/youtube/auth/operator-ready'
@@ -81,6 +82,8 @@ def session_snapshot():
         'watchUrl': broadcast.get('watchUrl') or '',
         'liveStatus': live.get('status') or '',
         'framesSent': live.get('framesSent') or 0,
+        'error': live.get('error') or '',
+        'startedAt': live.get('startedAt') or '',
         'source': 'session',
         'at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
     }
@@ -100,7 +103,22 @@ def dead_encoder(snap):
     if status not in ('encoding', 'starting'):
         return False
     frames = snap.get('framesSent') or 0
-    return frames <= 0
+    if frames > 0:
+        return False
+    if str(snap.get('error') or '').strip():
+        return True
+    started = str(snap.get('startedAt') or '').strip()
+    if not started:
+        return False
+    if started.endswith('Z'):
+        started = started[:-1] + '+00:00'
+    try:
+        dt = datetime.fromisoformat(started)
+    except ValueError:
+        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - dt).total_seconds() >= 45
 
 
 def first_line(path):
