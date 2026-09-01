@@ -333,10 +333,27 @@ export function initFirstRunExperience({
 
   const status = root.querySelector('[data-first-run-status]');
   const buttons = [...root.querySelectorAll('[data-first-run-choice]')];
+  const minimizeButton = root.querySelector('#first-run-minimize');
+  const maximizeButton = root.querySelector('#first-run-maximize');
+  const restoreButton = root.querySelector('#first-run-restore');
   const defaultStatus = status?.textContent || '';
   const previouslyFocused = documentRef.activeElement;
   let busy = false;
   let closing = false;
+
+  const setWindowState = (state, { focusRestore = false } = {}) => {
+    const minimized = state === 'minimized';
+    const maximized = state === 'maximized';
+    root.classList.toggle('is-minimized', minimized);
+    root.classList.toggle('is-maximized', maximized);
+    minimizeButton?.setAttribute('aria-label', minimized ? 'Mission Control minimized' : 'Minimize Mission Control');
+    maximizeButton?.setAttribute('aria-pressed', String(maximized));
+    maximizeButton?.setAttribute('aria-label', maximized ? 'Restore Mission Control size' : 'Maximize Mission Control');
+    if (focusRestore) {
+      (minimized ? restoreButton : maximizeButton)?.focus?.({ preventScroll: true });
+    }
+    syncScrollAffordance();
+  };
 
   const focusables = () => [
     ...root.querySelectorAll('button, input, [href], [tabindex]:not([tabindex="-1"])'),
@@ -522,6 +539,15 @@ export function initFirstRunExperience({
   }
 
   for (const button of buttons) button.addEventListener('click', onChoice);
+  minimizeButton?.addEventListener('click', () => {
+    if (!busy && !closing) setWindowState('minimized', { focusRestore: true });
+  });
+  maximizeButton?.addEventListener('click', () => {
+    if (!busy && !closing) setWindowState(root.classList.contains('is-maximized') ? 'normal' : 'maximized');
+  });
+  restoreButton?.addEventListener('click', () => {
+    if (!busy && !closing) setWindowState('normal', { focusRestore: true });
+  });
   // Capture phase: the app binds its own global hotkeys (including bare letters
   // that cycle detection and styles), and the launcher owns the keyboard first.
   documentRef.addEventListener('keydown', onKeyDown, true);

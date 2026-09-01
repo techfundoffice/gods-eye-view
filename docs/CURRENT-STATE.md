@@ -1,6 +1,12 @@
 # God's Eye View Current State
 
-Updated: August 31, 2026
+Updated: September 1, 2026
+
+> **2026-09-01 — first-run Mission Control copy is one cyan.** Heading,
+> description, tile titles/subcopy, material icons, ESC hint, and the GEV MIC
+> tip all use `--first-run-ink` (`rgba(54, 220, 255, 0.86)`), the same color as
+> **MISSION CONTROL · FIRST LAUNCH**. Contrast between those lines is weight
+> and size, not a second grey or white.
 
 > **2026-08-31 — live chat is our own YouTube Live page, not Data API quota.**
 > Operator **YOUTUBE SETTINGS** START CHAT and the ADMIN **Youtube AI Comment

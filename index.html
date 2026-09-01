@@ -968,11 +968,24 @@
        until the visitor asks; shared links skip this surface entirely. It returns
         on every normal reload so each visitor explicitly chooses a view — see
        src/firstRunExperience.js for the full show policy. -->
+  <nav id="mission-control-nav" aria-label="Mission Control">
   <aside id="first-run-launcher" role="dialog" aria-labelledby="first-run-title" aria-describedby="first-run-description" hidden>
     <div class="first-run-scanline" aria-hidden="true"></div>
     <header class="first-run-header">
       <span class="first-run-kicker">MISSION CONTROL · FIRST LAUNCH</span>
+      <div class="first-run-window-controls" role="group" aria-label="Mission Control size">
+        <button id="first-run-minimize" class="first-run-window-control" type="button" aria-label="Minimize Mission Control" title="Minimize Mission Control">
+          <span class="material-symbols-outlined" aria-hidden="true">minimize</span>
+        </button>
+        <button id="first-run-maximize" class="first-run-window-control" type="button" aria-label="Maximize Mission Control" aria-pressed="false" title="Maximize Mission Control">
+          <span class="material-symbols-outlined" aria-hidden="true">open_in_full</span>
+        </button>
+      </div>
     </header>
+    <button id="first-run-restore" class="first-run-restore" type="button" aria-label="Restore Mission Control" title="Restore Mission Control">
+      <span class="material-symbols-outlined" aria-hidden="true">open_in_full</span>
+      <span>MISSION CONTROL</span>
+    </button>
     <h2 id="first-run-title">Comment on YouTube chat to choose your view.</h2>
     <!-- The card's one persuasive line, final and VERBATIM (2026-08-23)
          — including the unspaced em dash. The arc it has to carry: this looks
@@ -1012,6 +1025,7 @@
          a live region that also holds layout makes the row jump as it speaks. -->
     <p class="first-run-note" data-first-run-status role="status" aria-live="polite">Tip: the GEV MIC button in the dock lets you talk to the map.</p>
   </aside>
+  </nav>
 
   <!-- ADMIN console: native Replit Login gate, two-column dashboard, plugin builder, MCP, Go Live -->
   <div id="admin-console" class="admin-console" role="dialog" aria-modal="true" aria-labelledby="admin-console-title" hidden>

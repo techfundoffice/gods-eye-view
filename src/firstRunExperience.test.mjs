@@ -601,11 +601,31 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   // `[hidden] { display: none }`, which would strand the card in the
   // accessibility tree until it is revealed or removed.
   assert.match(base, /display: flex/);
-  assert.match(base, /max-height: calc\(100dvh/);
+  assert.match(base, /max-height: 100%/);
+  assert.match(css, /#mission-control-nav \{[\s\S]*?bottom:[\s\S]*?width:/);
   assert.match(css, /#first-run-launcher\[hidden\] \{\s*display: none;\s*\}/);
   // Only the mission list may scroll: the heading, checkbox and status line
   // have to stay on screen at every height.
   assert.match(css, /\.first-run-choices \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto/);
+  // Card copy, icons and hints share the kicker cyan — not a mix of white,
+  // dim grey and brighter cyan. The token is the MISSION CONTROL · FIRST LAUNCH
+  // color; descendants must consume it rather than inventing their own.
+  assert.match(base, /--first-run-ink: rgba\(54, 220, 255, 0\.86\)/);
+  assert.match(base, /color: var\(--first-run-ink\)/);
+  for (const selector of [
+    '.first-run-kicker',
+    '.first-run-window-control',
+    '#first-run-description',
+    '.first-run-choices button',
+    '.first-run-choices small',
+    '.first-run-arrow',
+    '.first-run-note',
+  ]) {
+    const start = css.indexOf(`${selector} {`);
+    assert.ok(start >= 0, `${selector} must keep a color rule`);
+    const block = css.slice(start, css.indexOf('}', start) + 1);
+    assert.match(block, /color: var\(--first-run-ink\)/, `${selector} must use the shared first-run ink`);
+  }
 });
 
 test('the launcher keeps focus, restores it, and never disables the focused button', () => {

@@ -3,6 +3,14 @@
 This changelog records public product changes. For the authoritative description
 of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md).
 
+## [Unreleased] — 2026-09-01
+
+### Changed
+
+- First-run Mission Control copy now uses one cyan: the heading, description,
+  tile titles and subcopy, icons, ESC hint, and MIC tip match
+  **MISSION CONTROL · FIRST LAUNCH**.
+
 ## [Unreleased] — 2026-08-31
 
 ### Changed
