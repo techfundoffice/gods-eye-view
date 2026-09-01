@@ -165,6 +165,33 @@ export function rendererFromAction(action) {
 }
 
 /**
+ * YouTube sometimes nests live-chat items inside replay, replacement, ticker,
+ * or engagement-panel actions. Walk only the bounded upstream JSON and collect
+ * every supported message renderer instead of assuming one fixed wrapper.
+ *
+ * @param {unknown} value
+ * @param {object[]} [out]
+ * @param {Set<object>} [seen]
+ * @returns {object[]}
+ */
+export function renderersFromAction(value, out = [], seen = new Set()) {
+  if (!value || typeof value !== 'object' || seen.has(value)) return out;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (const entry of value) renderersFromAction(entry, out, seen);
+    return out;
+  }
+  for (const [key, nested] of Object.entries(value)) {
+    if (key === 'liveChatTextMessageRenderer' || key === 'liveChatPaidMessageRenderer') {
+      if (nested && typeof nested === 'object') out.push(nested);
+      continue;
+    }
+    renderersFromAction(nested, out, seen);
+  }
+  return out;
+}
+
+/**
  * @param {unknown} payload
  * @returns {{items: object[], continuation: string, timeoutMs: number}}
  */
@@ -173,8 +200,11 @@ export function parseLiveChatResponse(payload) {
   const actions = Array.isArray(continuationContents.actions) ? continuationContents.actions : [];
   const items = [];
   for (const action of actions) {
-    const mapped = innerTubeRendererToDataApiItem(rendererFromAction(action));
-    if (mapped) items.push(mapped);
+    const renderers = renderersFromAction(action);
+    for (const renderer of renderers) {
+      const mapped = innerTubeRendererToDataApiItem(renderer);
+      if (mapped) items.push(mapped);
+    }
   }
   const list = Array.isArray(continuationContents.continuations)
     ? continuationContents.continuations

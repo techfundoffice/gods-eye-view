@@ -200,6 +200,8 @@ test('ticker markup is permanent, bottom-fixed, and preserves every existing con
 
   assert.match(html, /id="live-news-ticker"/);
   assert.match(html, /LIVE Breaking News:/);
+  assert.match(html, /class="live-news-ticker-viewport"/);
+  assert.match(html, /class="live-news-ticker-content"/);
   assert.match(html, /Comment now to change views/);
   assert.match(html, /id="live-news-ticker-url"/);
   assert.match(html, /Live at/);
@@ -211,6 +213,12 @@ test('ticker markup is permanent, bottom-fixed, and preserves every existing con
     css.indexOf('body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {', css.indexOf('.live-news-ticker {')),
   );
   assert.match(tickerRule, /z-index: 1300/);
+  assert.match(tickerRule, /justify-content: flex-start/);
+  assert.match(tickerRule, /text-align: left/);
+  assert.match(css, /\.live-news-ticker-label \{[\s\S]*?flex: 0 0 auto;[\s\S]*?text-align: left;/);
+  assert.match(css, /\.live-news-ticker-viewport \{[\s\S]*?overflow: hidden;/);
+  assert.match(css, /\.live-news-ticker-content \{[\s\S]*?animation: live-news-ticker-scroll 28s linear infinite;/);
+  assert.match(css, /@keyframes live-news-ticker-scroll \{[\s\S]*?translateX\(-100%\)/);
   assert.match(adminReserveRule, /inset: 0 0 var\(--live-news-ticker-height\) 0/);
   assert.match(adminReserveRule, /z-index: 1400/);
 
@@ -275,6 +283,8 @@ test('homepage interaction displays every comment and runs validated actions wit
   assert.equal(displayed.length, 3);
   assert.equal(displayed[0].author, 'CruiseWatcher');
   assert.equal(displayed[0].text, 'I want to see the earthquake in Ensenada, Mexico.');
+  assert.equal(displayed[0].metadata.actionState, 'validated');
+  assert.equal(displayed[2].metadata.actionState, 'chat');
   assert.deepEqual(calls.map((call) => call.action), ['set_layer_visibility', 'fly_to_location']);
   assert.ok(statuses.some((status) => /showing Ensenada, Mexico for CruiseWatcher/i.test(status)));
   assert.ok(statuses.some((status) => /cooldown/i.test(status)));

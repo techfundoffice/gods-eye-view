@@ -682,7 +682,7 @@ export function describeLiveState(state) {
  * browser or an encoder present.
  *
  * @param {{executablePath: string, args: string[], options: object}} config
- * @returns {Promise<{startScreencast: Function, close: Function}>}
+ * @returns {Promise<{startScreencast: Function, refresh: Function, close: Function}>}
  */
 async function defaultLaunchBrowser({ executablePath, args, options }) {
   const { default: puppeteer } = await import('puppeteer');
@@ -716,6 +716,19 @@ async function defaultLaunchBrowser({ executablePath, args, options }) {
         everyNthFrame: 1,
       });
     },
+    async refresh() {
+      await page.reload({
+        waitUntil: LIVE_CAPTURE_WAIT_UNTIL,
+        timeout: 60_000,
+      });
+      if (typeof page.waitForSelector === 'function') {
+        try {
+          await page.waitForSelector(LIVE_CAPTURE_CANVAS_SELECTOR, { timeout: 15_000 });
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
+    },
     async close() {
       await browser.close().catch(() => {});
     },
@@ -731,7 +744,7 @@ async function defaultLaunchBrowser({ executablePath, args, options }) {
  * binary is an error state, not a silent "live".
  *
  * @param {object} [deps] Injectable dependencies.
- * @returns {{start: Function, stop: Function, status: Function}}
+ * @returns {{start: Function, refresh: Function, stop: Function, status: Function}}
  */
 export function createLiveStreamController({
   spawn = nodeSpawn,
@@ -975,8 +988,35 @@ export function createLiveStreamController({
     return describeLiveState(state);
   }
 
+  /**
+   * Reload only the capture page. FFmpeg keeps receiving the most recent frame
+   * during navigation, so YouTube stays on the same ingest and watch URL.
+   *
+   * @returns {Promise<object>} Public state.
+   */
+  async function refresh() {
+    if (!isActiveLiveStatus(state.status) || !browser || typeof browser.refresh !== 'function') {
+      const error = new Error('No active capture browser is available to refresh.');
+      error.status = 409;
+      throw error;
+    }
+    log('Refreshing the live capture with the latest app version.');
+    try {
+      await browser.refresh();
+      log('Live capture refreshed. YouTube ingest was not restarted.');
+      return describeLiveState(state);
+    } catch (error) {
+      const message = error?.message || 'capture reload failed';
+      log(`Live capture refresh failed: ${message}`);
+      const failure = new Error(`Unable to refresh the live capture: ${message}`);
+      failure.status = 502;
+      throw failure;
+    }
+  }
+
   return {
     start,
+    refresh,
     stop,
     status: () => describeLiveState(state),
   };

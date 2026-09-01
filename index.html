@@ -928,8 +928,8 @@
 
   <div id="scene-runtime"></div>
 
-  <!-- Viewer comments arrive from the active YouTube broadcast. The existing
-       local composer remains available; ADMIN remains the manual console. -->
+  <!-- Every viewer comment from the active YouTube broadcast appears on the
+       left. Only clear globe-view requests are repeated in the action lane. -->
   <aside id="gev-nextchat" aria-label="Live viewer chat and chatbot status">
     <button id="gev-nextchat-toggle" type="button" aria-expanded="true" aria-controls="gev-nextchat-panel">CHAT</button>
     <div id="gev-nextchat-panel">
@@ -939,13 +939,22 @@
         <button id="gev-nextchat-new" type="button">New chat</button>
       </header>
       <div class="gev-nextchat-guidance" role="note">
-        <strong>VIEWER PATH · YOUTUBE CHAT</strong>
-        <span>The chatbot reads approved comments and sends view changes through God’s Eye View MCP. ADMIN operates manually.</span>
+        <strong>DIRECT YOUTUBE COMMENT FEED</strong>
+        <span>Every viewer comment appears below. Clear view requests also appear in GEV ACTIONS and move the globe automatically.</span>
       </div>
       <div class="gev-nextchat-body">
         <nav id="gev-nextchat-sessions" class="gev-nextchat-sessions" aria-label="session list"></nav>
         <div class="gev-nextchat-main">
-          <div id="gev-nextchat-thread" class="gev-nextchat-thread" aria-label="user/assistant thread"></div>
+          <div class="gev-nextchat-split">
+            <section class="gev-nextchat-lane" aria-labelledby="gev-nextchat-live-heading">
+              <h3 id="gev-nextchat-live-heading">YOUTUBE LIVE COMMENTS · ALL</h3>
+              <div id="gev-nextchat-live-thread" class="gev-nextchat-thread" aria-label="All YouTube viewer comments" aria-live="polite"></div>
+            </section>
+            <section class="gev-nextchat-lane gev-nextchat-action-lane" aria-labelledby="gev-nextchat-action-heading">
+              <h3 id="gev-nextchat-action-heading">GEV ACTIONS · VIEW REQUESTS</h3>
+              <div id="gev-nextchat-thread" class="gev-nextchat-thread" aria-label="Validated view requests and agent responses" aria-live="polite"></div>
+            </section>
+          </div>
           <p id="gev-nextchat-status" class="gev-nextchat-status" role="status" aria-live="polite"></p>
           <form id="gev-nextchat-form" class="gev-nextchat-composer">
             <textarea id="gev-nextchat-composer" rows="2" placeholder="Local operator input: ask or command the globe…" autocomplete="off"></textarea>
@@ -1226,8 +1235,14 @@
                 placeholder="/home/runner/workspace/bed.mp3" />
             </label>
 
+            <label class="admin-live-auto" for="admin-live-auto-start">
+              <input id="admin-live-auto-start" type="checkbox" name="live-auto-start" checked />
+              <span><strong>AUTOMATICALLY GO LIVE</strong><small>Default on. Turn off to keep YouTube in preview until you start it manually.</small></span>
+            </label>
+
             <div class="admin-live-actions">
               <button id="admin-live-start" class="scene-btn" type="submit">START BROADCAST</button>
+              <button id="admin-live-refresh" class="scene-btn" type="button" disabled>REFRESH LIVE VIEW</button>
               <button id="admin-live-stop" class="scene-btn" type="button" disabled>STOP</button>
             </div>
           </form>
@@ -1273,10 +1288,14 @@
   <aside id="live-news-ticker" class="live-news-ticker" role="status" aria-live="polite"
     aria-label="Live breaking news">
     <span class="live-news-ticker-label">LIVE Breaking News:</span>
-    <span>Comment now to change views</span>
-    <span>Live at</span>
-    <a id="live-news-ticker-url" href="#" aria-disabled="true">CURRENT STREAM URL PENDING</a>
-    <span>Now!</span>
+    <span class="live-news-ticker-viewport">
+      <span class="live-news-ticker-content">
+        <span>Comment now to change views</span>
+        <span>Live at</span>
+        <a id="live-news-ticker-url" href="#" aria-disabled="true">CURRENT STREAM URL PENDING</a>
+        <span>Now!</span>
+      </span>
+    </span>
   </aside>
 
   <script type="module" src="/src/main.js"></script>

@@ -131,6 +131,7 @@ export function createYoutubeHomepageInteraction({
       const id = `${safeText(message.videoId, 80)}:${safeText(message.id, 160)}`;
       if (!message.id || seen.has(id)) continue;
       remember(id);
+      const actions = Array.isArray(message.actions) ? message.actions : [];
       nextchat?.publishViewerMessage?.({
         author: safeText(message.author, 80) || 'YouTube viewer',
         text: safeText(message.text, 500),
@@ -139,6 +140,8 @@ export function createYoutubeHomepageInteraction({
           commentId: safeText(message.id, 160),
           videoId: safeText(message.videoId, 80),
           receivedAt: safeText(message.publishedAt, 40),
+          actionState: actions.length ? 'validated' : 'chat',
+          actionCount: actions.length,
         },
       });
       await applyMessageActions(message);
@@ -175,7 +178,7 @@ export function createYoutubeHomepageInteraction({
         videoId = nextVideoId;
         continuation = safeText(payload.nextPageToken, 4096) || continuation;
         setTickerUrl(payload.watchUrl, true);
-        setStatus(`YT LIVE · ${safeText(payload.title || videoId, 100)} · viewer comments control this globe`, 'live');
+        setStatus(`YT LIVE · showing every comment from ${safeText(payload.title || videoId, 100)}`, 'live');
         await ingest(payload.items || []);
       }
     } catch (error) {

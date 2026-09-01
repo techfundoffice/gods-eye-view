@@ -540,6 +540,7 @@ export function createAdminMiddleware({
               title: body.title,
               description: body.description,
               privacyStatus: body.privacyStatus,
+              autoGoLive: body.autoGoLive !== false,
             });
             sendJson(res, 201, result);
           } catch (error) {
@@ -607,6 +608,20 @@ export function createAdminMiddleware({
               error: {
                 kind: error?.kind || (error?.status === 409 ? 'conflict' : 'invalid'),
                 message: error?.message || 'Unable to start the broadcast',
+              },
+              live: live.status(),
+            });
+          }
+          return;
+        }
+        if (segments.length === 2 && second === 'refresh' && req.method === 'POST') {
+          try {
+            sendJson(res, 200, { live: await live.refresh() });
+          } catch (error) {
+            sendJson(res, error?.status || 502, {
+              error: {
+                kind: error?.status === 409 ? 'conflict' : 'capture-refresh',
+                message: error?.message || 'Unable to refresh the live capture',
               },
               live: live.status(),
             });

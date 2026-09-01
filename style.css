@@ -11018,7 +11018,7 @@ body.cockpit-mode .admin-launch {
   z-index: 108;
   display: flex;
   flex-direction: column;
-  width: min(360px, calc(100vw - 24px));
+  width: min(680px, calc(100vw - 24px));
   max-height: min(420px, calc(100vh - 160px));
   color: var(--text-primary);
   font-family: var(--font-mono);
@@ -11170,6 +11170,34 @@ body.cockpit-mode .admin-launch {
   min-height: 0;
 }
 
+.gev-nextchat-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.gev-nextchat-lane {
+  min-width: 0;
+}
+
+.gev-nextchat-lane + .gev-nextchat-lane {
+  border-left: 1px solid var(--glass-border);
+}
+
+.gev-nextchat-lane > h3 {
+  margin: 0;
+  padding: 6px 10px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--glass-border);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+}
+
+.gev-nextchat-action-lane > h3 {
+  color: rgba(0, 212, 255, 0.75);
+}
+
 .gev-nextchat-thread {
   flex: 1;
   min-height: 160px;
@@ -11201,6 +11229,18 @@ body.cockpit-mode .admin-launch {
   background: rgba(255, 179, 71, 0.08);
 }
 
+.gev-nextchat-msg[data-action-state='validated'] .gev-nextchat-text {
+  border-left-color: var(--accent);
+  background: rgba(0, 212, 255, 0.08);
+}
+
+.gev-nextchat-timestamp {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 8px;
+}
+
 .gev-nextchat-assistant .gev-nextchat-text {
   color: var(--accent);
 }
@@ -11224,6 +11264,56 @@ body.cockpit-mode .admin-launch {
   gap: 6px;
   padding: 8px 10px 10px;
   border-top: 1px solid var(--glass-border);
+}
+
+.admin-live-auto {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 212, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(0, 212, 255, 0.05);
+  cursor: pointer;
+}
+
+.admin-live-auto input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.admin-live-auto span {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-live-auto strong {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.admin-live-auto small {
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .gev-nextchat-split {
+    grid-template-columns: 1fr;
+  }
+
+  .gev-nextchat-lane + .gev-nextchat-lane {
+    border-top: 1px solid var(--glass-border);
+    border-left: 0;
+  }
+
+  .gev-nextchat-thread {
+    min-height: 105px;
+    max-height: 150px;
+  }
 }
 
 #gev-nextchat-composer {
@@ -11292,7 +11382,7 @@ body.scene-playback-mode #gev-nextchat {
   z-index: 1300;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.55rem;
   min-height: var(--live-news-ticker-height);
   padding: 0.38rem max(0.75rem, env(safe-area-inset-left)) calc(0.38rem + env(safe-area-inset-bottom));
@@ -11307,22 +11397,47 @@ body.scene-playback-mode #gev-nextchat {
   font-size: clamp(0.56rem, 0.8vw, 0.68rem);
   letter-spacing: 0.045em;
   line-height: 1.25;
-  text-align: center;
+  text-align: left;
   white-space: nowrap;
   pointer-events: none;
 }
 
 .live-news-ticker-label {
+  flex: 0 0 auto;
   color: #ffb2a9;
   font-weight: 700;
   letter-spacing: 0.1em;
+  text-align: left;
+}
+
+.live-news-ticker-viewport {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.live-news-ticker-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: max-content;
+  padding-left: 100%;
+  animation: live-news-ticker-scroll 28s linear infinite;
+  will-change: transform;
+}
+
+@keyframes live-news-ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+.live-news-ticker:hover .live-news-ticker-content,
+.live-news-ticker:focus-within .live-news-ticker-content {
+  animation-play-state: paused;
 }
 
 .live-news-ticker a {
-  max-width: min(38vw, 32rem);
-  overflow: hidden;
   color: #fff1c4;
-  text-overflow: ellipsis;
   text-decoration: underline;
   text-decoration-color: rgba(255, 241, 196, 0.55);
   text-underline-offset: 0.14em;
@@ -11367,8 +11482,15 @@ body:not(.ui-clean-view):not(.recording-mode) #command-dock {
     letter-spacing: 0.025em;
   }
 
-  .live-news-ticker a {
-    max-width: 34vw;
+  .live-news-ticker-content {
+    gap: 0.35rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-news-ticker-content {
+    padding-left: 0;
+    animation: none;
   }
 }
 

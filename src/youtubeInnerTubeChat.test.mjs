@@ -137,6 +137,26 @@ test('InnerTube actions map onto the Data API live-chat item shape', () => {
   assert.equal(innerTubeRendererToDataApiItem({ id: 'x' }), null);
 });
 
+test('nested and replay-wrapped chat messages are not dropped', () => {
+  const payload = {
+    continuationContents: {
+      liveChatContinuation: {
+        actions: [{
+          replayChatItemAction: {
+            actions: [
+              CHAT_PAYLOAD.continuationContents.liveChatContinuation.actions[0],
+              CHAT_PAYLOAD.continuationContents.liveChatContinuation.actions[1],
+            ],
+          },
+        }],
+        continuations: [{ timedContinuationData: { continuation: 'NEXT', timeoutMs: 5000 } }],
+      },
+    },
+  };
+  const parsed = parseLiveChatResponse(payload);
+  assert.deepEqual(parsed.items.map((item) => item.id), ['msg-1', 'sc-1']);
+});
+
 test('the poller bootstraps from the watch page then posts get_live_chat', async () => {
   const calls = [];
   const chat = createYoutubeInnerTubeChat({

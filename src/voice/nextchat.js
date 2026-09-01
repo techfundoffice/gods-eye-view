@@ -108,6 +108,8 @@ export function loadNextchatState(storage) {
             commentId: String(message.metadata.commentId || '').slice(0, 160),
             videoId: String(message.metadata.videoId || '').slice(0, 80),
             receivedAt: String(message.metadata.receivedAt || '').slice(0, 40),
+            actionState: String(message.metadata.actionState || '').slice(0, 24),
+            actionCount: Math.max(0, Math.min(20, Number(message.metadata.actionCount) || 0)),
           } : undefined,
           streaming: Boolean(message.streaming),
         }))
@@ -227,6 +229,8 @@ export function appendViewerMessage(state, payload, now = Date.now()) {
         commentId: String(meta.commentId || '').slice(0, 160),
         videoId: String(meta.videoId || '').slice(0, 80),
         receivedAt: String(meta.receivedAt || '').slice(0, 40),
+        actionState: String(meta.actionState || '').slice(0, 24),
+        actionCount: Math.max(0, Math.min(20, Number(meta.actionCount) || 0)),
       },
       streaming: false,
     });
@@ -593,14 +597,18 @@ function renderSessions(listEl, state) {
   }
 }
 
-function renderThread(threadEl, session) {
+function renderThread(threadEl, session, { include = () => true } = {}) {
   if (!threadEl) return;
   threadEl.replaceChildren();
   const messages = session?.messages || [];
   for (const message of messages) {
+    if (!include(message)) continue;
     const row = threadEl.ownerDocument.createElement('div');
     row.className = `gev-nextchat-msg gev-nextchat-${message.role}`;
     row.dataset.role = message.role;
+    if (message.metadata?.actionState) {
+      row.dataset.actionState = message.metadata.actionState;
+    }
     const who = threadEl.ownerDocument.createElement('span');
     who.className = 'gev-nextchat-role';
     who.textContent = message.role === 'user'
@@ -612,9 +620,22 @@ function renderThread(threadEl, session) {
     body.className = 'gev-nextchat-text';
     body.textContent = message.content;
     row.append(who, body);
+    if (message.role === 'viewer' && message.metadata?.receivedAt) {
+      const timestamp = threadEl.ownerDocument.createElement('time');
+      timestamp.className = 'gev-nextchat-timestamp';
+      timestamp.dateTime = message.metadata.receivedAt;
+      timestamp.textContent = formatViewerTimestamp(message.metadata.receivedAt);
+      row.appendChild(timestamp);
+    }
     threadEl.appendChild(row);
   }
   threadEl.scrollTop = threadEl.scrollHeight;
+}
+
+function formatViewerTimestamp(value) {
+  const date = new Date(String(value || ''));
+  if (!Number.isFinite(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -648,6 +669,7 @@ export function initNextchat({
   let attachedVoice = voice || null;
   const sessionsEl = root.querySelector('#gev-nextchat-sessions');
   const threadEl = root.querySelector('#gev-nextchat-thread');
+  const liveThreadEl = root.querySelector('#gev-nextchat-live-thread');
   const statusEl = root.querySelector('#gev-nextchat-status');
   const form = root.querySelector('#gev-nextchat-form');
   const composer = root.querySelector('#gev-nextchat-composer');
@@ -657,7 +679,17 @@ export function initNextchat({
   const paint = () => {
     const state = store.getState();
     renderSessions(sessionsEl, state);
-    renderThread(threadEl, store.getActiveSession());
+    const session = store.getActiveSession();
+    if (liveThreadEl) {
+      renderThread(liveThreadEl, session, {
+        include: (message) => message.role === 'viewer',
+      });
+      renderThread(threadEl, session, {
+        include: (message) => message.role !== 'viewer' || message.metadata?.actionState === 'validated',
+      });
+    } else {
+      renderThread(threadEl, session);
+    }
     if (statusEl) {
       statusEl.textContent = state.unavailable
         ? state.unavailable

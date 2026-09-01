@@ -230,6 +230,7 @@ export async function provisionYoutubeBroadcast(call, {
   title,
   description = '',
   privacyStatus = 'unlisted',
+  autoGoLive = true,
 } = {}) {
   const name = String(title || '').trim();
   if (!name) throw new Error('A broadcast title is required');
@@ -261,7 +262,7 @@ export async function provisionYoutubeBroadcast(call, {
       },
       status: { privacyStatus: privacy, selfDeclaredMadeForKids: false },
       contentDetails: {
-        enableAutoStart: true,
+        enableAutoStart: autoGoLive !== false,
         enableAutoStop: true,
         monitorStream: { enableMonitorStream: false, broadcastStreamDelayMs: 0 },
       },

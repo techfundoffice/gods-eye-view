@@ -355,6 +355,7 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     provisionLive: (options) => request('/live/provision', { method: 'POST', body: options }),
     selectLive: (broadcastId) => request('/live/select', { method: 'POST', body: { broadcastId } }),
     startLive: (options) => request('/live/start', { method: 'POST', body: options }),
+    refreshLive: () => request('/live/refresh', { method: 'POST' }),
     ingestLiveKey: (options) => request('/live/ingest-key', { method: 'POST', body: options }),
     stopLive: () => request('/live/stop', { method: 'POST' }),
   };
@@ -379,6 +380,7 @@ export function buildAdminLiveStartBody(fields = {}) {
   const body = {
     captureUrl: String(fields.captureUrl || '').trim(),
     audioSource: String(fields.audioSource || '').trim(),
+    autoGoLive: fields.autoGoLive !== false,
     width: fields.width,
     height: fields.height,
     fps: fields.fps,
@@ -505,6 +507,7 @@ export class AdminConsoleController {
       void this._startLive();
     });
     this._el('admin-live-stop')?.addEventListener('click', () => void this._stopLive());
+    this._el('admin-live-refresh')?.addEventListener('click', () => void this._refreshLive());
     this._el('admin-live-provision')?.addEventListener('click', () => void this._provisionLive());
     this._el('admin-live-broadcast')?.addEventListener('change', () => void this._selectLive());
     this._el('admin-live-paste')?.addEventListener('click', () => void this._pasteStudioKey());
@@ -1100,6 +1103,7 @@ export class AdminConsoleController {
       const result = await this.client.provisionLive({
         title,
         privacyStatus: this._liveValue('admin-live-privacy', 'unlisted') || 'unlisted',
+        autoGoLive: this._el('admin-live-auto-start')?.checked !== false,
       });
       this._applyBroadcast(result.broadcast);
       if (result.live) this.state.live = result.live;
@@ -1153,6 +1157,7 @@ export class AdminConsoleController {
         height: this._liveValue('admin-live-height'),
         fps: this._liveValue('admin-live-fps'),
         videoBitrateKbps: this._liveValue('admin-live-bitrate'),
+        autoGoLive: this._el('admin-live-auto-start')?.checked !== false,
       }));
       this.state.live = payload.live || this.state.live;
       if (payload.live?.broadcast?.watchUrl) this.state.liveWatchUrl = payload.live.broadcast.watchUrl;
@@ -1185,6 +1190,25 @@ export class AdminConsoleController {
     this.state.busy = false;
     clearTimeout(this._livePollTimer);
     this._render();
+  }
+
+  /** @returns {Promise<void>} */
+  async _refreshLive() {
+    if (!this._requireUnlocked()) return;
+    this.state.busy = true;
+    this.state.message = 'Refreshing the live view without changing the YouTube broadcast...';
+    this._render();
+    try {
+      const payload = await this.client.refreshLive();
+      this.state.live = payload.live || this.state.live;
+      this.state.message = 'Live view refreshed. The YouTube broadcast and viewer URL stayed the same.';
+    } catch (error) {
+      this.state.message = error.message;
+      if (error.payload?.live) this.state.live = error.payload.live;
+    }
+    this.state.busy = false;
+    this._render();
+    this._scheduleLivePoll();
   }
 
   /**
@@ -1289,6 +1313,8 @@ export class AdminConsoleController {
     }
     const stop = this._el('admin-live-stop');
     if (stop) stop.disabled = this.state.busy || canStartLive(live);
+    const refresh = this._el('admin-live-refresh');
+    if (refresh) refresh.disabled = this.state.busy || canStartLive(live);
     const provision = this._el('admin-live-provision');
     if (provision) provision.disabled = this.state.busy || !canStartLive(live);
 

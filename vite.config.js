@@ -73,6 +73,7 @@ import { publicApiCatalogProxy } from './src/publicApiProxies.js';
 
 let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
+const LIVE_SESSION_GLOBAL_KEY = Symbol.for('gods-eye-view.live-session');
 let replitAdminAuthSingleton = null;
 let adminAuthSingleton = null;
 
@@ -105,11 +106,13 @@ function sharedYoutubeOAuth() {
  * @returns {object}
  */
 function sharedLiveSession() {
-  if (!liveSessionSingleton) {
-    liveSessionSingleton = createLiveSessionController({
+  const shared = globalThis;
+  if (!shared[LIVE_SESSION_GLOBAL_KEY]) {
+    shared[LIVE_SESSION_GLOBAL_KEY] = createLiveSessionController({
       encoder: createLiveStreamController(),
     });
   }
+  liveSessionSingleton = shared[LIVE_SESSION_GLOBAL_KEY];
   return liveSessionSingleton;
 }
 
@@ -7590,22 +7593,54 @@ export function youtubeProxy({
     });
   }
   const envWatchUrl = () => String(process.env.YOUTUBE_WATCH_URL || '').trim();
+  const publicLiveFallback = () => {
+    let saved = {};
+    try {
+      saved = JSON.parse(fs.readFileSync('/tmp/gev-live-public.json', 'utf8'));
+    } catch {
+      // Optional bridge for an encoder that survived a Vite config reload.
+    }
+    const watchUrl = String(saved.watchUrl || envWatchUrl()).trim();
+    const idMatch = watchUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/) || watchUrl.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
+    return {
+      active: saved.active === true,
+      watchUrl,
+      videoId: String(saved.videoId || idMatch?.[1] || '').trim(),
+      title: String(saved.title || 'YouTube Live').trim(),
+    };
+  };
+  const publicSessionStatus = () => {
+    const snap = liveSession.status();
+    const active = ['starting', 'encoding', 'ingesting', 'waiting-for-youtube', 'live'].includes(
+      String(snap.status || ''),
+    );
+    const fallback = publicLiveFallback();
+    const watchUrl = snap.broadcast?.watchUrl || fallback.watchUrl;
+    if (active) {
+      return watchUrl && !snap.broadcast?.watchUrl
+        ? { ...snap, broadcast: { ...(snap.broadcast || {}), watchUrl } }
+        : snap;
+    }
+    if (fallback.active && fallback.videoId && fallback.watchUrl) {
+      return {
+        ...snap,
+        status: 'live',
+        broadcast: {
+          id: fallback.videoId,
+          videoId: fallback.videoId,
+          title: fallback.title,
+          watchUrl: fallback.watchUrl,
+        },
+      };
+    }
+    return snap;
+  };
   const liveMiddleware = createYoutubeLiveMiddleware({
     live: liveSession.asEncoder(),
     authorizeRequest: oauth.authorizeRequest,
     findWritableAuthorization: oauth.findWritableAuthorization,
     goNow: goLiveNow,
-    sessionStatus: () => {
-      const snap = liveSession.status();
-      const watchUrl = snap.broadcast?.watchUrl || envWatchUrl();
-      const active = ['starting', 'encoding', 'ingesting', 'waiting-for-youtube', 'live'].includes(
-        String(snap.status || ''),
-      );
-      if (watchUrl && !snap.broadcast?.watchUrl && active) {
-        return { ...snap, broadcast: { ...(snap.broadcast || {}), watchUrl } };
-      }
-      return snap;
-    },
+    sessionStatus: publicSessionStatus,
   });
   const envStreamKey = String(process.env.YOUTUBE_STREAM_KEY || '').trim();
   if (autoGoLiveEnabled() && envStreamKey) {
@@ -7636,7 +7671,7 @@ export function youtubeProxy({
     ),
   });
   const homepageChatMiddleware = createYoutubeHomepageChatMiddleware({
-    sessionStatus: () => liveSession.status(),
+    sessionStatus: publicSessionStatus,
   });
   function install(middlewares) {
     middlewares.use('/api/youtube/auth', oauth.middleware);

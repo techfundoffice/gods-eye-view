@@ -286,13 +286,26 @@ export function createLiveSessionController({
     return health;
   }
 
-  function armPoll() {
+  function armPoll(call = youtubeCall, autoGoLive = true) {
     stopPolling();
-    if (!binding?.streamId || typeof youtubeCall !== 'function') return;
+    if (!binding?.streamId || typeof call !== 'function') return;
     pollTimer = setInterval(() => {
-      void pollNow().catch(() => {});
+      void pollAndMaybeTransition(call, autoGoLive).catch(() => {});
     }, pollMs);
     pollTimer.unref?.();
+  }
+
+  async function pollAndMaybeTransition(call = youtubeCall, autoGoLive = true) {
+    await pollNow(call);
+    const next = autoGoLive ? nextYoutubeLiveTransition(health) : null;
+    if (next && binding?.broadcastId && typeof call === 'function') {
+      await transitionYoutubeBroadcast(call, {
+        broadcastId: binding.broadcastId,
+        broadcastStatus: next,
+      });
+      await pollNow(call);
+    }
+    return health;
   }
 
   /**
@@ -395,6 +408,7 @@ export function createLiveSessionController({
       streamKey = binding.streamKey;
     }
 
+    const autoGoLive = input.autoGoLive !== false;
     const started = await encoder.start({
       ...input,
       captureUrl: encoderCapture.captureUrl,
@@ -404,8 +418,9 @@ export function createLiveSessionController({
       extraHeaders: encoderCapture.extraHeaders,
     });
     if (started.status === 'encoding' && binding?.streamId) {
-      armPoll();
-      void pollNow(context.call || youtubeCall).catch(() => {});
+      const call = context.call || youtubeCall;
+      armPoll(call, autoGoLive);
+      void pollAndMaybeTransition(call, autoGoLive).catch(() => {});
     }
     const publicState = snapshot();
     assertNoStreamKey(publicState, streamKey);
@@ -470,8 +485,21 @@ export function createLiveSessionController({
     return publicState;
   }
 
+  async function refresh() {
+    if (typeof encoder.refresh !== 'function') {
+      const error = new Error('The live capture cannot be refreshed by this encoder.');
+      error.status = 409;
+      throw error;
+    }
+    await encoder.refresh();
+    const publicState = snapshot();
+    auditLater('refreshed', publicState);
+    return publicState;
+  }
+
   return {
     start,
+    refresh,
     stop,
     status: snapshot,
     provision,
@@ -480,6 +508,6 @@ export function createLiveSessionController({
     bindAuth,
     pollNow,
     waitForLive,
-    asEncoder: () => ({ start, stop, status: snapshot }),
+    asEncoder: () => ({ start, refresh, stop, status: snapshot }),
   };
 }

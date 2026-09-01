@@ -80,6 +80,25 @@ test('the console reads and drives the broadcast through /api/admin/live', async
   assert.equal(stopped.body.live.status, 'stopped');
 });
 
+test('ADMIN refreshes the capture without stopping the broadcast', async () => {
+  let refreshed = 0;
+  const middleware = adminWith({
+    status: () => ({ status: 'live', log: [] }),
+    refresh: async () => {
+      refreshed += 1;
+      return { status: 'live', log: ['Live capture refreshed.'] };
+    },
+  });
+  const response = await invoke(middleware, {
+    method: 'POST',
+    url: '/live/refresh',
+    headers: MUTATE,
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.live.status, 'live');
+  assert.equal(refreshed, 1);
+});
+
 test('driving the broadcast requires the anti-CSRF header', async () => {
   let started = 0;
   const middleware = adminWith({
@@ -335,6 +354,7 @@ test('ADMIN start body omits the stream key when a broadcast id is selected', ()
   assert.equal(withBroadcast.broadcastId, 'broadcast-1');
   assert.equal('streamKey' in withBroadcast, false);
   assert.equal(withBroadcast.captureUrl, 'http://localhost:4173/');
+  assert.equal(withBroadcast.autoGoLive, true);
 
   const pasted = buildAdminLiveStartBody({
     ingestUrl: 'rtmps://a.rtmp.youtube.com/live2',
@@ -343,6 +363,7 @@ test('ADMIN start body omits the stream key when a broadcast id is selected', ()
   });
   assert.equal(pasted.streamKey, KEY);
   assert.equal('broadcastId' in pasted, false);
+  assert.equal(buildAdminLiveStartBody({ autoGoLive: false }).autoGoLive, false);
 });
 
 test('the ADMIN Go Live pane ships readiness rows and a broadcast selector', () => {
@@ -350,6 +371,8 @@ test('the ADMIN Go Live pane ships readiness rows and a broadcast selector', () 
   const pane = html.slice(html.indexOf('data-admin-pane="live-stream"'), html.indexOf('id="admin-plugin-host"'));
   assert.match(pane, /id="admin-live-phases"/);
   assert.match(pane, /id="admin-live-broadcast"/);
+  assert.match(pane, /id="admin-live-auto-start"[^>]*checked/);
+  assert.match(pane, /id="admin-live-refresh"/);
   for (const phase of ['account', 'broadcast', 'capture', 'encoder', 'ingest', 'youtube', 'odbc']) {
     assert.match(pane, new RegExp(`data-live-phase="${phase}"`));
   }

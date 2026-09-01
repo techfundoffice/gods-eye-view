@@ -41,13 +41,14 @@ function fakeFfmpeg() {
 }
 
 function fakeBrowser() {
-  const browser = { closed: false, frames: 0 };
+  const browser = { closed: false, frames: 0, refreshes: 0 };
   browser.startScreencast = (onFrame) => {
     browser.frames += 1;
     onFrame(Buffer.from('jpeg-frame'));
     return Promise.resolve();
   };
   browser.close = () => { browser.closed = true; return Promise.resolve(); };
+  browser.refresh = () => { browser.refreshes += 1; return Promise.resolve(); };
   return browser;
 }
 
@@ -180,6 +181,25 @@ test('a second start for the same ingest is idempotent; a different one is refus
   );
   assert.equal(controller.status().status, 'encoding');
   await controller.stop();
+});
+
+test('refresh reloads the capture browser without restarting ffmpeg', async () => {
+  const { controller, browser, spawned, proc } = controllerWith();
+  await controller.start(START);
+  const before = proc.written.length;
+  const refreshed = await controller.refresh();
+  assert.equal(refreshed.status, 'encoding');
+  assert.equal(browser.refreshes, 1);
+  assert.equal(spawned.length, 1);
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.ok(proc.written.length >= before);
+  assert.match(refreshed.log.join('\n'), /ingest was not restarted/i);
+  await controller.stop();
+});
+
+test('refresh is refused when no broadcast is active', async () => {
+  const { controller } = controllerWith();
+  await assert.rejects(() => controller.refresh(), /No active capture browser/);
 });
 
 test('ffmpeg discovery prefers FFMPEG_PATH and otherwise searches PATH', () => {
