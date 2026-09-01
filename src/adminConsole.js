@@ -333,6 +333,25 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     return payload;
   }
 
+  async function youtubeRequest(path, { method = 'GET' } = {}) {
+    const headers = { Accept: 'application/json' };
+    if (method !== 'GET') headers[ADMIN_REQUEST_HEADER] = '1';
+    const response = await fetchImpl(`/api/youtube/auth${path}`, {
+      method,
+      headers,
+      credentials: 'same-origin',
+    });
+    let payload = {};
+    try { payload = await response.json(); } catch { /* no response body */ }
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || 'YouTube authorization request failed');
+      error.kind = payload?.error?.kind || 'request';
+      error.status = response.status;
+      throw error;
+    }
+    return payload;
+  }
+
   return {
     session: () => request('/session'),
     login: (password) => request('/login', { method: 'POST', body: { password } }),
@@ -358,6 +377,9 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     refreshLive: () => request('/live/refresh', { method: 'POST' }),
     ingestLiveKey: (options) => request('/live/ingest-key', { method: 'POST', body: options }),
     stopLive: () => request('/live/stop', { method: 'POST' }),
+    youtubeStatus: () => youtubeRequest('/status'),
+    youtubeConnectUrl: () => '/api/youtube/auth/start?go=1',
+    youtubeSignout: () => youtubeRequest('/signout', { method: 'POST' }),
   };
 }
 
@@ -428,6 +450,7 @@ export class AdminConsoleController {
       mcpLoaded: false,
       freshToken: '',
       live: { status: 'idle', log: [], framesSent: 0, target: '', error: null, phases: null },
+      youtubeAuth: { configured: false, authenticated: false, canWrite: false, account: null },
       liveWatchUrl: '',
       liveBroadcasts: [],
       menuPlugins: [],
@@ -511,6 +534,8 @@ export class AdminConsoleController {
     this._el('admin-live-provision')?.addEventListener('click', () => void this._provisionLive());
     this._el('admin-live-broadcast')?.addEventListener('change', () => void this._selectLive());
     this._el('admin-live-paste')?.addEventListener('click', () => void this._pasteStudioKey());
+    this._el('admin-youtube-connect')?.addEventListener('click', () => this._connectYoutube());
+    this._el('admin-youtube-signout')?.addEventListener('click', () => void this._signOutYoutube());
 
     this._el('admin-mcp-toggle')?.addEventListener('click', () => void this._toggleMcp());
     this._el('admin-mcp-key-form')?.addEventListener('submit', (event) => {
@@ -1039,6 +1064,7 @@ export class AdminConsoleController {
   /** @returns {Promise<void>} */
   async _loadLive({ refreshBroadcasts = true } = {}) {
     this._ensureCaptureUrl();
+    await this._loadYoutubeAuth();
     try {
       const payload = await this.client.liveStatus();
       this.state.live = payload.live || this.state.live;
@@ -1060,6 +1086,43 @@ export class AdminConsoleController {
     }
     this._render();
     this._scheduleLivePoll();
+  }
+
+  /** @returns {Promise<void>} */
+  async _loadYoutubeAuth() {
+    if (typeof this.client.youtubeStatus !== 'function') return;
+    try {
+      this.state.youtubeAuth = await this.client.youtubeStatus();
+    } catch (error) {
+      this.state.youtubeAuth = { configured: false, authenticated: false, canWrite: false, account: null };
+      if (!this.state.live?.error) this.state.message = error.message;
+    }
+  }
+
+  /** @returns {void} */
+  _connectYoutube() {
+    if (!this._requireUnlocked()) return;
+    const target = typeof this.client.youtubeConnectUrl === 'function'
+      ? this.client.youtubeConnectUrl()
+      : '/api/youtube/auth/start?go=1';
+    globalThis.location?.assign?.(target);
+  }
+
+  /** @returns {Promise<void>} */
+  async _signOutYoutube() {
+    if (!this._requireUnlocked() || typeof this.client.youtubeSignout !== 'function') return;
+    this.state.busy = true;
+    this._render();
+    try {
+      await this.client.youtubeSignout();
+      this.state.youtubeAuth = { configured: true, authenticated: false, canWrite: false, account: null };
+      this.state.liveBroadcasts = [];
+      this.state.message = 'YouTube account disconnected from this server.';
+    } catch (error) {
+      this.state.message = error.message;
+    }
+    this.state.busy = false;
+    this._render();
   }
 
   /**
@@ -1112,7 +1175,7 @@ export class AdminConsoleController {
         : 'Broadcast created but YouTube returned no ingest target.';
     } catch (error) {
       this.state.message = error.kind === 'insufficient-scope'
-        ? 'Reconnect YouTube from the YouTube panel to grant live-control permission.'
+        ? 'Reconnect YouTube above to grant live-control permission.'
         : error.message;
     }
     this.state.busy = false;
@@ -1298,6 +1361,33 @@ export class AdminConsoleController {
   /** @returns {void} */
   _renderLive() {
     const live = this.state.live || {};
+    const auth = this.state.youtubeAuth || {};
+    const authState = this._el('admin-youtube-auth-state');
+    if (authState) {
+      authState.textContent = !auth.configured
+        ? 'NOT CONFIGURED'
+        : auth.authenticated && auth.canWrite
+          ? 'CONNECTED'
+          : auth.authenticated
+            ? 'READ ONLY'
+            : 'DISCONNECTED';
+      authState.dataset.liveStatus = auth.authenticated && auth.canWrite ? 'live' : 'idle';
+    }
+    const authAccount = this._el('admin-youtube-auth-account');
+    if (authAccount) {
+      authAccount.textContent = auth.account?.name || auth.account?.email || '';
+    }
+    const connect = this._el('admin-youtube-connect');
+    if (connect) {
+      connect.hidden = Boolean(auth.authenticated && auth.canWrite);
+      connect.disabled = this.state.busy || !auth.configured;
+      connect.textContent = auth.authenticated ? 'RECONNECT YOUTUBE' : 'CONNECT YOUTUBE';
+    }
+    const youtubeSignout = this._el('admin-youtube-signout');
+    if (youtubeSignout) {
+      youtubeSignout.hidden = !auth.authenticated;
+      youtubeSignout.disabled = this.state.busy;
+    }
     const chip = this._el('admin-live-state');
     if (chip) {
       chip.textContent = live.phases?.youtube?.preview && live.status === 'live'
@@ -1316,7 +1406,7 @@ export class AdminConsoleController {
     const refresh = this._el('admin-live-refresh');
     if (refresh) refresh.disabled = this.state.busy || canStartLive(live);
     const provision = this._el('admin-live-provision');
-    if (provision) provision.disabled = this.state.busy || !canStartLive(live);
+    if (provision) provision.disabled = this.state.busy || !canStartLive(live) || !auth.canWrite;
 
     this._renderLivePhases(live);
     this._renderBroadcastSelect(live);

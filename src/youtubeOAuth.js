@@ -351,6 +351,7 @@ export function createYoutubeOAuthMiddleware({
   function persistableRecord(session) {
     if (!session?.refreshToken) return null;
     return {
+      sessionId: String(session.sessionId || ''),
       refreshToken: session.refreshToken,
       accessToken: session.accessToken || '',
       tokenExpiresAt: Number(session.tokenExpiresAt || 0),
@@ -428,6 +429,7 @@ export function createYoutubeOAuthMiddleware({
 
   function putSessionFromRecord(id, record) {
     const session = {
+      sessionId: id,
       createdAt: now(),
       expiresAt: Number(record.expiresAt) || now() + sessionTtlMs,
       googleSub: String(record.googleSub || ''),
@@ -473,7 +475,10 @@ export function createYoutubeOAuthMiddleware({
       record = { refreshToken, scopes };
     }
     if (!record?.refreshToken) return;
-    const session = putSessionFromRecord(PERSISTED_SESSION_ID, record);
+    const restoredId = /^[A-Za-z0-9_-]{8,200}$/.test(String(record.sessionId || ''))
+      ? String(record.sessionId)
+      : PERSISTED_SESSION_ID;
+    const session = putSessionFromRecord(restoredId, record);
     try {
       await getAccessToken(session);
       await hydrateSessionIdentity(session);
@@ -724,6 +729,7 @@ export function createYoutubeOAuthMiddleware({
     const sessionId = existing?.id || randomUUID();
     if (!existing) {
       sessions.set(sessionId, {
+        sessionId,
         createdAt: now(),
         expiresAt: now() + sessionTtlMs,
       });
@@ -773,11 +779,13 @@ export function createYoutubeOAuthMiddleware({
     }
     if (!sessions.has(pending.sessionId)) {
       sessions.set(pending.sessionId, {
+        sessionId: pending.sessionId,
         createdAt: now(),
         expiresAt: now() + sessionTtlMs,
       });
     }
     const session = sessions.get(pending.sessionId);
+    session.sessionId = pending.sessionId;
     oauthStates.delete(state);
     void writePendingStates().catch(() => {});
     try {

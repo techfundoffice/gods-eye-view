@@ -10838,6 +10838,25 @@ body.cockpit-mode .admin-launch {
   gap: 12px;
 }
 
+.admin-youtube-auth {
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.admin-youtube-auth-account {
+  min-width: 0;
+  flex: 1 1 180px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .admin-live-state {
   font-size: 10px;
   letter-spacing: 1.6px;

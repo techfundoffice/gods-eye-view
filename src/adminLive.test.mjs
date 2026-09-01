@@ -373,6 +373,10 @@ test('the ADMIN Go Live pane ships readiness rows and a broadcast selector', () 
   assert.match(pane, /id="admin-live-broadcast"/);
   assert.match(pane, /id="admin-live-auto-start"[^>]*checked/);
   assert.match(pane, /id="admin-live-refresh"/);
+  assert.match(pane, /id="admin-youtube-auth-state"/);
+  assert.match(pane, /id="admin-youtube-connect"/);
+  assert.match(pane, /id="admin-youtube-signout"/);
+  assert.match(pane, /No Replit integration is used/);
   for (const phase of ['account', 'broadcast', 'capture', 'encoder', 'ingest', 'youtube', 'odbc']) {
     assert.match(pane, new RegExp(`data-live-phase="${phase}"`));
   }
@@ -382,6 +386,8 @@ test('the ADMIN Go Live pane ships readiness rows and a broadcast selector', () 
 
   const source = readFileSync(new URL('./adminConsole.js', import.meta.url), 'utf8');
   assert.match(source, /this\.client\.provisionLive\(/);
+  assert.match(source, /\/api\/youtube\/auth/);
+  assert.match(source, /this\.client\.youtubeStatus\(/);
   assert.match(source, /buildAdminLiveStartBody\(/);
   assert.equal(source.includes('/api/youtube/youtube/v3/liveStreams'), false);
 });

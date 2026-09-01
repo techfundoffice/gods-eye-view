@@ -1146,6 +1146,18 @@
               aria-live="polite">OFFLINE</span>
             <a id="admin-live-watch" class="admin-live-watch" href="#" target="_blank" rel="noopener" hidden>OPEN ON YOUTUBE</a>
           </div>
+          <div class="admin-live-row admin-youtube-auth" aria-label="YouTube account connection">
+            <span class="admin-mcp-label">YOUTUBE ACCOUNT</span>
+            <span id="admin-youtube-auth-state" class="admin-live-state" data-live-status="idle"
+              role="status" aria-live="polite">CHECKING</span>
+            <span id="admin-youtube-auth-account" class="admin-youtube-auth-account"></span>
+            <button id="admin-youtube-connect" class="scene-btn" type="button">CONNECT YOUTUBE</button>
+            <button id="admin-youtube-signout" class="scene-btn" type="button" hidden>SIGN OUT YOUTUBE</button>
+          </div>
+          <p class="admin-mcp-help">
+            Connect Google / YouTube here using this server's own OAuth client. No Replit integration is used.
+            The refresh token and stream key stay encrypted on the server and can be persisted on your VPS.
+          </p>
           <p class="admin-mcp-help">
             Headless Chromium loads the globe, its composited frames are piped into <code>ffmpeg</code>, and
             H.264/AAC is pushed to YouTube Live over RTMP. Create or select a broadcast from the signed-in
@@ -1153,7 +1165,7 @@
           </p>
 
           <ul id="admin-live-phases" class="admin-live-phases" aria-label="Broadcast readiness">
-            <li data-live-phase="account"><span>YouTube account</span><strong>Paste a current Studio stream key, or sign in to create a broadcast.</strong></li>
+            <li data-live-phase="account"><span>YouTube account</span><strong>Connect YouTube above, or paste a current Studio stream key.</strong></li>
             <li data-live-phase="broadcast"><span>Broadcast</span><strong>Create or select a YouTube broadcast.</strong></li>
             <li data-live-phase="capture"><span>Capture</span><strong>Capture URL will be probed when the broadcast starts.</strong></li>
             <li data-live-phase="encoder"><span>Encoder</span><strong>ffmpeg and Chromium are checked on start.</strong></li>

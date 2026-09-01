@@ -17,6 +17,13 @@ Set `GOOGLE_MAPS_API_KEY` as a Replit Secret before starting the app. The key
 must have the Google Maps Platform Map Tiles API enabled and should be
 restricted to the app's allowed referrers/APIs.
 
+YouTube authorization is app-owned and must remain portable to a standalone VPS.
+Do not add a Replit YouTube connector dependency. Operators connect YouTube from
+ADMIN → Go Live using `YOUTUBE_OAUTH_CLIENT_ID`,
+`YOUTUBE_OAUTH_CLIENT_SECRET`, `YOUTUBE_OAUTH_REDIRECT_URI`, and
+`SESSION_SECRET`. Set `YOUTUBE_SESSION_PATH` to a durable VPS volume so the
+encrypted refresh-token session survives process and host restarts.
+
 Other layers such as Cesium ion imagery/terrain, OpenAI voice control,
 AISStream vessels, NASA FIRMS fires, and TomTom traffic are optional and remain
 disabled or use their documented fallback behavior when their credentials are

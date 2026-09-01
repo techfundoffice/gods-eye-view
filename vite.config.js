@@ -44,7 +44,6 @@ import { filterTrailing24h, parseFirmsCsv } from './src/data/firmsCsv.js';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { defineConfig } from 'vite';
-import { ReplitConnectors } from '@replit/connectors-sdk';
 import { loadAndApplyGevEnv } from './src/gevEnv.js';
 import { applyEncoderRuntimeEnv } from './src/encoderRuntime.js';
 import cesium from 'vite-plugin-cesium';
@@ -7541,24 +7540,8 @@ export function youtubeProxy({
     authorizeRequest: oauth.authorizeRequest,
   });
   const liveSession = sharedLiveSession();
-  let connectorClient = null;
-  const connectorYoutubeCall = async (resource, options = {}) => {
-    if (!connectorClient) connectorClient = new ReplitConnectors();
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(options.params || {})) {
-      if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
-    }
-    const query = params.size ? `?${params}` : '';
-    const method = String(options.method || 'GET').toUpperCase();
-    const init = { method };
-    if (options.body !== undefined && method !== 'GET' && method !== 'DELETE') {
-      init.headers = { 'Content-Type': 'application/json' };
-      init.body = JSON.stringify(options.body);
-    }
-    return connectorClient.proxy('youtube', `/youtube/v3/${resource}${query}`, init);
-  };
-  async function goLiveNow({ authorization, req = null, body = {}, call = null } = {}) {
-    const activeCall = call || liveSession.bindAuth(authorization, oauth.proxy);
+  async function goLiveNow({ authorization, req = null, body = {} } = {}) {
+    const activeCall = liveSession.bindAuth(authorization, oauth.proxy);
     if (typeof activeCall !== 'function') {
       const error = new Error('YouTube sign-in required.');
       error.kind = 'authentication';
@@ -7604,13 +7587,7 @@ export function youtubeProxy({
       );
       if (!enabled || !authorization?.canWrite) return;
       try {
-        let result;
-        try {
-          result = await goLiveNow({ authorization });
-        } catch (error) {
-          if (error?.kind !== 'quota') throw error;
-          result = await goLiveNow({ call: connectorYoutubeCall });
-        }
+        const result = await goLiveNow({ authorization });
         await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
           status: result.live?.status || 'posted',
           watchUrl: result.broadcast?.watchUrl || '',
