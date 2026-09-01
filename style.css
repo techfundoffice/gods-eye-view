@@ -11557,7 +11557,7 @@ body.scene-playback-mode #gev-nextchat {
 :root {
   --live-news-ticker-height: 2rem;
   --broadcast-legend-height: 2rem;
-  --broadcast-overlay-width: min(22rem, calc(100vw - 2rem));
+  --broadcast-overlay-width: min(16rem, calc(100vw - 2rem));
   --broadcast-overlay-top: 5.5rem;
   --broadcast-overlay-right: max(1.5rem, env(safe-area-inset-right));
   --broadcast-lower-strips-height: calc(
@@ -11692,7 +11692,7 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 
   #gev-nextchat {
     right: 16px;
-    width: min(23rem, calc(50vw - 28px));
+    width: var(--broadcast-overlay-width);
   }
 }
 
