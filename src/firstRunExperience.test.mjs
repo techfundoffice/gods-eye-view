@@ -406,6 +406,7 @@ test('a successful choice stays visible until the visitor explicitly dismisses i
   assert.doesNotMatch(successPath, /dismiss\(/);
   assert.match(successPath, /setBusy\(false\)/);
   assert.match(successPath, /press ESC to close/);
+  assert.match(successPath, /setWindowState\('minimized', \{ focusRestore: true \}\)/);
 });
 
 test('Live Contacts and Space Missions go through the one setContextMode facade', async () => {
@@ -626,6 +627,77 @@ test('markup, startup ordering and accessibility remain pinned', () => {
     const block = css.slice(start, css.indexOf('}', start) + 1);
     assert.match(block, /color: var\(--first-run-ink\)/, `${selector} must use the shared first-run ink`);
   }
+
+  assert.match(html, /id="mission-control-nav" aria-label="Mission Control"/);
+  assert.match(html, /<h2 id="first-run-title">Comment on YouTube chat to choose your view\.<\/h2>/);
+  assert.match(html, /id="first-run-minimize"[^>]*class="first-run-window-control"/);
+  assert.match(html, /id="first-run-maximize"[^>]*class="first-run-window-control"/);
+  assert.match(html, /id="first-run-restore" class="first-run-restore"/);
+});
+
+
+test('Mission Control stays a transparent left-rail chooser over the live globe', () => {
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
+
+  // Placement and click-through: the rail never captures globe clicks; only the
+  // revealed card does. A full-screen scrim would both hide the globe and steal
+  // pointer events from it.
+  const nav = css.slice(css.indexOf('#mission-control-nav {'), css.indexOf('#first-run-launcher {'));
+  assert.match(nav, /pointer-events: none/);
+  assert.match(nav, /z-index: 175/);
+  assert.match(nav, /left: max\(0\.65rem, env\(safe-area-inset-left\)\)/);
+  assert.doesNotMatch(nav, /pointer-events:\s*auto/);
+  assert.doesNotMatch(html, /first-run-scrim|mission-control-scrim/);
+
+  const base = css.slice(css.indexOf('#first-run-launcher {'), css.indexOf('#first-run-launcher.visible'));
+  // Lightest practical translucency — the previous fill was ~0.95 plus a 28px
+  // frost, which hid the globe. Ink stays the shared cyan; contrast is a tight
+  // text halo rather than an opaque backdrop.
+  assert.match(base, /--first-run-ink: rgba\(54, 220, 255, 0\.86\)/);
+  assert.match(base, /--first-run-read:/);
+  assert.match(base, /text-shadow: var\(--first-run-read\)/);
+  assert.match(base, /linear-gradient\(145deg, rgba\(8, 28, 38, 0\.14\), rgba\(4, 12, 20, 0\.06\)\)/);
+  assert.match(base, /border: 1px solid rgba\(54, 220, 255, 0\.22\)/);
+  assert.match(base, /backdrop-filter: blur\(3px\) saturate\(1\.05\)/);
+  assert.doesNotMatch(base, /rgba\(10, 27, 37, 0\.97\)|rgba\(7, 17, 25, 0\.96\)|blur\(28px\)/);
+  assert.doesNotMatch(base, /rgba\(0, 0, 0, 0\.72\)/);
+  assert.match(base, /pointer-events: none/);
+
+  const scan = css.slice(css.indexOf('.first-run-scanline {'), css.indexOf('.first-run-header,'));
+  assert.match(scan, /rgba\(54, 220, 255, 0\.32\)/);
+  assert.match(scan, /pointer-events: none/);
+  assert.doesNotMatch(scan, /rgba\(54, 220, 255, 0\.8\)/);
+
+  const rows = css.slice(css.indexOf('.first-run-choices button {'), css.indexOf('.first-run-choices button:hover'));
+  assert.match(rows, /background: rgba\(54, 220, 255, 0\.045\)/);
+  assert.doesNotMatch(rows, /rgba\(29, 69, 81, 0\.18\)/);
+
+  const hover = css.slice(css.indexOf('.first-run-choices button:hover'), css.indexOf('.first-run-choices button[aria-disabled'));
+  assert.match(hover, /background: rgba\(54, 220, 255, 0\.12\)/);
+
+  const title = css.slice(css.indexOf('#first-run-launcher h2 {'), css.indexOf('#first-run-description {'));
+  assert.match(title, /color: var\(--first-run-ink\)/);
+  assert.match(title, /text-shadow: var\(--first-run-read\)/);
+
+  // Window states, short/narrow viewports, and reduced-motion stay distinct
+  // without reintroducing an opaque panel.
+  assert.match(css, /#first-run-launcher\.is-minimized \{/);
+  assert.match(css, /#first-run-launcher\.is-maximized \{/);
+  assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*?#first-run-launcher/);
+  assert.match(css, /@media \(max-height: 620px\) \{[\s\S]*?#first-run-launcher \{ padding:/);
+  assert.match(css, /#first-run-launcher\[data-state='loading'\] \.first-run-note/);
+
+  // Choosing a view tucks to the chip; it does not remove the chooser.
+  const successPath = module.slice(
+    module.indexOf('if (outcome?.ok) {'),
+    module.indexOf('const failed = outcome?.failedLayerIds'),
+  );
+  assert.match(successPath, /setWindowState\('minimized', \{ focusRestore: true \}\)/);
+  assert.doesNotMatch(successPath, /dismiss\(/);
+  assert.match(module, /setWindowState\(root\.classList\.contains\('is-maximized'\) \? 'normal' : 'maximized'\)/);
+  assert.match(module, /setWindowState\('normal', \{ focusRestore: true \}\)/);
 });
 
 test('the launcher keeps focus, restores it, and never disables the focused button', () => {

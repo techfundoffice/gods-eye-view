@@ -115,3 +115,28 @@ test('production YouTube routes accept the same valid password ADMIN cookie as t
   assert.equal(status.statusCode, 200);
   assert.equal(status.body.disabled, false);
 });
+
+test('production YouTube plugin mounts the unauthenticated homepage live-comment feed', async () => {
+  const mounted = new Map();
+  const plugin = youtubeProxy({
+    oauth: {
+      writeEnabled: false,
+      middleware() {},
+      proxy: async () => new Response(JSON.stringify({ items: [] }), { status: 200 }),
+      authorizeRequest: async () => ({ sessionId: 'youtube', getAccessToken: async () => 'token' }),
+    },
+    commentHarnessConfigured: false,
+  });
+  plugin.configureServer({
+    middlewares: { use(path, handler) { mounted.set(path, handler); } },
+  });
+
+  const homepageChat = mounted.get('/api/youtube/homepage-chat');
+  assert.equal(typeof homepageChat, 'function');
+  const feed = await invoke(homepageChat, { url: '/feed' });
+  assert.equal(feed.statusCode, 200);
+  assert.notEqual(feed.body?.error?.kind, 'authentication');
+  assert.equal(feed.body?.error?.message, undefined);
+  assert.equal(Array.isArray(feed.body?.items), true);
+  assert.notEqual(mounted.get('/api/youtube'), homepageChat);
+});

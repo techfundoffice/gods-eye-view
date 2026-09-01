@@ -2,6 +2,14 @@
 
 Updated: September 1, 2026
 
+> **2026-09-01 — first-run Mission Control is transparent over the live globe.**
+> The chooser stays on the left rail with the same window controls, YouTube
+> instruction, and view tiles, but the card, scanline, borders, shadows, and
+> choice rows use light translucency instead of an opaque dark fill. Copy stays
+> readable through `--first-run-ink` plus a tight `--first-run-read` text halo,
+> not a backdrop. Globe clicks outside the card still pass through; choosing a
+> view still tucks to the MISSION CONTROL chip.
+
 > **2026-09-01 — first-run Mission Control copy is one cyan.** Heading,
 > description, tile titles/subcopy, material icons, ESC hint, and the GEV MIC
 > tip all use `--first-run-ink` (`rgba(54, 220, 255, 0.86)`), the same color as
@@ -202,8 +210,9 @@ Updated: September 1, 2026
 
 > **2026-08-23 — first-run mission launcher** (`src/firstRunExperience.js`,
 > `#first-run-launcher`, styles at the tail of `style.css`). After startup
-> settles, a fresh session gets one card offering **Live Contacts · Space
-> Missions · Environmental · Explore manually**. No layer and no optional API
+> settles, a fresh session gets one **transparent** left-rail card offering
+> **Live Contacts · Space Missions · Environmental · Explore manually** over
+> the live globe. No layer and no optional API
 > call happens until a tile is clicked. The right-hand DISPLAY rail
 > (`pp-toggles`) now starts **collapsed** on a first run rather than expanded —
 > a stored collapse state still wins, as before. The command-dock **LOCATION**

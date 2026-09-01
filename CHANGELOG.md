@@ -7,6 +7,10 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Changed
 
+- First-run Mission Control is a transparent left-rail overlay so the live
+  globe stays visible while reading “Comment on YouTube chat to choose your
+  view.” and picking a view. Heading, options, and status stay readable via
+  cyan ink and a tight text halo rather than an opaque card.
 - First-run Mission Control copy now uses one cyan: the heading, description,
   tile titles and subcopy, icons, ESC hint, and MIC tip match
   **MISSION CONTROL · FIRST LAUNCH**.

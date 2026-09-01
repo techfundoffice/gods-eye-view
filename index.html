@@ -967,7 +967,8 @@
   <!-- Explicit mission choice on a fresh session. Live feeds are not auto-enabled
        until the visitor asks; shared links skip this surface entirely. It returns
         on every normal reload so each visitor explicitly chooses a view — see
-       src/firstRunExperience.js for the full show policy. -->
+       src/firstRunExperience.js for the full show policy. The card is a
+       transparent overlay on the left rail; do not add a scrim. -->
   <nav id="mission-control-nav" aria-label="Mission Control">
   <aside id="first-run-launcher" role="dialog" aria-labelledby="first-run-title" aria-describedby="first-run-description" hidden>
     <div class="first-run-scanline" aria-hidden="true"></div>
