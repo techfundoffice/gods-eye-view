@@ -74,6 +74,7 @@ import { publicApiCatalogProxy } from './src/publicApiProxies.js';
 let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
 const LIVE_SESSION_GLOBAL_KEY = Symbol.for('gods-eye-view.live-session');
+const YOUTUBE_RECOVERY_GLOBAL_KEY = Symbol.for('gods-eye-view.youtube-recovery');
 let replitAdminAuthSingleton = null;
 let adminAuthSingleton = null;
 
@@ -114,6 +115,49 @@ function sharedLiveSession() {
   }
   liveSessionSingleton = shared[LIVE_SESSION_GLOBAL_KEY];
   return liveSessionSingleton;
+}
+
+function sharedYoutubeRecovery() {
+  const shared = globalThis;
+  if (!shared[YOUTUBE_RECOVERY_GLOBAL_KEY]) {
+    shared[YOUTUBE_RECOVERY_GLOBAL_KEY] = {
+      timer: null,
+      attempt: null,
+      nextAttemptAt: '',
+    };
+  }
+  return shared[YOUTUBE_RECOVERY_GLOBAL_KEY];
+}
+
+function youtubeVideoIdFromWatchUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (url.hostname === 'youtu.be') return url.pathname.split('/').filter(Boolean)[0] || '';
+    return url.searchParams.get('v')
+      || url.pathname.match(/\/(?:live|embed)\/([^/?#]+)/)?.[1]
+      || '';
+  } catch {
+    return '';
+  }
+}
+
+function youtubeQuotaRetryDelay(now = Date.now()) {
+  const format = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  for (let minutes = 1; minutes <= 27 * 60; minutes += 1) {
+    const candidate = now + minutes * 60_000;
+    const parts = Object.fromEntries(
+      format.formatToParts(new Date(candidate))
+        .filter((part) => part.type !== 'literal')
+        .map((part) => [part.type, part.value]),
+    );
+    if (parts.hour === '00' && parts.minute === '05') return candidate - now;
+  }
+  return 6 * 60 * 60 * 1000;
 }
 
 function sharedReplitAdminAuth() {
@@ -7540,6 +7584,7 @@ export function youtubeProxy({
     authorizeRequest: oauth.authorizeRequest,
   });
   const liveSession = sharedLiveSession();
+  const recovery = sharedYoutubeRecovery();
   async function goLiveNow({ authorization, req = null, body = {} } = {}) {
     const activeCall = liveSession.bindAuth(authorization, oauth.proxy);
     if (typeof activeCall !== 'function') {
@@ -7550,16 +7595,20 @@ export function youtubeProxy({
     }
     const title = String(body?.title || "God's Eye View LIVE").trim() || "God's Eye View LIVE";
     const privacyStatus = String(body?.privacyStatus || 'public').trim() || 'public';
-    const preferId = String(body?.broadcastId || process.env.YOUTUBE_BROADCAST_ID || '').trim();
+    const preferId = String(
+      body?.broadcastId
+      || process.env.YOUTUBE_BROADCAST_ID
+      || youtubeVideoIdFromWatchUrl(process.env.YOUTUBE_WATCH_URL),
+    ).trim();
     let provisioned = null;
-    try {
+    if (preferId) {
+      provisioned = await liveSession.select({ broadcastId: preferId }, activeCall);
+    } else {
       const listed = await liveSession.listBroadcasts(activeCall);
-      const reused = pickReusableBroadcast(listed, { preferId });
+      const reused = pickReusableBroadcast(listed);
       if (reused?.id) {
         provisioned = await liveSession.select({ broadcastId: reused.id }, activeCall);
       }
-    } catch {
-      provisioned = null;
     }
     if (!provisioned) {
       provisioned = await liveSession.provision({
@@ -7581,28 +7630,67 @@ export function youtubeProxy({
     return { broadcast: provisioned.broadcast, live: confirmed || live };
   }
   if (typeof oauth.setOnSignedIn === 'function') {
-    oauth.setOnSignedIn(async (authorization) => {
+    const writeRecoveryResult = async (payload) => {
+      await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify(payload)}\n`);
+    };
+    let attemptAutomaticRecovery;
+    const scheduleQuotaRecovery = (authorization) => {
+      if (recovery.timer) clearTimeout(recovery.timer);
+      const delay = youtubeQuotaRetryDelay();
+      recovery.nextAttemptAt = new Date(Date.now() + delay).toISOString();
+      recovery.timer = setTimeout(() => {
+        recovery.timer = null;
+        recovery.nextAttemptAt = '';
+        void attemptAutomaticRecovery(authorization);
+      }, delay);
+      recovery.timer.unref?.();
+    };
+    attemptAutomaticRecovery = async (authorization) => {
       const enabled = ['1', 'true', 'yes', 'on'].includes(
         String(process.env.GEV_AUTO_GO_LIVE || '').trim().toLowerCase(),
       );
       if (!enabled || !authorization?.canWrite) return;
+      if (recovery.attempt) return recovery.attempt;
+      recovery.attempt = (async () => {
       try {
         const result = await goLiveNow({ authorization });
-        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+        if (recovery.timer) clearTimeout(recovery.timer);
+        recovery.timer = null;
+        recovery.nextAttemptAt = '';
+        await writeRecoveryResult({
           status: result.live?.status || 'posted',
           watchUrl: result.broadcast?.watchUrl || '',
           liveStatus: result.live?.status || '',
           source: 'automatic-recovery',
           at: new Date().toISOString(),
-        })}\n`);
+        });
       } catch (error) {
-        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+        if (error?.kind === 'quota') scheduleQuotaRecovery(authorization);
+        await writeRecoveryResult({
           status: 'error',
           error: { kind: error?.kind || 'invalid', message: error?.message || 'go-live failed' },
+          broadcastId: String(
+            process.env.YOUTUBE_BROADCAST_ID
+            || youtubeVideoIdFromWatchUrl(process.env.YOUTUBE_WATCH_URL),
+          ),
+          retryAt: recovery.nextAttemptAt,
+          source: 'automatic-recovery',
           at: new Date().toISOString(),
-        })}\n`);
+        });
       }
-    });
+      })();
+      try {
+        return await recovery.attempt;
+      } finally {
+        recovery.attempt = null;
+      }
+    };
+    oauth.setOnSignedIn(attemptAutomaticRecovery);
+    if (typeof oauth.findWritableAuthorization === 'function') {
+      void oauth.findWritableAuthorization()
+        .then((authorization) => authorization && attemptAutomaticRecovery(authorization))
+        .catch(() => {});
+    }
   }
   const envWatchUrl = () => String(process.env.YOUTUBE_WATCH_URL || '').trim();
   const publicLiveFallback = () => {
