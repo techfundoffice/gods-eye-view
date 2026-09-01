@@ -118,15 +118,18 @@ test('encoder options are bounded and dimensions stay even', () => {
 test('ffmpeg is invoked for realtime H.264 over FLV with a silent audio track', () => {
   const args = buildFfmpegArgs(normalizeLiveOptions({ ...START, fps: 30 }));
   const joined = args.join(' ');
+  assert.match(joined, /-re -f image2pipe/);
   assert.match(joined, /-f image2pipe/);
   assert.match(joined, /anullsrc/);
   assert.match(joined, /-c:v libx264/);
   assert.match(joined, /-pix_fmt yuv420p/);
   assert.match(joined, /-c:a aac/);
+  assert.match(joined, /-ar 44100 -ac 2/);
   assert.match(joined, /-profile:v main/);
   assert.match(joined, /-r 30/);
   assert.match(joined, /scenecut=0/);
-  assert.match(joined, /-flvflags no_duration_filesize/);
+  assert.ok(!joined.includes('-tune zerolatency'));
+  assert.ok(!joined.includes('-flvflags'));
   assert.ok(!joined.includes('-shortest'), 'silent+pipe are both infinite; -shortest can exit early');
   // A two-second GOP at 30fps keeps YouTube's keyframe requirement satisfied.
   assert.equal(args[args.indexOf('-g') + 1], '60');
