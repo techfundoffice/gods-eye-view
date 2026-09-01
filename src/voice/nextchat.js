@@ -667,8 +667,7 @@ export function initNextchat({
 
   const store = createNextchatStore(resolvedStorage);
   let attachedVoice = voice || null;
-  const sessionsEl = root.querySelector('#gev-nextchat-sessions');
-  const threadEl = root.querySelector('#gev-nextchat-thread');
+  const actionThreadEl = root.querySelector('#gev-nextchat-action-thread');
   const liveThreadEl = root.querySelector('#gev-nextchat-live-thread');
   const statusEl = root.querySelector('#gev-nextchat-status');
   const form = root.querySelector('#gev-nextchat-form');
@@ -678,17 +677,16 @@ export function initNextchat({
 
   const paint = () => {
     const state = store.getState();
-    renderSessions(sessionsEl, state);
     const session = store.getActiveSession();
     if (liveThreadEl) {
       renderThread(liveThreadEl, session, {
         include: (message) => message.role === 'viewer',
       });
-      renderThread(threadEl, session, {
+      renderThread(actionThreadEl, session, {
         include: (message) => message.role !== 'viewer' || message.metadata?.actionState === 'validated',
       });
     } else {
-      renderThread(threadEl, session);
+      renderThread(actionThreadEl, session);
     }
     if (statusEl) {
       statusEl.textContent = state.unavailable
@@ -704,12 +702,6 @@ export function initNextchat({
 
   store.subscribe(paint);
   paint();
-
-  sessionsEl?.addEventListener('click', (event) => {
-    const button = event.target?.closest?.('[data-session-id]');
-    if (!button) return;
-    store.selectSession(button.dataset.sessionId);
-  });
 
   newChatBtn?.addEventListener('click', () => {
     store.newChat();

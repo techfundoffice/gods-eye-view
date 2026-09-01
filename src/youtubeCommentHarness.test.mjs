@@ -956,8 +956,8 @@ test('NextChat renders viewer HTML/script/markdown as text content only', () => 
   }
   const root = attach('gev-nextchat');
   root.append(
-    attach('gev-nextchat-sessions'),
-    attach('gev-nextchat-thread'),
+    attach('gev-nextchat-action-thread'),
+    attach('gev-nextchat-live-thread'),
     attach('gev-nextchat-status', 'p'),
     attach('gev-nextchat-form', 'form'),
     attach('gev-nextchat-composer', 'textarea'),
@@ -973,7 +973,7 @@ test('NextChat renders viewer HTML/script/markdown as text content only', () => 
     text: dirty,
     metadata: { source: 'comment', commentId: 'x', videoId: 'v', receivedAt: '2026-08-30T00:00:00.000Z' },
   });
-  const thread = byId.get('gev-nextchat-thread');
+  const thread = byId.get('gev-nextchat-live-thread');
   assert.match(thread.textContent, /CruiseWatcher/);
   assert.match(thread.textContent, /<script>alert\(1\)<\/script>/);
   assert.equal(thread.querySelectorAll('script').length, 0);
