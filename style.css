@@ -9544,7 +9544,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   height: auto;
   /* Cap to the viewport on very short screens. Desktop must fit missions plus
      every Data Layers row without a list scrollbar. */
-  max-height: min(90dvh, calc(100dvh - 5.75rem - 4.5rem));
+  max-height: min(92dvh, calc(100dvh - 5.75rem - 3rem));
   display: flex;
   flex-direction: column;
   padding: 0.5rem 0.55rem 0.45rem;
@@ -9678,7 +9678,7 @@ body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-left
   width: 100%;
   height: auto;
   min-height: 0;
-  max-height: min(90dvh, calc(100dvh - 5.75rem - 4.5rem));
+  max-height: min(92dvh, calc(100dvh - 5.75rem - 3rem));
 }
 
 #first-run-launcher.is-maximized .first-run-choices {
@@ -9826,8 +9826,8 @@ body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-left
   align-items: center;
   gap: 0.38rem;
   width: 100%;
-  min-height: 1.28rem;
-  padding: 0.1rem 0.3rem;
+  min-height: 1.22rem;
+  padding: 0.08rem 0.3rem;
   color: var(--first-run-ink);
   text-align: left;
   background: rgba(6, 15, 22, 0.4);

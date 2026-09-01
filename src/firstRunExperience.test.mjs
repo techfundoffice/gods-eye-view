@@ -663,7 +663,7 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   // `[hidden] { display: none }`, which would strand the card in the
   // accessibility tree until it is revealed or removed.
   assert.match(base, /display: flex/);
-  assert.match(base, /max-height: min\(90dvh/);
+  assert.match(base, /max-height: min\(92dvh/);
   assert.match(css, /#mission-control-nav \{[\s\S]*?bottom:\s*auto;[\s\S]*?width:/);
   assert.match(css, /#first-run-launcher\[hidden\] \{\s*display: none;\s*\}/);
   // Only the mission list may scroll: the heading, checkbox and status line
