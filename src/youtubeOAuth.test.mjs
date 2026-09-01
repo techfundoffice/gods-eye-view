@@ -63,7 +63,7 @@ test('OAuth status is minimal and reports configuration without exposing credent
     configured: true,
     writeEnabled: true,
     canWrite: false,
-    autoGoLive: false,
+    autoGoLive: true,
   });
   assert.doesNotMatch(response.body, /client-secret|session-secret|access_token|refresh_token/);
 });

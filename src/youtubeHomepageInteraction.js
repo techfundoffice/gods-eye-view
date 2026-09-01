@@ -38,10 +38,14 @@ export function createYoutubeHomepageInteraction({
   let stopped = false;
   let continuation = '';
   let videoId = '';
+  let generation = 0;
+  let commandsEnabled = false;
+  let executorBusy = false;
   let lastActionAt = 0;
   const viewerLastActionAt = new Map();
   const seen = new Set();
   const pendingActions = [];
+  const commandStates = new Map();
   const badge = documentRef?.getElementById?.('gev-nextchat-live-badge') || null;
   const ticker = documentRef?.getElementById?.('live-news-ticker') || null;
   const tickerUrl = documentRef?.getElementById?.('live-news-ticker-url') || null;
@@ -148,6 +152,69 @@ export function createYoutubeHomepageInteraction({
     }
   }
 
+  function publishCommandStatuses(commands) {
+    for (const command of commands || []) {
+      const id = safeText(command.id, 160);
+      const state = safeText(command.state, 32);
+      if (!id || !state || commandStates.get(id) === state) continue;
+      commandStates.set(id, state);
+      while (commandStates.size > 100) commandStates.delete(commandStates.keys().next().value);
+      const detail = safeText(command.answer || command.reason, 180);
+      nextchat?.publishViewerMessage?.({
+        author: safeText(command.viewer, 80) || 'GEV agent',
+        text: `${safeText(command.command, 32) || 'command'} · ${state}${detail ? ` · ${detail}` : ''}`,
+        metadata: {
+          source: 'youtube-command',
+          commentId: safeText(command.commentId, 160),
+          videoId: safeText(command.videoId, 80),
+          receivedAt: new Date(Number(command.updatedAt) || now()).toISOString(),
+          actionState: state,
+        },
+      });
+    }
+  }
+
+  async function drainCaptureExecutor() {
+    if (executorBusy || !commandsEnabled || !actionRunner || globalThis.__GEV_CAPTURE_EXECUTOR__ !== true) return;
+    executorBusy = true;
+    try {
+      const response = await fetchImpl('/api/youtube/homepage-chat/executor/lease', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      });
+      if (!response.ok) return;
+      const payload = await response.json().catch(() => ({}));
+      const lease = payload?.lease;
+      if (!lease?.commandId || Number(lease.generation) !== generation || safeText(lease.videoId, 80) !== videoId) return;
+      const tool = lease.tool || {};
+      let result;
+      try {
+        const output = await actionRunner(tool.name, tool.arguments || {}, {
+          isCurrent: () => !stopped
+            && commandsEnabled
+            && Number(lease.generation) === generation
+            && safeText(lease.videoId, 80) === videoId,
+        });
+        result = output && typeof output === 'object' ? output : { ok: true };
+      } catch (error) {
+        result = { ok: false, error: safeText(error?.message || 'GEV action failed', 160) };
+      }
+      await fetchImpl('/api/youtube/homepage-chat/executor/result', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          commandId: lease.commandId,
+          captureEpoch: lease.captureEpoch,
+          result,
+        }),
+      });
+    } finally {
+      executorBusy = false;
+    }
+  }
+
   async function poll() {
     if (stopped) return;
     let delay = MIN_POLL_MS;
@@ -164,25 +231,35 @@ export function createYoutubeHomepageInteraction({
       if (!payload.active) {
         continuation = '';
         videoId = '';
+        generation = 0;
+        commandsEnabled = false;
         seen.clear();
+        commandStates.clear();
         setTickerUrl('', false);
         setStatus('YT chat is waiting for an active broadcast', 'offline');
       } else {
         const nextVideoId = safeText(payload.videoId, 80);
-        if (videoId && nextVideoId !== videoId) {
+        const nextGeneration = Math.max(0, Number(payload.generation) || 0);
+        if ((videoId && nextVideoId !== videoId) || (generation && nextGeneration !== generation)) {
           continuation = '';
           seen.clear();
           viewerLastActionAt.clear();
           lastActionAt = 0;
+          commandStates.clear();
         }
         videoId = nextVideoId;
+        generation = nextGeneration;
+        commandsEnabled = payload.commandsEnabled === true;
         continuation = safeText(payload.nextPageToken, 4096) || continuation;
         setTickerUrl(payload.watchUrl, true);
         setStatus(`YT LIVE · showing every comment from ${safeText(payload.title || videoId, 100)}`, 'live');
         await ingest(payload.items || []);
+        publishCommandStatuses(payload.commands || []);
+        await drainCaptureExecutor();
       }
     } catch (error) {
       delay = 10_000;
+      commandsEnabled = false;
       setTickerUrl('', false);
       setStatus(`YT chat unavailable · ${safeText(error?.message || 'retrying', 120)}`, 'error');
     } finally {
@@ -200,6 +277,9 @@ export function createYoutubeHomepageInteraction({
       if (timer != null) clock.clearTimeout(timer);
       timer = null;
       continuation = '';
+      generation = 0;
+      commandsEnabled = false;
+      commandStates.clear();
     },
     setRunner(nextRunner) {
       actionRunner = typeof nextRunner === 'function' ? nextRunner : null;
@@ -214,6 +294,7 @@ export function createYoutubeHomepageInteraction({
     getState() {
       return {
         videoId,
+        generation,
         continuation,
         seen: seen.size,
         pendingActions: pendingActions.length,

@@ -202,7 +202,7 @@ test('ticker markup is permanent, bottom-fixed, and preserves every existing con
   assert.match(html, /LIVE Breaking News:/);
   assert.match(html, /class="live-news-ticker-viewport"/);
   assert.match(html, /class="live-news-ticker-content"/);
-  assert.match(html, /Comment now to change views/);
+  assert.match(html, /Comment on YouTube chat to choose your view\./);
   assert.match(html, /id="live-news-ticker-url"/);
   assert.match(html, /Live at/);
   assert.match(html, /Now!/);

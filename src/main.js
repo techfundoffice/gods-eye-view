@@ -23,6 +23,7 @@ import { SceneDirector } from './scenes/director.js';
 import { initGevVoiceCommands } from './voice/gevRealtime.js';
 import { initNextchat } from './voice/nextchat.js';
 import { initYoutubeHomepageInteraction } from './youtubeHomepageInteraction.js';
+import { PUBLIC_COMMAND_REGISTRY } from './youtubePublicCommandPolicy.js';
 import { MapStackController } from './mapStackController.js';
 import {
   googleEarthUnavailableReason,
@@ -174,7 +175,7 @@ const youtubePanel = initYouTubePanel();
 const adminConsole = initAdminConsole();
 // Chat chrome is in index.html; wiring mounts outside the WebGL gate so a
 // headless / no-GPU load still has the composer. Voice attaches after globe init.
-const nextchat = initNextchat();
+const nextchat = initNextchat({ commandRegistry: PUBLIC_COMMAND_REGISTRY });
 const youtubeHomepageInteraction = initYoutubeHomepageInteraction({ nextchat });
 
 async function init() {

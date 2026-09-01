@@ -105,20 +105,7 @@ def dead_encoder(snap):
     frames = snap.get('framesSent') or 0
     if frames > 0:
         return False
-    if str(snap.get('error') or '').strip():
-        return True
-    started = str(snap.get('startedAt') or '').strip()
-    if not started:
-        return False
-    if started.endswith('Z'):
-        started = started[:-1] + '+00:00'
-    try:
-        dt = datetime.fromisoformat(started)
-    except ValueError:
-        return False
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return (datetime.now(timezone.utc) - dt).total_seconds() >= 45
+    return bool(str(snap.get('error') or '').strip())
 
 
 def first_line(path):

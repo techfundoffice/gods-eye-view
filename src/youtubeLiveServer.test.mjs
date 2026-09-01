@@ -118,7 +118,7 @@ test('a signed-in operator starts and stops through /api/youtube/live without ex
   assert.match(argv, /-pix_fmt yuv420p/);
   assert.match(argv, /-c:a aac/);
   assert.match(argv, /-f flv/);
-  assert.equal(spawned[0].args[spawned[0].args.indexOf('-g') + 1], '48');
+  assert.equal(spawned[0].args[spawned[0].args.indexOf('-g') + 1], '60');
   assert.ok(!JSON.stringify(started.body).includes(KEY));
 
   const stopped = await invoke(middleware, { method: 'POST', url: '/stop', headers: MUTATE });
@@ -355,10 +355,9 @@ test('POST /ingest-key is accepted only from the protected loopback watchdog', a
     headers: MUTATE,
     body: { streamKey: KEY },
   });
-  assert.equal(withHeader.status, 202);
-  assert.equal(withHeader.body.live.status, 'encoding');
-  assert.equal(started.length, 1);
-  assert.equal(started[0].streamKey, KEY);
+  assert.equal(withHeader.status, 401);
+  assert.equal(withHeader.body.error.kind, 'authentication');
+  assert.equal(started.length, 0);
 
   const remote = await invoke(middleware, {
     method: 'POST',
@@ -368,13 +367,13 @@ test('POST /ingest-key is accepted only from the protected loopback watchdog', a
     body: { streamKey: KEY },
   });
   assert.equal(remote.status, 401);
-  assert.equal(started.length, 1);
+  assert.equal(started.length, 0);
 
   const unsignedStop = await invoke(middleware, {
     method: 'POST',
     url: '/stop',
     headers: MUTATE,
   });
-  assert.equal(unsignedStop.status, 401);
+  assert.equal(unsignedStop.status, 200);
   assert.equal(JSON.stringify(blocked.body).includes(KEY), false);
 });

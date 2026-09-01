@@ -579,6 +579,17 @@ export function buildChromiumArgs(options) {
  * @returns {Promise<void>}
  */
 export async function prepareCapturePage(page, options) {
+  await installExecutorRequestAuthentication(page, options?.executorSession);
+  if (options?.executorSession && typeof page?.evaluateOnNewDocument === 'function') {
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(globalThis, '__GEV_CAPTURE_EXECUTOR__', {
+        value: true,
+        configurable: false,
+        enumerable: false,
+        writable: false,
+      });
+    });
+  }
   if (options?.extraHeaders && typeof page.setExtraHTTPHeaders === 'function') {
     await page.setExtraHTTPHeaders(options.extraHeaders);
   }
@@ -592,6 +603,38 @@ export async function prepareCapturePage(page, options) {
   } catch {
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
+}
+
+/**
+ * Inject the capture-executor credential only into exact loopback executor
+ * requests. The page never receives the token and public/external requests are
+ * continued unchanged.
+ */
+export async function installExecutorRequestAuthentication(page, session) {
+  const credential = String(session?.credential || '');
+  const headerName = String(session?.headerName || '');
+  const routePrefix = String(session?.routePrefix || '');
+  if (!credential || !headerName || !routePrefix
+    || typeof page?.setRequestInterception !== 'function'
+    || typeof page?.on !== 'function') return false;
+  await page.setRequestInterception(true);
+  page.on('request', (request) => {
+    let inject = false;
+    try {
+      const url = new URL(request.url());
+      const hostname = url.hostname.replace(/^\[|\]$/g, '');
+      const prefix = routePrefix.replace(/\/+$/, '');
+      inject = ['127.0.0.1', 'localhost', '::1'].includes(hostname)
+        && (url.pathname === `${prefix}/lease` || url.pathname === `${prefix}/result`);
+    } catch {
+      inject = false;
+    }
+    const overrides = inject
+      ? { headers: { ...request.headers(), [headerName]: credential } }
+      : undefined;
+    request.continue(overrides).catch(() => {});
+  });
+  return true;
 }
 
 /**
@@ -756,6 +799,7 @@ export function createLiveStreamController({
   probeCapture = null,
   shutdownGraceMs = 4000,
   now = () => Date.now(),
+  createExecutorSession = null,
 } = {}) {
   const state = {
     status: 'idle',
@@ -876,10 +920,12 @@ export function createLiveStreamController({
       gopSeconds: options.gopSeconds,
       audioSource: options.audioSource ? 'track' : 'silent',
     };
-
     const stillCurrent = () => myGen === generation;
 
     try {
+      if (typeof createExecutorSession === 'function') {
+        options.executorSession = await createExecutorSession();
+      }
       const encoderBin = typeof resolveFfmpeg === 'function'
         ? resolveFfmpeg()
         : resolveFfmpegPath({ ...process.env, FFMPEG_PATH: ffmpegPath });

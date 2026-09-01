@@ -83,7 +83,13 @@ export function deriveLiveSessionStatus(encoderState = {}, health = null, bindin
   if (encoderStatus === 'starting') return 'starting';
   if (health?.terminal) return 'error';
   if (encoderStatus === 'encoding' || isActiveLiveStatus(encoderStatus)) {
-    if (health?.received) return 'live';
+    const streamVerified = health?.received
+      && (!health?.streamStatus || health.streamStatus === 'active')
+      && (!health?.broadcastStatus
+        || ['live', 'liveStarting'].includes(String(health.broadcastStatus)));
+    if (streamVerified) {
+      return 'live';
+    }
     if (binding?.streamId) {
       return encoderState.framesSent > 0 ? 'waiting-for-youtube' : 'encoding';
     }
@@ -105,6 +111,7 @@ export function describeLiveSession(encoderState, {
   account = describeAccountPhase(null),
   encoderReady = describeEncoderReadiness(),
   odbc = describeOdbcPersistence(),
+  generation = 0,
 } = {}) {
   const status = deriveLiveSessionStatus(encoderState, health, binding);
   const broadcastView = binding ? redactBroadcastView(binding) : null;
@@ -154,6 +161,7 @@ export function describeLiveSession(encoderState, {
 
   const publicState = {
     ...encoderState,
+    generation: Math.max(0, Number(generation) || 0),
     status,
     broadcast: broadcastView,
     phases,
@@ -200,6 +208,8 @@ export function liveStatusLabel(status) {
     case 'ingesting': return 'INGESTING';
     case 'waiting-for-youtube': return 'WAITING FOR YOUTUBE';
     case 'live': return 'LIVE';
+    case 'public-live-unverified': return 'LIVE · UNVERIFIED';
+    case 'reconnecting': return 'RECONNECTING';
     case 'stopping': return 'STOPPING';
     case 'stopped': return 'STOPPED';
     case 'error': return 'ERROR';
@@ -236,6 +246,12 @@ export function createLiveSessionController({
   let youtubeCall = null;
   let pollTimer = null;
   let account = describeAccountPhase(null);
+  let generation = 0;
+
+  function advanceGeneration() {
+    generation += 1;
+    return generation;
+  }
 
   function snapshot() {
     return describeLiveSession(encoder.status(), {
@@ -244,6 +260,7 @@ export function createLiveSessionController({
       account,
       encoderReady: typeof encoderReady === 'function' ? encoderReady() : encoderReady,
       odbc: typeof odbc === 'function' ? odbc() : odbc,
+      generation,
     });
   }
 
@@ -333,6 +350,7 @@ export function createLiveSessionController({
       throw error;
     }
     binding = await provisionYoutubeBroadcast(call, options);
+    advanceGeneration();
     health = null;
     return {
       broadcast: redactBroadcastView(binding),
@@ -347,7 +365,11 @@ export function createLiveSessionController({
       error.status = 401;
       throw error;
     }
-    binding = await selectYoutubeBroadcast(call, options);
+    const nextBinding = await selectYoutubeBroadcast(call, options);
+    if (nextBinding?.broadcastId !== binding?.broadcastId || nextBinding?.streamId !== binding?.streamId) {
+      advanceGeneration();
+    }
+    binding = nextBinding;
     health = null;
     return {
       broadcast: redactBroadcastView(binding),
@@ -388,6 +410,7 @@ export function createLiveSessionController({
     let ingestUrl = String(input.ingestUrl || '').trim();
     let streamKey = String(input.streamKey || '').trim();
     const requestedBroadcast = String(input.broadcastId || '').trim();
+    let bindingChanged = false;
 
     if (requestedBroadcast) {
       if (!binding || binding.broadcastId !== requestedBroadcast) {
@@ -397,9 +420,13 @@ export function createLiveSessionController({
           error.status = 401;
           throw error;
         }
-        binding = await selectYoutubeBroadcast(context.call || youtubeCall, {
+        const nextBinding = await selectYoutubeBroadcast(context.call || youtubeCall, {
           broadcastId: requestedBroadcast,
         });
+        bindingChanged = nextBinding?.broadcastId !== binding?.broadcastId
+          || nextBinding?.streamId !== binding?.streamId;
+        binding = nextBinding;
+        if (bindingChanged) advanceGeneration();
       }
     }
 
@@ -409,6 +436,7 @@ export function createLiveSessionController({
     }
 
     const autoGoLive = input.autoGoLive !== false;
+    const beforeStatus = encoder.status();
     const started = await encoder.start({
       ...input,
       captureUrl: encoderCapture.captureUrl,
@@ -417,6 +445,9 @@ export function createLiveSessionController({
       hostResolverRules: encoderCapture.hostResolverRules,
       extraHeaders: encoderCapture.extraHeaders,
     });
+    if (!bindingChanged && !isActiveLiveStatus(beforeStatus?.status) && isActiveLiveStatus(started?.status)) {
+      advanceGeneration();
+    }
     if (started.status === 'encoding' && binding?.streamId) {
       const call = context.call || youtubeCall;
       armPoll(call, autoGoLive);
@@ -480,6 +511,7 @@ export function createLiveSessionController({
     stopPolling();
     health = null;
     await encoder.stop();
+    advanceGeneration();
     const publicState = snapshot();
     auditLater('stopped', publicState);
     return publicState;

@@ -9,6 +9,7 @@ import {
   classifyFfmpegLine,
   describeEncoderReadiness,
   isActiveLiveStatus,
+  installExecutorRequestAuthentication,
   isExecutableFile,
   normalizeAudioSource,
   normalizeCaptureUrl,
@@ -422,6 +423,54 @@ test('capture navigation waits for DOM, not network idle, then the globe canvas'
   assert.equal(calls[0][2].waitUntil, LIVE_CAPTURE_WAIT_UNTIL);
   assert.equal(LIVE_CAPTURE_WAIT_UNTIL, 'domcontentloaded');
   assert.equal(calls[1][1], LIVE_CAPTURE_CANVAS_SELECTOR);
+});
+
+test('CDP executor credentials are injected only for exact loopback executor endpoints', async () => {
+  const handlers = new Map();
+  const page = {
+    intercepted: false,
+    async setRequestInterception(enabled) { this.intercepted = enabled; },
+    on(event, handler) { handlers.set(event, handler); },
+  };
+  assert.equal(await installExecutorRequestAuthentication(page, {
+    credential: 'executor-secret',
+    headerName: 'x-gev-capture-executor',
+    routePrefix: '/api/youtube/homepage-chat/executor',
+  }), true);
+  assert.equal(page.intercepted, true);
+
+  const send = (url) => {
+    const seen = [];
+    handlers.get('request')({
+      url: () => url,
+      headers: () => ({ accept: 'application/json' }),
+      continue: async (overrides) => { seen.push(overrides); },
+    });
+    return seen;
+  };
+  await new Promise((resolve) => setImmediate(resolve));
+  for (const url of [
+    'http://127.0.0.1:5000/api/youtube/homepage-chat/executor/lease',
+    'http://localhost:5000/api/youtube/homepage-chat/executor/result',
+    'http://[::1]:5000/api/youtube/homepage-chat/executor/lease',
+  ]) {
+    const calls = send(url);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].headers['x-gev-capture-executor'], 'executor-secret');
+  }
+  for (const url of [
+    'https://app.example.replit.dev/api/youtube/homepage-chat/executor/lease',
+    'http://127.0.0.1:5000/api/youtube/homepage-chat/executor',
+    'http://127.0.0.1:5000/api/youtube/homepage-chat/executor/assets/app.js',
+    'http://127.0.0.1:5000/api/youtube/homepage-chat/executor-else/lease',
+    'https://third-party.example/api/youtube/homepage-chat/executor/result',
+  ]) {
+    const calls = send(url);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0], undefined, url);
+  }
 });
 
 test('ffmpeg ingest failures become operator sentences without the stream key', () => {

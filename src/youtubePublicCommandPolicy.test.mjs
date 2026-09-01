@@ -1,0 +1,69 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  PUBLIC_COMMAND_REGISTRY,
+  PUBLIC_GEV_TOOL_CATALOG,
+  PUBLIC_GEV_TOOL_NAMES,
+  parsePublicCommand,
+  publicCommandLegend,
+  toolsForPublicMode,
+  validatePublicToolCall,
+} from './youtubePublicCommandPolicy.js';
+
+test('registry is deeply immutable and contains exactly the public commands and 28 GEV tools', () => {
+  assert.deepEqual(Object.keys(PUBLIC_COMMAND_REGISTRY), ['/x', '/y', '/z', '/gods-eye-view']);
+  assert.equal(PUBLIC_GEV_TOOL_NAMES.length, 28);
+  assert.ok(Object.isFrozen(PUBLIC_COMMAND_REGISTRY));
+  assert.ok(Object.isFrozen(PUBLIC_COMMAND_REGISTRY['/x'].tools));
+  assert.ok(Object.isFrozen(PUBLIC_GEV_TOOL_CATALOG.annotate_map.parameters.properties));
+  assert.equal(PUBLIC_GEV_TOOL_NAMES.some((name) => name.includes('admin')), false);
+  assert.equal(PUBLIC_COMMAND_REGISTRY['/x'].tools.length, 28);
+});
+
+test('mode allowlists are exact', () => {
+  assert.deepEqual(PUBLIC_COMMAND_REGISTRY['/y'].tools, [
+    'get_current_view_state', 'get_entity_context', 'analyst_query', 'next_iss_pass',
+  ]);
+  assert.deepEqual(PUBLIC_COMMAND_REGISTRY['/z'].tools, [
+    'fly_to_location', 'select_nearest_aircraft', 'adjust_camera_zoom', 'zoom_to_globe',
+    'move_camera', 'frame_overhead', 'fly_route', 'stop_tracking',
+  ]);
+  assert.deepEqual(PUBLIC_COMMAND_REGISTRY['/gods-eye-view'].tools, ['zoom_to_globe']);
+  assert.deepEqual(toolsForPublicMode('analyze').map((tool) => tool.name), PUBLIC_COMMAND_REGISTRY['/y'].tools);
+});
+
+test('legend derives from the same registry', () => {
+  assert.deepEqual(publicCommandLegend(), Object.values(PUBLIC_COMMAND_REGISTRY).map(
+    ({ command, description, mode }) => ({ command, description, mode }),
+  ));
+});
+
+test('pure parser recognizes only a leading complete token and enforces required body', () => {
+  assert.deepEqual(parsePublicCommand('  /Y  how many flights? ').recognized, true);
+  assert.equal(parsePublicCommand('  /Y  how many flights? ').request, 'how many flights?');
+  assert.equal(parsePublicCommand('/x').reason, 'request-required');
+  assert.equal(parsePublicCommand('/z   ').valid, false);
+  assert.equal(parsePublicCommand('/gods-eye-view').valid, true);
+  assert.equal(parsePublicCommand('hello /y question').recognized, false);
+  assert.equal(parsePublicCommand('/xyz do it').recognized, false);
+  assert.equal(parsePublicCommand('/y: question').recognized, false);
+});
+
+test('server validator rejects mode violations, extra keys, bad types and ranges', () => {
+  assert.equal(validatePublicToolCall('/y', 'fly_to_location', { query: 'Paris' }).ok, false);
+  assert.equal(validatePublicToolCall('/z', 'analyst_query', { layers: ['flights'] }).ok, false);
+  assert.equal(validatePublicToolCall('/gods-eye-view', 'zoom_to_globe', {}).ok, true);
+  assert.equal(validatePublicToolCall('/gods-eye-view', 'zoom_to_globe', { relative: true }).ok, false);
+  assert.equal(validatePublicToolCall('/z', 'fly_to_location', { latitude: 91, longitude: 0 }).ok, false);
+  assert.equal(validatePublicToolCall('/z', 'adjust_camera_zoom', { direction: 'sideways' }).ok, false);
+  assert.equal(validatePublicToolCall('/x', 'control_radio', { action: 'volume', volumePct: 101 }).ok, false);
+});
+
+test('all 28 schemas are strict server-safe validators', () => {
+  for (const name of PUBLIC_GEV_TOOL_NAMES) {
+    const schema = PUBLIC_GEV_TOOL_CATALOG[name].parameters;
+    assert.equal(schema.type, 'object', name);
+    assert.equal(schema.additionalProperties, false, name);
+    assert.equal(validatePublicToolCall('/x', name, { __protoPollution: true }).ok, false, name);
+  }
+});

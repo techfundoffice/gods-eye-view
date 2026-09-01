@@ -54,6 +54,7 @@ import { createYoutubeCommentHarnessMiddleware } from './src/youtubeCommentHarne
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
 import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatServer.js';
+import { createYoutubePublicCommandRuntime } from './src/youtubePublicCommandRuntime.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
 import { createAdminAuth } from './src/adminAuth.js';
@@ -63,7 +64,6 @@ import {
   createYoutubeApiCaller,
   listCompatibleBroadcasts,
   pickReusableBroadcast,
-  transitionYoutubeBroadcast,
 } from './src/youtubeBroadcast.js';
 import {
   supportsVerifiedToolIsolation,
@@ -74,8 +74,7 @@ import { publicApiCatalogProxy } from './src/publicApiProxies.js';
 
 let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
-const LIVE_SESSION_GLOBAL_KEY = Symbol.for('gods-eye-view.live-session');
-const YOUTUBE_RECOVERY_GLOBAL_KEY = Symbol.for('gods-eye-view.youtube-recovery');
+let youtubePublicCommandRuntimeSingleton = null;
 let replitAdminAuthSingleton = null;
 let adminAuthSingleton = null;
 
@@ -108,59 +107,21 @@ function sharedYoutubeOAuth() {
  * @returns {object}
  */
 function sharedLiveSession() {
-  const shared = globalThis;
-  if (!shared[LIVE_SESSION_GLOBAL_KEY]) {
-    shared[LIVE_SESSION_GLOBAL_KEY] = createLiveSessionController({
-      encoder: createLiveStreamController(),
+  if (!liveSessionSingleton) {
+    liveSessionSingleton = createLiveSessionController({
+      encoder: createLiveStreamController({
+        createExecutorSession: () => sharedYoutubePublicCommandRuntime().rotateExecutor(),
+      }),
     });
   }
-  liveSessionSingleton = shared[LIVE_SESSION_GLOBAL_KEY];
   return liveSessionSingleton;
 }
 
-function sharedYoutubeRecovery() {
-  const shared = globalThis;
-  if (!shared[YOUTUBE_RECOVERY_GLOBAL_KEY]) {
-    shared[YOUTUBE_RECOVERY_GLOBAL_KEY] = {
-      timer: null,
-      attempt: null,
-      nextAttemptAt: '',
-      envTimer: null,
-      envAttempt: null,
-    };
+function sharedYoutubePublicCommandRuntime() {
+  if (!youtubePublicCommandRuntimeSingleton) {
+    youtubePublicCommandRuntimeSingleton = createYoutubePublicCommandRuntime();
   }
-  return shared[YOUTUBE_RECOVERY_GLOBAL_KEY];
-}
-
-function youtubeVideoIdFromWatchUrl(value) {
-  try {
-    const url = new URL(String(value || ''));
-    if (url.hostname === 'youtu.be') return url.pathname.split('/').filter(Boolean)[0] || '';
-    return url.searchParams.get('v')
-      || url.pathname.match(/\/(?:live|embed)\/([^/?#]+)/)?.[1]
-      || '';
-  } catch {
-    return '';
-  }
-}
-
-function youtubeQuotaRetryDelay(now = Date.now()) {
-  const format = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  });
-  for (let minutes = 1; minutes <= 27 * 60; minutes += 1) {
-    const candidate = now + minutes * 60_000;
-    const parts = Object.fromEntries(
-      format.formatToParts(new Date(candidate))
-        .filter((part) => part.type !== 'literal')
-        .map((part) => [part.type, part.value]),
-    );
-    if (parts.hour === '00' && parts.minute === '05') return candidate - now;
-  }
-  return 6 * 60 * 60 * 1000;
+  return youtubePublicCommandRuntimeSingleton;
 }
 
 function sharedReplitAdminAuth() {
@@ -168,12 +129,6 @@ function sharedReplitAdminAuth() {
   return replitAdminAuthSingleton;
 }
 
-/**
- * Keep password-backed ADMIN sessions shared by the console and sibling
- * middleware. The session id is opaque and remains in the HttpOnly cookie.
- *
- * @returns {object}
- */
 function sharedAdminAuth() {
   if (!adminAuthSingleton) adminAuthSingleton = createAdminAuth();
   return adminAuthSingleton;
@@ -5295,7 +5250,7 @@ function openAiRealtimeProxy() {
             // Fully expressible with tools that already exist, so
             // GEV_REALTIME_TOOLS is deliberately untouched — deleting this one
             // string is the whole rollback.
-            'NAMED VIEWS are shorthand for tool calls you already have — there is no "mode" tool for them. Treat ONLY these as the shorthand: "infrastructure mode" / "the infrastructure view" / "show me global infrastructure" means three set_layer_visibility calls (local-datacenters, local-dams, telegeography-submarine-cables) plus zoom_to_globe; "environmental mode" / "earth watch" / "active events", said as the name of a view, means set_layer_visibility for natural-hazards, local-firms, and earthquakes plus zoom_to_globe. Anything vaguer is NOT this shorthand — an open-ended question about the world or the news is an ordinary question: answer it, or use analyst_query over the layers already on. Never switch a whole view on to answer a question nobody asked to see. When you do run one, make every call before speaking, then give one confirmation naming the resulting state; if the fires layer comes back unavailable because no FIRMS key is configured, say so plainly — the earthquakes still loaded. "Live contacts" and "space missions" are NOT this pattern: they stay set_context_mode{mode:"contacts"} and set_context_mode{mode:"space-missions"}.',
+            'NAMED VIEWS are shorthand for tool calls you already have — there is no "mode" tool for them. Treat ONLY these as the shorthand: "infrastructure mode" / "the infrastructure view" / "show me global infrastructure" means three set_layer_visibility calls (local-datacenters, local-dams, telegeography-submarine-cables) plus zoom_to_globe; "environmental mode" / "earth watch" / "active events", said as the name of a view, means set_layer_visibility for local-firms and earthquakes plus zoom_to_globe. Anything vaguer is NOT this shorthand — an open-ended question about the world or the news is an ordinary question: answer it, or use analyst_query over the layers already on. Never switch a whole view on to answer a question nobody asked to see. When you do run one, make every call before speaking, then give one confirmation naming the resulting state; if the fires layer comes back unavailable because no FIRMS key is configured, say so plainly — the earthquakes still loaded. "Live contacts" and "space missions" are NOT this pattern: they stay set_context_mode{mode:"contacts"} and set_context_mode{mode:"space-missions"}.',
             'For visual filter requests, call set_visual_style with one of the allowed style IDs.',
             'Disambiguation table — basemap vs layer vs style: basemap switching requires an explicit stack name — "Bing aerial" means set_map_stack bing-aerial, "aerial with labels" means bing-labels, "OSM"/"road map" means osm, "Google 3D"/"photorealistic" means photoreal. Any mention of "satellite" or "satellites" ALWAYS means the satellites DATA LAYER via set_layer_visibility, never a basemap. "surveillance"/"night vision"/"thermal" are visual STYLES via set_visual_style.',
             'HUD requests ("hud on/off", "switch to operator/minimal/tactical layout") use set_hud. Detection requests ("detection on", "dense mode", "balanced mode", "sparse mode", "set density to 25", "use weighted allocation") use set_detection. Density snaps to 0/25/50/75/100 and derives Sparse/Balanced/Dense; panoptic is a legacy alias for Dense.',
@@ -5865,12 +5820,11 @@ const GEV_REALTIME_TOOLS = [
         layerId: {
           type: 'string',
           description:
-            'Common-name mapping for the non-obvious ids: natural hazards/active events → natural-hazards; space mission(s) → rocket-launches; fires/wildfires/active fires → local-firms (NASA FIRMS); ships/vessels/boats → ais-live-vessels; undersea/submarine cables → telegeography-submarine-cables; datacenters → local-datacenters; dams → local-dams; bikes/bike share → bikeshare; street traffic/congestion → traffic; traffic cameras → cctv; internet radio/stations → radio.',
+            'Common-name mapping for the non-obvious ids: space mission(s) → rocket-launches; fires/wildfires/active fires → local-firms (NASA FIRMS); ships/vessels/boats → ais-live-vessels; undersea/submarine cables → telegeography-submarine-cables; datacenters → local-datacenters; dams → local-dams; bikes/bike share → bikeshare; street traffic/congestion → traffic; traffic cameras → cctv; internet radio/stations → radio.',
           enum: [
             'flights',
             'military',
             'earthquakes',
-            'natural-hazards',
             'satellites',
             'rocket-launches',
             'traffic',
@@ -5903,7 +5857,6 @@ const GEV_REALTIME_TOOLS = [
             'flights',
             'military',
             'earthquakes',
-            'natural-hazards',
             'satellites',
             'traffic',
             'cctv',
@@ -7587,96 +7540,29 @@ export function youtubeProxy({
     authorizeRequest: oauth.authorizeRequest,
   });
   const liveSession = sharedLiveSession();
-  const recovery = sharedYoutubeRecovery();
-  const broadcastStatePath = String(
-    process.env.YOUTUBE_BROADCAST_STATE_PATH
-    || path.join(process.cwd(), '.local/youtube-active-broadcast.json'),
-  );
-  const readBroadcastState = async () => {
-    try {
-      return JSON.parse(await fsp.readFile(broadcastStatePath, 'utf8'));
-    } catch {
-      return {};
-    }
-  };
-  const writeBroadcastState = async (state) => {
-    await fsp.mkdir(path.dirname(broadcastStatePath), { recursive: true });
-    await fsp.writeFile(broadcastStatePath, `${JSON.stringify(state)}\n`, { mode: 0o600 });
-  };
-  async function goLiveNow({
-    authorization,
-    req = null,
-    body = {},
-    replaceCurrent = false,
-  } = {}) {
-    const activeCall = liveSession.bindAuth(authorization, oauth.proxy);
-    if (typeof activeCall !== 'function') {
-      const error = new Error('YouTube sign-in required.');
-      error.kind = 'authentication';
-      error.status = 401;
-      throw error;
-    }
+  async function goLiveNow({ authorization, req = null, body = {} } = {}) {
+    liveSession.bindAuth(authorization, oauth.proxy);
     const title = String(body?.title || "God's Eye View LIVE").trim() || "God's Eye View LIVE";
     const privacyStatus = String(body?.privacyStatus || 'public').trim() || 'public';
-    const saved = await readBroadcastState();
-    const replaceId = replaceCurrent
-      ? String(process.env.YOUTUBE_REPLACE_BROADCAST_ID || '').trim()
-      : '';
-    if (replaceId && saved.replacedBroadcastId !== replaceId) {
-      await liveSession.stop().catch(() => {});
-      try {
-        await transitionYoutubeBroadcast(activeCall, {
-          broadcastId: replaceId,
-          broadcastStatus: 'complete',
-        });
-      } catch (error) {
-        // A completed/not-found broadcast no longer needs stopping. Authentication,
-        // quota, and transient failures must retry rather than create duplicates.
-        if (!['incompatible', 'not-found'].includes(error?.kind)) throw error;
-      }
-      const replacement = await liveSession.provision({
-        title,
-        description: String(body?.description || 'Live from God\'s Eye View').trim(),
-        privacyStatus,
-        autoGoLive: true,
-      }, activeCall);
-      await writeBroadcastState({
-        replacedBroadcastId: replaceId,
-        activeBroadcastId: replacement.broadcast?.id || '',
-        watchUrl: replacement.broadcast?.watchUrl || '',
-        updatedAt: new Date().toISOString(),
-      });
-    }
-    const current = await readBroadcastState();
-    const preferId = String(
-      body?.broadcastId
-      || current.activeBroadcastId
-      || process.env.YOUTUBE_BROADCAST_ID
-      || youtubeVideoIdFromWatchUrl(process.env.YOUTUBE_WATCH_URL),
-    ).trim();
+    const preferId = String(body?.broadcastId || process.env.YOUTUBE_BROADCAST_ID || '').trim();
     let provisioned = null;
-    if (preferId) {
-      provisioned = await liveSession.select({ broadcastId: preferId }, activeCall);
-    } else {
-      const listed = await liveSession.listBroadcasts(activeCall);
-      const reused = pickReusableBroadcast(listed);
+    try {
+      const listed = await liveSession.listBroadcasts();
+      const reused = pickReusableBroadcast(listed, { preferId });
       if (reused?.id) {
-        provisioned = await liveSession.select({ broadcastId: reused.id }, activeCall);
+        provisioned = await liveSession.select({ broadcastId: reused.id });
       }
+    } catch {
+      provisioned = null;
     }
     if (!provisioned) {
       provisioned = await liveSession.provision({
         title,
         description: String(body?.description || 'Live from God\'s Eye View').trim(),
         privacyStatus,
-      }, activeCall);
+      });
     }
-    const live = await liveSession.start({}, {
-      authorization,
-      proxy: authorization ? oauth.proxy : null,
-      call: activeCall,
-      req,
-    });
+    const live = await liveSession.start({}, { authorization, proxy: oauth.proxy, req });
     const confirmMs = Number(process.env.YOUTUBE_LIVE_CONFIRM_MS || 90_000);
     const confirmed = await liveSession.waitForLive({
       timeoutMs: Number.isFinite(confirmMs) && confirmMs > 0 ? confirmMs : 90_000,
@@ -7684,67 +7570,27 @@ export function youtubeProxy({
     return { broadcast: provisioned.broadcast, live: confirmed || live };
   }
   if (typeof oauth.setOnSignedIn === 'function') {
-    const writeRecoveryResult = async (payload) => {
-      await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify(payload)}\n`);
-    };
-    let attemptAutomaticRecovery;
-    const scheduleQuotaRecovery = (authorization) => {
-      if (recovery.timer) clearTimeout(recovery.timer);
-      const delay = youtubeQuotaRetryDelay();
-      recovery.nextAttemptAt = new Date(Date.now() + delay).toISOString();
-      recovery.timer = setTimeout(() => {
-        recovery.timer = null;
-        recovery.nextAttemptAt = '';
-        void attemptAutomaticRecovery(authorization);
-      }, delay);
-      recovery.timer.unref?.();
-    };
-    attemptAutomaticRecovery = async (authorization) => {
+    oauth.setOnSignedIn(async (authorization) => {
       const enabled = ['1', 'true', 'yes', 'on'].includes(
         String(process.env.GEV_AUTO_GO_LIVE || '').trim().toLowerCase(),
       );
       if (!enabled || !authorization?.canWrite) return;
-      if (recovery.attempt) return recovery.attempt;
-      recovery.attempt = (async () => {
       try {
-        const result = await goLiveNow({ authorization, replaceCurrent: true });
-        if (recovery.timer) clearTimeout(recovery.timer);
-        recovery.timer = null;
-        recovery.nextAttemptAt = '';
-        await writeRecoveryResult({
+        const result = await goLiveNow({ authorization });
+        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
           status: result.live?.status || 'posted',
           watchUrl: result.broadcast?.watchUrl || '',
           liveStatus: result.live?.status || '',
-          source: 'automatic-recovery',
           at: new Date().toISOString(),
-        });
+        })}\n`);
       } catch (error) {
-        if (error?.kind === 'quota') scheduleQuotaRecovery(authorization);
-        await writeRecoveryResult({
+        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
           status: 'error',
           error: { kind: error?.kind || 'invalid', message: error?.message || 'go-live failed' },
-          broadcastId: String(
-            process.env.YOUTUBE_BROADCAST_ID
-            || youtubeVideoIdFromWatchUrl(process.env.YOUTUBE_WATCH_URL),
-          ),
-          retryAt: recovery.nextAttemptAt,
-          source: 'automatic-recovery',
           at: new Date().toISOString(),
-        });
+        })}\n`);
       }
-      })();
-      try {
-        return await recovery.attempt;
-      } finally {
-        recovery.attempt = null;
-      }
-    };
-    oauth.setOnSignedIn(attemptAutomaticRecovery);
-    if (typeof oauth.findWritableAuthorization === 'function') {
-      void oauth.findWritableAuthorization()
-        .then((authorization) => authorization && attemptAutomaticRecovery(authorization))
-        .catch(() => {});
-    }
+    });
   }
   const envWatchUrl = () => String(process.env.YOUTUBE_WATCH_URL || '').trim();
   const publicLiveFallback = () => {
@@ -7755,7 +7601,8 @@ export function youtubeProxy({
       // Optional bridge for an encoder that survived a Vite config reload.
     }
     const watchUrl = String(saved.watchUrl || envWatchUrl()).trim();
-    const idMatch = watchUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/) || watchUrl.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
+    const idMatch = watchUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/)
+      || watchUrl.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
     return {
       active: saved.active === true,
       watchUrl,
@@ -7787,7 +7634,7 @@ export function youtubeProxy({
     if (fallback.active && fallback.videoId && fallback.watchUrl) {
       return {
         ...snap,
-        status: 'live',
+        status: 'public-live-unverified',
         broadcast: {
           id: fallback.videoId,
           videoId: fallback.videoId,
@@ -7809,52 +7656,24 @@ export function youtubeProxy({
   if (autoGoLiveEnabled() && envStreamKey) {
     const ingestUrl = String(process.env.YOUTUBE_INGEST_URL || 'rtmps://a.rtmp.youtube.com/live2').trim();
     const watchUrl = envWatchUrl();
-    const scheduleEnvStart = (delay = 3_000) => {
-      if (recovery.envTimer) clearTimeout(recovery.envTimer);
-      recovery.envTimer = setTimeout(() => {
-        recovery.envTimer = null;
-        void startFromEnv();
-      }, delay);
-      recovery.envTimer.unref?.();
-    };
-    const startFromEnv = async () => {
-      const current = liveSession.status();
-      if (['starting', 'encoding', 'ingesting', 'waiting-for-youtube', 'live'].includes(current.status)) {
-        scheduleEnvStart(15_000);
-        return;
-      }
-      if (recovery.envAttempt) return recovery.envAttempt;
-      recovery.envAttempt = liveSession.start({ streamKey: envStreamKey, ingestUrl }).then(async (live) => {
-        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
-          status: live?.status || 'posted',
-          watchUrl,
-          liveStatus: live?.status || '',
-          source: 'env-stream-key',
-          at: new Date().toISOString(),
-        })}\n`);
-        scheduleEnvStart(15_000);
-        return live;
-      }).catch(async (error) => {
-        const retryable = /capture url is not reachable|fetch failed|connection|encoder disconnected|rtmp/i.test(
-          String(error?.message || ''),
-        );
-        const retryDelay = retryable ? 15_000 : 60_000;
-        const retryAt = new Date(Date.now() + retryDelay).toISOString();
-        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
-          status: 'error',
-          error: { kind: error?.kind || 'invalid', message: error?.message || 'env stream-key start failed' },
-          retryAt,
-          source: 'env-stream-key',
-          at: new Date().toISOString(),
-        })}\n`);
-        scheduleEnvStart(retryDelay);
-        return null;
-      }).finally(() => {
-        recovery.envAttempt = null;
-      });
-      return recovery.envAttempt;
-    };
-    scheduleEnvStart();
+    setTimeout(() => {
+    void liveSession.start({ streamKey: envStreamKey, ingestUrl }).then(async (live) => {
+      await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+        status: live?.status || 'posted',
+        watchUrl,
+        liveStatus: live?.status || '',
+        source: 'env-stream-key',
+        at: new Date().toISOString(),
+      })}\n`);
+    }).catch(async (error) => {
+      await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+        status: 'error',
+        error: { kind: error?.kind || 'invalid', message: error?.message || 'env stream-key start failed' },
+        source: 'env-stream-key',
+        at: new Date().toISOString(),
+      })}\n`);
+    });
+    }, 4000);
   }
   const innerTubeChatMiddleware = createYoutubeInnerTubeChatMiddleware({
     authorizeAdminRequest,
@@ -7865,6 +7684,7 @@ export function youtubeProxy({
   });
   const homepageChatMiddleware = createYoutubeHomepageChatMiddleware({
     sessionStatus: publicSessionStatus,
+    commandRuntime: sharedYoutubePublicCommandRuntime(),
   });
   function install(middlewares) {
     middlewares.use('/api/youtube/auth', oauth.middleware);

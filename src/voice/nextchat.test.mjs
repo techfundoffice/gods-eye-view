@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   NEXTCHAT_STORAGE_KEY,
+  NEXTCHAT_MAX_ACTIONS,
+  NEXTCHAT_MAX_LIVE_COMMENTS,
   applyAssistantTranscriptDelta,
   createEmptySession,
   createNextchatState,
@@ -21,6 +23,7 @@ import {
   appendUserMessage,
   appendViewerMessage,
   publishNextChatMessage,
+  renderCommandLegend,
   setHarnessStatus,
 } from './nextchat.js';
 
@@ -175,6 +178,73 @@ test('publishNextChatMessage refuses HTML injection by storing plain text', () =
   assert.equal(result.ok, true);
   assert.equal(store.getActiveSession().messages[0].content, '<img src=x onerror=alert(1)> **bold**');
   assert.equal(publishNextChatMessage({ author: 'x', text: 'hi' }, null).ok, false);
+});
+
+test('broadcast overlay bounds comments/actions and renders the injected registry as text', () => {
+  assert.equal(NEXTCHAT_MAX_LIVE_COMMENTS, 7);
+  assert.equal(NEXTCHAT_MAX_ACTIONS, 3);
+
+  class FakeElement {
+    constructor(ownerDocument, tagName = 'span') {
+      this.ownerDocument = ownerDocument;
+      this.tagName = tagName;
+      this.children = [];
+      this.attributes = new Map();
+      this.className = '';
+      this.textContent = '';
+    }
+    appendChild(child) {
+      this.children.push(child);
+    }
+    replaceChildren(...children) {
+      this.children = children;
+    }
+    toggleAttribute(name, enabled) {
+      if (enabled) this.attributes.set(name, '');
+      else this.attributes.delete(name);
+    }
+    closest() {
+      return this.legendRoot || null;
+    }
+  }
+  const documentRef = {
+    createElement(tagName) {
+      return new FakeElement(documentRef, tagName);
+    },
+  };
+  const root = new FakeElement(documentRef, 'nav');
+  const target = new FakeElement(documentRef);
+  target.legendRoot = root;
+  const count = renderCommandLegend([
+    { command: '/y', description: 'Analyze <only>' },
+    { name: 'z', legend: 'Move camera' },
+    { command: '/admin', description: 'hidden', public: false },
+  ], target);
+
+  assert.equal(count, 2);
+  assert.equal(target.children[0].children[0].textContent, '/y');
+  assert.equal(target.children[0].children[1].textContent, 'Analyze <only>');
+  assert.equal(target.children[1].children[0].textContent, '/z');
+  assert.equal(root.attributes.has('hidden'), false);
+  assert.equal(renderCommandLegend([], target), 0);
+  assert.equal(root.attributes.has('hidden'), true);
+});
+
+test('broadcast presentation keeps transparent comments and a legend above the ticker', () => {
+  const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../style.css', import.meta.url), 'utf8');
+  const actionIndex = html.indexOf('id="gev-nextchat-action-thread"');
+  const commentIndex = html.indexOf('id="gev-nextchat-live-thread"');
+  const legendIndex = html.indexOf('id="gev-command-legend"');
+  const tickerIndex = html.indexOf('id="live-news-ticker"');
+
+  assert.ok(actionIndex > 0 && actionIndex < commentIndex, 'actions remain above comments');
+  assert.ok(legendIndex > commentIndex && legendIndex < tickerIndex, 'legend is immediately before ticker');
+  assert.match(css, /\.gev-nextchat-live-lane[\s\S]*?background:\s*transparent/);
+  assert.match(css, /#gev-command-legend[\s\S]*?overflow:\s*hidden/);
+  assert.match(css, /\.gev-command-legend-items[\s\S]*?overflow-x:\s*auto/);
+  assert.match(css, /font-size:\s*0\.875rem/);
+  assert.match(css, /--broadcast-bottom-safe/);
 });
 
 test('createEmptySession starts with no messages to replay', () => {

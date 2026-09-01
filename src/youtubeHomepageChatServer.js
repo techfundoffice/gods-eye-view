@@ -9,14 +9,9 @@ import {
   normalizeIncomingMessage,
 } from './youtubeCommentHarness.js';
 import { validateViewIntent } from './youtubeViewAgent.js';
+import { parsePublicCommand } from './youtubePublicCommandPolicy.js';
 
-const ACTIVE_STATUSES = new Set([
-  'starting',
-  'encoding',
-  'ingesting',
-  'waiting-for-youtube',
-  'live',
-]);
+const ACTIVE_STATUSES = new Set(['live', 'public-live-unverified']);
 const MAX_CONTINUATION = 4096;
 
 function sendJson(res, status, payload) {
@@ -74,13 +69,14 @@ export function inferHomepageViewerActions(text) {
     .map((checked) => checked.intent);
 }
 
-function publicMessage(raw, videoId, now) {
+function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
   const normalized = normalizeIncomingMessage(raw, {
     source: 'innerTube',
     videoId,
     now,
   });
   if (!normalized) return null;
+  const slash = parsePublicCommand(normalized.text);
   return {
     id: normalized.commentId,
     videoId: normalized.videoId,
@@ -88,7 +84,7 @@ function publicMessage(raw, videoId, now) {
     text: normalized.text,
     publishedAt: normalized.receivedAt,
     source: 'youtube',
-    actions: inferHomepageViewerActions(normalized.text),
+    actions: commandsEnabled && !slash.recognized ? inferHomepageViewerActions(normalized.text) : [],
   };
 }
 
@@ -96,10 +92,25 @@ export function createYoutubeHomepageChatMiddleware({
   sessionStatus = () => null,
   chat = createYoutubeInnerTubeChat(),
   now = Date.now,
+  commandRuntime = null,
 } = {}) {
+  const executorMiddleware = commandRuntime?.middleware?.({ getBinding: () => {
+    const session = sessionStatus() || {};
+    const live = session.live && typeof session.live === 'object' ? session.live : session;
+    const broadcast = live.broadcast || session.broadcast || {};
+    return {
+      videoId: boundedText(broadcast.id || broadcast.videoId, 80),
+      generation: Math.max(0, Number(live.generation || session.generation) || 0),
+      commandsEnabled: String(live.status || session.status || '').toLowerCase() === 'live',
+    };
+  } });
   return async function youtubeHomepageChatMiddleware(req, res) {
     const method = String(req.method || 'GET').toUpperCase();
     const parsed = new URL(String(req.url || '/'), 'http://internal');
+    if (parsed.pathname.startsWith('/executor') && executorMiddleware) {
+      await executorMiddleware(req, res);
+      return;
+    }
     if ((method !== 'GET' && method !== 'HEAD') || !['/', '/feed'].includes(parsed.pathname)) {
       sendJson(res, method === 'GET' || method === 'HEAD' ? 404 : 405, {
         error: { kind: 'not-found', message: 'Homepage YouTube chat route not found.' },
@@ -112,7 +123,10 @@ export function createYoutubeHomepageChatMiddleware({
     const broadcast = live.broadcast || session.broadcast || {};
     const videoId = boundedText(broadcast.id || broadcast.videoId, 80);
     const status = boundedText(live.status || session.status, 40).toLowerCase();
+    const generation = Math.max(0, Number(live.generation || session.generation) || 0);
+    const commandsEnabled = status === 'live';
     if (!videoId || !ACTIVE_STATUSES.has(status)) {
+      const commands = await commandRuntime?.statuses?.({ videoId, generation, commandsEnabled: false }) || [];
       sendJson(res, 200, {
         active: false,
         status: status || 'offline',
@@ -121,6 +135,9 @@ export function createYoutubeHomepageChatMiddleware({
         items: [],
         nextPageToken: '',
         pollingIntervalMillis: 5_000,
+        generation,
+        commandsEnabled: false,
+        commands,
       });
       return;
     }
@@ -132,8 +149,13 @@ export function createYoutubeHomepageChatMiddleware({
         cacheKey: `homepage-live:${videoId}`,
       });
       const items = (result.items || [])
-        .map((item) => publicMessage(item, videoId, now))
+        .map((item) => publicMessage(item, videoId, now, { commandsEnabled }))
         .filter(Boolean);
+      const binding = { videoId, generation, commandsEnabled };
+      for (const item of items) {
+        void Promise.resolve(commandRuntime?.registerMessage?.(item, binding)).catch(() => {});
+      }
+      const commands = await commandRuntime?.statuses?.(binding) || [];
       sendJson(res, 200, {
         active: true,
         status,
@@ -143,6 +165,9 @@ export function createYoutubeHomepageChatMiddleware({
         items,
         nextPageToken: boundedText(result.nextPageToken, MAX_CONTINUATION),
         pollingIntervalMillis: Math.max(5_000, Math.min(30_000, Number(result.pollingIntervalMillis) || 5_000)),
+        generation,
+        commandsEnabled,
+        commands,
       });
     } catch (error) {
       sendJson(res, error?.status || 502, {
@@ -158,6 +183,9 @@ export function createYoutubeHomepageChatMiddleware({
             ? boundedText(error.message, 160)
             : 'Unable to read the active YouTube live chat.',
         },
+        generation,
+        commandsEnabled,
+        commands: await commandRuntime?.statuses?.({ videoId, generation, commandsEnabled }) || [],
       });
     }
   };

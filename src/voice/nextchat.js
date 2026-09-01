@@ -10,6 +10,23 @@ export const NEXTCHAT_STORAGE_KEY = 'godsEyeView.nextchat.sessions.v1';
 export const NEXTCHAT_MAX_MESSAGES = 100;
 /** Cap for waiting on the Realtime data channel after start() returns at SDP. */
 export const VOICE_CHANNEL_WAIT_MS = 20000;
+export const NEXTCHAT_MAX_LIVE_COMMENTS = 7;
+export const NEXTCHAT_MAX_ACTIONS = 3;
+export const NEXTCHAT_COMMENT_FULL_OPACITY_MS = 12000;
+
+const PUBLIC_ACTION_STATES = new Set([
+  'pending',
+  'received',
+  'interpreting',
+  'awaiting-execution',
+  'executing',
+  'awaiting-model',
+  'succeeded',
+  'validated',
+  'rejected',
+  'failed',
+  'cancelled',
+]);
 
 const ASSISTANT_DELTA_TYPES = new Set([
   'response.output_audio_transcript.delta',
@@ -597,17 +614,30 @@ function renderSessions(listEl, state) {
   }
 }
 
-function renderThread(threadEl, session, { include = () => true } = {}) {
+function renderThread(threadEl, session, {
+  include = () => true,
+  limit = Infinity,
+  now = Date.now(),
+  onNeedsAgeRefresh = null,
+} = {}) {
   if (!threadEl) return;
   threadEl.replaceChildren();
-  const messages = session?.messages || [];
+  const messages = (session?.messages || []).filter(include).slice(-limit);
   for (const message of messages) {
-    if (!include(message)) continue;
     const row = threadEl.ownerDocument.createElement('div');
     row.className = `gev-nextchat-msg gev-nextchat-${message.role}`;
     row.dataset.role = message.role;
     if (message.metadata?.actionState) {
       row.dataset.actionState = message.metadata.actionState;
+    }
+    const receivedAt = Date.parse(String(message.metadata?.receivedAt || ''));
+    if (message.role === 'viewer' && Number.isFinite(receivedAt)) {
+      const age = now - receivedAt;
+      if (age >= NEXTCHAT_COMMENT_FULL_OPACITY_MS) {
+        row.classList.add('gev-nextchat-msg-older');
+      } else if (typeof onNeedsAgeRefresh === 'function') {
+        onNeedsAgeRefresh(NEXTCHAT_COMMENT_FULL_OPACITY_MS - Math.max(0, age));
+      }
     }
     const who = threadEl.ownerDocument.createElement('span');
     who.className = 'gev-nextchat-role';
@@ -632,6 +662,50 @@ function renderThread(threadEl, session, { include = () => true } = {}) {
   threadEl.scrollTop = threadEl.scrollHeight;
 }
 
+function registryEntries(registry) {
+  if (Array.isArray(registry)) return registry;
+  if (registry instanceof Map) return [...registry.values()];
+  if (registry && typeof registry === 'object') return Object.values(registry);
+  return [];
+}
+
+/**
+ * Render slash help from an injected canonical command registry. Registry
+ * entries may expose command/name/slash and description/legend/label fields.
+ * No fallback list is embedded here, so recognition and visible help cannot
+ * silently drift apart.
+ *
+ * @param {object[]|Map|object|null} registry
+ * @param {Element|null} target
+ * @returns {number} Number of rendered commands.
+ */
+export function renderCommandLegend(registry, target) {
+  if (!target?.ownerDocument) return 0;
+  target.replaceChildren();
+  let count = 0;
+  for (const entry of registryEntries(registry)) {
+    if (!entry || entry.hidden === true || entry.public === false) continue;
+    const rawCommand = String(entry.command || entry.slash || entry.name || '').trim();
+    if (!rawCommand) continue;
+    const command = rawCommand.startsWith('/') ? rawCommand : `/${rawCommand}`;
+    const description = String(entry.description || entry.legend || entry.label || '').trim();
+    const item = target.ownerDocument.createElement('span');
+    item.className = 'gev-command-legend-item';
+    const code = target.ownerDocument.createElement('strong');
+    code.textContent = command;
+    item.appendChild(code);
+    if (description) {
+      const text = target.ownerDocument.createElement('span');
+      text.textContent = description;
+      item.appendChild(text);
+    }
+    target.appendChild(item);
+    count += 1;
+  }
+  target.closest?.('#gev-command-legend')?.toggleAttribute('hidden', count === 0);
+  return count;
+}
+
 function formatViewerTimestamp(value) {
   const date = new Date(String(value || ''));
   if (!Number.isFinite(date.getTime())) return '';
@@ -651,6 +725,7 @@ export function initNextchat({
   documentRef = globalThis.document,
   storage,
   voice = null,
+  commandRegistry = null,
 } = {}) {
   const doc = documentRef;
   const root = doc?.getElementById?.('gev-nextchat');
@@ -674,6 +749,10 @@ export function initNextchat({
   const composer = root.querySelector('#gev-nextchat-composer');
   const newChatBtn = root.querySelector('#gev-nextchat-new');
   const toggleBtn = root.querySelector('#gev-nextchat-toggle');
+  const legendEl = doc.getElementById?.('gev-command-legend-items');
+  let ageRefreshTimer = null;
+  let ageRefreshAt = Infinity;
+  let legendRegistry = commandRegistry;
 
   const paint = () => {
     const state = store.getState();
@@ -681,9 +760,22 @@ export function initNextchat({
     if (liveThreadEl) {
       renderThread(liveThreadEl, session, {
         include: (message) => message.role === 'viewer',
+        limit: NEXTCHAT_MAX_LIVE_COMMENTS,
+        onNeedsAgeRefresh(delay) {
+          const dueAt = Date.now() + delay;
+          if (ageRefreshTimer !== null && dueAt >= ageRefreshAt) return;
+          if (ageRefreshTimer !== null) clearTimeout(ageRefreshTimer);
+          ageRefreshAt = dueAt;
+          ageRefreshTimer = setTimeout(() => {
+            ageRefreshTimer = null;
+            ageRefreshAt = Infinity;
+            paint();
+          }, Math.max(1, delay));
+        },
       });
       renderThread(actionThreadEl, session, {
-        include: (message) => message.role !== 'viewer' || message.metadata?.actionState === 'validated',
+        include: (message) => PUBLIC_ACTION_STATES.has(String(message.metadata?.actionState || '').toLowerCase()),
+        limit: NEXTCHAT_MAX_ACTIONS,
       });
     } else {
       renderThread(actionThreadEl, session);
@@ -701,6 +793,7 @@ export function initNextchat({
   };
 
   store.subscribe(paint);
+  renderCommandLegend(legendRegistry, legendEl);
   paint();
 
   newChatBtn?.addEventListener('click', () => {
@@ -760,6 +853,10 @@ export function initNextchat({
     },
     setHarnessStatus(message) {
       return setNextchatHarnessStatus(message, store);
+    },
+    renderCommandLegend(registry) {
+      legendRegistry = registry;
+      return renderCommandLegend(legendRegistry, legendEl);
     },
   };
   root.__gevNextchat = api;
