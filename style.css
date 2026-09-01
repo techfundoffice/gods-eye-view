@@ -11019,7 +11019,7 @@ body.cockpit-mode .admin-launch {
   display: flex;
   flex-direction: column;
   width: min(360px, calc(100vw - 24px));
-  max-height: min(560px, calc(100vh - 190px));
+  max-height: min(420px, calc(100vh - 160px));
   color: var(--text-primary);
   font-family: var(--font-mono);
   pointer-events: none;
@@ -11096,6 +11096,25 @@ body.cockpit-mode .admin-launch {
 .gev-nextchat-live-badge[data-state='error'] {
   border-color: rgba(255, 179, 71, 0.7);
   color: #ffb347;
+}
+
+.gev-nextchat-guidance {
+  display: grid;
+  gap: 3px;
+  padding: 7px 10px 8px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(0, 212, 255, 0.035);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.gev-nextchat-guidance strong {
+  color: rgba(54, 220, 255, 0.78);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
 }
 
 #gev-nextchat-new {
@@ -11253,5 +11272,157 @@ body.scene-playback-mode #gev-nextchat {
 
   .gev-nextchat-sessions {
     display: none;
+  }
+}
+
+/* ── Permanent live-news ticker ─────────────────────────────────────
+   This is the lowest public surface on every page state. Bottom controls
+   reserve its height below rather than painting over it. */
+:root {
+  --live-news-ticker-height: 2rem;
+}
+
+.live-news-ticker {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  /* Above the WebGL compatibility surface and ADMIN overlay so "always"
+     includes fallback and manual-operation states. */
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: var(--live-news-ticker-height);
+  padding: 0.38rem max(0.75rem, env(safe-area-inset-left)) calc(0.38rem + env(safe-area-inset-bottom));
+  overflow: hidden;
+  color: rgba(232, 234, 237, 0.78);
+  background:
+    linear-gradient(90deg, rgba(125, 20, 24, 0.94), rgba(25, 10, 18, 0.96) 52%, rgba(125, 20, 24, 0.94)),
+    rgba(10, 10, 15, 0.96);
+  border-top: 1px solid rgba(255, 92, 92, 0.62);
+  box-shadow: 0 -0.35rem 1.2rem rgba(112, 0, 0, 0.24);
+  font-family: var(--font-mono);
+  font-size: clamp(0.56rem, 0.8vw, 0.68rem);
+  letter-spacing: 0.045em;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.live-news-ticker-label {
+  color: #ffb2a9;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.live-news-ticker a {
+  max-width: min(38vw, 32rem);
+  overflow: hidden;
+  color: #fff1c4;
+  text-overflow: ellipsis;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 241, 196, 0.55);
+  text-underline-offset: 0.14em;
+  pointer-events: auto;
+}
+
+.live-news-ticker a[aria-disabled='true'] {
+  color: rgba(232, 234, 237, 0.58);
+  pointer-events: none;
+  text-decoration: none;
+}
+
+.live-news-ticker[data-state='pending'] a {
+  color: #ffd08a;
+}
+
+/* ADMIN remains the top operator surface, but ends above the ticker band so
+   both stay visible and every bottom console control remains clickable. */
+.admin-console,
+body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
+  inset: 0 0 var(--live-news-ticker-height) 0;
+  z-index: 1400;
+}
+
+/* The command dock keeps all of its existing buttons, but sits above the
+   ticker’s reserved band. */
+body:not(.ui-clean-view):not(.recording-mode) #command-dock {
+  bottom: calc(2vh + var(--live-news-ticker-height) + 0.35rem);
+}
+
+@media (max-width: 720px) {
+  body:not(.ui-clean-view):not(.recording-mode) #command-dock {
+    bottom: calc(8px + var(--live-news-ticker-height) + 0.35rem);
+  }
+
+  .live-news-ticker {
+    justify-content: flex-start;
+    gap: 0.35rem;
+    padding-right: max(0.65rem, env(safe-area-inset-right));
+    padding-left: max(0.65rem, env(safe-area-inset-left));
+    font-size: 0.5rem;
+    letter-spacing: 0.025em;
+  }
+
+  .live-news-ticker a {
+    max-width: 34vw;
+  }
+}
+
+/* The expanded chatbot owns the upper-right desktop zone; the existing
+   context rail starts below it instead of stacking unreadable panels. */
+@media (min-width: 901px) {
+  body:has(#gev-nextchat:not(.collapsed)) #right-context-rail {
+    top: max(
+      var(--right-stack-safe-top, 26vh),
+      calc(76px + min(420px, calc(100vh - 160px)) + 16px)
+    );
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1100px) {
+  #first-run-launcher {
+    left: 16px;
+    width: min(24rem, calc(50vw - 28px));
+  }
+
+  #gev-nextchat {
+    right: 16px;
+    width: min(23rem, calc(50vw - 28px));
+  }
+}
+
+@media (max-width: 720px) {
+  #first-run-launcher {
+    top: 64px;
+    right: 12px;
+    bottom: auto;
+    left: 12px;
+    width: auto;
+    max-height: min(42dvh, calc(100dvh - 96px));
+  }
+
+  #gev-nextchat {
+    top: auto;
+    right: 12px;
+    bottom: calc(var(--live-news-ticker-height) + 74px + env(safe-area-inset-bottom));
+    left: 12px;
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(30dvh, calc(50dvh - 7rem));
+  }
+}
+
+@media (max-width: 720px) and (max-height: 620px) {
+  #first-run-launcher {
+    top: 58px;
+    max-height: min(38dvh, calc(100dvh - 82px));
+  }
+
+  #gev-nextchat {
+    bottom: calc(var(--live-news-ticker-height) + 58px + env(safe-area-inset-bottom));
+    max-height: min(26dvh, calc(50dvh - 5.5rem));
   }
 }

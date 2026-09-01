@@ -14,6 +14,17 @@ function safeText(value, max = 160) {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
 }
 
+function safeStreamUrl(value) {
+  const candidate = safeText(value, 240);
+  if (!candidate) return '';
+  try {
+    const parsed = new URL(candidate);
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : '';
+  } catch {
+    return '';
+  }
+}
+
 export function createYoutubeHomepageInteraction({
   fetchImpl = globalThis.fetch,
   nextchat = null,
@@ -32,6 +43,8 @@ export function createYoutubeHomepageInteraction({
   const seen = new Set();
   const pendingActions = [];
   const badge = documentRef?.getElementById?.('gev-nextchat-live-badge') || null;
+  const ticker = documentRef?.getElementById?.('live-news-ticker') || null;
+  const tickerUrl = documentRef?.getElementById?.('live-news-ticker-url') || null;
 
   function setStatus(message, state = '') {
     nextchat?.setHarnessStatus?.(safeText(message, 200));
@@ -40,6 +53,23 @@ export function createYoutubeHomepageInteraction({
       badge.dataset.state = state || 'offline';
       badge.hidden = false;
     }
+  }
+
+  function setTickerUrl(value, active = false) {
+    if (!tickerUrl) return;
+    const url = safeStreamUrl(value);
+    if (url) {
+      tickerUrl.href = url;
+      tickerUrl.textContent = url;
+      tickerUrl.removeAttribute('aria-disabled');
+      ticker?.setAttribute?.('data-state', 'live');
+      return;
+    }
+
+    tickerUrl.removeAttribute('href');
+    tickerUrl.textContent = active ? 'CURRENT STREAM URL PENDING' : 'STREAM OFFLINE';
+    tickerUrl.setAttribute('aria-disabled', 'true');
+    ticker?.setAttribute?.('data-state', active ? 'pending' : 'offline');
   }
 
   function remember(id) {
@@ -132,6 +162,7 @@ export function createYoutubeHomepageInteraction({
         continuation = '';
         videoId = '';
         seen.clear();
+        setTickerUrl('', false);
         setStatus('YT chat is waiting for an active broadcast', 'offline');
       } else {
         const nextVideoId = safeText(payload.videoId, 80);
@@ -143,11 +174,13 @@ export function createYoutubeHomepageInteraction({
         }
         videoId = nextVideoId;
         continuation = safeText(payload.nextPageToken, 4096) || continuation;
+        setTickerUrl(payload.watchUrl, true);
         setStatus(`YT LIVE · ${safeText(payload.title || videoId, 100)} · viewer comments control this globe`, 'live');
         await ingest(payload.items || []);
       }
     } catch (error) {
       delay = 10_000;
+      setTickerUrl('', false);
       setStatus(`YT chat unavailable · ${safeText(error?.message || 'retrying', 120)}`, 'error');
     } finally {
       if (!stopped) timer = clock.setTimeout(() => void poll(), delay);

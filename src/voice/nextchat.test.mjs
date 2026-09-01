@@ -202,6 +202,9 @@ test('homepage chrome keeps the globe, GEV MIC, and NextChat controls', () => {
   assert.match(html, /New chat/);
   assert.match(html, /id="gev-nextchat-thread"/);
   assert.match(html, /user\/assistant thread/i);
+  assert.match(html, /VIEWER PATH · YOUTUBE CHAT/);
+  assert.match(html, /God’s Eye View MCP/);
+  assert.match(html, /ADMIN operates manually/);
   assert.match(html, /id="gev-nextchat-composer"/);
   assert.match(html, /<textarea[^>]*id="gev-nextchat-composer"/);
   assert.match(html, /id="gev-nextchat-send"/);

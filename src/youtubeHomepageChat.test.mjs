@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
 import {
   createYoutubeHomepageChatMiddleware,
@@ -120,6 +121,110 @@ test('homepage feed is explicitly offline when the shared live session is inacti
   assert.equal(response.body.active, false);
   assert.deepEqual(response.body.items, []);
   assert.equal(polls, 0);
+});
+
+test('permanent news ticker uses only the active broadcast watch URL and falls back offline', async () => {
+  const attributes = new Map([['href', '#'], ['aria-disabled', 'true']]);
+  const tickerUrl = {
+    href: '#',
+    textContent: '',
+    setAttribute(name, value) { attributes.set(name, String(value)); },
+    removeAttribute(name) { attributes.delete(name); },
+    getAttribute(name) { return attributes.get(name) ?? null; },
+  };
+  const ticker = {
+    dataset: {},
+    setAttribute(name, value) {
+      if (name === 'data-state') this.dataset.state = String(value);
+    },
+  };
+  const badge = { dataset: {}, hidden: true, textContent: '' };
+  let active = true;
+  let scheduled = null;
+  const clock = {
+    setTimeout(callback) {
+      scheduled = callback;
+      return 1;
+    },
+    clearTimeout() {},
+  };
+  const interaction = createYoutubeHomepageInteraction({
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return active
+          ? {
+            active: true,
+            videoId: 'CVSB4QJhVTU',
+            title: 'Gods Eye View Live',
+            watchUrl: 'https://www.youtube.com/watch?v=CVSB4QJhVTU',
+            items: [],
+            pollingIntervalMillis: 5_000,
+          }
+          : { active: false, items: [], pollingIntervalMillis: 5_000 };
+      },
+    }),
+    nextchat: { setHarnessStatus() {} },
+    documentRef: {
+      getElementById(id) {
+        if (id === 'live-news-ticker') return ticker;
+        if (id === 'live-news-ticker-url') return tickerUrl;
+        if (id === 'gev-nextchat-live-badge') return badge;
+        return null;
+      },
+    },
+    clock,
+  });
+
+  interaction.start();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(ticker.dataset.state, 'live');
+  assert.equal(tickerUrl.href, 'https://www.youtube.com/watch?v=CVSB4QJhVTU');
+  assert.equal(tickerUrl.textContent, 'https://www.youtube.com/watch?v=CVSB4QJhVTU');
+  assert.equal(tickerUrl.getAttribute('aria-disabled'), null);
+
+  active = false;
+  scheduled();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(ticker.dataset.state, 'offline');
+  assert.equal(tickerUrl.getAttribute('href'), null);
+  assert.equal(tickerUrl.textContent, 'STREAM OFFLINE');
+  assert.equal(tickerUrl.getAttribute('aria-disabled'), 'true');
+  interaction.stop();
+});
+
+test('ticker markup is permanent, bottom-fixed, and preserves every existing control surface', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  const realtime = readFileSync(new URL('./voice/gevRealtime.js', import.meta.url), 'utf8');
+
+  assert.match(html, /id="live-news-ticker"/);
+  assert.match(html, /LIVE Breaking News:/);
+  assert.match(html, /Comment now to change views/);
+  assert.match(html, /id="live-news-ticker-url"/);
+  assert.match(html, /Live at/);
+  assert.match(html, /Now!/);
+  assert.match(css, /\.live-news-ticker \{[\s\S]*?position: fixed;[\s\S]*?bottom: 0;/);
+  assert.match(css, /--live-news-ticker-height/);
+  const tickerRule = css.slice(css.indexOf('.live-news-ticker {'), css.indexOf('}', css.indexOf('.live-news-ticker {')));
+  const adminReserveRule = css.slice(
+    css.indexOf('body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {', css.indexOf('.live-news-ticker {')),
+  );
+  assert.match(tickerRule, /z-index: 1300/);
+  assert.match(adminReserveRule, /inset: 0 0 var\(--live-news-ticker-height\) 0/);
+  assert.match(adminReserveRule, /z-index: 1400/);
+
+  for (const id of [
+    'admin-launch',
+    'command-dock',
+    'location-bar',
+    'control-panel',
+    'gev-nextchat',
+    'gev-nextchat-composer',
+  ]) {
+    assert.match(html, new RegExp(`id="${id}"`), `${id} must remain present`);
+  }
+  assert.match(realtime, /root\.id = 'gev-voice-control'/, 'dynamic GEV MIC control must remain present');
 });
 
 test('homepage interaction displays every comment and runs validated actions with cooldowns', async () => {
