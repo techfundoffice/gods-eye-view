@@ -702,10 +702,13 @@ test('Mission Control stays a transparent left-rail chooser over the live globe'
 
 test('the launcher keeps focus, restores it, and never disables the focused button', () => {
   const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
-  // aria-disabled, never the `disabled` property: disabling a focused button
-  // drops the keyboard to <body> and strands the visitor outside the launcher.
-  assert.match(module, /button\.setAttribute\('aria-disabled', String\(next\)\)/);
+  // Tiles stay clickable during a launch so a second view can supersede the
+  // first. Never the `disabled` property: disabling a focused button drops the
+  // keyboard to <body> and strands the visitor outside the launcher.
+  assert.match(module, /root.setAttribute\('aria-busy', String\(next\)\)/);
+  assert.match(module, /Tiles stay clickable during a launch/);
   assert.doesNotMatch(module, /button\.disabled = /);
+  assert.doesNotMatch(module, /setAttribute\('aria-disabled'/);
   // Tab is confined to the launcher, and ESC always releases it.
   assert.match(module, /event\.key !== 'Tab'/);
   assert.match(module, /event\.key === 'Escape'/);

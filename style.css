@@ -9527,6 +9527,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 
 #first-run-launcher {
   position: absolute;
+  z-index: 175;
   inset: 0 auto auto 0;
   width: 100%;
   /* Five tiles do not fit a short landscape phone (667 x 390), where the card
