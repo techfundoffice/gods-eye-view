@@ -44,6 +44,7 @@ import { filterTrailing24h, parseFirmsCsv } from './src/data/firmsCsv.js';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { defineConfig } from 'vite';
+import { ReplitConnectors } from '@replit/connectors-sdk';
 import { loadAndApplyGevEnv } from './src/gevEnv.js';
 import { applyEncoderRuntimeEnv } from './src/encoderRuntime.js';
 import cesium from 'vite-plugin-cesium';
@@ -7540,17 +7541,39 @@ export function youtubeProxy({
     authorizeRequest: oauth.authorizeRequest,
   });
   const liveSession = sharedLiveSession();
-  async function goLiveNow({ authorization, req = null, body = {} } = {}) {
-    liveSession.bindAuth(authorization, oauth.proxy);
+  let connectorClient = null;
+  const connectorYoutubeCall = async (resource, options = {}) => {
+    if (!connectorClient) connectorClient = new ReplitConnectors();
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(options.params || {})) {
+      if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+    }
+    const query = params.size ? `?${params}` : '';
+    const method = String(options.method || 'GET').toUpperCase();
+    const init = { method };
+    if (options.body !== undefined && method !== 'GET' && method !== 'DELETE') {
+      init.headers = { 'Content-Type': 'application/json' };
+      init.body = JSON.stringify(options.body);
+    }
+    return connectorClient.proxy('youtube', `/youtube/v3/${resource}${query}`, init);
+  };
+  async function goLiveNow({ authorization, req = null, body = {}, call = null } = {}) {
+    const activeCall = call || liveSession.bindAuth(authorization, oauth.proxy);
+    if (typeof activeCall !== 'function') {
+      const error = new Error('YouTube sign-in required.');
+      error.kind = 'authentication';
+      error.status = 401;
+      throw error;
+    }
     const title = String(body?.title || "God's Eye View LIVE").trim() || "God's Eye View LIVE";
     const privacyStatus = String(body?.privacyStatus || 'public').trim() || 'public';
     const preferId = String(body?.broadcastId || process.env.YOUTUBE_BROADCAST_ID || '').trim();
     let provisioned = null;
     try {
-      const listed = await liveSession.listBroadcasts();
+      const listed = await liveSession.listBroadcasts(activeCall);
       const reused = pickReusableBroadcast(listed, { preferId });
       if (reused?.id) {
-        provisioned = await liveSession.select({ broadcastId: reused.id });
+        provisioned = await liveSession.select({ broadcastId: reused.id }, activeCall);
       }
     } catch {
       provisioned = null;
@@ -7560,9 +7583,14 @@ export function youtubeProxy({
         title,
         description: String(body?.description || 'Live from God\'s Eye View').trim(),
         privacyStatus,
-      });
+      }, activeCall);
     }
-    const live = await liveSession.start({}, { authorization, proxy: oauth.proxy, req });
+    const live = await liveSession.start({}, {
+      authorization,
+      proxy: authorization ? oauth.proxy : null,
+      call: activeCall,
+      req,
+    });
     const confirmMs = Number(process.env.YOUTUBE_LIVE_CONFIRM_MS || 90_000);
     const confirmed = await liveSession.waitForLive({
       timeoutMs: Number.isFinite(confirmMs) && confirmMs > 0 ? confirmMs : 90_000,
@@ -7576,11 +7604,18 @@ export function youtubeProxy({
       );
       if (!enabled || !authorization?.canWrite) return;
       try {
-        const result = await goLiveNow({ authorization });
+        let result;
+        try {
+          result = await goLiveNow({ authorization });
+        } catch (error) {
+          if (error?.kind !== 'quota') throw error;
+          result = await goLiveNow({ call: connectorYoutubeCall });
+        }
         await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
           status: result.live?.status || 'posted',
           watchUrl: result.broadcast?.watchUrl || '',
           liveStatus: result.live?.status || '',
+          source: 'automatic-recovery',
           at: new Date().toISOString(),
         })}\n`);
       } catch (error) {

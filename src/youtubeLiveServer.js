@@ -119,12 +119,35 @@ export function createYoutubeLiveMiddleware({
       }
 
       if (action === 'ingest-key' && req.method === 'POST') {
-        sendJson(res, 401, {
-          error: {
-            kind: 'authentication',
-            message: 'Sign in to ADMIN to paste a Studio stream key and start ingest.',
-          },
-        });
+        const loopback = isLoopbackAddress(req.socket?.remoteAddress || req.connection?.remoteAddress);
+        if (!loopback || !req.headers?.[YOUTUBE_LIVE_REQUEST_HEADER]) {
+          sendJson(res, 401, {
+            error: {
+              kind: 'authentication',
+              message: 'Sign in to ADMIN to paste a Studio stream key and start ingest.',
+            },
+          });
+          return;
+        }
+        const body = await readJsonBody(req);
+        try {
+          const result = await live.start({
+            streamKey: String(body.streamKey || '').trim(),
+            ingestUrl: String(body.ingestUrl || 'rtmps://a.rtmp.youtube.com/live2').trim(),
+            captureUrl: body.captureUrl,
+          });
+          sendJson(res, result.status === 'error' ? 502 : 202, {
+            live: result,
+            broadcast: body.watchUrl ? { watchUrl: String(body.watchUrl) } : null,
+          });
+        } catch (error) {
+          sendJson(res, error?.status || 400, {
+            error: {
+              kind: error?.kind || 'invalid',
+              message: error?.message || 'Unable to start the local live encoder',
+            },
+          });
+        }
         return;
       }
 

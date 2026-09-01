@@ -326,7 +326,7 @@ test('GET /session is public and never requires a YouTube cookie', async () => {
   assert.equal(response.body.broadcast, null);
 });
 
-test('POST /ingest-key is refused without ADMIN and never starts the encoder', async () => {
+test('POST /ingest-key is accepted only from the protected loopback watchdog', async () => {
   const started = [];
   const middleware = createYoutubeLiveMiddleware({
     live: {
@@ -355,8 +355,20 @@ test('POST /ingest-key is refused without ADMIN and never starts the encoder', a
     headers: MUTATE,
     body: { streamKey: KEY },
   });
-  assert.equal(withHeader.status, 401);
-  assert.equal(started.length, 0);
+  assert.equal(withHeader.status, 202);
+  assert.equal(withHeader.body.live.status, 'encoding');
+  assert.equal(started.length, 1);
+  assert.equal(started[0].streamKey, KEY);
+
+  const remote = await invoke(middleware, {
+    method: 'POST',
+    url: '/ingest-key',
+    headers: MUTATE,
+    remoteAddress: '203.0.113.8',
+    body: { streamKey: KEY },
+  });
+  assert.equal(remote.status, 401);
+  assert.equal(started.length, 1);
 
   const unsignedStop = await invoke(middleware, {
     method: 'POST',
