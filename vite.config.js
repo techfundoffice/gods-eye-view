@@ -7772,7 +7772,16 @@ export function youtubeProxy({
     const watchUrl = snap.broadcast?.watchUrl || fallback.watchUrl;
     if (active) {
       return watchUrl && !snap.broadcast?.watchUrl
-        ? { ...snap, broadcast: { ...(snap.broadcast || {}), watchUrl } }
+        ? {
+          ...snap,
+          broadcast: {
+            ...(snap.broadcast || {}),
+            id: snap.broadcast?.id || fallback.videoId,
+            videoId: snap.broadcast?.videoId || fallback.videoId,
+            title: snap.broadcast?.title || fallback.title,
+            watchUrl,
+          },
+        }
         : snap;
     }
     if (fallback.active && fallback.videoId && fallback.watchUrl) {
