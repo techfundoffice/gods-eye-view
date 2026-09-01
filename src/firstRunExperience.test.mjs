@@ -42,15 +42,13 @@ test('a fresh session receives the launcher, and keeps receiving it', () => {
   assert.equal(shouldShowFirstRun(returning), true);
 });
 
-test('dismissal is session-scoped; only the checkbox suppresses durably', () => {
+test('dismissal never suppresses the chooser on reload in the same session', () => {
   const session = memoryStorage(FIRST_RUN_SESSION_KEY);
   const storage = memoryStorage(FIRST_RUN_STORAGE_KEY);
 
   rememberFirstRunSessionDismissed(session);
   assert.equal(session.read(), 'dismissed');
-  // Gone for THIS session...
-  assert.equal(shouldShowFirstRun({ storage, sessionStorageRef: session, location: { search: '' } }), false);
-  // ...and back in the next one, because sessionStorage did not survive it.
+  assert.equal(shouldShowFirstRun({ storage, sessionStorageRef: session, location: { search: '' } }), true);
   assert.equal(shouldShowFirstRun({
     storage,
     sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
@@ -60,7 +58,7 @@ test('dismissal is session-scoped; only the checkbox suppresses durably', () => 
   assert.equal(storage.read(), null);
 });
 
-test('the checkbox writes and clears durable suppression, and a storage reset undoes it', () => {
+test('legacy suppression storage no longer hides the chooser', () => {
   const storage = memoryStorage(FIRST_RUN_STORAGE_KEY);
   setFirstRunSuppressed(true, storage);
   assert.equal(storage.read(), 'suppressed');
@@ -68,7 +66,7 @@ test('the checkbox writes and clears durable suppression, and a storage reset un
     storage,
     sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
     location: { search: '' },
-  }), false);
+  }), true);
 
   // Unticking before dismissing takes the suppression back.
   setFirstRunSuppressed(false, storage);
@@ -88,7 +86,7 @@ test('the checkbox writes and clears durable suppression, and a storage reset un
   }), true);
 });
 
-test('welcome params work in both directions and outrank both suppressions', () => {
+test('welcome params work in both directions while stored suppression is ignored', () => {
   const suppressed = memoryStorage(FIRST_RUN_STORAGE_KEY, 'suppressed');
   const dismissed = memoryStorage(FIRST_RUN_SESSION_KEY, 'dismissed');
   // ?welcome=1 replays past the checkbox AND past a session dismissal.
@@ -284,12 +282,7 @@ test('one ESC does one thing — the radio disclosure stops the launcher outrigh
   );
 });
 
-test('a refused write takes the tick back instead of promising "never again"', () => {
-  const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
-
-  // The write stays best-effort; the OUTCOME is now reported, because a box left
-  // ticked after a refused write tells the visitor the launcher is gone for good
-  // while it is already guaranteed to return next session.
+test('legacy suppression helpers remain best-effort but do not control visibility', () => {
   const blocked = {
     getItem: () => null,
     setItem: () => { throw new Error('blocked'); },
@@ -300,20 +293,16 @@ test('a refused write takes the tick back instead of promising "never again"', (
   // No storage area at all is a refusal too — nothing was persisted either way.
   assert.equal(setFirstRunSuppressed(true, null), false);
   assert.equal(setFirstRunSuppressed(false, null), false);
-  // ...and a working store still reports success, or the checkbox would revert
-  // on every tick and the pin above would be measuring nothing.
   const working = memoryStorage(FIRST_RUN_STORAGE_KEY);
   assert.equal(setFirstRunSuppressed(true, working), true);
   assert.equal(working.read(), 'suppressed');
   assert.equal(setFirstRunSuppressed(false, working), true);
   assert.equal(working.read(), null);
-
-  const handler = module.slice(
-    module.indexOf('const onSuppressChange = (event) => {'),
-    module.indexOf('function onKeyDown(event) {'),
-  );
-  assert.match(handler, /if \(setFirstRunSuppressed\(wanted, storage\)\) return;/);
-  assert.match(handler, /box\.checked = !wanted;/, 'a refused write must revert the tick');
+  assert.equal(shouldShowFirstRun({
+    storage: working,
+    sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY, 'dismissed'),
+    location: { search: '' },
+  }), true);
 });
 
 test('a surface class that never clears is an ACCEPTED no-show, not a timer', () => {
@@ -552,7 +541,7 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   assert.match(html, /id="first-run-launcher" role="dialog"[^>]*aria-labelledby="first-run-title"[^>]*hidden/);
   assert.equal((html.match(/data-first-run-choice=/g) || []).length, 4);
   assert.match(html, /data-first-run-status[^>]*role="status"[^>]*aria-live="polite"/);
-  assert.match(html, /<input type="checkbox" data-first-run-suppress \/>/);
+  assert.doesNotMatch(html, /data-first-run-suppress|Don't show this again/);
   assert.match(html, /<strong data-first-run-environmental-title>/);
   // Subcopy must name BOTH feeds the tile turns on — a tile that promised only
   // half of what it does is the defect this replaced. Only the VISIBLE <small>

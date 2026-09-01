@@ -195,24 +195,19 @@ function removeStored(kind, injected, key) {
  * Decide whether the launcher belongs in this page load.
  * @param {object} input
  * @param {boolean} [input.hasShareState]
- * @param {{getItem: Function}|null} [input.storage] Durable (localStorage).
- * @param {{getItem: Function}|null} [input.sessionStorageRef] Per-session.
  * @param {{search?: string}|null} [input.location]
  * @returns {boolean}
  */
 export function shouldShowFirstRun({
   hasShareState = false,
-  storage,
-  sessionStorageRef,
   location = globalThis.location,
 } = {}) {
   if (hasShareState) return false;
   const params = new URLSearchParams(location?.search || '');
   if (params.get('welcome') === '0') return false;
-  // The demo/support escape hatch outranks both suppressions on purpose.
+  // Normal visits always choose a view again after reload. These explicit
+  // navigation states are the only bypasses.
   if (params.get('welcome') === '1') return true;
-  if (readStored('local', storage, FIRST_RUN_STORAGE_KEY) === 'suppressed') return false;
-  if (readStored('session', sessionStorageRef, FIRST_RUN_SESSION_KEY) === 'dismissed') return false;
   return true;
 }
 
@@ -341,7 +336,6 @@ export function initFirstRunExperience({
   if (environmentalTitle) environmentalTitle.textContent = environmentalLabel().title;
 
   const status = root.querySelector('[data-first-run-status]');
-  const suppressBox = root.querySelector('[data-first-run-suppress]');
   const buttons = [...root.querySelectorAll('[data-first-run-choice]')];
   const defaultStatus = status?.textContent || '';
   const previouslyFocused = documentRef.activeElement;
@@ -400,7 +394,6 @@ export function initFirstRunExperience({
   const dismiss = ({ restoreFocus = true } = {}) => {
     if (closing) return;
     closing = true;
-    rememberFirstRunSessionDismissed(sessionStorageRef);
     root.classList.remove('visible');
     root.setAttribute('aria-hidden', 'true');
     documentRef.removeEventListener('keydown', onKeyDown, true);
@@ -479,20 +472,6 @@ export function initFirstRunExperience({
     setBusy(false);
   };
 
-  const onSuppressChange = (event) => {
-    const box = event.currentTarget;
-    const wanted = Boolean(box?.checked);
-    if (setFirstRunSuppressed(wanted, storage)) return;
-    // The write is best-effort; the TICK is not. A box left checked after a
-    // refused write tells the visitor "never again" about a launcher that is
-    // already guaranteed to come back next session. Put the box back where the
-    // truth is, and say why rather than leaving a control that undoes itself.
-    if (box) box.checked = !wanted;
-    if (!status) return;
-    status.dataset.sticky = 'true';
-    status.textContent = 'This browser is blocking storage, so that could not be saved.';
-  };
-
   function onKeyDown(event) {
     // THE ARBITRATION RULE: never consume input for a card nobody can see.
     // The observer below normally removes the launcher before another surface
@@ -543,7 +522,6 @@ export function initFirstRunExperience({
   }
 
   for (const button of buttons) button.addEventListener('click', onChoice);
-  suppressBox?.addEventListener('change', onSuppressChange);
   // Capture phase: the app binds its own global hotkeys (including bare letters
   // that cycle detection and styles), and the launcher owns the keyboard first.
   documentRef.addEventListener('keydown', onKeyDown, true);
