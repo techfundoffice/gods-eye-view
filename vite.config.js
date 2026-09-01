@@ -53,6 +53,7 @@ import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.j
 import { createYoutubeCommentHarnessMiddleware } from './src/youtubeCommentHarnessServer.js';
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
+import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatServer.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
 import { createAdminMiddleware } from './src/adminServer.js';
@@ -7569,6 +7570,30 @@ export function youtubeProxy({
     });
   }
   const envWatchUrl = () => String(process.env.YOUTUBE_WATCH_URL || '').trim();
+  const envBroadcastId = () => {
+    const direct = String(process.env.YOUTUBE_BROADCAST_ID || '').trim();
+    if (direct) return direct;
+    try {
+      return String(new URL(envWatchUrl()).searchParams.get('v') || '').trim();
+    } catch {
+      return '';
+    }
+  };
+  const sessionStatus = () => {
+    const snap = liveSession.status() || {};
+    const watchUrl = snap.broadcast?.watchUrl || envWatchUrl();
+    const id = String(snap.broadcast?.id || snap.broadcast?.videoId || envBroadcastId() || '').trim();
+    let status = String(snap.status || '').toLowerCase();
+    if (id && !['live', 'public-live-unverified'].includes(status)) {
+      status = 'public-live-unverified';
+    }
+    const broadcast = {
+      ...(snap.broadcast || {}),
+      ...(id ? { id, videoId: snap.broadcast?.videoId || id } : {}),
+      ...(watchUrl ? { watchUrl } : {}),
+    };
+    return { ...snap, status, broadcast };
+  };
   const liveMiddleware = createYoutubeLiveMiddleware({
     live: liveSession.asEncoder(),
     authorizeRequest: oauth.authorizeRequest,
@@ -7585,6 +7610,9 @@ export function youtubeProxy({
       }
       return snap;
     },
+  });
+  const homepageChatMiddleware = createYoutubeHomepageChatMiddleware({
+    sessionStatus,
   });
   const envStreamKey = String(process.env.YOUTUBE_STREAM_KEY || '').trim();
   if (autoGoLiveEnabled() && envStreamKey) {
@@ -7620,6 +7648,7 @@ export function youtubeProxy({
     middlewares.use('/api/youtube/auth', oauth.middleware);
     middlewares.use('/api/youtube/live', liveMiddleware);
     middlewares.use('/api/youtube/live-chat', innerTubeChatMiddleware);
+    middlewares.use('/api/youtube/homepage-chat', homepageChatMiddleware);
     middlewares.use('/api/youtube-view-agent', viewAgentMiddleware);
     middlewares.use('/api/youtube-comment-harness', commentHarnessMiddleware);
     middlewares.use('/api/youtube', middleware);

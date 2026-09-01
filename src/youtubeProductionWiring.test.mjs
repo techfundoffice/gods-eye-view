@@ -63,6 +63,14 @@ test('production YouTube plugin explicitly wires verified isolation and ADMIN au
 
   const liveChat = mounted.get('/api/youtube/live-chat');
   assert.equal((await invoke(liveChat, { url: '/?videoId=abcdefghijk' })).statusCode, 404);
+
+  const homepageChat = mounted.get('/api/youtube/homepage-chat');
+  assert.equal(typeof homepageChat, 'function');
+  const feed = await invoke(homepageChat, { url: '/feed' });
+  assert.equal(feed.statusCode, 200);
+  assert.notEqual(feed.body?.error?.kind, 'authentication');
+  assert.equal(feed.body?.error?.message, undefined);
+  assert.equal(Array.isArray(feed.body?.items), true);
 });
 
 test('production YouTube routes accept the same valid password ADMIN cookie as the console', async () => {
