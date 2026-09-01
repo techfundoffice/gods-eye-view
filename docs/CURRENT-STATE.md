@@ -10,19 +10,26 @@ Updated: September 1, 2026
 > chooser is open. Dock pin controls stay inside their trays instead of
 > stacking on the globe.
 
-> **2026-09-01 — first-run Mission Control is transparent over the live globe.**
-> The chooser stays on the left rail with the same window controls, YouTube
-> instruction, and view tiles, but the card, scanline, borders, shadows, and
-> choice rows use light translucency instead of an opaque dark fill. Copy stays
-> readable through `--first-run-ink` plus a tight `--first-run-read` text halo,
-> not a backdrop. Globe clicks outside the card still pass through; choosing a
-> view still tucks to the MISSION CONTROL chip.
+> **2026-09-01 — Mission Control is left-rail chrome, not a marketing overlay.**
+> The chooser no longer carries “Comment on YouTube chat to choose your view.”,
+> the forbidden-cockpit pitch, or the GEV MIC tip. It sits at `z-index: 147`
+> with the other controls, sizes to the header plus tiles, and keeps a reserved
+> fill so Cesium HUD cannot show through type or buttons. Globe clicks around
+> the panel still pass through; choosing a view still tucks to the MISSION
+> CONTROL chip. Maximize expands in-rail instead of covering the globe.
 
-> **2026-09-01 — first-run Mission Control copy is one cyan.** Heading,
-> description, tile titles/subcopy, material icons, ESC hint, and the GEV MIC
-> tip all use `--first-run-ink` (`rgba(54, 220, 255, 0.86)`), the same color as
-> **MISSION CONTROL · FIRST LAUNCH**. Contrast between those lines is weight
-> and size, not a second grey or white.
+> **2026-09-01 — LIVE COMMENTS is a reserved broadcast lane.** The heading row
+> has its own fill so globe telemetry cannot show through the red title.
+> Author and message stack as block rows (timestamps stay hidden). GEV Actions,
+> comments, status, the COMMANDS legend, and the live-news ticker remain
+> separate non-overlapping layout areas. The globe stays visible around these
+> surfaces, not through them.
+
+> **2026-09-01 — first-run Mission Control copy is one cyan.** Tile titles and
+> subcopy and material icons use `--first-run-ink`
+> (`rgba(54, 220, 255, 0.86)`), the same color as **MISSION CONTROL**. Contrast
+> between those lines is weight and size, not a second grey or white. There is
+> no ESC-to-dismiss hint on the chooser.
 
 > **2026-08-31 — live chat is our own YouTube Live page, not Data API quota.**
 > Operator **YOUTUBE SETTINGS** START CHAT and the ADMIN **Youtube AI Comment

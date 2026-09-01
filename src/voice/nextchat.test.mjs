@@ -230,7 +230,7 @@ test('broadcast overlay bounds comments/actions and renders the injected registr
   assert.equal(root.attributes.has('hidden'), true);
 });
 
-test('broadcast presentation keeps transparent comments and a legend above the ticker', () => {
+test('broadcast presentation keeps reserved comment chrome and a legend above the ticker', () => {
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../../style.css', import.meta.url), 'utf8');
   const actionIndex = html.indexOf('id="gev-nextchat-action-thread"');
@@ -240,7 +240,22 @@ test('broadcast presentation keeps transparent comments and a legend above the t
 
   assert.ok(actionIndex > 0 && actionIndex < commentIndex, 'actions remain above comments');
   assert.ok(legendIndex > commentIndex && legendIndex < tickerIndex, 'legend is immediately before ticker');
-  assert.match(css, /\.gev-nextchat-live-lane[\s\S]*?background:\s*transparent/);
+
+  const liveLaneStart = css.indexOf('.gev-nextchat-live-lane {');
+  const liveLane = css.slice(liveLaneStart, css.indexOf('}', liveLaneStart) + 1);
+  assert.match(liveLane, /background: rgba\(6, 15, 22, 0\.62\)/);
+  assert.doesNotMatch(liveLane, /background:\s*transparent/);
+  const liveHeading = css.slice(css.indexOf('.gev-nextchat-live-lane > h3 {'), css.indexOf('.gev-nextchat-heading-legacy'));
+  assert.match(liveHeading, /background: rgba\(18, 8, 10, 0\.88\)/);
+  assert.match(liveHeading, /flex: 0 0 auto/);
+  const liveRole = css.slice(css.indexOf('.gev-nextchat-live-lane .gev-nextchat-role {'), css.indexOf('.gev-nextchat-live-lane .gev-nextchat-text {'));
+  assert.match(liveRole, /display: block/);
+  assert.doesNotMatch(liveRole, /display:\s*inline/);
+  const liveText = css.slice(css.indexOf('.gev-nextchat-live-lane .gev-nextchat-text {'), css.indexOf('.gev-nextchat-live-lane .gev-nextchat-timestamp {'));
+  assert.match(liveText, /display: block/);
+  assert.doesNotMatch(liveText, /display:\s*inline/);
+  assert.match(css, /\.gev-nextchat-live-lane \.gev-nextchat-timestamp \{[\s\S]*?display:\s*none/);
+  assert.match(css, /\.gev-nextchat-action-lane \{[\s\S]*?background: rgba\(6, 15, 22, 0\.76\)/);
   assert.match(css, /#gev-command-legend[\s\S]*?overflow:\s*hidden/);
   assert.match(css, /\.gev-command-legend-items[\s\S]*?overflow-x:\s*auto/);
   assert.match(css, /font-size:\s*0\.875rem/);

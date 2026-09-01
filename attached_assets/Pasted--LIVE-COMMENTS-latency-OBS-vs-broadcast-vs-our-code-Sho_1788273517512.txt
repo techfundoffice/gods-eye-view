@@ -1,0 +1,73 @@
+# LIVE COMMENTS latency: OBS vs broadcast vs our code
+
+**Short answer:** extra delay on the GEV HUD is **our comment polling**, not OBS. YouTube’s **video** path is a separate, documented delay. Chat is a third path.
+
+## 1. OBS / encoder — not in the chat path
+
+YouTube lists **Open Broadcaster Software** as an encoder that sends the **live video** over RTMP (or similar) into YouTube ingest. That is camera → encoder → YouTube CDN → player.
+
+Citation: [Create a YouTube live stream with an encoder](https://support.google.com/youtube/answer/2907883) (OBS listed under encoder software).
+
+Chat is a `liveChatMessage` resource on the Live Streaming API. It is enabled on the broadcast while the event is active and is retrieved with `liveChatMessages.list` / `streamList`, not from the RTMP bytes.
+
+Citation: [LiveChatMessages resource](https://developers.google.com/youtube/v3/live/docs/liveChatMessages) — chat is available while the live event is active; after it ends, that event’s chat is gone.
+
+**ODBC is not involved.** If you meant OBS: OBS does not carry comments.
+
+## 2. YouTube live *video* delay — real, documented, separate
+
+YouTube defines stream latency as **camera capture → viewer display**. Studio “Stream latency”:
+
+| Setting | Official typical viewer delay | Intended for |
+|---|---|---|
+| Normal | Highest quality, more buffer | Non-interactive |
+| Low | **&lt; 10 seconds** for most viewers | Limited interaction |
+| Ultra-low | **&lt; 5 seconds** for most viewers | Live chat with the audience |
+
+Citation: [Understand live streaming latency](https://support.google.com/youtube/answer/7444635) — “If you live chat with viewers, a lower latency is best to reply to viewer comments.” Lower latency = less player read-ahead buffer (the main source of stream delay).
+
+That delay is **video**. YouTube tells you to lower *stream* latency so the host can *reply* to chat — i.e. chat and video are not the same pipeline.
+
+Studio **slow mode** (“Message delay”) only limits how often *each user can send*; it does not encode chat into OBS.
+
+Citation: [Moderate live chat](https://support.google.com/youtube/answer/9826490) — Slow mode = time limit between comments.
+
+## 3. YouTube chat delivery — poll/stream, not the encoder
+
+Official `liveChatMessages.list`:
+
+- First call returns some history; later calls use `nextPageToken`.
+- **`pollingIntervalMillis`**: “The amount of time, in milliseconds, that the client should wait before polling again for new live chat messages.”
+
+Citation: [LiveChatMessages: list](https://developers.google.com/youtube/v3/live/docs/liveChatMessages/list)
+
+Official `streamList` (what Google calls the low-latency ingest):
+
+- “Pushes new messages to your client as soon as they are available, rather than requiring you to poll.”
+- “The frequency at which messages are delivered by the API is dependent on how active the specified live chat is.”
+- Polling faster than YouTube’s refresh rate returns `rateLimitExceeded` / RESOURCE_EXHAUSTED (“unnecessarily wastes bandwidth”).
+
+Citation: [LiveChatMessages: streamList](https://developers.google.com/youtube/v3/live/docs/liveChatMessages/streamList)
+
+InnerTube `get_live_chat` (what GEV uses) is the same *kind* of batched poll YouTube’s own player uses, not OBS.
+
+## 4. GEV code — this is the extra HUD lag
+
+We do **not** use `streamList`. We stack two polls:
+
+1. **Server worker** (`src/youtubeLiveCommentIngest.js`): InnerTube poll, then wait `max(2s, min(15s, pollingIntervalMillis))`.
+2. **Browser** (`src/youtubeHomepageInteraction.js`): `GET /feed` no faster than **5s** (`MIN_POLL_MS = 5000`; snapshot hardcodes `pollingIntervalMillis: 5000`).
+
+So a line already in YouTube Studio can sit in our buffer until the globe asks again. That is GEV, not OBS, not ODBC.
+
+Google’s own low-latency chat method is **push** (`streamList`), not a 5s browser poll.
+
+## How to read what you are seeing
+
+- **Studio chat is already on screen, GEV HUD is seconds behind** → comment code (double poll).
+- **HUD chat matches Studio, but both are “ahead” of the video** → YouTube stream latency (normal/low/ultra-low), not comments.
+- **Changing OBS bitrate/scenes does not move HUD chat** → confirms encoder is off the chat path.
+
+## If we cut HUD lag later
+
+Keep InnerTube (no Data API quota). Serve `/feed` from memory. Drop the 5s browser floor or push SSE. Optional: `streamList` if quota is granted. No OBS change.

@@ -363,7 +363,7 @@ export function initFirstRunExperience({
   /**
    * Is something painted OVER the card? A measurable box is not a visible card.
    * The attribution lightbox is a full-screen overlay at `z-index: 200` against
-   * this card's 175 and announces itself with NO body class, so it left the
+   * this card's 147 and announces itself with NO body class, so it left the
    * launcher measurable but buried: ESC dismissed a card the visitor could not
    * see — and burned the session flag — behind a lightbox that stayed open.
    *

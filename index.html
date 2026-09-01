@@ -967,11 +967,11 @@
   <!-- Explicit mission choice on a fresh session. Live feeds are not auto-enabled
        until the visitor asks; shared links skip this surface entirely. It returns
         on every normal reload so each visitor explicitly chooses a view — see
-       src/firstRunExperience.js for the full show policy. The card is a
-       transparent overlay on the left rail; do not add a scrim. -->
+       src/firstRunExperience.js for the full show policy. Left-rail chrome with
+       a reserved fill so globe HUD cannot show through the tiles. Globe clicks
+       around the panel still pass through; do not add a scrim. -->
   <nav id="mission-control-nav" aria-label="Mission Control">
-  <aside id="first-run-launcher" role="dialog" aria-labelledby="first-run-title" aria-describedby="first-run-description" hidden>
-    <div class="first-run-scanline" aria-hidden="true"></div>
+  <aside id="first-run-launcher" role="region" aria-label="Mission Control" hidden>
     <header class="first-run-header">
       <span class="first-run-kicker">MISSION CONTROL</span>
       <div class="first-run-window-controls" role="group" aria-label="Mission Control size">
@@ -987,12 +987,6 @@
       <span class="material-symbols-outlined" aria-hidden="true">open_in_full</span>
       <span>MISSION CONTROL</span>
     </button>
-    <h2 id="first-run-title">Comment on YouTube chat to choose your view.</h2>
-    <!-- The card's one persuasive line, final and VERBATIM (2026-08-23)
-         — including the unspaced em dash. The arc it has to carry: this looks
-         like something you should not have access to → the sources are all
-         public → the data is real. Tile subcopy stays purely functional. -->
-    <p id="first-run-description">It feels like a forbidden cockpit—then you realize the sources are public and the data is real.</p>
     <div class="first-run-choices">
       <button type="button" data-first-run-choice="contacts">
         <span class="material-symbols-outlined" aria-hidden="true">radar</span>
@@ -1019,12 +1013,9 @@
         <span class="material-symbols-outlined first-run-arrow" aria-hidden="true">arrow_forward</span>
       </button>
     </div>
-    <div class="first-run-footer">
-      <span>ESC to dismiss</span>
-    </div>
-    <!-- Kept out of the footer row: it swaps to mission progress and errors, and
+    <!-- Kept out of the header row: it swaps to mission progress and errors, and
          a live region that also holds layout makes the row jump as it speaks. -->
-    <p class="first-run-note" data-first-run-status role="status" aria-live="polite">Tip: the GEV MIC button in the dock lets you talk to the map.</p>
+    <p class="first-run-note" data-first-run-status role="status" aria-live="polite"></p>
   </aside>
   </nav>
 

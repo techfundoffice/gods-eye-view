@@ -237,7 +237,7 @@ test('an overlay with NO class to watch still disarms the launcher', () => {
   const overlay = css.slice(css.indexOf('.cesium-credit-lightbox-overlay {'));
   assert.match(overlay.slice(0, overlay.indexOf('}')), /z-index: 200 !important/);
   const launcher = css.slice(css.indexOf('#first-run-launcher {'));
-  assert.match(launcher.slice(0, launcher.indexOf('}')), /z-index: 175/);
+  assert.match(launcher.slice(0, launcher.indexOf('}')), /z-index: 147/);
 
   // Answered generically — a hit test at the card's own centre, NOT one more
   // class to keep in step with one more overlay.
@@ -550,7 +550,7 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   const main = fs.readFileSync(new URL('./main.js', import.meta.url), 'utf8');
   const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
-  assert.match(html, /id="first-run-launcher" role="dialog"[^>]*aria-labelledby="first-run-title"[^>]*hidden/);
+  assert.match(html, /id="first-run-launcher" role="region"[^>]*aria-label="Mission Control"[^>]*hidden/);
   assert.equal((html.match(/data-first-run-choice=/g) || []).length, 4);
   assert.match(html, /data-first-run-status[^>]*role="status"[^>]*aria-live="polite"/);
   assert.doesNotMatch(html, /data-first-run-suppress|Don't show this again/);
@@ -563,14 +563,21 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   assert.match(visible, /earthquakes/i);
   assert.match(visible, /fires?/i, 'the tile must promise the fires it enables');
 
-  // The card's one persuasive line is OWNER-AUTHORED and pinned verbatim,
-  // unspaced em dash included. This is copy, not prose to be improved in a
-  // passing edit — changing it needs the owner, not a nicer-sounding rewrite.
-  assert.ok(
-    html.includes('<p id="first-run-description">It feels like a forbidden cockpit'
-      + '—then you realize the sources are public and the data is real.</p>'),
-    'the final first-run line must ship exactly as written',
+  // Owner 2026-09-01: Mission Control is chrome, not marketing copy.
+  const launcherHtml = html.slice(
+    html.indexOf('id="first-run-launcher"'),
+    html.indexOf('</aside>', html.indexOf('id="first-run-launcher"')),
   );
+  assert.doesNotMatch(launcherHtml, /Comment on YouTube chat to choose your view/);
+  assert.doesNotMatch(launcherHtml, /forbidden cockpit/);
+  assert.doesNotMatch(launcherHtml, /GEV MIC button in the dock/);
+  assert.doesNotMatch(launcherHtml, /ESC to dismiss/i);
+  assert.doesNotMatch(launcherHtml, /id="first-run-title"|id="first-run-description"|first-run-scanline/);
+  const statusMarkup = launcherHtml.slice(
+    launcherHtml.indexOf('data-first-run-status'),
+    launcherHtml.indexOf('</p>', launcherHtml.indexOf('data-first-run-status')),
+  );
+  assert.doesNotMatch(statusMarkup, /Tip:/);
 
   // Menu order is the owner's, read straight off the markup.
   const order = [...html.matchAll(/data-first-run-choice="([a-z-]+)"/g)].map((match) => match[1]);
@@ -602,8 +609,8 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   // `[hidden] { display: none }`, which would strand the card in the
   // accessibility tree until it is revealed or removed.
   assert.match(base, /display: flex/);
-  assert.match(base, /max-height: 100%/);
-  assert.match(css, /#mission-control-nav \{[\s\S]*?bottom:[\s\S]*?width:/);
+  assert.match(base, /max-height: min\(70dvh/);
+  assert.match(css, /#mission-control-nav \{[\s\S]*?bottom:\s*auto;[\s\S]*?width:/);
   assert.match(css, /#first-run-launcher\[hidden\] \{\s*display: none;\s*\}/);
   // Only the mission list may scroll: the heading, checkbox and status line
   // have to stay on screen at every height.
@@ -616,7 +623,6 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   for (const selector of [
     '.first-run-kicker',
     '.first-run-window-control',
-    '#first-run-description',
     '.first-run-choices button',
     '.first-run-choices small',
     '.first-run-arrow',
@@ -629,14 +635,13 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   }
 
   assert.match(html, /id="mission-control-nav" aria-label="Mission Control"/);
-  assert.match(html, /<h2 id="first-run-title">Comment on YouTube chat to choose your view\.<\/h2>/);
   assert.match(html, /id="first-run-minimize"[^>]*class="first-run-window-control"/);
   assert.match(html, /id="first-run-maximize"[^>]*class="first-run-window-control"/);
   assert.match(html, /id="first-run-restore" class="first-run-restore"/);
 });
 
 
-test('Mission Control stays a transparent left-rail chooser over the live globe', () => {
+test('Mission Control is left-rail chrome with a reserved fill over the live globe', () => {
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
   const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
@@ -646,43 +651,43 @@ test('Mission Control stays a transparent left-rail chooser over the live globe'
   // pointer events from it.
   const nav = css.slice(css.indexOf('#mission-control-nav {'), css.indexOf('#first-run-launcher {'));
   assert.match(nav, /pointer-events: none/);
-  assert.match(nav, /z-index: 175/);
+  assert.match(nav, /z-index: 147/);
+  assert.match(nav, /bottom:\s*auto/);
   assert.match(nav, /left: max\(0\.65rem, env\(safe-area-inset-left\)\)/);
   assert.doesNotMatch(nav, /pointer-events:\s*auto/);
   assert.doesNotMatch(html, /first-run-scrim|mission-control-scrim/);
 
   const base = css.slice(css.indexOf('#first-run-launcher {'), css.indexOf('#first-run-launcher.visible'));
-  // Lightest practical translucency — the previous fill was ~0.95 plus a 28px
-  // frost, which hid the globe. Ink stays the shared cyan; contrast is a tight
-  // text halo rather than an opaque backdrop.
+  // Reserved fill so globe HUD cannot show through type or tiles. Not a modal
+  // scrim and not the previous near-transparent overlay.
   assert.match(base, /--first-run-ink: rgba\(54, 220, 255, 0\.86\)/);
   assert.match(base, /--first-run-read:/);
   assert.match(base, /text-shadow: var\(--first-run-read\)/);
-  assert.match(base, /linear-gradient\(145deg, rgba\(8, 28, 38, 0\.14\), rgba\(4, 12, 20, 0\.06\)\)/);
+  assert.match(base, /background: rgba\(6, 15, 22, 0\.76\)/);
   assert.match(base, /border: 1px solid rgba\(54, 220, 255, 0\.22\)/);
-  assert.match(base, /backdrop-filter: blur\(3px\) saturate\(1\.05\)/);
-  assert.doesNotMatch(base, /rgba\(10, 27, 37, 0\.97\)|rgba\(7, 17, 25, 0\.96\)|blur\(28px\)/);
-  assert.doesNotMatch(base, /rgba\(0, 0, 0, 0\.72\)/);
+  assert.match(base, /backdrop-filter: blur\(12px\) saturate\(1\.2\)/);
+  assert.doesNotMatch(base, /linear-gradient\(145deg, rgba\(8, 28, 38, 0\.14\)/);
+  assert.doesNotMatch(base, /blur\(3px\)|blur\(28px\)/);
   assert.match(base, /pointer-events: none/);
-
-  const scan = css.slice(css.indexOf('.first-run-scanline {'), css.indexOf('.first-run-header,'));
-  assert.match(scan, /rgba\(54, 220, 255, 0\.32\)/);
-  assert.match(scan, /pointer-events: none/);
-  assert.doesNotMatch(scan, /rgba\(54, 220, 255, 0\.8\)/);
+  assert.doesNotMatch(css, /\.first-run-scanline\s*\{/);
+  assert.match(css, /\.first-run-header,[\s\S]*?flex-shrink: 0/);
+  const choices = css.slice(css.indexOf('.first-run-choices {'), css.indexOf('.first-run-choices::-webkit-scrollbar'));
+  assert.match(choices, /position: relative/);
+  assert.doesNotMatch(choices, /position:\s*absolute/);
 
   const rows = css.slice(css.indexOf('.first-run-choices button {'), css.indexOf('.first-run-choices button:hover'));
-  assert.match(rows, /background: rgba\(54, 220, 255, 0\.045\)/);
-  assert.doesNotMatch(rows, /rgba\(29, 69, 81, 0\.18\)/);
+  assert.match(rows, /background: rgba\(6, 15, 22, 0\.55\)/);
+  assert.match(rows, /flex-shrink: 0/);
+  assert.doesNotMatch(rows, /rgba\(54, 220, 255, 0\.045\)/);
 
   const hover = css.slice(css.indexOf('.first-run-choices button:hover'), css.indexOf('.first-run-choices button[aria-disabled'));
   assert.match(hover, /background: rgba\(54, 220, 255, 0\.12\)/);
 
-  const title = css.slice(css.indexOf('#first-run-launcher h2 {'), css.indexOf('#first-run-description {'));
-  assert.match(title, /color: var\(--first-run-ink\)/);
-  assert.match(title, /text-shadow: var\(--first-run-read\)/);
+  const maximized = css.slice(css.indexOf('#first-run-launcher.is-maximized {'), css.indexOf('#first-run-launcher.is-maximized .first-run-choices'));
+  assert.match(maximized, /position: relative/);
+  assert.doesNotMatch(maximized, /position:\s*fixed/);
 
-  // Window states, short/narrow viewports, and reduced-motion stay distinct
-  // without reintroducing an opaque panel.
+  // Window states, short/narrow viewports, and reduced-motion stay distinct.
   assert.match(css, /#first-run-launcher\.is-minimized \{/);
   assert.match(css, /#first-run-launcher\.is-maximized \{/);
   assert.match(css, /@media \(max-width: 620px\) \{[\s\S]*?#first-run-launcher/);

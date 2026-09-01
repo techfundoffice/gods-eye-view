@@ -281,7 +281,7 @@ async function runArbitrationSection(page, { shots, consoleErrors }) {
 
     // ── Blocker repro: a surface that takes the screen with NO class ────────
     // The attribution lightbox is full-screen at z-index 200 against the card's
-    // 175 and announces itself with nothing at all. The card keeps its box, so a
+    // 147 and announces itself with nothing at all. The card keeps its box, so a
     // getClientRects()-only check called it visible: ESC dismissed a launcher
     // the visitor could not see, and burned the session flag, behind a lightbox
     // that binds no ESC of its own and therefore stayed open.
@@ -308,7 +308,7 @@ async function runArbitrationSection(page, { shots, consoleErrors }) {
     record(
       'the real "Data attribution" lightbox opens above the card',
       linkClicked && lightboxUp.shown && lightboxUp.z === '200',
-      `link=${linkClicked} shown=${lightboxUp.shown} z-index=${lightboxUp.z} vs the launcher's 175`,
+      `link=${linkClicked} shown=${lightboxUp.shown} z-index=${lightboxUp.z} vs the launcher's 147`,
     );
     const buried = await launcherState();
     record(

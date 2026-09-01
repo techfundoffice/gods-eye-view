@@ -11,13 +11,15 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
   COMMANDS bar and news ticker, right-rail tabs yield to LIVE COMMENTS, HUD
   telemetry sits inboard of comments, and left HUD yields to Mission Control
   while the chooser is open. Dock pin buttons stay inside their trays.
-- First-run Mission Control is a transparent left-rail overlay so the live
-  globe stays visible while reading “Comment on YouTube chat to choose your
-  view.” and picking a view. Heading, options, and status stay readable via
-  cyan ink and a tight text halo rather than an opaque card.
-- First-run Mission Control copy now uses one cyan: the heading, description,
-  tile titles and subcopy, icons, ESC hint, and MIC tip match
-  **MISSION CONTROL · FIRST LAUNCH**.
+- First-run Mission Control is left-rail chrome: no YouTube-chat heading, no
+  forbidden-cockpit pitch, no GEV MIC tip, and no “ESC to dismiss.” View tiles
+  sit under the header on a reserved fill so globe HUD cannot show through
+  them. Clicks around the panel still reach the globe.
+- LIVE COMMENTS has a reserved heading row and lane fill. Author and message
+  stack as separate rows. GEV Actions, comments, status, COMMANDS, and the
+  news ticker stay in non-overlapping layout areas.
+- First-run Mission Control copy uses one cyan: tile titles, subcopy, and icons
+  match **MISSION CONTROL**. The chooser no longer shows “ESC to dismiss.”
 
 ## [Unreleased] — 2026-08-31
 
