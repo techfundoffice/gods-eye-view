@@ -132,10 +132,12 @@ export function normalizeIngestTarget(ingestUrl, streamKey) {
   const key = String(streamKey || '').trim();
   if (!key) throw new Error('A stream key is required');
   if (/[\s'"]/.test(key)) throw new Error('The stream key contains invalid characters');
-  const base = raw.replace(/\/+$/, '');
+  const suffixIndex = raw.search(/[?#]/);
+  const base = (suffixIndex >= 0 ? raw.slice(0, suffixIndex) : raw).replace(/\/+$/, '');
+  const suffix = suffixIndex >= 0 ? raw.slice(suffixIndex) : '';
   return {
-    display: `${base}/${REDACTED}`,
-    target: `${base}/${key}`,
+    display: `${base}/${REDACTED}${suffix}`,
+    target: `${base}/${key}${suffix}`,
     host: parsed.host,
   };
 }

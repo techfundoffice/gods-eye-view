@@ -125,6 +125,8 @@ function sharedYoutubeRecovery() {
       timer: null,
       attempt: null,
       nextAttemptAt: '',
+      envTimer: null,
+      envAttempt: null,
     };
   }
   return shared[YOUTUBE_RECOVERY_GLOBAL_KEY];
@@ -7798,22 +7800,52 @@ export function youtubeProxy({
   if (autoGoLiveEnabled() && envStreamKey) {
     const ingestUrl = String(process.env.YOUTUBE_INGEST_URL || 'rtmps://a.rtmp.youtube.com/live2').trim();
     const watchUrl = envWatchUrl();
-    void liveSession.start({ streamKey: envStreamKey, ingestUrl }).then(async (live) => {
-      await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
-        status: live?.status || 'posted',
-        watchUrl,
-        liveStatus: live?.status || '',
-        source: 'env-stream-key',
-        at: new Date().toISOString(),
-      })}\n`);
-    }).catch(async (error) => {
-      await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
-        status: 'error',
-        error: { kind: error?.kind || 'invalid', message: error?.message || 'env stream-key start failed' },
-        source: 'env-stream-key',
-        at: new Date().toISOString(),
-      })}\n`);
-    });
+    const scheduleEnvStart = (delay = 3_000) => {
+      if (recovery.envTimer) clearTimeout(recovery.envTimer);
+      recovery.envTimer = setTimeout(() => {
+        recovery.envTimer = null;
+        void startFromEnv();
+      }, delay);
+      recovery.envTimer.unref?.();
+    };
+    const startFromEnv = async () => {
+      const current = liveSession.status();
+      if (['starting', 'encoding', 'ingesting', 'waiting-for-youtube', 'live'].includes(current.status)) {
+        scheduleEnvStart(15_000);
+        return;
+      }
+      if (recovery.envAttempt) return recovery.envAttempt;
+      recovery.envAttempt = liveSession.start({ streamKey: envStreamKey, ingestUrl }).then(async (live) => {
+        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+          status: live?.status || 'posted',
+          watchUrl,
+          liveStatus: live?.status || '',
+          source: 'env-stream-key',
+          at: new Date().toISOString(),
+        })}\n`);
+        scheduleEnvStart(15_000);
+        return live;
+      }).catch(async (error) => {
+        const retryable = /capture url is not reachable|fetch failed|connection|encoder disconnected|rtmp/i.test(
+          String(error?.message || ''),
+        );
+        const retryDelay = retryable ? 15_000 : 60_000;
+        const retryAt = new Date(Date.now() + retryDelay).toISOString();
+        await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+          status: 'error',
+          error: { kind: error?.kind || 'invalid', message: error?.message || 'env stream-key start failed' },
+          retryAt,
+          source: 'env-stream-key',
+          at: new Date().toISOString(),
+        })}\n`);
+        scheduleEnvStart(retryDelay);
+        return null;
+      }).finally(() => {
+        recovery.envAttempt = null;
+      });
+      return recovery.envAttempt;
+    };
+    scheduleEnvStart();
   }
   const innerTubeChatMiddleware = createYoutubeInnerTubeChatMiddleware({
     authorizeAdminRequest,

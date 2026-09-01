@@ -14,6 +14,7 @@ SESSION = 'http://127.0.0.1:5000/api/youtube/live/session'
 GO = 'http://127.0.0.1:5000/api/youtube/live/go-now'
 INGEST = 'http://127.0.0.1:5000/api/youtube/live/ingest-key'
 OUT = '/tmp/gev-go-now-result.json'
+DISABLED = '/tmp/gev-disable-legacy-watchdog'
 KEY_FILE = '/home/runner/workspace/.local/youtube-stream-key'
 WATCH_FILE = '/home/runner/workspace/.local/youtube-watch-url'
 ENV_FILE = '/home/runner/workspace/.env'
@@ -382,6 +383,8 @@ def try_stream_key():
 def run_watch_loop():
     global last_connector_check, last_public_check
     while True:
+        if Path(DISABLED).exists():
+            return
         try:
             if try_stream_key():
                 break

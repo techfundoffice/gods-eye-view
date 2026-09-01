@@ -4,3 +4,4 @@
 - [Cesium worker reconnects](cesium-worker-reconnects.md) — preview restarts can interrupt lazy geometry imports; recover the render loop for verified worker-fetch failures.
 - [Cursor ACP isolation](cursor-acp-isolation.md) — stock Cursor ACP cannot safely host tool-less comment interpretation without a separate network sandbox.
 - [Public live-chat binding](public-live-chat-binding.md) — ADMIN operates manually; the chatbot reads the server-owned YouTube broadcast and routes approved view requests through GEV MCP.
+- [YouTube encoder handoff](youtube-encoder-handoff.md) — preserve a watch URL by releasing its ingest slot before the replacement encoder starts.

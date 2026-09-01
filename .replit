@@ -51,8 +51,7 @@ build = ["npm", "run", "build"]
 
 [userenv.shared]
 GEV_AUTO_GO_LIVE = "true"
-YOUTUBE_INGEST_URL = "rtmps://a.rtmp.youtube.com/live2"
+YOUTUBE_INGEST_URL = "rtmp://a.rtmp.youtube.com/live2"
 YOUTUBE_WATCH_URL = "https://www.youtube.com/watch?v=GGMdUDlQPoE"
-YOUTUBE_REPLACE_BROADCAST_ID = "GGMdUDlQPoE"
 
 

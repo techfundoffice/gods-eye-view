@@ -88,6 +88,15 @@ test('an ingest target must be RTMP and never displays the key', () => {
   assert.throws(() => normalizeIngestTarget('rtmp://x/live2', 'has space'), /invalid characters/);
 });
 
+test('a backup ingest query stays after the stream key', () => {
+  const target = normalizeIngestTarget(
+    'rtmp://b.rtmp.youtube.com/live2?backup=1',
+    KEY,
+  );
+  assert.equal(target.target, `rtmp://b.rtmp.youtube.com/live2/${KEY}?backup=1`);
+  assert.equal(target.display, 'rtmp://b.rtmp.youtube.com/live2/***?backup=1');
+});
+
 test('stream keys are scrubbed from arbitrary text', () => {
   assert.equal(redactStreamKey(`rtmp://x/live2/${KEY} failed`, KEY), 'rtmp://x/live2/*** failed');
   assert.equal(redactStreamKey('nothing to hide', KEY), 'nothing to hide');
