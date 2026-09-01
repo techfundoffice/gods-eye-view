@@ -58,7 +58,7 @@ export function isTerminalBroadcastStatus(status) {
  * @param {{preferId?: string, preferPublic?: boolean}} [options]
  * @returns {object|null}
  */
-export function pickReusableBroadcast(items, { preferId = '', preferPublic = true } = {}) {
+export function pickReusableBroadcast(items, { preferId = '', preferPublic = true, requirePublic = false } = {}) {
   const rows = (Array.isArray(items) ? items : []).filter(
     (row) => row?.id && isCompatibleBroadcastStatus(row.lifeCycleStatus),
   );
@@ -71,6 +71,7 @@ export function pickReusableBroadcast(items, { preferId = '', preferPublic = tru
     const pub = rows.find((row) => String(row.privacy || '') === 'public');
     if (pub) return pub;
   }
+  if (requirePublic) return null;
   return rows[0] || null;
 }
 
@@ -230,7 +231,6 @@ export async function provisionYoutubeBroadcast(call, {
   title,
   description = '',
   privacyStatus = 'unlisted',
-  autoGoLive = true,
 } = {}) {
   const name = String(title || '').trim();
   if (!name) throw new Error('A broadcast title is required');
@@ -262,7 +262,7 @@ export async function provisionYoutubeBroadcast(call, {
       },
       status: { privacyStatus: privacy, selfDeclaredMadeForKids: false },
       contentDetails: {
-        enableAutoStart: autoGoLive !== false,
+        enableAutoStart: true,
         enableAutoStop: true,
         monitorStream: { enableMonitorStream: false, broadcastStreamDelayMs: 0 },
       },

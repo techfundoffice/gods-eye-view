@@ -53,12 +53,9 @@ import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.j
 import { createYoutubeCommentHarnessMiddleware } from './src/youtubeCommentHarnessServer.js';
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
-import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatServer.js';
-import { createYoutubePublicCommandRuntime } from './src/youtubePublicCommandRuntime.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
-import { createAdminAuth } from './src/adminAuth.js';
-import { createAdminMiddleware, createAdminSessionAuthorizer } from './src/adminServer.js';
+import { createAdminMiddleware } from './src/adminServer.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
 import {
   createYoutubeApiCaller,
@@ -74,9 +71,7 @@ import { publicApiCatalogProxy } from './src/publicApiProxies.js';
 
 let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
-let youtubePublicCommandRuntimeSingleton = null;
 let replitAdminAuthSingleton = null;
-let adminAuthSingleton = null;
 
 /**
  * One OAuth middleware so ADMIN live-control and `/api/youtube` share sessions.
@@ -109,29 +104,15 @@ function sharedYoutubeOAuth() {
 function sharedLiveSession() {
   if (!liveSessionSingleton) {
     liveSessionSingleton = createLiveSessionController({
-      encoder: createLiveStreamController({
-        createExecutorSession: () => sharedYoutubePublicCommandRuntime().rotateExecutor(),
-      }),
+      encoder: createLiveStreamController(),
     });
   }
   return liveSessionSingleton;
 }
 
-function sharedYoutubePublicCommandRuntime() {
-  if (!youtubePublicCommandRuntimeSingleton) {
-    youtubePublicCommandRuntimeSingleton = createYoutubePublicCommandRuntime();
-  }
-  return youtubePublicCommandRuntimeSingleton;
-}
-
 function sharedReplitAdminAuth() {
   if (!replitAdminAuthSingleton) replitAdminAuthSingleton = createReplitAdminAuth();
   return replitAdminAuthSingleton;
-}
-
-function sharedAdminAuth() {
-  if (!adminAuthSingleton) adminAuthSingleton = createAdminAuth();
-  return adminAuthSingleton;
 }
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
@@ -7512,18 +7493,10 @@ function normalizeAisTimestamp(value) {
 export function youtubeProxy({
   oauth = sharedYoutubeOAuth(),
   adminAuth = sharedReplitAdminAuth(),
-  adminAuthorization = null,
   harness = toollessCursor,
   commentHarnessConfigured = Boolean(process.env.CURSOR_API_KEY),
 } = {}) {
-  const authorizeAdminRequest = adminAuthorization
-    ? (typeof adminAuthorization === 'function'
-      ? adminAuthorization
-      : adminAuthorization.authorizeRequest)
-    : createAdminSessionAuthorizer({
-      auth: sharedAdminAuth(),
-      replitAuth: adminAuth,
-    });
+  const authorizeAdminRequest = (req) => adminAuth.authenticate(req);
   const middleware = createYoutubeProxyMiddleware({
     proxy: oauth.proxy,
     authorizeRequest: oauth.authorizeRequest,
@@ -7548,7 +7521,10 @@ export function youtubeProxy({
     let provisioned = null;
     try {
       const listed = await liveSession.listBroadcasts();
-      const reused = pickReusableBroadcast(listed, { preferId });
+      const reused = pickReusableBroadcast(listed, {
+        preferId,
+        requirePublic: privacyStatus === 'public',
+      });
       if (reused?.id) {
         provisioned = await liveSession.select({ broadcastId: reused.id });
       }
@@ -7593,64 +7569,22 @@ export function youtubeProxy({
     });
   }
   const envWatchUrl = () => String(process.env.YOUTUBE_WATCH_URL || '').trim();
-  const publicLiveFallback = () => {
-    let saved = {};
-    try {
-      saved = JSON.parse(fs.readFileSync('/tmp/gev-live-public.json', 'utf8'));
-    } catch {
-      // Optional bridge for an encoder that survived a Vite config reload.
-    }
-    const watchUrl = String(saved.watchUrl || envWatchUrl()).trim();
-    const idMatch = watchUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/)
-      || watchUrl.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
-    return {
-      active: saved.active === true,
-      watchUrl,
-      videoId: String(saved.videoId || idMatch?.[1] || '').trim(),
-      title: String(saved.title || 'YouTube Live').trim(),
-    };
-  };
-  const publicSessionStatus = () => {
-    const snap = liveSession.status();
-    const active = ['starting', 'encoding', 'ingesting', 'waiting-for-youtube', 'live'].includes(
-      String(snap.status || ''),
-    );
-    const fallback = publicLiveFallback();
-    const watchUrl = snap.broadcast?.watchUrl || fallback.watchUrl;
-    if (active) {
-      return watchUrl && !snap.broadcast?.watchUrl
-        ? {
-          ...snap,
-          broadcast: {
-            ...(snap.broadcast || {}),
-            id: snap.broadcast?.id || fallback.videoId,
-            videoId: snap.broadcast?.videoId || fallback.videoId,
-            title: snap.broadcast?.title || fallback.title,
-            watchUrl,
-          },
-        }
-        : snap;
-    }
-    if (fallback.active && fallback.videoId && fallback.watchUrl) {
-      return {
-        ...snap,
-        status: 'public-live-unverified',
-        broadcast: {
-          id: fallback.videoId,
-          videoId: fallback.videoId,
-          title: fallback.title,
-          watchUrl: fallback.watchUrl,
-        },
-      };
-    }
-    return snap;
-  };
   const liveMiddleware = createYoutubeLiveMiddleware({
     live: liveSession.asEncoder(),
     authorizeRequest: oauth.authorizeRequest,
     findWritableAuthorization: oauth.findWritableAuthorization,
     goNow: goLiveNow,
-    sessionStatus: publicSessionStatus,
+    sessionStatus: () => {
+      const snap = liveSession.status();
+      const watchUrl = snap.broadcast?.watchUrl || envWatchUrl();
+      const active = ['starting', 'encoding', 'ingesting', 'waiting-for-youtube', 'live'].includes(
+        String(snap.status || ''),
+      );
+      if (watchUrl && !snap.broadcast?.watchUrl && active) {
+        return { ...snap, broadcast: { ...(snap.broadcast || {}), watchUrl } };
+      }
+      return snap;
+    },
   });
   const envStreamKey = String(process.env.YOUTUBE_STREAM_KEY || '').trim();
   if (autoGoLiveEnabled() && envStreamKey) {
@@ -7682,15 +7616,10 @@ export function youtubeProxy({
       createYoutubeApiCaller(oauth.proxy, authorization),
     ),
   });
-  const homepageChatMiddleware = createYoutubeHomepageChatMiddleware({
-    sessionStatus: publicSessionStatus,
-    commandRuntime: sharedYoutubePublicCommandRuntime(),
-  });
   function install(middlewares) {
     middlewares.use('/api/youtube/auth', oauth.middleware);
     middlewares.use('/api/youtube/live', liveMiddleware);
     middlewares.use('/api/youtube/live-chat', innerTubeChatMiddleware);
-    middlewares.use('/api/youtube/homepage-chat', homepageChatMiddleware);
     middlewares.use('/api/youtube-view-agent', viewAgentMiddleware);
     middlewares.use('/api/youtube-comment-harness', commentHarnessMiddleware);
     middlewares.use('/api/youtube', middleware);
@@ -7717,12 +7646,10 @@ export function youtubeProxy({
 function adminConsoleApi() {
   const { version } = createRequire(import.meta.url)('./package.json');
   const replitAuth = sharedReplitAdminAuth();
-  const auth = sharedAdminAuth();
   const middleware = createAdminMiddleware({
     version: version || '0.0.0',
     live: sharedLiveSession(),
     youtubeAuth: sharedYoutubeOAuth(),
-    auth,
     replitAuth,
   });
   function install(middlewares) {

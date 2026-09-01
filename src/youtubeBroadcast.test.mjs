@@ -100,6 +100,7 @@ test('pickReusableBroadcast prefers a named id, then a public ready live', () =>
   assert.equal(pickReusableBroadcast([unlisted, waiting], { preferId: 'other' }).id, 'other');
   assert.equal(pickReusableBroadcast([complete]), null);
   assert.equal(pickReusableBroadcast([]), null);
+  assert.equal(pickReusableBroadcast([unlisted], { requirePublic: true }), null);
 });
 
 test('the public broadcast view never includes the stream key', () => {
