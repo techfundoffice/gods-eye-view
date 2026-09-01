@@ -194,20 +194,17 @@ function removeStored(kind, injected, key) {
 /**
  * Decide whether the launcher belongs in this page load.
  * @param {object} input
- * @param {boolean} [input.hasShareState]
  * @param {{search?: string}|null} [input.location]
  * @returns {boolean}
  */
 export function shouldShowFirstRun({
-  hasShareState = false,
   location = globalThis.location,
 } = {}) {
-  if (hasShareState) return false;
   const params = new URLSearchParams(location?.search || '');
+  // Reserved for capture/automation surfaces that cannot interact with a modal.
   if (params.get('welcome') === '0') return false;
-  // Normal visits always choose a view again after reload. These explicit
-  // navigation states are the only bypasses.
-  if (params.get('welcome') === '1') return true;
+  // Every interactive visit chooses a view, including restored/share URLs and
+  // reloads carrying legacy suppression state.
   return true;
 }
 
@@ -321,7 +318,6 @@ export function initFirstRunExperience({
   root.dataset.initialized = 'true';
 
   if (!shouldShowFirstRun({
-    hasShareState: styleManager?.hasShareState,
     storage,
     sessionStorageRef,
     location,

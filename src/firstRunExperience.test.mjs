@@ -86,7 +86,7 @@ test('legacy suppression storage no longer hides the chooser', () => {
   }), true);
 });
 
-test('welcome params work in both directions while stored suppression is ignored', () => {
+test('welcome=0 is the only explicit bypass; share and stored state still choose a view', () => {
   const suppressed = memoryStorage(FIRST_RUN_STORAGE_KEY, 'suppressed');
   const dismissed = memoryStorage(FIRST_RUN_SESSION_KEY, 'dismissed');
   // ?welcome=1 replays past the checkbox AND past a session dismissal.
@@ -95,14 +95,14 @@ test('welcome params work in both directions while stored suppression is ignored
   }), true);
   // ?welcome=0 suppresses a session that would otherwise see it.
   assert.equal(shouldShowFirstRun({ ...fresh(), location: { search: '?welcome=0' } }), false);
-  // A share link outranks everything, including the replay hatch.
+  // Restored/share links are still interactive visits and must choose a view.
   assert.equal(shouldShowFirstRun({
     hasShareState: true, ...fresh(), location: { search: '?welcome=1' },
-  }), false);
+  }), true);
 });
 
-test('a share link never sees the launcher — its author already chose the view', () => {
-  assert.equal(shouldShowFirstRun({ hasShareState: true, ...fresh() }), false);
+test('a share link still sees the launcher so every user chooses the view', () => {
+  assert.equal(shouldShowFirstRun({ hasShareState: true, ...fresh() }), true);
 });
 
 test('privacy-restricted storage fails open and every write stays best-effort', () => {
