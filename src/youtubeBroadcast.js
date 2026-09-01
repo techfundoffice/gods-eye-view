@@ -176,7 +176,206 @@ export function summarizeBroadcastItem(item) {
     privacy: String(item?.status?.privacyStatus || ''),
     lifeCycleStatus: String(item?.status?.lifeCycleStatus || ''),
     boundStreamId: String(item?.contentDetails?.boundStreamId || ''),
+    liveChatId: String(item?.snippet?.liveChatId || ''),
     watchUrl: id ? `https://www.youtube.com/watch?v=${id}` : '',
+  };
+}
+
+/** Chat/broadcast errors that mean the cached identity must not be reused. */
+export const STALE_LIVE_CHAT_KINDS = Object.freeze([
+  'ended',
+  'not-found',
+  'forbidden',
+  'comments-disabled',
+  'unavailable',
+]);
+
+/**
+ * @param {object|null|undefined} error
+ * @returns {boolean}
+ */
+export function isStaleLiveChatError(error) {
+  const kind = String(error?.kind || '');
+  if (STALE_LIVE_CHAT_KINDS.includes(kind)) return true;
+  const reasons = Array.isArray(error?.reasons) ? error.reasons : [];
+  return reasons.some((reason) => /liveChatEnded|liveChatNotFound|liveChatDisabled|commentsDisabled/i.test(String(reason)));
+}
+
+function emptyDiscovery(status) {
+  return {
+    active: false,
+    status,
+    videoId: '',
+    title: '',
+    watchUrl: '',
+    liveChatId: '',
+    lifeCycleStatus: '',
+  };
+}
+
+/**
+ * List the signed-in channel's currently active broadcasts.
+ *
+ * @param {Function} call
+ * @returns {Promise<object[]>}
+ */
+export async function listActiveBroadcasts(call) {
+  const payload = await youtubeCall(call, 'liveBroadcasts', {
+    method: 'GET',
+    params: {
+      part: 'id,snippet,status,contentDetails',
+      broadcastStatus: 'active',
+      mine: 'true',
+      maxResults: '50',
+    },
+  });
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  return items.map(summarizeBroadcastItem).filter((row) => row.id);
+}
+
+/**
+ * Resolve the channel owner's current live chat identity from YouTube.
+ * Never consults environment broadcast IDs or encoder session state.
+ *
+ * @param {Function} call
+ * @returns {Promise<object>}
+ */
+export async function discoverActiveYoutubeLive(call) {
+  let rows = [];
+  try {
+    rows = await listActiveBroadcasts(call);
+  } catch (error) {
+    if (error?.kind === 'authentication' || error?.kind === 'insufficient-scope') {
+      return emptyDiscovery('unauthenticated');
+    }
+    throw error;
+  }
+  const live = rows.find((row) => row.lifeCycleStatus === 'live' && row.liveChatId);
+  if (live) {
+    return {
+      active: true,
+      status: 'live',
+      videoId: live.id,
+      title: live.title,
+      watchUrl: live.watchUrl,
+      liveChatId: live.liveChatId,
+      lifeCycleStatus: 'live',
+    };
+  }
+  const starting = rows.find((row) => (
+    row.lifeCycleStatus === 'liveStarting'
+    || (row.lifeCycleStatus === 'live' && !row.liveChatId)
+  ));
+  if (starting) {
+    return {
+      active: false,
+      status: 'connecting',
+      videoId: starting.id,
+      title: starting.title,
+      watchUrl: starting.watchUrl,
+      liveChatId: starting.liveChatId || '',
+      lifeCycleStatus: starting.lifeCycleStatus,
+    };
+  }
+  return emptyDiscovery('offline');
+}
+
+/**
+ * Official liveChatMessages.list for a discovered chat id.
+ *
+ * @param {Function} call
+ * @param {{liveChatId?: string, pageToken?: string}} [options]
+ * @returns {Promise<{items: object[], nextPageToken: string, pollingIntervalMillis: number}>}
+ */
+export async function listYoutubeLiveChatMessages(call, { liveChatId, pageToken } = {}) {
+  const id = String(liveChatId || '').trim();
+  if (!id) {
+    const error = new Error('Official live chat is unavailable for this video.');
+    error.kind = 'unavailable';
+    throw error;
+  }
+  try {
+    const payload = await youtubeCall(call, 'liveChatMessages', {
+      method: 'GET',
+      params: {
+        part: 'snippet,authorDetails',
+        liveChatId: id,
+        pageToken: pageToken || undefined,
+      },
+    });
+    return {
+      items: Array.isArray(payload.items) ? payload.items : [],
+      nextPageToken: String(payload.nextPageToken || ''),
+      pollingIntervalMillis: Number(payload.pollingIntervalMillis) || 5_000,
+    };
+  } catch (error) {
+    const reasons = Array.isArray(error?.reasons) ? error.reasons : [];
+    if (reasons.some((reason) => /liveChatEnded/i.test(String(reason))) || /ended/i.test(String(error?.message || ''))) {
+      error.kind = 'ended';
+    }
+    throw error;
+  }
+}
+
+/**
+ * Owner-scoped in-memory cache around {@link discoverActiveYoutubeLive}.
+ *
+ * @param {object} [options]
+ * @param {() => Promise<Function|{call: Function, ownerKey?: string}|null>} options.getCall
+ * @param {string} [options.ownerKey]
+ * @param {number} [options.ttlMs]
+ * @param {() => number} [options.now]
+ */
+export function createOwnerLiveDiscovery({
+  getCall,
+  ownerKey = 'channel-owner',
+  ttlMs = 20_000,
+  now = Date.now,
+} = {}) {
+  const cache = new Map();
+  let generation = 0;
+  let lastVideoId = '';
+
+  function slot(key) {
+    return String(key || ownerKey);
+  }
+
+  return {
+    invalidate(key = ownerKey) {
+      cache.delete(slot(key));
+    },
+    async get() {
+      let call = null;
+      let key = ownerKey;
+      try {
+        const resolved = typeof getCall === 'function' ? await getCall() : null;
+        if (resolved && typeof resolved === 'object' && typeof resolved.call === 'function') {
+          call = resolved.call;
+          key = resolved.ownerKey || ownerKey;
+        } else {
+          call = resolved;
+        }
+      } catch (error) {
+        if (error?.kind === 'authentication' || error?.status === 401) {
+          return { ...emptyDiscovery('unauthenticated'), generation };
+        }
+        throw error;
+      }
+      if (typeof call !== 'function') {
+        return { ...emptyDiscovery('unauthenticated'), generation };
+      }
+      const cached = cache.get(slot(key));
+      if (cached && now() - cached.at < ttlMs) {
+        return { ...cached.identity, generation };
+      }
+      const identity = await discoverActiveYoutubeLive(call);
+      if (identity.videoId !== lastVideoId) {
+        generation += 1;
+        lastVideoId = identity.videoId || '';
+      }
+      cache.set(slot(key), { at: now(), identity });
+      return { ...identity, generation };
+    },
   };
 }
 

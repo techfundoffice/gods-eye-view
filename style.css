@@ -11690,11 +11690,18 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 #gev-nextchat-toggle,
 .gev-nextchat-header,
 .gev-nextchat-guidance,
-.gev-nextchat-status,
 .gev-nextchat-composer {
   /* Retain the homepage copy and controls in the DOM for rollback, while the
      broadcast presentation keeps only the two live lanes visible. */
   display: none;
+}
+
+#gev-nextchat-status {
+  display: block;
+  pointer-events: none;
+  padding: 0.15rem 0 0.4rem;
+  color: #ff8a8a;
+  text-shadow: 0 1px 3px #000;
 }
 
 #gev-nextchat-panel,

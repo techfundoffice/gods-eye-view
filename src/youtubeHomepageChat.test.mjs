@@ -55,47 +55,58 @@ test('ordinary chat and unsafe instructions never become globe actions', () => {
   assert.deepEqual(inferHomepageViewerActions('I want to see it'), []);
 });
 
-test('homepage feed is tied to the active broadcast and exposes normalized fields only', async () => {
+function liveIdentity(overrides = {}) {
+  return {
+    active: true,
+    status: 'live',
+    videoId: '9ZiwwXr-qU4',
+    title: 'Techfundoffice Live Stream',
+    watchUrl: 'https://www.youtube.com/watch?v=9ZiwwXr-qU4',
+    liveChatId: 'CHAT-LIVE',
+    generation: 1,
+    ...overrides,
+  };
+}
+
+test('homepage feed is tied to the discovered live broadcast and exposes normalized fields only', async () => {
+  const listed = [];
   const middleware = createYoutubeHomepageChatMiddleware({
-    sessionStatus: () => ({
-      status: 'live',
-      broadcast: {
-        id: 'CVSB4QJhVTU',
-        title: 'Gods Eye View Live',
-        watchUrl: 'https://www.youtube.com/watch?v=CVSB4QJhVTU',
-        streamKey: 'must-not-leak',
-      },
-    }),
-    chat: {
-      async poll(request) {
-        assert.equal(request.videoId, 'CVSB4QJhVTU');
-        assert.equal(request.continuation, 'NEXT');
-        return {
-          items: [{
-            id: 'chat-1',
-            snippet: {
-              displayMessage: 'Show me Ensenada, Mexico',
-              publishedAt: '2026-08-31T22:30:00.000Z',
-            },
-            authorDetails: {
-              displayName: 'CruiseWatcher',
-              profileImageUrl: 'https://secret.example/avatar',
-            },
-            apiKey: 'must-not-leak',
-          }],
-          nextPageToken: 'LATER',
-          pollingIntervalMillis: 6_000,
-        };
-      },
+    discoverActive: async () => liveIdentity({ streamKey: 'must-not-leak', sessionId: 'owner-session' }),
+    listChat: async (request) => {
+      listed.push(request);
+      assert.equal(request.liveChatId, 'CHAT-LIVE');
+      assert.equal(request.pageToken, 'NEXT');
+      return {
+        items: [{
+          id: 'chat-1',
+          snippet: {
+            displayMessage: 'Show me Ensenada, Mexico',
+            publishedAt: '2026-08-31T22:30:00.000Z',
+          },
+          authorDetails: {
+            displayName: 'CruiseWatcher',
+            profileImageUrl: 'https://secret.example/avatar',
+          },
+          apiKey: 'must-not-leak',
+        }],
+        nextPageToken: 'LATER',
+        pollingIntervalMillis: 6_000,
+      };
     },
   });
-  const response = await invoke(middleware, '/feed?continuation=NEXT');
+  const response = await invoke(
+    middleware,
+    '/feed?continuation=NEXT&videoId=stale-id&liveChatId=viewer-chat&broadcastId=CVSB4QJhVTU&sessionId=viewer-oauth',
+  );
   assert.equal(response.status, 200);
   assert.equal(response.body.active, true);
-  assert.equal(response.body.videoId, 'CVSB4QJhVTU');
+  assert.equal(response.body.status, 'live');
+  assert.equal(response.body.commandsEnabled, true);
+  assert.equal(response.body.videoId, '9ZiwwXr-qU4');
+  assert.equal(listed.length, 1);
   assert.deepEqual(response.body.items[0], {
     id: 'chat-1',
-    videoId: 'CVSB4QJhVTU',
+    videoId: '9ZiwwXr-qU4',
     author: 'CruiseWatcher',
     text: 'Show me Ensenada, Mexico',
     publishedAt: '2026-08-31T22:30:00.000Z',
@@ -107,20 +118,109 @@ test('homepage feed is tied to the active broadcast and exposes normalized field
     }],
   });
   const serialized = JSON.stringify(response.body);
-  assert.doesNotMatch(serialized, /must-not-leak|profileImageUrl|apiKey|streamKey/);
+  assert.doesNotMatch(serialized, /must-not-leak|profileImageUrl|apiKey|streamKey|owner-session|CHAT-LIVE|viewer-oauth|stale-id/);
 });
 
-test('homepage feed is explicitly offline when the shared live session is inactive', async () => {
+test('homepage feed is explicitly offline when the owner has no active broadcast', async () => {
   let polls = 0;
   const middleware = createYoutubeHomepageChatMiddleware({
-    sessionStatus: () => ({ status: 'stopped', broadcast: { id: 'CVSB4QJhVTU' } }),
-    chat: { async poll() { polls += 1; return {}; } },
+    discoverActive: async () => ({ active: false, status: 'offline' }),
+    listChat: async () => { polls += 1; return {}; },
   });
   const response = await invoke(middleware);
   assert.equal(response.status, 200);
   assert.equal(response.body.active, false);
+  assert.equal(response.body.status, 'offline');
+  assert.equal(response.body.commandsEnabled, false);
   assert.deepEqual(response.body.items, []);
   assert.equal(polls, 0);
+});
+
+test('homepage feed reports connecting instead of live while YouTube is liveStarting', async () => {
+  let polls = 0;
+  const middleware = createYoutubeHomepageChatMiddleware({
+    discoverActive: async () => ({
+      active: false,
+      status: 'connecting',
+      videoId: 'starting-id',
+      title: 'Soon',
+      watchUrl: 'https://www.youtube.com/watch?v=starting-id',
+      liveChatId: '',
+    }),
+    listChat: async () => { polls += 1; return {}; },
+  });
+  const response = await invoke(middleware);
+  assert.equal(response.body.active, false);
+  assert.equal(response.body.status, 'connecting');
+  assert.equal(response.body.commandsEnabled, false);
+  assert.equal(polls, 0);
+});
+
+test('homepage feed does not use viewer query params to select owner authorization or chat identity', async () => {
+  const owners = [];
+  const chats = [];
+  const middleware = createYoutubeHomepageChatMiddleware({
+    getOwnerCall: async () => {
+      owners.push('server-owner');
+      return null;
+    },
+    discoverActive: async () => liveIdentity(),
+    listChat: async (request) => {
+      chats.push(request);
+      return { items: [], nextPageToken: '', pollingIntervalMillis: 5_000 };
+    },
+  });
+  await invoke(middleware, '/feed?sessionId=viewer-session&authorization=stolen&liveChatId=other');
+  assert.deepEqual(owners, []);
+  assert.equal(chats[0].liveChatId, 'CHAT-LIVE');
+  assert.equal(chats[0].pageToken, '');
+});
+
+test('ended live chat clears identity and rediscovers instead of retrying a stale id', async () => {
+  let discoverCount = 0;
+  let chatCount = 0;
+  const middleware = createYoutubeHomepageChatMiddleware({
+    discoverActive: async () => {
+      discoverCount += 1;
+      if (discoverCount === 1) return liveIdentity({ liveChatId: 'STALE-CHAT' });
+      return { active: false, status: 'offline' };
+    },
+    listChat: async (request) => {
+      chatCount += 1;
+      if (request.liveChatId === 'STALE-CHAT') {
+        const error = new Error('This live broadcast has ended.');
+        error.kind = 'ended';
+        throw error;
+      }
+      return { items: [], nextPageToken: '' };
+    },
+    discovery: {
+      invalidate() { discoverCount += 0; },
+    },
+  });
+  const first = await invoke(middleware);
+  assert.equal(first.body.active, false);
+  assert.equal(first.body.status, 'ended');
+  assert.equal(first.body.error.kind, 'ended');
+  assert.equal(chatCount, 1);
+
+  const second = await invoke(middleware);
+  assert.equal(discoverCount, 2);
+  assert.equal(second.body.status, 'offline');
+  assert.equal(second.body.active, false);
+  assert.equal(chatCount, 1);
+});
+
+test('missing owner authorization returns a controlled unauthenticated feed', async () => {
+  const middleware = createYoutubeHomepageChatMiddleware({
+    discoverActive: async () => ({ active: false, status: 'unauthenticated' }),
+    listChat: async () => ({ items: [] }),
+  });
+  const response = await invoke(middleware);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.active, false);
+  assert.equal(response.body.status, 'unauthenticated');
+  assert.deepEqual(response.body.items, []);
 });
 
 test('permanent news ticker uses only the active broadcast watch URL and falls back offline', async () => {

@@ -2,16 +2,22 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   YOUTUBE_NOT_RECEIVED,
+  createOwnerLiveDiscovery,
+  discoverActiveYoutubeLive,
   extractIngestInfo,
   isCompatibleBroadcastStatus,
+  isStaleLiveChatError,
   isTerminalBroadcastStatus,
+  listActiveBroadcasts,
   listCompatibleBroadcasts,
+  listYoutubeLiveChatMessages,
   pickReusableBroadcast,
   nextYoutubeLiveTransition,
   pollYoutubeBroadcast,
   provisionYoutubeBroadcast,
   redactBroadcastView,
   selectYoutubeBroadcast,
+  summarizeBroadcastItem,
   transitionYoutubeBroadcast,
   youtubeLiveOperatorMessage,
 } from './youtubeBroadcast.js';
@@ -37,10 +43,11 @@ function broadcastResource({
   privacy = 'unlisted',
   lifeCycleStatus = 'ready',
   boundStreamId = 'stream-1',
+  liveChatId = '',
 } = {}) {
   return {
     id,
-    snippet: { title },
+    snippet: { title, liveChatId },
     status: { privacyStatus: privacy, lifeCycleStatus },
     contentDetails: { boundStreamId },
   };
@@ -289,4 +296,92 @@ test('extractIngestInfo prefers RTMPS and compatibility helpers match YouTube li
   assert.equal(isCompatibleBroadcastStatus('testing'), true);
   assert.equal(isCompatibleBroadcastStatus('complete'), false);
   assert.equal(isTerminalBroadcastStatus('revoked'), true);
+});
+
+test('summarizeBroadcastItem includes liveChatId and listActiveBroadcasts uses mine+active', async () => {
+  const summary = summarizeBroadcastItem(broadcastResource({
+    id: '9ZiwwXr-qU4',
+    title: 'Techfundoffice Live Stream',
+    lifeCycleStatus: 'live',
+    liveChatId: 'CHAT-LIVE',
+  }));
+  assert.equal(summary.liveChatId, 'CHAT-LIVE');
+  assert.equal(summary.watchUrl, 'https://www.youtube.com/watch?v=9ZiwwXr-qU4');
+
+  const { call, seen } = recordingCall(() => ({
+    items: [
+      broadcastResource({ id: 'ended-looking', lifeCycleStatus: 'complete', liveChatId: 'old' }),
+      broadcastResource({ id: '9ZiwwXr-qU4', lifeCycleStatus: 'live', liveChatId: 'CHAT-LIVE', title: 'Now' }),
+    ],
+  }));
+  const rows = await listActiveBroadcasts(call);
+  assert.equal(seen[0].resource, 'liveBroadcasts');
+  assert.equal(seen[0].params.broadcastStatus, 'active');
+  assert.equal(seen[0].params.mine, 'true');
+  assert.equal(rows[1].id, '9ZiwwXr-qU4');
+  assert.equal(rows[1].liveChatId, 'CHAT-LIVE');
+});
+
+test('discoverActiveYoutubeLive selects verified live chat and treats liveStarting as connecting', async () => {
+  const liveCall = recordingCall(() => ({
+    items: [
+      broadcastResource({ id: 'starting', lifeCycleStatus: 'liveStarting', liveChatId: '' }),
+      broadcastResource({ id: '9ZiwwXr-qU4', lifeCycleStatus: 'live', liveChatId: 'CHAT-LIVE', title: 'Now' }),
+    ],
+  })).call;
+  const live = await discoverActiveYoutubeLive(liveCall);
+  assert.equal(live.active, true);
+  assert.equal(live.status, 'live');
+  assert.equal(live.videoId, '9ZiwwXr-qU4');
+  assert.equal(live.liveChatId, 'CHAT-LIVE');
+
+  const starting = await discoverActiveYoutubeLive(recordingCall(() => ({
+    items: [broadcastResource({ id: 'starting', lifeCycleStatus: 'liveStarting', liveChatId: '' })],
+  })).call);
+  assert.equal(starting.active, false);
+  assert.equal(starting.status, 'connecting');
+  assert.equal(starting.videoId, 'starting');
+
+  const offline = await discoverActiveYoutubeLive(recordingCall(() => ({ items: [] })).call);
+  assert.equal(offline.status, 'offline');
+  assert.equal(offline.active, false);
+});
+
+test('owner live discovery cache is scoped and cleared on stale chat errors', async () => {
+  let lists = 0;
+  const discovery = createOwnerLiveDiscovery({
+    ownerKey: 'channel-owner',
+    ttlMs: 60_000,
+    getCall: async () => async () => {
+      lists += 1;
+      return {
+        items: [broadcastResource({ id: '9ZiwwXr-qU4', lifeCycleStatus: 'live', liveChatId: 'CHAT-LIVE' })],
+      };
+    },
+  });
+  const first = await discovery.get();
+  const second = await discovery.get();
+  assert.equal(first.videoId, '9ZiwwXr-qU4');
+  assert.equal(second.videoId, first.videoId);
+  assert.equal(lists, 1);
+  discovery.invalidate();
+  await discovery.get();
+  assert.equal(lists, 2);
+  assert.equal(isStaleLiveChatError({ kind: 'ended' }), true);
+  assert.equal(isStaleLiveChatError({ kind: 'not-found' }), true);
+  assert.equal(isStaleLiveChatError({ reasons: ['liveChatEnded'] }), true);
+  assert.equal(isStaleLiveChatError({ kind: 'quota' }), false);
+});
+
+test('listYoutubeLiveChatMessages uses the discovered chat id', async () => {
+  const { call, seen } = recordingCall(() => ({
+    items: [{ id: 'm1', snippet: { displayMessage: 'hi' } }],
+    nextPageToken: 'T2',
+    pollingIntervalMillis: 8000,
+  }));
+  const result = await listYoutubeLiveChatMessages(call, { liveChatId: 'CHAT-LIVE', pageToken: 'T1' });
+  assert.equal(seen[0].resource, 'liveChatMessages');
+  assert.equal(seen[0].params.liveChatId, 'CHAT-LIVE');
+  assert.equal(seen[0].params.pageToken, 'T1');
+  assert.equal(result.nextPageToken, 'T2');
 });

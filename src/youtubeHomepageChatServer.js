@@ -1,8 +1,13 @@
 /**
- * Public, read-only live-chat feed for the broadcast currently owned by the
- * shared live session. The client cannot choose an arbitrary video id.
+ * Public, read-only live-chat feed for the channel owner's current YouTube
+ * broadcast. Identity comes from liveBroadcasts.list (active, mine) →
+ * snippet.liveChatId. Viewers cannot choose a video, chat, or OAuth session.
  */
-import { createYoutubeInnerTubeChat } from './youtubeInnerTubeChat.js';
+import {
+  createOwnerLiveDiscovery,
+  isStaleLiveChatError,
+  listYoutubeLiveChatMessages,
+} from './youtubeBroadcast.js';
 import {
   boundedText,
   detectUnsafeInterpretation,
@@ -11,8 +16,8 @@ import {
 import { validateViewIntent } from './youtubeViewAgent.js';
 import { parsePublicCommand } from './youtubePublicCommandPolicy.js';
 
-const ACTIVE_STATUSES = new Set(['live', 'public-live-unverified']);
 const MAX_CONTINUATION = 4096;
+const VIEWER_IDENTITY_PARAMS = ['videoId', 'liveChatId', 'broadcastId', 'session', 'sessionId', 'authorization'];
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
@@ -71,7 +76,7 @@ export function inferHomepageViewerActions(text) {
 
 function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
   const normalized = normalizeIncomingMessage(raw, {
-    source: 'innerTube',
+    source: 'liveChat',
     videoId,
     now,
   });
@@ -88,22 +93,79 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
   };
 }
 
+function publicFeedBody(identity, extras = {}) {
+  const status = boundedText(identity.status || 'offline', 40) || 'offline';
+  const verifiedLive = identity.active === true && status === 'live' && Boolean(identity.liveChatId);
+  return {
+    active: verifiedLive,
+    status: verifiedLive ? 'live' : status,
+    videoId: verifiedLive || status === 'connecting' ? boundedText(identity.videoId, 80) : '',
+    title: verifiedLive || status === 'connecting' ? boundedText(identity.title, 120) : '',
+    watchUrl: verifiedLive || status === 'connecting' ? boundedText(identity.watchUrl, 240) : '',
+    items: [],
+    nextPageToken: '',
+    pollingIntervalMillis: 5_000,
+    generation: Math.max(0, Number(identity.generation) || 0),
+    commandsEnabled: verifiedLive,
+    commands: [],
+    ...extras,
+  };
+}
+
+/**
+ * Public homepage chat middleware.
+ *
+ * @param {object} [options]
+ * @param {() => Promise<object>} [options.discoverActive]
+ * @param {(opts: {liveChatId: string, pageToken: string}) => Promise<object>} [options.listChat]
+ * @param {{get: Function, invalidate: Function}} [options.discovery]
+ * @param {() => Promise<Function|{call: Function, ownerKey?: string}|null>} [options.getOwnerCall]
+ * @param {Function} [options.now]
+ * @param {object|null} [options.commandRuntime]
+ */
 export function createYoutubeHomepageChatMiddleware({
-  sessionStatus = () => null,
-  chat = createYoutubeInnerTubeChat(),
+  discoverActive = null,
+  listChat = null,
+  discovery = null,
+  getOwnerCall = null,
   now = Date.now,
   commandRuntime = null,
 } = {}) {
-  const executorMiddleware = commandRuntime?.middleware?.({ getBinding: () => {
-    const session = sessionStatus() || {};
-    const live = session.live && typeof session.live === 'object' ? session.live : session;
-    const broadcast = live.broadcast || session.broadcast || {};
-    return {
-      videoId: boundedText(broadcast.id || broadcast.videoId, 80),
-      generation: Math.max(0, Number(live.generation || session.generation) || 0),
-      commandsEnabled: String(live.status || session.status || '').toLowerCase() === 'live',
-    };
-  } });
+  const ownerDiscovery = discovery || (typeof getOwnerCall === 'function'
+    ? createOwnerLiveDiscovery({ getCall: getOwnerCall })
+    : null);
+  let lastBinding = { videoId: '', generation: 0, commandsEnabled: false };
+  let lastCall = null;
+
+  async function resolveIdentity() {
+    if (typeof discoverActive === 'function') return discoverActive() || {};
+    if (ownerDiscovery) return ownerDiscovery.get();
+    return { active: false, status: 'offline' };
+  }
+
+  async function resolveCall() {
+    if (lastCall) return lastCall;
+    if (typeof getOwnerCall !== 'function') return null;
+    const resolved = await getOwnerCall();
+    if (resolved && typeof resolved === 'object' && typeof resolved.call === 'function') return resolved.call;
+    return typeof resolved === 'function' ? resolved : null;
+  }
+
+  async function readChat({ liveChatId, pageToken }) {
+    if (typeof listChat === 'function') return listChat({ liveChatId, pageToken });
+    const call = await resolveCall();
+    return listYoutubeLiveChatMessages(call, { liveChatId, pageToken });
+  }
+
+  function invalidate() {
+    ownerDiscovery?.invalidate?.();
+    lastCall = null;
+  }
+
+  const executorMiddleware = commandRuntime?.middleware?.({
+    getBinding: () => lastBinding,
+  });
+
   return async function youtubeHomepageChatMiddleware(req, res) {
     const method = String(req.method || 'GET').toUpperCase();
     const parsed = new URL(String(req.url || '/'), 'http://internal');
@@ -118,75 +180,78 @@ export function createYoutubeHomepageChatMiddleware({
       return;
     }
 
-    const session = sessionStatus() || {};
-    const live = session.live && typeof session.live === 'object' ? session.live : session;
-    const broadcast = live.broadcast || session.broadcast || {};
-    const videoId = boundedText(broadcast.id || broadcast.videoId, 80);
-    const status = boundedText(live.status || session.status, 40).toLowerCase();
-    const generation = Math.max(0, Number(live.generation || session.generation) || 0);
-    const commandsEnabled = status === 'live';
-    if (!videoId || !ACTIVE_STATUSES.has(status)) {
-      const commands = await commandRuntime?.statuses?.({ videoId, generation, commandsEnabled: false }) || [];
-      sendJson(res, 200, {
-        active: false,
-        status: status || 'offline',
-        videoId: '',
-        watchUrl: '',
-        items: [],
-        nextPageToken: '',
-        pollingIntervalMillis: 5_000,
-        generation,
-        commandsEnabled: false,
-        commands,
-      });
+    for (const name of VIEWER_IDENTITY_PARAMS) parsed.searchParams.delete(name);
+
+    let identity = {};
+    try {
+      identity = await resolveIdentity();
+    } catch (error) {
+      if (error?.kind === 'authentication' || error?.status === 401) {
+        identity = { active: false, status: 'unauthenticated' };
+      } else {
+        sendJson(res, 200, publicFeedBody({ active: false, status: 'unavailable' }, {
+          error: {
+            kind: boundedText(error?.kind || 'upstream', 40),
+            message: boundedText(error?.message || 'Unable to discover the current YouTube broadcast.', 160),
+          },
+        }));
+        return;
+      }
+    }
+
+    const status = boundedText(identity.status || 'offline', 40) || 'offline';
+    const videoId = boundedText(identity.videoId, 80);
+    const liveChatId = boundedText(identity.liveChatId, 80);
+    const generation = Math.max(0, Number(identity.generation) || 0);
+    const verifiedLive = identity.active === true && status === 'live' && Boolean(liveChatId);
+    lastBinding = { videoId: verifiedLive ? videoId : '', generation, commandsEnabled: verifiedLive };
+
+    if (!verifiedLive) {
+      const commands = await commandRuntime?.statuses?.({ ...lastBinding, commandsEnabled: false }) || [];
+      sendJson(res, 200, publicFeedBody(identity, { commands }));
       return;
     }
 
+    const pageToken = boundedText(parsed.searchParams.get('continuation'), MAX_CONTINUATION);
     try {
-      const result = await chat.poll({
-        videoId,
-        continuation: boundedText(parsed.searchParams.get('continuation'), MAX_CONTINUATION),
-        cacheKey: `homepage-live:${videoId}`,
-      });
+      const result = await readChat({ liveChatId, pageToken });
       const items = (result.items || [])
-        .map((item) => publicMessage(item, videoId, now, { commandsEnabled }))
+        .map((item) => publicMessage(item, videoId, now, { commandsEnabled: true }))
         .filter(Boolean);
-      const binding = { videoId, generation, commandsEnabled };
+      const binding = lastBinding;
       for (const item of items) {
         void Promise.resolve(commandRuntime?.registerMessage?.(item, binding)).catch(() => {});
       }
       const commands = await commandRuntime?.statuses?.(binding) || [];
-      sendJson(res, 200, {
-        active: true,
-        status,
-        videoId,
-        title: boundedText(broadcast.title || 'YouTube Live', 120),
-        watchUrl: boundedText(broadcast.watchUrl, 240),
+      sendJson(res, 200, publicFeedBody(identity, {
         items,
         nextPageToken: boundedText(result.nextPageToken, MAX_CONTINUATION),
         pollingIntervalMillis: Math.max(5_000, Math.min(30_000, Number(result.pollingIntervalMillis) || 5_000)),
-        generation,
-        commandsEnabled,
         commands,
-      });
+      }));
     } catch (error) {
-      sendJson(res, error?.status || 502, {
-        active: true,
-        status,
-        videoId,
-        items: [],
-        nextPageToken: '',
-        pollingIntervalMillis: 10_000,
-        error: {
-          kind: boundedText(error?.kind || 'upstream', 40),
-          message: error?.kind
-            ? boundedText(error.message, 160)
-            : 'Unable to read the active YouTube live chat.',
-        },
+      if (isStaleLiveChatError(error)) invalidate();
+      const kind = isStaleLiveChatError(error)
+        ? boundedText(error?.kind === 'ended' ? 'ended' : (error?.kind || 'unavailable'), 40)
+        : boundedText(error?.kind || 'upstream', 40);
+      const failedStatus = kind === 'ended' ? 'ended' : kind === 'authentication' ? 'unauthenticated' : 'unavailable';
+      lastBinding = { videoId: '', generation, commandsEnabled: false };
+      const commands = await commandRuntime?.statuses?.(lastBinding) || [];
+      sendJson(res, 200, publicFeedBody({
+        active: false,
+        status: failedStatus,
         generation,
-        commandsEnabled,
-        commands: await commandRuntime?.statuses?.({ videoId, generation, commandsEnabled }) || [],
-      });
+      }, {
+        error: {
+          kind,
+          message: boundedText(
+            error?.message || 'Unable to read the active YouTube live chat.',
+            160,
+          ),
+        },
+        pollingIntervalMillis: 10_000,
+        commands,
+      }));
     }
   };
 }

@@ -235,8 +235,27 @@ export function createYoutubeHomepageInteraction({
         commandsEnabled = false;
         seen.clear();
         commandStates.clear();
-        setTickerUrl('', false);
-        setStatus('YT chat is waiting for an active broadcast', 'offline');
+        const feedStatus = safeText(payload.status, 40);
+        const errorText = safeText(payload.error?.message, 160);
+        if (feedStatus === 'connecting') {
+          setTickerUrl(payload.watchUrl, true);
+          setStatus('YT LIVE · connecting to YouTube chat', 'live');
+        } else {
+          setTickerUrl('', false);
+          const state = ['ended', 'unavailable', 'unauthenticated', 'error'].includes(feedStatus)
+            ? 'error'
+            : 'offline';
+          setStatus(
+            errorText
+              ? `YT chat unavailable · ${errorText}`
+              : feedStatus === 'unauthenticated'
+                ? 'YT chat unavailable · YouTube sign-in required'
+                : feedStatus === 'ended'
+                  ? 'YT chat unavailable · This live broadcast has ended.'
+                  : 'YT chat is waiting for an active broadcast',
+            state,
+          );
+        }
       } else {
         const nextVideoId = safeText(payload.videoId, 80);
         const nextGeneration = Math.max(0, Number(payload.generation) || 0);
