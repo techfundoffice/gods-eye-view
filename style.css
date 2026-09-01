@@ -10143,12 +10143,15 @@ body.cockpit-mode .go-live-phone {
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
-/* The console is operator chrome, not part of a recorded frame. */
+/* ADMIN is the permanent operator escape hatch. Keep it reachable in every
+   presentation mode, including clean view, Cockpit, scenes, and recording. */
 body.ui-clean-view .admin-launch,
-body.cockpit-mode .admin-launch {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
+body.cockpit-mode .admin-launch,
+body.scene-playback-mode .admin-launch,
+body.recording-mode .admin-launch {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .admin-console {

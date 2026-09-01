@@ -235,8 +235,9 @@ export function rememberFirstRunSessionDismissed(sessionStorageRef) {
 /**
  * Run a launcher choice against the app's existing internal APIs.
  *
- * The chooser stays open after every mission, successful or not. A visitor can
- * compare views without reloading and closes it explicitly with Escape.
+ * A successful choice tucks the chooser to a MISSION CONTROL chip that stays
+ * on screen and is always clickable, so another view is one restore away.
+ * Escape still dismisses the launcher entirely.
  *
  * @param {string} choice Key of FIRST_RUN_MISSIONS.
  * @param {object} deps
@@ -427,22 +428,25 @@ export function initFirstRunExperience({
     }
   };
 
+  let launchGeneration = 0;
+
   const setBusy = (next, choice = '') => {
     busy = next;
     root.dataset.state = next ? 'loading' : 'ready';
     root.setAttribute('aria-busy', String(next));
-    // aria-disabled, not `disabled`: disabling the focused button drops focus to
-    // <body> mid-flight and strands a keyboard visitor outside the launcher.
-    for (const button of buttons) button.setAttribute('aria-disabled', String(next));
+    // Tiles stay clickable during a launch: a second view must be able to
+    // supersede the first, and the MISSION CONTROL chip after a success must
+    // restore into a live chooser rather than a locked one.
     if (!status) return;
     if (next) status.textContent = FIRST_RUN_MISSIONS[choice]?.busyText || 'Working…';
     else if (status.dataset.sticky !== 'true') status.textContent = defaultStatus;
   };
 
   const onChoice = async (event) => {
-    if (busy || closing) return;
+    if (closing) return;
     const choice = event.currentTarget?.dataset?.firstRunChoice;
     if (!FIRST_RUN_MISSIONS[choice]) return;
+    const generation = ++launchGeneration;
     if (status) delete status.dataset.sticky;
     setBusy(true, choice);
     let outcome = null;
@@ -469,13 +473,17 @@ export function initFirstRunExperience({
       // ordinary "could not enable" path returns ok:false and stays quiet.
       console.warn('[First run] Mission launch failed:', error);
     }
-    if (closing) return;
+    if (closing || generation !== launchGeneration) return;
     if (outcome?.ok) {
       if (status) {
         status.dataset.sticky = 'true';
-        status.textContent = 'View selected. Choose another view or press ESC to close.';
+        status.textContent = 'View selected. Restore Mission Control to choose another view, or press ESC to close.';
       }
       setBusy(false);
+      // After the first click the full card would cover the view it just
+      // staged. Tuck to the MISSION CONTROL chip — that control stays on
+      // screen and is always clickable for the rest of the session.
+      setWindowState('minimized', { focusRestore: true });
       return;
     }
     const failed = outcome?.failedLayerIds?.length
@@ -540,13 +548,13 @@ export function initFirstRunExperience({
 
   for (const button of buttons) button.addEventListener('click', onChoice);
   minimizeButton?.addEventListener('click', () => {
-    if (!busy && !closing) setWindowState('minimized', { focusRestore: true });
+    if (!closing) setWindowState('minimized', { focusRestore: true });
   });
   maximizeButton?.addEventListener('click', () => {
-    if (!busy && !closing) setWindowState(root.classList.contains('is-maximized') ? 'normal' : 'maximized');
+    if (!closing) setWindowState(root.classList.contains('is-maximized') ? 'normal' : 'maximized');
   });
   restoreButton?.addEventListener('click', () => {
-    if (!busy && !closing) setWindowState('normal', { focusRestore: true });
+    if (!closing) setWindowState('normal', { focusRestore: true });
   });
   // Capture phase: the app binds its own global hotkeys (including bare letters
   // that cycle detection and styles), and the launcher owns the keyboard first.
