@@ -975,18 +975,11 @@
     <header class="first-run-header">
       <span class="first-run-kicker">MISSION CONTROL</span>
       <div class="first-run-window-controls" role="group" aria-label="Mission Control size">
-        <button id="first-run-minimize" class="first-run-window-control" type="button" aria-label="Minimize Mission Control" title="Minimize Mission Control">
-          <span class="material-symbols-outlined" aria-hidden="true">minimize</span>
-        </button>
         <button id="first-run-maximize" class="first-run-window-control" type="button" aria-label="Restore Mission Control size" aria-pressed="true" title="Restore Mission Control size">
           <span class="material-symbols-outlined" aria-hidden="true">open_in_full</span>
         </button>
       </div>
     </header>
-    <button id="first-run-restore" class="first-run-restore" type="button" aria-label="Restore Mission Control" title="Restore Mission Control">
-      <span class="material-symbols-outlined" aria-hidden="true">open_in_full</span>
-      <span>MISSION CONTROL</span>
-    </button>
     <div class="first-run-choices">
       <button type="button" data-first-run-choice="contacts">
         <span class="material-symbols-outlined" aria-hidden="true">radar</span>
@@ -1012,6 +1005,61 @@
         <span><strong>EXPLORE MANUALLY</strong><small>Begin with a clean globe</small></span>
         <span class="material-symbols-outlined first-run-arrow" aria-hidden="true">arrow_forward</span>
       </button>
+    </div>
+    <div class="first-run-layers" aria-label="Data layers">
+      <span class="first-run-layers-kicker">DATA LAYERS</span>
+      <div class="first-run-layers-list">
+        <button type="button" data-mc-layer="traffic" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">traffic</span>
+          <span><strong>ROADS &amp; TRAFFIC</strong><small>TomTom · OSM</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+        <button type="button" data-mc-layer="photoreal" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">apartment</span>
+          <span><strong>PHOTOREAL 3D</strong><small>Google Map Tiles</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+        <button type="button" data-mc-layer="ais-live-vessels" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">directions_boat</span>
+          <span><strong>OCEAN VESSELS</strong><small>AISStream</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+        <button type="button" data-mc-layer="telegeography-submarine-cables" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">cable</span>
+          <span><strong>SUBSEA CABLES</strong><small>TeleGeography</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+        <button type="button" data-mc-layer="nws-alerts" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">thunderstorm</span>
+          <span><strong>WEATHER ALERTS</strong><small>US NWS</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+        <button type="button" data-mc-layer="earthquakes" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">landslide</span>
+          <span><strong>EARTHQUAKES</strong><small>USGS</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+        <button type="button" data-mc-layer="local-firms" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">local_fire_department</span>
+          <span><strong>FIRES</strong><small>NASA FIRMS · LIVE</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+        <button type="button" data-mc-layer="natural-hazards" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">volcano</span>
+          <span><strong>STORMS &amp; VOLCANOES</strong><small>NASA · USGS · FEMA · ReliefWeb</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+        <button type="button" data-mc-layer="nps-parks" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">park</span>
+          <span><strong>PARKS</strong><small>NPS</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+        <button type="button" data-mc-layer="usgs-water" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true">water</span>
+          <span><strong>WATER</strong><small>USGS NWIS</small></span>
+          <span class="material-symbols-outlined first-run-layer-check" aria-hidden="true">check_box_outline_blank</span>
+        </button>
+      </div>
     </div>
     <!-- Kept out of the header row: it swaps to mission progress and errors, and
          a live region that also holds layout makes the row jump as it speaks. -->

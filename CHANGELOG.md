@@ -5,8 +5,17 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ## [Unreleased] — 2026-09-01
 
+### Added
+
+- COMMANDS starts with **`/help`**. Typing `/help` in YouTube live chat shows `/help` in LIVE COMMENTS and typewrites `I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually` in GEV ACTIONS · VIEW REQUESTS. Those four commands, including **`/explore-manually`**, run the matching Mission Control views through the GEV action runner.
+
 ### Changed
 
+- Public YouTube globe commands and the HUD five-word summary use OpenRouter's
+  Free Models Router (`openrouter/free`) instead of OpenAI. GEV MIC / Realtime
+  is unchanged and still skipped. Free-pool rate limits reject extra public
+  commands rather than falling through to a paid model.
+- Mission Control no longer tucks or closes when a view tile is chosen. The minimize control and restore chip are gone; the card stays open.
 - Homepage chrome no longer stacks on itself: the command dock sits above the
   COMMANDS bar and news ticker, right-rail tabs yield to LIVE COMMENTS, HUD
   telemetry sits inboard of comments, and left HUD yields to Mission Control
@@ -16,7 +25,8 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
   sit under the header on a reserved fill so globe HUD cannot show through
   them. Clicks around the panel still reach the globe. The window opens
   expanded by default and stays content-sized (compact tiles, no tall empty
-  card).
+  card). A DATA LAYERS list under the mission tiles toggles existing globe
+  feeds (not a rename of the card, and not Google’s proprietary catalog).
 - LIVE COMMENTS has a reserved heading row and lane fill. Author and message
   stack as separate rows. GEV Actions, comments, status, COMMANDS, and the
   news ticker stay in non-overlapping layout areas.

@@ -13,6 +13,7 @@ import {
   createYoutubeHomepageInteraction,
   memoryPollDelay,
 } from './youtubeHomepageInteraction.js';
+import { PUBLIC_HELP_REPLY } from './youtubePublicCommandPolicy.js';
 
 function invoke(middleware, url = '/feed') {
   return new Promise((resolve, reject) => {
@@ -508,4 +509,62 @@ test('generation change still clears browser dedupe when comments keep flowing',
   interaction.getState();
   const state = interaction.getState();
   assert.equal(state.seen, 1);
+});
+
+test('YouTube /help appears in LIVE COMMENTS and typewrites the GEV ACTIONS reply', async () => {
+  const displayed = [];
+  const replies = [];
+  const interaction = createYoutubeHomepageInteraction({
+    nextchat: {
+      publishViewerMessage(message) { displayed.push(message); },
+      typeActionReply(text) { replies.push(text); },
+      setHarnessStatus() {},
+    },
+    documentRef: null,
+    now: () => 20_000,
+  });
+  await interaction.ingest([{
+    id: 'help-comment',
+    videoId: 'vid',
+    author: 'ChatViewer',
+    text: '/help',
+    publishedAt: '2026-09-01T00:00:00.000Z',
+    actions: [],
+  }]);
+  assert.equal(displayed.length, 1);
+  assert.equal(displayed[0].text, '/help');
+  assert.equal(displayed[0].author, 'ChatViewer');
+  interaction.publishCommandStatuses([{
+    id: 'cmd-help',
+    command: '/help',
+    state: 'succeeded',
+    answer: PUBLIC_HELP_REPLY,
+    viewer: 'ChatViewer',
+    commentId: 'help-comment',
+    videoId: 'vid',
+    updatedAt: 20_000,
+  }]);
+  assert.deepEqual(replies, [PUBLIC_HELP_REPLY]);
+  assert.equal(displayed.length, 1, 'help reply must not duplicate into LIVE COMMENTS');
+});
+
+test('YouTube /explore-manually is ingested as a live comment', async () => {
+  const displayed = [];
+  const interaction = createYoutubeHomepageInteraction({
+    nextchat: {
+      publishViewerMessage(message) { displayed.push(message); },
+      setHarnessStatus() {},
+    },
+    documentRef: null,
+    now: () => 20_000,
+  });
+  await interaction.ingest([{
+    id: 'explore-comment',
+    videoId: 'vid',
+    author: 'Explorer',
+    text: '/explore-manually',
+    publishedAt: '2026-09-01T00:00:00.000Z',
+    actions: [],
+  }]);
+  assert.equal(displayed[0].text, '/explore-manually');
 });

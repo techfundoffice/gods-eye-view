@@ -2990,3 +2990,69 @@ test('front5: 0.99 km due EAST is the subject, though a degree box rejects it', 
     assert.equal(result.window.centeredOn, 'N546PC');
   });
 });
+
+test('run_view_preset executes Mission Control views including /explore-manually', async () => {
+  globalThis.window = globalThis.window || { clearTimeout, setTimeout, requestIdleCallback: null };
+  const { viewer } = createVoiceNavigationHarness();
+  viewer.trackedEntity = undefined;
+  const modes = [];
+  const layers = [];
+  const globes = [];
+  const enabled = new Map();
+  const layerIds = ['natural-hazards', 'earthquakes', 'local-firms'];
+  const runner = createGevActionRunner({
+    viewer,
+    styleManager: {
+      setContextMode: async (mode) => {
+        modes.push(mode);
+        return { ok: true, action: 'set_context_mode', mode };
+      },
+      getContextModeState: () => ({ mode: null }),
+      setPanelCollapsed() {},
+      resetToGlobeView: async () => {
+        globes.push('globe');
+        return { ok: true, action: 'zoom_to_globe' };
+      },
+    },
+    dataManager: {
+      layers: new Map(layerIds.map((id) => [id, {}])),
+      async setEnabled(id, value) {
+        enabled.set(id, value);
+        layers.push({ id, value });
+        return true;
+      },
+      isEnabled(id) {
+        return enabled.get(id) === true;
+      },
+      getLayerLifecycleState(id) {
+        const on = enabled.get(id) === true;
+        return { enabled: on, lifecycleState: on ? 'enabled' : 'disabled', uncertain: false };
+      },
+      getAll() {
+        return layerIds.map((id) => ({ id, name: id }));
+      },
+    },
+  });
+
+  const contacts = await runner('run_view_preset', { preset: '/live-contacts' });
+  assert.equal(contacts.ok, true);
+  assert.equal(contacts.preset, '/live-contacts');
+  assert.equal(contacts.choice, 'contacts');
+  assert.deepEqual(modes, ['flights']);
+
+  const missions = await runner('run_view_preset', { preset: '/space-missions' });
+  assert.equal(missions.ok, true);
+  assert.equal(missions.choice, 'space-missions');
+  assert.equal(modes.at(-1), 'space-missions');
+
+  const environmental = await runner('run_view_preset', { preset: '/environmental' });
+  assert.equal(environmental.ok, true);
+  assert.deepEqual(layers.map((entry) => entry.id), layerIds);
+  assert.ok(globes.length >= 1);
+
+  const explore = await runner('run_view_preset', { preset: '/explore-manually' });
+  assert.equal(explore.ok, true);
+  assert.equal(explore.choice, 'explore');
+  assert.equal(explore.preset, '/explore-manually');
+  assert.deepEqual(layers.map((entry) => entry.id), layerIds, '/explore-manually does not enable layers');
+});

@@ -20,6 +20,8 @@ import { isPickedWorldPosition } from '../data/scenePick.js';
 import { resolveRegionRingForQuery } from '../annotations/annotationResolver.js';
 import { normalizeRadioCountryInput } from '../data/radioCountry.js';
 import { TR3B_CLASS } from '../data/tr3bRegistry.js';
+import { runFirstRunChoice } from '../firstRunExperience.js';
+import { PUBLIC_VIEW_PRESETS } from '../youtubePublicCommandPolicy.js';
 
 const ALLOWED_STYLES = new Set(['normal', 'retro', 'surveillance', 'thermal', 'anime', 'noir', 'snow']);
 const PANEL_ALIASES = new Map([
@@ -632,6 +634,25 @@ export function createGevActionRunner({ viewer, styleManager, dataManager, scene
       return {
         ...withContextModeVocabulary(result),
         ...(contactsWindow ? { contactsWindow } : {}),
+      };
+    }
+
+    if (name === 'run_view_preset') {
+      const preset = String(args.preset || '').trim().toLowerCase();
+      const choice = PUBLIC_VIEW_PRESETS[preset];
+      if (!choice) {
+        return { ok: false, action: 'run_view_preset', error: `Unknown view preset: ${args.preset || 'missing'}` };
+      }
+      const result = await runFirstRunChoice(choice, {
+        setContextMode: (mode) => runGevAction('set_context_mode', { mode }, runOptions),
+        setLayerEnabled: (layerId) => runGevAction('set_layer_visibility', { layerId, enabled: true }, runOptions),
+        flyToGlobe: () => runGevAction('zoom_to_globe', {}, runOptions),
+      });
+      return {
+        ...result,
+        ok: result?.ok !== false,
+        action: 'run_view_preset',
+        preset,
       };
     }
 

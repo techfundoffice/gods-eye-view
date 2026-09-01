@@ -120,6 +120,25 @@ export const FIRST_RUN_MISSIONS = Object.freeze({
   explore: Object.freeze({ kind: 'none' }),
 });
 
+/**
+ * Google Earth–inspired subset of layers this globe already plots.
+ * Toggles only — no camera, no Context mode. Missing GE items (Photos,
+ * Places dump, WWF, wrecks) are omitted rather than faked.
+ * @type {ReadonlyArray<{id: string, layerId?: string, stackId?: string}>}
+ */
+export const FIRST_RUN_DATA_LAYERS = Object.freeze([
+  Object.freeze({ id: 'traffic', layerId: 'traffic' }),
+  Object.freeze({ id: 'photoreal', stackId: 'photoreal' }),
+  Object.freeze({ id: 'ais-live-vessels', layerId: 'ais-live-vessels' }),
+  Object.freeze({ id: 'telegeography-submarine-cables', layerId: 'telegeography-submarine-cables' }),
+  Object.freeze({ id: 'nws-alerts', layerId: 'nws-alerts' }),
+  Object.freeze({ id: 'earthquakes', layerId: 'earthquakes' }),
+  Object.freeze({ id: 'local-firms', layerId: 'local-firms' }),
+  Object.freeze({ id: 'natural-hazards', layerId: 'natural-hazards' }),
+  Object.freeze({ id: 'nps-parks', layerId: 'nps-parks' }),
+  Object.freeze({ id: 'usgs-water', layerId: 'usgs-water' }),
+]);
+
 /*
  * STORAGE ACCESS IS LAZY AND GUARDED — NEVER A DEFAULT PARAMETER.
  *
@@ -235,9 +254,9 @@ export function rememberFirstRunSessionDismissed(sessionStorageRef) {
 /**
  * Run a launcher choice against the app's existing internal APIs.
  *
- * A successful choice tucks the chooser to a MISSION CONTROL chip that stays
- * on screen and is always clickable, so another view is one restore away.
- * Escape still dismisses the launcher entirely.
+ * A successful choice leaves the chooser open so another view can be picked
+ * immediately. The card has no minimize or close control. Escape still
+ * dismisses the launcher entirely.
  *
  * @param {string} choice Key of FIRST_RUN_MISSIONS.
  * @param {object} deps
@@ -334,25 +353,24 @@ export function initFirstRunExperience({
 
   const status = root.querySelector('[data-first-run-status]');
   const buttons = [...root.querySelectorAll('[data-first-run-choice]')];
-  const minimizeButton = root.querySelector('#first-run-minimize');
+  const layerButtons = [...root.querySelectorAll('[data-mc-layer]')];
   const maximizeButton = root.querySelector('#first-run-maximize');
-  const restoreButton = root.querySelector('#first-run-restore');
   const defaultStatus = status?.textContent || '';
   const previouslyFocused = documentRef.activeElement;
   let busy = false;
   let closing = false;
+  let unsubscribeLayers = null;
 
   const setWindowState = (state, { focusRestore = false } = {}) => {
-    const minimized = state === 'minimized';
+    // Minimized/chip chrome is gone. Ignore tuck requests so no leftover
+    // caller can collapse the card.
+    if (state === 'minimized') return;
     const maximized = state === 'maximized';
-    root.classList.toggle('is-minimized', minimized);
+    root.classList.remove('is-minimized');
     root.classList.toggle('is-maximized', maximized);
-    minimizeButton?.setAttribute('aria-label', minimized ? 'Mission Control minimized' : 'Minimize Mission Control');
     maximizeButton?.setAttribute('aria-pressed', String(maximized));
     maximizeButton?.setAttribute('aria-label', maximized ? 'Restore Mission Control size' : 'Maximize Mission Control');
-    if (focusRestore) {
-      (minimized ? restoreButton : maximizeButton)?.focus?.({ preventScroll: true });
-    }
+    if (focusRestore) maximizeButton?.focus?.({ preventScroll: true });
     syncScrollAffordance();
   };
 
@@ -413,6 +431,7 @@ export function initFirstRunExperience({
     documentRef.removeEventListener('keydown', onKeyDown, true);
     globalThis.removeEventListener?.('resize', onViewportResize);
     surfaceObserver?.disconnect();
+    unsubscribeLayers?.();
     const remove = () => root.remove();
     root.addEventListener('transitionend', remove, { once: true });
     // `transitionend` never fires under prefers-reduced-motion (no transition),
@@ -435,8 +454,8 @@ export function initFirstRunExperience({
     root.dataset.state = next ? 'loading' : 'ready';
     root.setAttribute('aria-busy', String(next));
     // Tiles stay clickable during a launch: a second view must be able to
-    // supersede the first, and the MISSION CONTROL chip after a success must
-    // restore into a live chooser rather than a locked one.
+    // supersede the first, and the chooser after a success must stay a live
+    // chooser rather than a locked one.
     if (!status) return;
     if (next) status.textContent = FIRST_RUN_MISSIONS[choice]?.busyText || 'Working…';
     else if (status.dataset.sticky !== 'true') status.textContent = defaultStatus;
@@ -477,13 +496,10 @@ export function initFirstRunExperience({
     if (outcome?.ok) {
       if (status) {
         status.dataset.sticky = 'true';
-        status.textContent = 'View selected. Restore Mission Control to choose another view, or press ESC to close.';
+        status.textContent = 'View selected. Choose another view, or press ESC to close.';
       }
       setBusy(false);
-      // After the first click the full card would cover the view it just
-      // staged. Tuck to the MISSION CONTROL chip — that control stays on
-      // screen and is always clickable for the rest of the session.
-      setWindowState('minimized', { focusRestore: true });
+      // Do not tuck, minimize, or dismiss. The card stays open.
       return;
     }
     const failed = outcome?.failedLayerIds?.length
@@ -546,15 +562,55 @@ export function initFirstRunExperience({
     }
   }
 
+  const layerById = new Map(FIRST_RUN_DATA_LAYERS.map((entry) => [entry.id, entry]));
+
+  const paintLayerButton = (button, pressed) => {
+    button.setAttribute('aria-pressed', String(pressed));
+    const check = button.querySelector('.first-run-layer-check');
+    if (check) check.textContent = pressed ? 'check_box' : 'check_box_outline_blank';
+  };
+
+  const layerIsOn = (entry) => {
+    if (entry.stackId) {
+      return styleManager.mapStackController?.getActiveId?.() === entry.stackId;
+    }
+    return Boolean(dataManager?.isEnabled?.(entry.layerId));
+  };
+
+  const syncLayerButtons = () => {
+    for (const button of layerButtons) {
+      const entry = layerById.get(button.dataset.mcLayer);
+      if (!entry) continue;
+      paintLayerButton(button, layerIsOn(entry));
+    }
+  };
+
+  const onLayerToggle = async (event) => {
+    if (closing) return;
+    const entry = layerById.get(event.currentTarget?.dataset?.mcLayer);
+    if (!entry) return;
+    const next = !layerIsOn(entry);
+    paintLayerButton(event.currentTarget, next);
+    try {
+      if (entry.stackId) {
+        await styleManager.setMapStack?.(next ? entry.stackId : 'osm');
+      } else if (entry.layerId) {
+        await dataManager.setEnabled(entry.layerId, next, { origin: 'user' });
+      }
+    } catch (error) {
+      console.warn('[First run] Data layer toggle failed:', error);
+    }
+    syncLayerButtons();
+  };
+
   for (const button of buttons) button.addEventListener('click', onChoice);
-  minimizeButton?.addEventListener('click', () => {
-    if (!closing) setWindowState('minimized', { focusRestore: true });
-  });
+  for (const button of layerButtons) button.addEventListener('click', onLayerToggle);
+  syncLayerButtons();
+  unsubscribeLayers = dataManager?.subscribe?.(() => {
+    if (!closing) syncLayerButtons();
+  }) || null;
   maximizeButton?.addEventListener('click', () => {
     if (!closing) setWindowState(root.classList.contains('is-maximized') ? 'normal' : 'maximized');
-  });
-  restoreButton?.addEventListener('click', () => {
-    if (!closing) setWindowState('maximized', { focusRestore: true });
   });
   // Capture phase: the app binds its own global hotkeys (including bare letters
   // that cycle detection and styles), and the launcher owns the keyboard first.

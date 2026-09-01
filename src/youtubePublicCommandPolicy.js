@@ -124,6 +124,9 @@ const SCHEMAS = {
     latitude: location.latitude, longitude: location.longitude,
     minElevationDeg: number({ minimum: 5, maximum: 60 }),
   }),
+  run_view_preset: object({
+    preset: enumeration('/live-contacts', '/space-missions', '/environmental', '/explore-manually'),
+  }, { required: ['preset'] }),
 };
 
 function deepFreeze(value) {
@@ -147,7 +150,23 @@ export const PUBLIC_GEV_TOOL_NAMES = Object.freeze(Object.keys(PUBLIC_GEV_TOOL_C
 const Y_TOOLS = ['get_current_view_state', 'get_entity_context', 'analyst_query', 'next_iss_pass'];
 const Z_TOOLS = ['fly_to_location', 'select_nearest_aircraft', 'adjust_camera_zoom', 'zoom_to_globe', 'move_camera', 'frame_overhead', 'fly_route', 'stop_tracking'];
 
+/** Exact GEV ACTIONS reply for `/help`. The space before the first comma is intentional. */
+export const PUBLIC_HELP_REPLY = 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually';
+
+/** Slash command → first-run Mission Control choice. `/explore-manually` is required. */
+export const PUBLIC_VIEW_PRESETS = deepFreeze({
+  '/live-contacts': 'contacts',
+  '/space-missions': 'space-missions',
+  '/environmental': 'environmental',
+  '/explore-manually': 'explore',
+});
+
 export const PUBLIC_COMMAND_REGISTRY = deepFreeze({
+  '/help': { command: '/help', mode: 'help', description: 'List view commands', requiresText: false, enabled: true, tools: [] },
+  '/live-contacts': { command: '/live-contacts', mode: 'live-contacts', description: 'Live contacts', requiresText: false, enabled: true, tools: ['run_view_preset'] },
+  '/space-missions': { command: '/space-missions', mode: 'space-missions', description: 'Space missions', requiresText: false, enabled: true, tools: ['run_view_preset'] },
+  '/environmental': { command: '/environmental', mode: 'environmental', description: 'Environmental view', requiresText: false, enabled: true, tools: ['run_view_preset'] },
+  '/explore-manually': { command: '/explore-manually', mode: 'explore-manually', description: 'Explore manually', requiresText: false, enabled: true, tools: ['run_view_preset'] },
   '/x': { command: '/x', mode: 'execute', description: 'Execute or operate GEV', requiresText: true, enabled: true, tools: PUBLIC_GEV_TOOL_NAMES },
   '/y': { command: '/y', mode: 'analyze', description: 'Analyze or answer from GEV data', requiresText: true, enabled: true, tools: Y_TOOLS },
   '/z': { command: '/z', mode: 'navigate', description: 'Move or frame the camera', requiresText: true, enabled: true, tools: Z_TOOLS },

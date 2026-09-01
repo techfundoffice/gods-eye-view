@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import {
   ENVIRONMENTAL_LABEL_CHOICE,
   EXCLUSIVE_SURFACE_CLASSES,
+  FIRST_RUN_DATA_LAYERS,
   FIRST_RUN_MISSIONS,
   FIRST_RUN_SESSION_KEY,
   FIRST_RUN_STORAGE_KEY,
@@ -397,6 +398,58 @@ test('the menu is the four owner-ordered missions', () => {
     'the infrastructure mission must be gone, not dormant');
 });
 
+test('Mission Control keeps DATA LAYERS toggles under the mission tiles', () => {
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
+  const layerState = fs.readFileSync(new URL('./data/layerState.js', import.meta.url), 'utf8');
+  const launcherHtml = html.slice(
+    html.indexOf('id="first-run-launcher"'),
+    html.indexOf('</aside>', html.indexOf('id="first-run-launcher"')),
+  );
+
+  assert.match(launcherHtml, /class="first-run-kicker">MISSION CONTROL</);
+  assert.match(launcherHtml, /class="first-run-layers-kicker">DATA LAYERS</);
+  const layerOrder = [...launcherHtml.matchAll(/data-mc-layer="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(layerOrder, FIRST_RUN_DATA_LAYERS.map((entry) => entry.id));
+  assert.equal((html.match(/data-first-run-choice=/g) || []).length, 4);
+
+  for (const entry of FIRST_RUN_DATA_LAYERS) {
+    if (entry.layerId) {
+      assert.match(layerState, new RegExp(`id: '${entry.layerId}'`), `${entry.layerId} must already be a shipped layer`);
+    }
+    if (entry.stackId) {
+      assert.equal(entry.stackId, 'photoreal');
+    }
+  }
+
+  const toggle = module.slice(module.indexOf('const onLayerToggle = async'), module.indexOf('for (const button of buttons)'));
+  assert.match(toggle, /setEnabled\(entry\.layerId, next, \{ origin: 'user' \}\)/);
+  assert.match(toggle, /setMapStack\?\.\(next \? entry\.stackId : 'osm'\)/);
+  assert.doesNotMatch(toggle, /flyToGlobe|setContextMode|setWindowState\('minimized'/);
+
+  const nav = css.slice(css.indexOf('#mission-control-nav {'), css.indexOf('#first-run-launcher {'));
+  const widthMatch = nav.match(/width:\s*min\(([\d.]+)rem/);
+  assert.ok(widthMatch, 'desktop Mission Control must declare a rem width');
+  assert.ok(
+    Number(widthMatch[1]) < 22,
+    `desktop Mission Control width ${widthMatch[1]}rem must be narrower than 22rem`,
+  );
+  assert.doesNotMatch(nav, /min\(22rem/);
+
+  const hud = css.slice(
+    css.indexOf('body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-top-left'),
+    css.indexOf('.first-run-window-controls'),
+  );
+  assert.match(hud, new RegExp(`min\\(${widthMatch[1]}rem`));
+
+  const list = css.slice(css.indexOf('.first-run-layers-list {'), css.indexOf('.first-run-layers-list button {'));
+  assert.doesNotMatch(list, /max-height:\s*8\.5rem/);
+  assert.doesNotMatch(list, /overflow-y:\s*(auto|scroll)/);
+  assert.match(list, /overflow:\s*visible/);
+  assert.match(list, /max-height:\s*none/);
+});
+
 test('a successful choice stays visible until the visitor explicitly dismisses it', () => {
   const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
   const successPath = module.slice(
@@ -406,7 +459,8 @@ test('a successful choice stays visible until the visitor explicitly dismisses i
   assert.doesNotMatch(successPath, /dismiss\(/);
   assert.match(successPath, /setBusy\(false\)/);
   assert.match(successPath, /press ESC to close/);
-  assert.match(successPath, /setWindowState\('minimized', \{ focusRestore: true \}\)/);
+  assert.doesNotMatch(successPath, /setWindowState\('minimized'/);
+  assert.doesNotMatch(successPath, /dismiss\(/);
 });
 
 test('Live Contacts and Space Missions go through the one setContextMode facade', async () => {
@@ -609,12 +663,21 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   // `[hidden] { display: none }`, which would strand the card in the
   // accessibility tree until it is revealed or removed.
   assert.match(base, /display: flex/);
-  assert.match(base, /max-height: min\(70dvh/);
+  assert.match(base, /max-height: min\(90dvh/);
   assert.match(css, /#mission-control-nav \{[\s\S]*?bottom:\s*auto;[\s\S]*?width:/);
   assert.match(css, /#first-run-launcher\[hidden\] \{\s*display: none;\s*\}/);
   // Only the mission list may scroll: the heading, checkbox and status line
   // have to stay on screen at every height.
-  assert.match(css, /\.first-run-choices \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto/);
+  const choicesStart = css.indexOf('.first-run-choices {\n  display: grid');
+  assert.ok(choicesStart >= 0, 'mission tile list must keep its grid rule');
+  const choiceBlock = css.slice(choicesStart, css.indexOf('.first-run-choices button {', choicesStart));
+  assert.match(choiceBlock, /flex:\s*0 0 auto/);
+  assert.match(choiceBlock, /overflow:\s*visible/);
+  const maximizedChoices = css.slice(
+    css.indexOf('#first-run-launcher.is-maximized .first-run-choices {'),
+    css.indexOf('.first-run-header,', css.indexOf('#first-run-launcher.is-maximized .first-run-choices {')),
+  );
+  assert.match(maximizedChoices, /flex:\s*0 0 auto/);
   // Card copy, icons and hints share the kicker cyan — not a mix of white,
   // dim grey and brighter cyan. The token is the MISSION CONTROL · FIRST LAUNCH
   // color; descendants must consume it rather than inventing their own.
@@ -622,6 +685,7 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   assert.match(base, /color: var\(--first-run-ink\)/);
   for (const selector of [
     '.first-run-kicker',
+    '.first-run-layers-kicker',
     '.first-run-window-control',
     '.first-run-choices button',
     '.first-run-choices small',
@@ -635,10 +699,8 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   }
 
   assert.match(html, /id="mission-control-nav" aria-label="Mission Control"/);
-  assert.match(html, /id="first-run-minimize"[^>]*class="first-run-window-control"/);
   assert.match(html, /id="first-run-launcher"[^>]*class="is-maximized"/);
   assert.match(html, /id="first-run-maximize"[^>]*class="first-run-window-control"[^>]*aria-pressed="true"/);
-  assert.match(html, /id="first-run-restore" class="first-run-restore"/);
 });
 
 
@@ -679,7 +741,7 @@ test('Mission Control is left-rail chrome with a reserved fill over the live glo
   const rows = css.slice(css.indexOf('.first-run-choices button {'), css.indexOf('.first-run-choices button:hover'));
   assert.match(rows, /background: rgba\(6, 15, 22, 0\.55\)/);
   assert.match(rows, /flex-shrink: 0/);
-  assert.match(rows, /min-height: 2\.15rem/);
+  assert.match(rows, /min-height: 1\.95rem/);
   assert.doesNotMatch(rows, /rgba\(54, 220, 255, 0\.045\)/);
 
   const hover = css.slice(css.indexOf('.first-run-choices button:hover'), css.indexOf('.first-run-choices button[aria-disabled'));
@@ -704,10 +766,9 @@ test('Mission Control is left-rail chrome with a reserved fill over the live glo
     module.indexOf('if (outcome?.ok) {'),
     module.indexOf('const failed = outcome?.failedLayerIds'),
   );
-  assert.match(successPath, /setWindowState\('minimized', \{ focusRestore: true \}\)/);
+  assert.doesNotMatch(successPath, /setWindowState\('minimized'/);
   assert.doesNotMatch(successPath, /dismiss\(/);
   assert.match(module, /setWindowState\(root\.classList\.contains\('is-maximized'\) \? 'normal' : 'maximized'\)/);
-  assert.match(module, /setWindowState\('maximized', \{ focusRestore: true \}\)/);
   const revealStart = module.indexOf('const reveal = () => {');
   assert.ok(revealStart >= 0, 'reveal() must exist');
   assert.match(module.slice(revealStart, revealStart + 600), /setWindowState\('maximized'\)/);

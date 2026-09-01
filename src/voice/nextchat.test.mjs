@@ -8,6 +8,8 @@ import {
   NEXTCHAT_STORAGE_KEY,
   NEXTCHAT_MAX_ACTIONS,
   NEXTCHAT_MAX_LIVE_COMMENTS,
+  ACTION_REPLY_TYPE_STEP,
+  applyActionReplyDelta,
   applyAssistantTranscriptDelta,
   createEmptySession,
   createNextchatState,
@@ -16,7 +18,10 @@ import {
   finishAssistantStreaming,
   getActiveSession,
   ingestRealtimePayload,
+  isActionLaneMessage,
+  isLiveCommentMessage,
   loadNextchatState,
+  orderLiveCommentMessages,
   newChat,
   persistNextchatState,
   selectSession,
@@ -25,7 +30,9 @@ import {
   publishNextChatMessage,
   renderCommandLegend,
   setHarnessStatus,
+  typeActionReply,
 } from './nextchat.js';
+import { PUBLIC_COMMAND_REGISTRY, PUBLIC_HELP_REPLY } from '../youtubePublicCommandPolicy.js';
 
 function memoryStorage(seed) {
   const data = new Map(Object.entries(seed || {}));
@@ -154,6 +161,42 @@ test('extractAssistantTranscriptDelta ignores non-transcript events', () => {
   }), 'Hi');
 });
 
+test('LIVE COMMENTS display order is newest-first after chronological ingest', () => {
+  let state = createNextchatState();
+  state = appendViewerMessage(state, {
+    author: 'FirstViewer',
+    text: 'older comment',
+    metadata: {
+      source: 'youtube',
+      commentId: 'c-old',
+      videoId: 'vid',
+      receivedAt: '2026-09-01T12:00:00.000Z',
+      actionState: 'chat',
+    },
+  });
+  state = appendViewerMessage(state, {
+    author: 'SecondViewer',
+    text: 'newer comment',
+    metadata: {
+      source: 'youtube',
+      commentId: 'c-new',
+      videoId: 'vid',
+      receivedAt: '2026-09-01T12:00:05.000Z',
+      actionState: 'chat',
+    },
+  });
+  const ingested = getActiveSession(state).messages;
+  assert.equal(ingested[0].content, 'older comment');
+  assert.equal(ingested[1].content, 'newer comment');
+  const displayed = orderLiveCommentMessages(ingested, { limit: NEXTCHAT_MAX_LIVE_COMMENTS });
+  assert.equal(displayed.length, 2);
+  assert.equal(displayed[0].content, 'newer comment');
+  assert.equal(displayed[0].author, 'SecondViewer');
+  assert.equal(displayed[1].content, 'older comment');
+  assert.equal(isLiveCommentMessage(displayed[0]), true);
+  assert.equal(isActionLaneMessage(displayed[0]), false);
+});
+
 test('viewer comments keep the author and are not treated as the operator', () => {
   let state = createNextchatState();
   state = appendViewerMessage(state, {
@@ -260,6 +303,27 @@ test('broadcast presentation keeps reserved comment chrome and a legend above th
   assert.match(css, /\.gev-command-legend-items[\s\S]*?overflow-x:\s*auto/);
   assert.match(css, /font-size:\s*0\.875rem/);
   assert.match(css, /--broadcast-bottom-safe/);
+
+  const overlayDecl = css.match(/--broadcast-overlay-width:\s*([^;]+);/);
+  assert.ok(overlayDecl, 'LIVE COMMENTS overlay width token is defined');
+  const overlayWidth = overlayDecl[1].trim();
+  assert.match(
+    overlayWidth,
+    /^min\((\d+(?:\.\d+)?)rem,\s*calc\(100vw - 2rem\)\)$/,
+    `desktop overlay width must be a finite rem cap, not full viewport: ${overlayWidth}`,
+  );
+  const rem = Number(overlayWidth.match(/^min\((\d+(?:\.\d+)?)rem/)[1]);
+  assert.ok(Number.isFinite(rem) && rem > 0 && rem < 22, `LIVE COMMENTS must be narrower than 22rem, got ${rem}rem`);
+  assert.match(
+    css,
+    /\.hud-top-right[\s\S]*?right:\s*calc\(var\(--broadcast-overlay-width\)/,
+    'HUD right inset tracks the overlay-width token',
+  );
+  assert.match(
+    css,
+    /\.hud-right-edge[\s\S]*?right:\s*calc\(var\(--broadcast-overlay-width\)/,
+    'HUD right-edge inset tracks the overlay-width token',
+  );
 });
 
 test('createEmptySession starts with no messages to replay', () => {
@@ -307,4 +371,85 @@ test('GEV_REALTIME_TOOLS stays a literal array and chat is not a /api/chat backe
   assert.doesNotMatch(vite, /['"`]\/api\/chat\b/);
   const nextchat = readFileSync(new URL('./nextchat.js', import.meta.url), 'utf8');
   assert.match(nextchat, /voice\.sendTextCommand\(text\)/);
+});
+
+test('COMMANDS legend from the public registry starts with /help and includes /explore-manually', () => {
+  class FakeElement {
+    constructor(documentRef, tagName = 'span') {
+      this.ownerDocument = documentRef;
+      this.tagName = tagName;
+      this.children = [];
+      this.attributes = new Map();
+      this.className = '';
+      this.textContent = '';
+    }
+    appendChild(child) {
+      this.children.push(child);
+    }
+    replaceChildren(...children) {
+      this.children = children;
+    }
+    toggleAttribute(name, enabled) {
+      if (enabled) this.attributes.set(name, '');
+      else this.attributes.delete(name);
+    }
+    closest() {
+      return this.legendRoot || null;
+    }
+  }
+  const documentRef = {
+    createElement(tagName) {
+      return new FakeElement(documentRef, tagName);
+    },
+  };
+  const root = new FakeElement(documentRef, 'nav');
+  const target = new FakeElement(documentRef);
+  target.legendRoot = root;
+  const count = renderCommandLegend(PUBLIC_COMMAND_REGISTRY, target);
+  assert.equal(count, Object.keys(PUBLIC_COMMAND_REGISTRY).length);
+  assert.equal(target.children[0].children[0].textContent, '/help');
+  const commands = target.children.map((item) => item.children[0].textContent);
+  assert.ok(commands.includes('/explore-manually'));
+  assert.equal(commands.indexOf('/help'), 0);
+});
+
+test('typeActionReply prints the shipped /help sentence 2 characters at a time', () => {
+  const store = createNextchatStore(memoryStorage());
+  const queued = [];
+  const clock = {
+    setTimeout(fn) {
+      queued.push(fn);
+      return queued.length;
+    },
+    clearTimeout() {},
+  };
+  const result = typeActionReply(PUBLIC_HELP_REPLY, { store, clock });
+  assert.equal(result.ok, true);
+  assert.equal(getActiveSession(store.getState()).messages.length, 0);
+  queued.shift()();
+  let content = getActiveSession(store.getState()).messages.at(-1).content;
+  assert.equal(content, PUBLIC_HELP_REPLY.slice(0, ACTION_REPLY_TYPE_STEP));
+  while (queued.length) queued.shift()();
+  const reply = getActiveSession(store.getState()).messages.at(-1);
+  assert.equal(reply.content, PUBLIC_HELP_REPLY);
+  assert.equal(reply.role, 'assistant');
+  assert.equal(reply.streaming, false);
+  assert.equal(reply.metadata.actionState, 'succeeded');
+});
+
+test('LIVE COMMENTS keeps /help viewer text and GEV ACTIONS keeps the typed reply', () => {
+  let state = createNextchatState();
+  state = appendViewerMessage(state, {
+    author: 'ChatViewer',
+    text: '/help',
+    metadata: { source: 'youtube', actionState: 'chat' },
+  });
+  state = applyActionReplyDelta(state, {
+    delta: PUBLIC_HELP_REPLY,
+    actionState: 'succeeded',
+  });
+  const messages = getActiveSession(state).messages;
+  assert.deepEqual(messages.filter(isLiveCommentMessage).map((message) => message.content), ['/help']);
+  assert.deepEqual(messages.filter(isActionLaneMessage).map((message) => message.content), [PUBLIC_HELP_REPLY]);
+  assert.equal(isLiveCommentMessage(messages[1]), false);
 });

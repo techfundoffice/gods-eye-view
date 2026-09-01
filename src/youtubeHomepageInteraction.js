@@ -1,3 +1,5 @@
+import { PUBLIC_HELP_REPLY } from './youtubePublicCommandPolicy.js';
+
 /** Browser wait for local /feed memory. Not the YouTube InnerTube interval. */
 export const MEMORY_POLL_LIVE_MS = 800;
 export const MEMORY_POLL_HIDDEN_MS = 5_000;
@@ -180,10 +182,30 @@ export function createYoutubeHomepageInteraction({
       if (!id || !state || commandStates.get(id) === state) continue;
       commandStates.set(id, state);
       while (commandStates.size > 100) commandStates.delete(commandStates.keys().next().value);
+      const slash = safeText(command.command, 32);
+      if (slash === '/help' && state === 'succeeded') {
+        const answer = safeText(command.answer, 1000) || PUBLIC_HELP_REPLY;
+        if (typeof nextchat?.typeActionReply === 'function') {
+          nextchat.typeActionReply(answer);
+        } else {
+          nextchat?.publishViewerMessage?.({
+            author: 'GEV',
+            text: answer,
+            metadata: {
+              source: 'youtube-command',
+              commentId: safeText(command.commentId, 160),
+              videoId: safeText(command.videoId, 80),
+              receivedAt: new Date(Number(command.updatedAt) || now()).toISOString(),
+              actionState: 'succeeded',
+            },
+          });
+        }
+        continue;
+      }
       const detail = safeText(command.answer || command.reason, 180);
       nextchat?.publishViewerMessage?.({
         author: safeText(command.viewer, 80) || 'GEV agent',
-        text: `${safeText(command.command, 32) || 'command'} · ${state}${detail ? ` · ${detail}` : ''}`,
+        text: `${slash || 'command'} · ${state}${detail ? ` · ${detail}` : ''}`,
         metadata: {
           source: 'youtube-command',
           commentId: safeText(command.commentId, 160),
@@ -332,6 +354,7 @@ export function createYoutubeHomepageInteraction({
       }
     },
     ingest,
+    publishCommandStatuses,
     getState() {
       return {
         videoId,

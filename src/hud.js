@@ -44,8 +44,8 @@ const HUD_SUMMARY_URL = '/api/openai/hud-summary';
 
 /**
  * The AI summary is an OPTIONAL enrichment of a line the HUD can already
- * compose locally (`_composeSummary`). When `OPENAI_API_KEY` is absent the
- * proxy answers 503 "OPENAI_API_KEY is not set" — a permanent condition for the
+ * compose locally (`_composeSummary`). When `OPENROUTER_API_KEY` is absent the
+ * proxy answers 503 "OPENROUTER_API_KEY is not set" — a permanent condition for the
  * life of the process, not an outage. Retrying it every 15 s produced a
  * forever-repeating console warning, a pointless request per tick, and a
  * re-typed summary that kept the render loop awake.

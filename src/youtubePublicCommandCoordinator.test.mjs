@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createYoutubePublicCommandCoordinator } from './youtubePublicCommandCoordinator.js';
 import { createInMemoryPublicCommandLedger } from './youtubePublicCommandLedger.js';
+import { PUBLIC_HELP_REPLY } from './youtubePublicCommandPolicy.js';
 
 const binding = {
   videoId: 'video',
@@ -104,4 +105,47 @@ test('generation changes cancel work without late execution', async () => {
   });
   assert.equal((await coordinator.advance('id', { ...binding, generation: 5 })).reason, 'stale');
   assert.equal((await ledger.get('id')).state, 'cancelled');
+});
+
+test('/help succeeds with the shipped reply and never invokes AI', async () => {
+  const ledger = createInMemoryPublicCommandLedger({ now: () => 100 });
+  let calls = 0;
+  const coordinator = createYoutubePublicCommandCoordinator({
+    ledger, now: () => 100, id: (() => { let n = 0; return () => `help-${++n}`; })(),
+    interpret: async () => { calls += 1; return { ok: true, kind: 'complete', text: 'nope' }; },
+  });
+  const result = await coordinator.register(comment('help-1', '/help'), binding);
+  assert.equal(calls, 0);
+  assert.equal(result.record.state, 'succeeded');
+  assert.equal(result.record.answer, PUBLIC_HELP_REPLY);
+  assert.equal(result.record.command, '/help');
+});
+
+test('/live-contacts and /explore-manually queue run_view_preset without AI', async () => {
+  const ledger = createInMemoryPublicCommandLedger({ now: () => 100 });
+  let calls = 0;
+  const coordinator = createYoutubePublicCommandCoordinator({
+    ledger, now: () => 100, id: (() => { let n = 0; return () => `view-${++n}`; })(),
+    interpret: async () => { calls += 1; return { ok: true, kind: 'complete', text: 'nope' }; },
+  });
+  const contacts = await coordinator.register(comment('view-1', '/live-contacts'), binding);
+  assert.equal(calls, 0);
+  assert.equal(contacts.record.state, 'awaiting-execution');
+  assert.equal(contacts.record.validatedTool.name, 'run_view_preset');
+  assert.equal(contacts.record.validatedTool.arguments.preset, '/live-contacts');
+
+  const explore = await coordinator.register(comment('view-2', '/explore-manually'), binding);
+  assert.equal(calls, 0);
+  assert.equal(explore.record.state, 'awaiting-execution');
+  assert.equal(explore.record.validatedTool.name, 'run_view_preset');
+  assert.equal(explore.record.validatedTool.arguments.preset, '/explore-manually');
+
+  await ledger.compareAndSet(explore.record.id, 'awaiting-execution', {
+    state: 'executing',
+    captureEpoch: 'epoch',
+  });
+  const done = await coordinator.acceptToolResult(explore.record.id, binding, { ok: true, choice: 'explore' });
+  assert.equal(calls, 0);
+  assert.equal(done.record.state, 'succeeded');
+  assert.equal(done.record.answer, '/explore-manually');
 });

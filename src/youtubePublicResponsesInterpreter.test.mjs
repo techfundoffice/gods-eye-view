@@ -1,47 +1,89 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   createPublicResponsesInterpreter,
+  parsePublicChatCompletionsOutput,
   parsePublicResponsesOutput,
 } from './youtubePublicResponsesInterpreter.js';
+import { OPENROUTER_CHAT_URL, OPENROUTER_FREE_MODEL } from './openrouterFreeClient.js';
 
-const response = (payload, ok = true, status = 200) => ({
+const chat = (payload, ok = true, status = 200) => ({
   ok, status, json: async () => payload,
 });
 
-test('strict output parser accepts validated calls and text completions', () => {
+const zoomCall = {
+  id: 'gen-1',
+  model: 'meta-llama/llama-3.2-3b-instruct:free',
+  choices: [{
+    message: {
+      role: 'assistant',
+      content: null,
+      tool_calls: [{
+        id: 'call',
+        type: 'function',
+        function: { name: 'zoom_to_globe', arguments: '{}' },
+      }],
+    },
+  }],
+};
+
+test('chat completions parser accepts validated calls and text completions', () => {
+  assert.deepEqual(parsePublicChatCompletionsOutput(zoomCall, 'whole-globe'), {
+    ok: true, kind: 'tool-call',
+    call: { responseId: 'gen-1', callId: 'call', name: 'zoom_to_globe', arguments: {} },
+  });
+  assert.deepEqual(parsePublicChatCompletionsOutput({
+    id: 'gen-2',
+    choices: [{ message: { role: 'assistant', content: 'Answer' } }],
+  }, 'analyze'), { ok: true, kind: 'complete', text: 'Answer' });
+});
+
+test('legacy Responses fixtures still parse through the compatibility wrapper', () => {
   assert.deepEqual(parsePublicResponsesOutput({
     id: 'resp', output: [{ type: 'function_call', call_id: 'call', name: 'zoom_to_globe', arguments: '{}' }],
   }, 'whole-globe'), {
     ok: true, kind: 'tool-call',
     call: { responseId: 'resp', callId: 'call', name: 'zoom_to_globe', arguments: {} },
   });
-  assert.deepEqual(parsePublicResponsesOutput({
-    id: 'resp', output: [{ type: 'message', content: [{ type: 'output_text', text: 'Answer' }] }],
-  }, 'analyze'), { ok: true, kind: 'complete', text: 'Answer' });
 });
 
 test('strict parser rejects malformed JSON, multiple calls, forbidden modes and ADMIN MCP', () => {
-  assert.equal(parsePublicResponsesOutput({ id: 'r', output: [{ type: 'function_call', call_id: 'c', name: 'zoom_to_globe', arguments: '{' }] }, 'navigate').ok, false);
-  assert.equal(parsePublicResponsesOutput({ id: 'r', output: [
-    { type: 'function_call', call_id: 'a', name: 'zoom_to_globe', arguments: '{}' },
-    { type: 'function_call', call_id: 'b', name: 'stop_tracking', arguments: '{}' },
-  ] }, 'navigate').ok, false);
-  assert.match(parsePublicResponsesOutput({ id: 'r', output: [
-    { type: 'function_call', call_id: 'a', name: 'list_admin_plugins', arguments: '{}' },
-  ] }, 'execute').reason, /not allowed/);
-  assert.equal(parsePublicResponsesOutput({ id: 'r', output: [
-    { type: 'function_call', call_id: 'a', name: 'fly_to_location', arguments: '{"query":"Paris"}' },
-  ] }, 'analyze').ok, false);
+  assert.equal(parsePublicChatCompletionsOutput({
+    id: 'r',
+    choices: [{ message: { tool_calls: [{ id: 'c', function: { name: 'zoom_to_globe', arguments: '{' } }] } }],
+  }, 'navigate').ok, false);
+  assert.equal(parsePublicChatCompletionsOutput({
+    id: 'r',
+    choices: [{ message: { tool_calls: [
+      { id: 'a', function: { name: 'zoom_to_globe', arguments: '{}' } },
+      { id: 'b', function: { name: 'stop_tracking', arguments: '{}' } },
+    ] } }],
+  }, 'navigate').ok, false);
+  assert.match(parsePublicChatCompletionsOutput({
+    id: 'r',
+    choices: [{ message: { tool_calls: [
+      { id: 'a', function: { name: 'list_admin_plugins', arguments: '{}' } },
+    ] } }],
+  }, 'execute').reason, /not allowed/);
+  assert.equal(parsePublicChatCompletionsOutput({
+    id: 'r',
+    choices: [{ message: { tool_calls: [
+      { id: 'a', function: { name: 'fly_to_location', arguments: '{"query":"Paris"}' } },
+    ] } }],
+  }, 'analyze').ok, false);
 });
 
-test('request exposes only mode schemas and bounded public context', async () => {
+test('request posts to OpenRouter free with OpenAI-style tools and bounded public context', async () => {
+  let url;
   let request;
   const interpret = createPublicResponsesInterpreter({
     apiKey: 'secret', now: () => 100,
-    fetchImpl: async (_url, init) => {
+    limiter: { tryTake: () => ({ ok: true }) },
+    fetchImpl: async (postedUrl, init) => {
+      url = postedUrl;
       request = JSON.parse(init.body);
-      return response({ id: 'r', output: [{ type: 'message', content: [{ text: 'done' }] }] });
+      return chat({ id: 'r', choices: [{ message: { content: 'done' } }] });
     },
   });
   await interpret({
@@ -49,28 +91,35 @@ test('request exposes only mode schemas and bounded public context', async () =>
     videoId: 'video', generation: 2, remainingTurns: 3, startedAt: 100,
     viewContext: { label: 'safe' },
   });
-  assert.deepEqual(request.tools.map((tool) => tool.name), ['zoom_to_globe']);
-  assert.equal(request.input.includes('secret'), false);
-  assert.equal(request.input.includes('admin'), false);
-  assert.equal(JSON.parse(request.input).comment.length, 500);
+  assert.equal(url, OPENROUTER_CHAT_URL);
+  assert.equal(request.model, OPENROUTER_FREE_MODEL);
+  assert.deepEqual(request.tools.map((tool) => tool.function.name), ['zoom_to_globe']);
+  assert.equal(request.messages[0].role, 'system');
+  const user = JSON.parse(request.messages[1].content);
+  assert.equal(user.comment.length, 500);
+  assert.equal(JSON.stringify(request).includes('secret'), false);
+  assert.equal(JSON.stringify(user).toLowerCase().includes('admin'), false);
 });
 
-test('continuations bind previous response and outstanding call id', async () => {
+test('continuations replay the outstanding call as chat tool results and resend tools', async () => {
   let request;
   const interpret = createPublicResponsesInterpreter({
     apiKey: 'secret', now: () => 100,
+    limiter: { tryTake: () => ({ ok: true }) },
     fetchImpl: async (_url, init) => {
       request = JSON.parse(init.body);
-      return response({ id: 'r2', output: [{ type: 'message', content: [{ text: 'finished' }] }] });
+      return chat({ id: 'r2', choices: [{ message: { content: 'finished' } }] });
     },
   });
   await interpret({
-    mode: 'analyze', remainingTurns: 2, startedAt: 100,
+    mode: 'analyze', remainingTurns: 2, startedAt: 100, comment: 'look',
     previousResponseId: 'r1', callId: 'call1', toolResult: { ok: true },
+    priorCall: { name: 'get_current_view_state', arguments: {} },
   });
-  assert.equal(request.previous_response_id, 'r1');
-  assert.equal(request.input[0].call_id, 'call1');
-  assert.equal(request.input[0].type, 'function_call_output');
+  assert.equal(request.tools.length > 0, true);
+  assert.equal(request.messages.at(-1).role, 'tool');
+  assert.equal(request.messages.at(-1).tool_call_id, 'call1');
+  assert.equal(request.messages.at(-2).tool_calls[0].function.name, 'get_current_view_state');
 });
 
 test('budget exhaustion fails before provider access', async () => {
@@ -81,4 +130,9 @@ test('budget exhaustion fails before provider access', async () => {
   });
   await assert.rejects(interpret({ mode: 'analyze', remainingTurns: 1, startedAt: 0 }), /budget/i);
   assert.equal(called, false);
+});
+
+test('public interpreter never posts to api.openai.com', () => {
+  const src = fs.readFileSync(new URL('./youtubePublicResponsesInterpreter.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /api\.openai\.com/);
 });

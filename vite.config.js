@@ -35,6 +35,10 @@ import https from 'node:https';
 import { lookup as lookupDns } from 'node:dns/promises';
 import { directionToHeading } from './src/data/directionText.js';
 import {
+  openRouterApiKey,
+  postOpenRouterChat,
+} from './src/openrouterFreeClient.js';
+import {
   isValidTileCoord as isValidTomTomTile,
   utcDayKey as tomtomUtcDayKey,
   normalizeBudget as normalizeTomTomBudget,
@@ -5051,50 +5055,47 @@ function openAiRealtimeProxy() {
       // Opt-in per-IP throttle (GEV_RATELIMIT_OPENAI_PER_MIN). No-op when unset.
       if (!enforceOptInRateLimit(openAiRateLimiter(), req, res)) return;
 
-      const apiKey = process.env.OPENAI_API_KEY;
+      const apiKey = openRouterApiKey();
       if (!apiKey) {
         res.statusCode = 503;
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'OPENAI_API_KEY is not set' }));
+        res.end(JSON.stringify({ error: 'OPENROUTER_API_KEY is not set' }));
         return;
       }
 
       try {
         const body = await readRequestBody(req, 64 * 1024);
         const context = JSON.parse(body || '{}');
-        const response = await fetch('https://api.openai.com/v1/responses', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: process.env.OPENAI_HUD_SUMMARY_MODEL || OPENAI_HUD_SUMMARY_MODEL_DEFAULT,
-            instructions: [
-              "Write one concise intelligence-HUD summary for God's Eye View.",
-              'Use only the supplied place, street, nearby-place, and enabled-layer text labels.',
-              'Prefer the clearest named place and include a relevant enabled layer only when useful.',
-              'Do not infer from coordinates or invent a place.',
-              'Output exactly five words with no title, punctuation, markdown, or introductory phrase.',
-            ].join(' '),
-            input: JSON.stringify(context),
-            reasoning: { effort: 'minimal' },
-            max_output_tokens: 100,
-          }),
+        const result = await postOpenRouterChat({
+          apiKey,
+          messages: [
+            {
+              role: 'system',
+              content: [
+                "Write one concise intelligence-HUD summary for God's Eye View.",
+                'Use only the supplied place, street, nearby-place, and enabled-layer text labels.',
+                'Prefer the clearest named place and include a relevant enabled layer only when useful.',
+                'Do not infer from coordinates or invent a place.',
+                'Output exactly five words with no title, punctuation, markdown, or introductory phrase.',
+              ].join(' '),
+            },
+            { role: 'user', content: JSON.stringify(context) },
+          ],
+          maxTokens: 100,
         });
-        const data = await response.json().catch(() => ({}));
+        const data = result.payload || {};
         const summary = toFiveWordHudSummary(extractOpenAiResponseText(data));
-        res.statusCode = response.ok && summary ? 200 : response.status || 502;
+        res.statusCode = result.ok && summary ? 200 : result.status || 502;
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Cache-Control', 'no-store');
         res.end(JSON.stringify({
           summary: summary || null,
-          error: response.ok ? null : data.error?.message || 'OpenAI HUD summary request failed',
+          error: result.ok ? null : data.error?.message || data.error || 'HUD summary request failed',
         }));
       } catch (error) {
         res.statusCode = 502;
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: error?.message || 'OpenAI HUD summary request failed' }));
+        res.end(JSON.stringify({ error: error?.message || 'HUD summary request failed' }));
       }
     });
 
@@ -5235,6 +5236,7 @@ function openAiRealtimeProxy() {
             // Fully expressible with tools that already exist, so
             // GEV_REALTIME_TOOLS is deliberately untouched — deleting this one
             // string is the whole rollback.
+            'Slash commands /live-contacts, /space-missions, /environmental, and /explore-manually call run_view_preset with that exact preset, including /explore-manually. /help is spoken as: I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually — do not call a tool for /help.',
             'NAMED VIEWS are shorthand for tool calls you already have — there is no "mode" tool for them. Treat ONLY these as the shorthand: "infrastructure mode" / "the infrastructure view" / "show me global infrastructure" means three set_layer_visibility calls (local-datacenters, local-dams, telegeography-submarine-cables) plus zoom_to_globe; "environmental mode" / "earth watch" / "active events", said as the name of a view, means set_layer_visibility for local-firms and earthquakes plus zoom_to_globe. Anything vaguer is NOT this shorthand — an open-ended question about the world or the news is an ordinary question: answer it, or use analyst_query over the layers already on. Never switch a whole view on to answer a question nobody asked to see. When you do run one, make every call before speaking, then give one confirmation naming the resulting state; if the fires layer comes back unavailable because no FIRMS key is configured, say so plainly — the earthquakes still loaded. "Live contacts" and "space missions" are NOT this pattern: they stay set_context_mode{mode:"contacts"} and set_context_mode{mode:"space-missions"}.',
             'For visual filter requests, call set_visual_style with one of the allowed style IDs.',
             'Disambiguation table — basemap vs layer vs style: basemap switching requires an explicit stack name — "Bing aerial" means set_map_stack bing-aerial, "aerial with labels" means bing-labels, "OSM"/"road map" means osm, "Google 3D"/"photorealistic" means photoreal. Any mention of "satellite" or "satellites" ALWAYS means the satellites DATA LAYER via set_layer_visibility, never a basemap. "surveillance"/"night vision"/"thermal" are visual STYLES via set_visual_style.',
@@ -5306,6 +5308,8 @@ function openAiRealtimeProxy() {
 }
 
 function extractOpenAiResponseText(data) {
+  const chat = data?.choices?.[0]?.message?.content;
+  if (typeof chat === 'string' && chat.trim()) return chat.trim();
   if (typeof data?.output_text === 'string' && data.output_text.trim()) {
     return data.output_text.trim();
   }
@@ -5890,6 +5894,22 @@ const GEV_REALTIME_TOOLS = [
         },
       },
       required: ['mode'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'run_view_preset',
+    description: 'Run a public YouTube/COMMANDS view: /live-contacts, /space-missions, /environmental, or /explore-manually. Use the slash token as preset. /explore-manually leaves layers unchanged.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        preset: {
+          type: 'string',
+          enum: ['/live-contacts', '/space-missions', '/environmental', '/explore-manually'],
+        },
+      },
+      required: ['preset'],
     },
   },
   {

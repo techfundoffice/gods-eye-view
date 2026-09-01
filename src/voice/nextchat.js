@@ -13,6 +13,9 @@ export const VOICE_CHANNEL_WAIT_MS = 20000;
 export const NEXTCHAT_MAX_LIVE_COMMENTS = 7;
 export const NEXTCHAT_MAX_ACTIONS = 3;
 export const NEXTCHAT_COMMENT_FULL_OPACITY_MS = 12000;
+/** HUD-matching typewriter for GEV ACTIONS replies. */
+export const ACTION_REPLY_TYPE_STEP = 2;
+export const ACTION_REPLY_TYPE_MS = 24;
 
 const PUBLIC_ACTION_STATES = new Set([
   'pending',
@@ -27,6 +30,32 @@ const PUBLIC_ACTION_STATES = new Set([
   'failed',
   'cancelled',
 ]);
+
+const actionReplyTimers = new WeakMap();
+
+/** Viewer YouTube comments shown in LIVE COMMENTS, not command-status dumps. */
+export function isLiveCommentMessage(message) {
+  return message?.role === 'viewer' && String(message.metadata?.source || '') !== 'youtube-command';
+}
+
+/**
+ * Newest Live Comments first. Ingest stays chronological (append);
+ * display reverses the last `limit` live-comment rows.
+ *
+ * @param {object[]} messages
+ * @param {{limit?: number}} [options]
+ * @returns {object[]}
+ */
+export function orderLiveCommentMessages(messages, { limit = NEXTCHAT_MAX_LIVE_COMMENTS } = {}) {
+  const list = Array.isArray(messages) ? messages.filter(isLiveCommentMessage) : [];
+  const cap = Number.isFinite(limit) ? Math.max(0, limit) : list.length;
+  return list.slice(-cap).reverse();
+}
+
+/** GEV ACTIONS · VIEW REQUESTS lane. */
+export function isActionLaneMessage(message) {
+  return PUBLIC_ACTION_STATES.has(String(message.metadata?.actionState || '').toLowerCase());
+}
 
 const ASSISTANT_DELTA_TYPES = new Set([
   'response.output_audio_transcript.delta',
@@ -349,6 +378,97 @@ export function finishAssistantStreaming(state) {
 }
 
 /**
+ * Append GEV ACTIONS reply text incrementally so LIVE COMMENTS-style print
+ * type can paint from the store without resetting on each render.
+ *
+ * @param {object} state
+ * @param {{delta?: string, text?: string, actionState?: string}} payload
+ * @param {number} [now]
+ * @returns {object}
+ */
+export function applyActionReplyDelta(state, payload, now = Date.now()) {
+  const piece = typeof payload?.delta === 'string'
+    ? payload.delta
+    : typeof payload?.text === 'string' ? payload.text : '';
+  if (!piece) return state;
+  const actionState = String(payload?.actionState || 'succeeded').slice(0, 24) || 'succeeded';
+  return mapActiveSession(state, (session) => {
+    const last = session.messages[session.messages.length - 1];
+    if (last?.role === 'assistant' && last.streaming && last.metadata?.actionState === actionState) {
+      last.content += piece;
+      return session;
+    }
+    session.messages.push({
+      id: createSessionId(),
+      role: 'assistant',
+      author: 'GEV',
+      content: piece,
+      metadata: {
+        source: 'youtube-command',
+        commentId: '',
+        videoId: '',
+        receivedAt: new Date(now).toISOString(),
+        actionState,
+        actionCount: 0,
+      },
+      streaming: true,
+    });
+    return session;
+  }, now);
+}
+
+export function finishActionReplyStreaming(state) {
+  return finishAssistantStreaming(state);
+}
+
+/**
+ * Type an action-lane reply 2 characters every 24ms, matching HUD summary.
+ *
+ * @param {string} text
+ * @param {{store: object, clock?: {setTimeout: Function, clearTimeout?: Function}, step?: number, intervalMs?: number, actionState?: string}} options
+ * @returns {{ok: boolean, cancel?: Function}}
+ */
+export function typeActionReply(text, options = {}) {
+  const store = options.store;
+  const clock = options.clock || globalThis;
+  const step = Math.max(1, Number(options.step) || ACTION_REPLY_TYPE_STEP);
+  const intervalMs = Math.max(1, Number(options.intervalMs) || ACTION_REPLY_TYPE_MS);
+  const actionState = options.actionState || 'succeeded';
+  const full = String(text || '');
+  if (!store || typeof store.applyActionReplyDelta !== 'function' || !full) {
+    return { ok: false };
+  }
+  const previous = actionReplyTimers.get(store);
+  if (previous != null) clock.clearTimeout?.(previous);
+  let index = 0;
+  const tick = () => {
+    actionReplyTimers.delete(store);
+    const next = Math.min(full.length, index + step);
+    store.applyActionReplyDelta({
+      delta: full.slice(index, next),
+      actionState,
+    });
+    index = next;
+    if (index >= full.length) {
+      store.finishActionReplyStreaming?.();
+      return;
+    }
+    const handle = clock.setTimeout(tick, intervalMs);
+    actionReplyTimers.set(store, handle);
+  };
+  const handle = clock.setTimeout(tick, intervalMs);
+  actionReplyTimers.set(store, handle);
+  return {
+    ok: true,
+    cancel() {
+      const pending = actionReplyTimers.get(store);
+      if (pending != null) clock.clearTimeout?.(pending);
+      actionReplyTimers.delete(store);
+    },
+  };
+}
+
+/**
  * @param {object} state
  * @param {string|null} message
  * @returns {object}
@@ -441,6 +561,17 @@ export function createNextchatStore(storage) {
     finishAssistantStreaming() {
       state = finishAssistantStreaming(state);
       emit();
+    },
+    applyActionReplyDelta(payload) {
+      state = applyActionReplyDelta(state, payload);
+      emit();
+    },
+    finishActionReplyStreaming() {
+      state = finishActionReplyStreaming(state);
+      emit();
+    },
+    typeActionReply(text, options = {}) {
+      return typeActionReply(text, { ...options, store: this });
     },
     setUnavailable(message) {
       state = setUnavailable(state, message);
@@ -617,12 +748,16 @@ function renderSessions(listEl, state) {
 function renderThread(threadEl, session, {
   include = () => true,
   limit = Infinity,
+  newestFirst = false,
   now = Date.now(),
   onNeedsAgeRefresh = null,
 } = {}) {
   if (!threadEl) return;
   threadEl.replaceChildren();
-  const messages = (session?.messages || []).filter(include).slice(-limit);
+  const filtered = (session?.messages || []).filter(include);
+  const messages = newestFirst
+    ? orderLiveCommentMessages(filtered, { limit })
+    : filtered.slice(-limit);
   for (const message of messages) {
     const row = threadEl.ownerDocument.createElement('div');
     row.className = `gev-nextchat-msg gev-nextchat-${message.role}`;
@@ -659,7 +794,7 @@ function renderThread(threadEl, session, {
     }
     threadEl.appendChild(row);
   }
-  threadEl.scrollTop = threadEl.scrollHeight;
+  threadEl.scrollTop = newestFirst ? 0 : threadEl.scrollHeight;
 }
 
 function registryEntries(registry) {
@@ -759,8 +894,9 @@ export function initNextchat({
     const session = store.getActiveSession();
     if (liveThreadEl) {
       renderThread(liveThreadEl, session, {
-        include: (message) => message.role === 'viewer',
+        include: isLiveCommentMessage,
         limit: NEXTCHAT_MAX_LIVE_COMMENTS,
+        newestFirst: true,
         onNeedsAgeRefresh(delay) {
           const dueAt = Date.now() + delay;
           if (ageRefreshTimer !== null && dueAt >= ageRefreshAt) return;
@@ -774,7 +910,7 @@ export function initNextchat({
         },
       });
       renderThread(actionThreadEl, session, {
-        include: (message) => PUBLIC_ACTION_STATES.has(String(message.metadata?.actionState || '').toLowerCase()),
+        include: isActionLaneMessage,
         limit: NEXTCHAT_MAX_ACTIONS,
       });
     } else {
@@ -850,6 +986,9 @@ export function initNextchat({
     },
     publishViewerMessage(payload) {
       return publishNextChatMessage(payload, store);
+    },
+    typeActionReply(text, options = {}) {
+      return typeActionReply(text, { ...options, store });
     },
     setHarnessStatus(message) {
       return setNextchatHarnessStatus(message, store);

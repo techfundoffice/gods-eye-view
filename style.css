@@ -9533,7 +9533,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   bottom: auto;
   height: auto;
   left: max(0.65rem, env(safe-area-inset-left));
-  width: min(22rem, calc(100vw - 5rem));
+  width: min(17rem, calc(100vw - 5rem));
   pointer-events: none;
 }
 
@@ -9542,9 +9542,9 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   z-index: 147;
   width: 100%;
   height: auto;
-  /* Short landscape phones (667 x 390): cap the card and let the mission list
-     scroll inside so header, tiles, and status stay reachable. */
-  max-height: min(70dvh, calc(100dvh - 5.75rem - 5.5rem));
+  /* Cap to the viewport on very short screens. Desktop must fit missions plus
+     every Data Layers row without a list scrollbar. */
+  max-height: min(90dvh, calc(100dvh - 5.75rem - 4.5rem));
   display: flex;
   flex-direction: column;
   padding: 0.5rem 0.55rem 0.45rem;
@@ -9587,7 +9587,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-top-left,
 body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-bottom-left,
 body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-left-edge {
-  left: calc(max(0.65rem, env(safe-area-inset-left)) + min(22rem, calc(100vw - 5rem)) + 0.85rem);
+  left: calc(max(0.65rem, env(safe-area-inset-left)) + min(17rem, calc(100vw - 5rem)) + 0.85rem);
 }
 
 
@@ -9678,11 +9678,11 @@ body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-left
   width: 100%;
   height: auto;
   min-height: 0;
-  max-height: min(70dvh, calc(100dvh - 5.75rem - 5.5rem));
+  max-height: min(90dvh, calc(100dvh - 5.75rem - 4.5rem));
 }
 
 #first-run-launcher.is-maximized .first-run-choices {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
 }
 
 .first-run-header,
@@ -9706,17 +9706,9 @@ body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-left
   gap: 0.28rem;
   margin-top: 0.4rem;
   position: relative;
-  flex: 0 1 auto;
-  /* The one part of the card allowed to scroll when the viewport is too short.
-     min-height:0 is what actually lets this flex child shrink below its content. */
+  flex: 0 0 auto;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scroll-behavior: smooth;
-  /* A visible, non-overlaying affordance that the list continues. */
-  scrollbar-width: thin;
-  scrollbar-color: rgba(54, 220, 255, 0.45) transparent;
-  scrollbar-gutter: stable;
+  overflow: visible;
 }
 
 .first-run-choices::-webkit-scrollbar { width: 6px; }
@@ -9732,8 +9724,8 @@ body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-left
   gap: 0.45rem;
   width: 100%;
   flex-shrink: 0;
-  min-height: 2.15rem;
-  padding: 0.32rem 0.45rem;
+  min-height: 1.95rem;
+  padding: 0.28rem 0.42rem;
   color: var(--first-run-ink);
   text-align: left;
   background: rgba(6, 15, 22, 0.55);
@@ -9800,6 +9792,86 @@ body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-left
 /* Ordered after the shared button rule rather than shouting !important at it. */
 .first-run-choices button.first-run-explore {
   background: rgba(255, 255, 255, 0.016);
+}
+
+.first-run-layers {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-height: 0;
+  margin-top: 0.28rem;
+}
+
+.first-run-layers-kicker {
+  flex-shrink: 0;
+  color: var(--first-run-ink);
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.1rem;
+}
+
+.first-run-layers-list {
+  display: grid;
+  gap: 0.12rem;
+  margin-top: 0.28rem;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.first-run-layers-list button {
+  display: grid;
+  grid-template-columns: 1.15rem 1fr 1rem;
+  align-items: center;
+  gap: 0.38rem;
+  width: 100%;
+  min-height: 1.28rem;
+  padding: 0.1rem 0.3rem;
+  color: var(--first-run-ink);
+  text-align: left;
+  background: rgba(6, 15, 22, 0.4);
+  border: 1px solid rgba(100, 200, 220, 0.1);
+  border-radius: 0.32rem;
+  cursor: pointer;
+}
+
+.first-run-layers-list button:hover,
+.first-run-layers-list button:focus-visible {
+  background: rgba(54, 220, 255, 0.12);
+  border-color: rgba(54, 220, 255, 0.5);
+  outline: none;
+}
+
+.first-run-layers-list button[aria-pressed='true'] {
+  background: rgba(54, 220, 255, 0.16);
+  border-color: rgba(54, 220, 255, 0.55);
+}
+
+.first-run-layers-list button > .material-symbols-outlined:first-child,
+.first-run-layer-check {
+  color: var(--first-run-ink);
+  font-size: 1rem;
+}
+
+.first-run-layers-list button > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.04rem;
+  min-width: 0;
+}
+
+.first-run-layers-list strong {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.06rem;
+}
+
+.first-run-layers-list small {
+  color: var(--first-run-ink);
+  font-size: 0.52rem;
+  line-height: 1.2;
 }
 
 .first-run-footer {
@@ -11615,7 +11687,7 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 @media (min-width: 721px) and (max-width: 1100px) {
   #mission-control-nav {
     left: 16px;
-    width: min(24rem, calc(50vw - 28px));
+    width: min(17rem, calc(50vw - 28px));
   }
 
   #gev-nextchat {

@@ -2,6 +2,22 @@
 
 Updated: September 1, 2026
 
+> **2026-09-01 — `/help` is the first COMMANDS token.** YouTube chat `/help`
+> appears in LIVE COMMENTS. GEV ACTIONS typewrites
+> `I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually`.
+> `/live-contacts`, `/space-missions`, `/environmental`, and `/explore-manually`
+> execute the matching Mission Control views through `run_view_preset` on the
+> GEV action runner. `/help` does not call the public-command model.
+
+> **2026-09-01 — public YouTube commands use OpenRouter `openrouter/free`.**
+> `/x` `/y` `/z` and related public chat commands are interpreted by
+> `src/youtubePublicResponsesInterpreter.js` via OpenRouter chat completions
+> (`OPENROUTER_API_KEY`, model `openrouter/free`). The existing public tool
+> allowlist and action runner are unchanged. Extra turns past the free-pool
+> cap (20/min, 50/day) are rejected, not billed. GEV MIC remains OpenAI
+> Realtime and is not on this path. HUD five-word summary uses the same
+> free router.
+
 > **2026-09-01 — overlapping homepage chrome is unburied.** The command dock
 > sits above the COMMANDS legend and live-news ticker (`bottom: 4.5rem`).
 > `#right-context-rail` treats LIVE COMMENTS, the command legend, and the
@@ -15,11 +31,13 @@ Updated: September 1, 2026
 > the forbidden-cockpit pitch, or the GEV MIC tip. It sits at `z-index: 147`
 > with the other controls, sizes to the header plus tiles, and keeps a reserved
 > fill so Cesium HUD cannot show through type or buttons. Globe clicks around
-> the panel still pass through; choosing a view still tucks to the MISSION
-> CONTROL chip. The chooser opens **expanded** (`is-maximized`) by default and
+> the panel still pass through; choosing a view leaves the chooser open; there is no minimize control or restore chip. The chooser opens **expanded** (`is-maximized`) by default and
 > sizes to its header plus tiles — no 36rem stretch. Restore from the chip
 > returns to that compact expanded window. Maximize toggles in-rail instead of
-> covering the globe.
+> covering the globe. Under Explore Manually, an in-card **DATA LAYERS** list
+> toggles a Google Earth–inspired subset of feeds this globe already plots
+> (traffic, photoreal, AIS, cables, NWS, quakes, fires, storms, parks, water).
+> Those rows do not fly the camera. The existing DATA LAYERS panel is unchanged.
 
 > **2026-09-01 — LIVE COMMENTS is a reserved broadcast lane.** The heading row
 > has its own fill so globe telemetry cannot show through the red title.

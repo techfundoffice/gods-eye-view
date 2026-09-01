@@ -4,20 +4,36 @@ import {
   PUBLIC_COMMAND_REGISTRY,
   PUBLIC_GEV_TOOL_CATALOG,
   PUBLIC_GEV_TOOL_NAMES,
+  PUBLIC_HELP_REPLY,
+  PUBLIC_VIEW_PRESETS,
   parsePublicCommand,
   publicCommandLegend,
   toolsForPublicMode,
   validatePublicToolCall,
 } from './youtubePublicCommandPolicy.js';
 
-test('registry is deeply immutable and contains exactly the public commands and 28 GEV tools', () => {
-  assert.deepEqual(Object.keys(PUBLIC_COMMAND_REGISTRY), ['/x', '/y', '/z', '/gods-eye-view']);
-  assert.equal(PUBLIC_GEV_TOOL_NAMES.length, 28);
+test('registry is deeply immutable, starts with /help, and includes /explore-manually plus 29 GEV tools', () => {
+  assert.deepEqual(Object.keys(PUBLIC_COMMAND_REGISTRY), [
+    '/help',
+    '/live-contacts',
+    '/space-missions',
+    '/environmental',
+    '/explore-manually',
+    '/x',
+    '/y',
+    '/z',
+    '/gods-eye-view',
+  ]);
+  assert.equal(Object.keys(PUBLIC_COMMAND_REGISTRY)[0], '/help');
+  assert.equal(publicCommandLegend()[0].command, '/help');
+  assert.equal(PUBLIC_VIEW_PRESETS['/explore-manually'], 'explore');
+  assert.equal(PUBLIC_GEV_TOOL_NAMES.length, 29);
+  assert.ok(PUBLIC_GEV_TOOL_NAMES.includes('run_view_preset'));
   assert.ok(Object.isFrozen(PUBLIC_COMMAND_REGISTRY));
   assert.ok(Object.isFrozen(PUBLIC_COMMAND_REGISTRY['/x'].tools));
   assert.ok(Object.isFrozen(PUBLIC_GEV_TOOL_CATALOG.annotate_map.parameters.properties));
   assert.equal(PUBLIC_GEV_TOOL_NAMES.some((name) => name.includes('admin')), false);
-  assert.equal(PUBLIC_COMMAND_REGISTRY['/x'].tools.length, 28);
+  assert.equal(PUBLIC_COMMAND_REGISTRY['/x'].tools.length, PUBLIC_GEV_TOOL_NAMES.length);
 });
 
 test('mode allowlists are exact', () => {
@@ -44,6 +60,11 @@ test('pure parser recognizes only a leading complete token and enforces required
   assert.equal(parsePublicCommand('/x').reason, 'request-required');
   assert.equal(parsePublicCommand('/z   ').valid, false);
   assert.equal(parsePublicCommand('/gods-eye-view').valid, true);
+  assert.equal(parsePublicCommand('/help').valid, true);
+  assert.equal(parsePublicCommand('/help').command, '/help');
+  assert.equal(parsePublicCommand('/live-contacts').command, '/live-contacts');
+  assert.equal(parsePublicCommand('/explore-manually').valid, true);
+  assert.equal(parsePublicCommand('/explore-manually').command, '/explore-manually');
   assert.equal(parsePublicCommand('hello /y question').recognized, false);
   assert.equal(parsePublicCommand('/xyz do it').recognized, false);
   assert.equal(parsePublicCommand('/y: question').recognized, false);
@@ -57,6 +78,11 @@ test('server validator rejects mode violations, extra keys, bad types and ranges
   assert.equal(validatePublicToolCall('/z', 'fly_to_location', { latitude: 91, longitude: 0 }).ok, false);
   assert.equal(validatePublicToolCall('/z', 'adjust_camera_zoom', { direction: 'sideways' }).ok, false);
   assert.equal(validatePublicToolCall('/x', 'control_radio', { action: 'volume', volumePct: 101 }).ok, false);
+  assert.equal(validatePublicToolCall('/help', 'zoom_to_globe', {}).ok, false);
+  assert.equal(validatePublicToolCall('/live-contacts', 'run_view_preset', { preset: '/live-contacts' }).ok, true);
+  assert.equal(validatePublicToolCall('/explore-manually', 'run_view_preset', { preset: '/explore-manually' }).ok, true);
+  assert.equal(validatePublicToolCall('/explore-manually', 'set_context_mode', { mode: 'contacts' }).ok, false);
+  assert.equal(PUBLIC_HELP_REPLY, 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually');
 });
 
 test('all 28 schemas are strict server-safe validators', () => {

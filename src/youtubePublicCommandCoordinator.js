@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { PUBLIC_COMMAND_LIMITS, parsePublicCommand, validatePublicToolCall } from './youtubePublicCommandPolicy.js';
+import {
+  PUBLIC_COMMAND_LIMITS,
+  PUBLIC_HELP_REPLY,
+  PUBLIC_VIEW_PRESETS,
+  parsePublicCommand,
+  validatePublicToolCall,
+} from './youtubePublicCommandPolicy.js';
 
 const bounded = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
 
@@ -24,6 +30,26 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     const inserted = await ledger.insert(record);
     if (!inserted.inserted || !parsed.valid) return { recognized: true, duplicate: !inserted.inserted, record: inserted.record };
     await ledger.compareAndSet(record.id, 'received', { state: 'interpreting' });
+    if (parsed.command === '/help') {
+      await ledger.compareAndSet(record.id, 'interpreting', {
+        state: 'succeeded',
+        answer: PUBLIC_HELP_REPLY,
+      });
+      return { recognized: true, record: await ledger.get(record.id) };
+    }
+    if (PUBLIC_VIEW_PRESETS[parsed.command]) {
+      const checked = validatePublicToolCall(parsed.command, 'run_view_preset', { preset: parsed.command });
+      if (!checked.ok) {
+        await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: checked.reason });
+        return { recognized: true, record: await ledger.get(record.id) };
+      }
+      await ledger.compareAndSet(record.id, 'interpreting', {
+        state: 'awaiting-execution',
+        nonce: id(),
+        validatedTool: checked,
+      });
+      return { recognized: true, record: await ledger.get(record.id) };
+    }
     return advance(record.id, binding);
   }
 
@@ -51,9 +77,16 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
         ...(continuation ? {
           previousResponseId: continuation.responseId, callId: continuation.callId,
           toolResult: continuation.result,
+          priorCall: record.validatedTool,
         } : {}),
       });
     } catch (error) {
+      if (error?.kind === 'rate-limited') {
+        await ledger.compareAndSet(record.id, 'interpreting', {
+          state: 'rejected', reason: 'OpenRouter free rate limit',
+        });
+        return { ok: false, reason: 'rate-limited' };
+      }
       await ledger.compareAndSet(record.id, 'interpreting', { state: 'failed', reason: bounded(error?.message || 'Interpreter failed', 160) });
       return { ok: false, reason: 'interpreter' };
     }
@@ -92,6 +125,17 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
         reason: checked.ok ? 'Verified live binding changed' : 'Stored tool failed revalidation',
       });
       return { ok: false, reason: 'stale-or-invalid' };
+    }
+    if (PUBLIC_VIEW_PRESETS[record.command]) {
+      const ok = result?.ok !== false;
+      await ledger.compareAndSet(record.id, 'executing', {
+        state: ok ? 'succeeded' : 'failed',
+        nonce: null,
+        executionResult: structuredClone(result),
+        reason: ok ? '' : bounded(result?.error || 'View preset failed', 160),
+        answer: ok ? bounded(record.command, 160) : '',
+      });
+      return { ok, record: await ledger.get(record.id) };
     }
     await ledger.compareAndSet(record.id, 'executing', { state: 'awaiting-model', nonce: null, executionResult: structuredClone(result) });
     return advance(record.id, binding, { responseId: record.modelResponseId, callId: record.functionCallId, result });
