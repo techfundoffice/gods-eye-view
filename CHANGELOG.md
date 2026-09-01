@@ -15,7 +15,8 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
   forbidden-cockpit pitch, no GEV MIC tip, and no “ESC to dismiss.” View tiles
   sit under the header on a reserved fill so globe HUD cannot show through
   them. Clicks around the panel still reach the globe. The window opens
-  expanded by default.
+  expanded by default and stays content-sized (compact tiles, no tall empty
+  card).
 - LIVE COMMENTS has a reserved heading row and lane fill. Author and message
   stack as separate rows. GEV Actions, comments, status, COMMANDS, and the
   news ticker stay in non-overlapping layout areas.

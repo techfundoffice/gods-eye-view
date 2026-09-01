@@ -24,7 +24,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "HOST=0.0.0.0 PORT=5000 npm run dev"
+args = "HOST=0.0.0.0 PORT=5000 bash scripts/dev-replit.sh"
 waitForPort = 5000
 
 [workflows.workflow.metadata]

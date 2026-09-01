@@ -139,3 +139,40 @@ test('ended InnerTube session rediscovers and does not keep a stale video id', a
   assert.ok(discover >= 2);
   worker.stop();
 });
+
+test('worker keeps YouTube ingest interval separate from the browser snapshot hint', async () => {
+  const scheduled = [];
+  const worker = createLiveCommentIngestWorker({
+    discoverLive: async () => ({
+      videoId: '9ZiwwXr-qU4',
+      title: 'Live',
+      watchUrl: 'https://www.youtube.com/watch?v=9ZiwwXr-qU4',
+      isLive: true,
+      status: 'live',
+    }),
+    chat: {
+      async poll() {
+        return {
+          items: [{ id: 'n1', snippet: { displayMessage: 'hi' }, authorDetails: { displayName: 'A' } }],
+          nextPageToken: 'T',
+          pollingIntervalMillis: 12_000,
+        };
+      },
+    },
+    clock: {
+      setTimeout(callback, delay) {
+        scheduled.push(delay);
+        return scheduled.length;
+      },
+      clearTimeout() {},
+    },
+  });
+  worker.start();
+  await new Promise((resolve) => setImmediate(resolve));
+  const snap = worker.snapshot();
+  assert.equal(snap.ingestPollingIntervalMillis, 12_000);
+  assert.equal(snap.pollingIntervalMillis, 800);
+  assert.equal(scheduled[0], 12_000);
+  assert.ok(snap.updatedAt > 0);
+  worker.stop();
+});

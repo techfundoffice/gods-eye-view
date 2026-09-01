@@ -6,7 +6,13 @@ import {
   createYoutubeHomepageChatMiddleware,
   inferHomepageViewerActions,
 } from './youtubeHomepageChatServer.js';
-import { createYoutubeHomepageInteraction } from './youtubeHomepageInteraction.js';
+import {
+  MEMORY_POLL_HIDDEN_MS,
+  MEMORY_POLL_IDLE_MS,
+  MEMORY_POLL_LIVE_MS,
+  createYoutubeHomepageInteraction,
+  memoryPollDelay,
+} from './youtubeHomepageInteraction.js';
 
 function invoke(middleware, url = '/feed') {
   return new Promise((resolve, reject) => {
@@ -467,4 +473,39 @@ test('viewer navigation dismisses the first-run launcher before moving the camer
     actions: inferHomepageViewerActions('go to ensenada mexico'),
   }]);
   assert.equal(clicked, 1);
+});
+
+test('browser memory poll is faster when live and visible, slower when hidden or idle', () => {
+  assert.equal(memoryPollDelay({ active: true, status: 'live', pollingIntervalMillis: 800 }), MEMORY_POLL_LIVE_MS);
+  assert.equal(
+    memoryPollDelay({ active: true, status: 'live', pollingIntervalMillis: 800 }, { hidden: true }),
+    MEMORY_POLL_HIDDEN_MS,
+  );
+  assert.equal(memoryPollDelay({ active: false, status: 'ended' }), MEMORY_POLL_IDLE_MS);
+  assert.notEqual(
+    memoryPollDelay({ active: true, status: 'live', ingestPollingIntervalMillis: 12_000, pollingIntervalMillis: 800 }),
+    12_000,
+  );
+});
+
+test('generation change still clears browser dedupe when comments keep flowing', async () => {
+  const displayed = [];
+  const interaction = createYoutubeHomepageInteraction({
+    nextchat: {
+      publishViewerMessage(message) { displayed.push(message); },
+      setHarnessStatus() {},
+    },
+    documentRef: null,
+    now: () => 20_000,
+  });
+  await interaction.ingest([
+    { id: 'same', videoId: 'aaaa', author: 'A', text: 'one', actions: [] },
+  ]);
+  await interaction.ingest([
+    { id: 'same', videoId: 'aaaa', author: 'A', text: 'one', actions: [] },
+  ]);
+  assert.equal(displayed.length, 1);
+  interaction.getState();
+  const state = interaction.getState();
+  assert.equal(state.seen, 1);
 });

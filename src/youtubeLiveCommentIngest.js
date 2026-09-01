@@ -111,6 +111,8 @@ export function createLiveCommentIngestWorker({
   let generation = 0;
   let error = null;
   let discoveredAt = 0;
+  let updatedAt = 0;
+  let ingestDelayMs = 5_000;
   const buffer = [];
   const seen = new Set();
 
@@ -141,6 +143,7 @@ export function createLiveCommentIngestWorker({
 
   function snapshot() {
     const live = status === 'live' && Boolean(videoId);
+    const stamp = updatedAt || now();
     return {
       active: live,
       status,
@@ -151,7 +154,10 @@ export function createLiveCommentIngestWorker({
       items: buffer.slice(),
       generation,
       commandsEnabled: live,
-      pollingIntervalMillis: 5_000,
+      updatedAt: stamp,
+      snapshotAgeMs: Math.max(0, now() - stamp),
+      ingestPollingIntervalMillis: ingestDelayMs,
+      pollingIntervalMillis: live ? 800 : 5_000,
       error,
     };
   }
@@ -197,7 +203,9 @@ export function createLiveCommentIngestWorker({
         pushItems(page.items || []);
         status = 'live';
         error = null;
+        updatedAt = now();
         delay = Math.max(2_000, Math.min(15_000, Number(page.pollingIntervalMillis) || 5_000));
+        ingestDelayMs = delay;
       }
     } catch (caught) {
       const kind = String(caught?.kind || 'upstream');
@@ -212,15 +220,38 @@ export function createLiveCommentIngestWorker({
       }
       delay = kind === 'ended' ? 8_000 : 10_000;
     } finally {
-      if (!stopped) timer = clock.setTimeout(() => { void tick(); }, delay);
+      schedule(delay);
     }
+  }
+
+  function schedule(delayMs) {
+    if (stopped) return;
+    if (timer != null) clock.clearTimeout(timer);
+    timer = clock.setTimeout(() => {
+      timer = null;
+      void Promise.resolve()
+        .then(() => tick())
+        .catch((err) => {
+          status = 'unavailable';
+          error = { kind: 'upstream', message: String(err?.message || err) };
+          schedule(10_000);
+        });
+    }, Math.max(0, Number(delayMs) || 5_000));
   }
 
   return {
     start() {
       if (!stopped && timer != null) return;
       stopped = false;
-      if (timer == null) void tick();
+      if (timer == null) {
+        void Promise.resolve()
+          .then(() => tick())
+          .catch((err) => {
+            status = 'unavailable';
+            error = { kind: 'upstream', message: String(err?.message || err) };
+            schedule(10_000);
+          });
+      }
     },
     stop() {
       stopped = true;

@@ -202,7 +202,10 @@ export function createYoutubeHomepageChatMiddleware({
       }
       sendJson(res, 200, publicFeedBody(snap, {
         items,
-        pollingIntervalMillis: Math.max(5_000, Math.min(30_000, Number(snap.pollingIntervalMillis) || 5_000)),
+        pollingIntervalMillis: Math.max(500, Math.min(30_000, Number(snap.pollingIntervalMillis) || (live ? 800 : 5_000))),
+        ingestPollingIntervalMillis: Math.max(0, Number(snap.ingestPollingIntervalMillis) || 0),
+        updatedAt: Math.max(0, Number(snap.updatedAt) || now()),
+        snapshotAgeMs: Math.max(0, Number(snap.snapshotAgeMs) || 0),
         commands,
         ...(snap.error?.kind || snap.error?.message ? {
           error: {

@@ -550,7 +550,7 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   const main = fs.readFileSync(new URL('./main.js', import.meta.url), 'utf8');
   const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
-  assert.match(html, /id="first-run-launcher" role="region"[^>]*aria-label="Mission Control"[^>]*hidden/);
+  assert.match(html, /id="first-run-launcher"[^>]*role="region"[^>]*aria-label="Mission Control"[^>]*hidden/);
   assert.equal((html.match(/data-first-run-choice=/g) || []).length, 4);
   assert.match(html, /data-first-run-status[^>]*role="status"[^>]*aria-live="polite"/);
   assert.doesNotMatch(html, /data-first-run-suppress|Don't show this again/);
@@ -679,6 +679,7 @@ test('Mission Control is left-rail chrome with a reserved fill over the live glo
   const rows = css.slice(css.indexOf('.first-run-choices button {'), css.indexOf('.first-run-choices button:hover'));
   assert.match(rows, /background: rgba\(6, 15, 22, 0\.55\)/);
   assert.match(rows, /flex-shrink: 0/);
+  assert.match(rows, /min-height: 2\.15rem/);
   assert.doesNotMatch(rows, /rgba\(54, 220, 255, 0\.045\)/);
 
   const hover = css.slice(css.indexOf('.first-run-choices button:hover'), css.indexOf('.first-run-choices button[aria-disabled'));
@@ -686,7 +687,9 @@ test('Mission Control is left-rail chrome with a reserved fill over the live glo
 
   const maximized = css.slice(css.indexOf('#first-run-launcher.is-maximized {'), css.indexOf('#first-run-launcher.is-maximized .first-run-choices'));
   assert.match(maximized, /position: relative/);
-  assert.match(maximized, /min-height: min\(36rem/);
+  assert.match(maximized, /height: auto/);
+  assert.match(maximized, /min-height: 0/);
+  assert.doesNotMatch(maximized, /min-height: min\(36rem/);
   assert.doesNotMatch(maximized, /position:\s*fixed/);
 
   // Window states, short/narrow viewports, and reduced-motion stay distinct.
@@ -705,8 +708,9 @@ test('Mission Control is left-rail chrome with a reserved fill over the live glo
   assert.doesNotMatch(successPath, /dismiss\(/);
   assert.match(module, /setWindowState\(root\.classList\.contains\('is-maximized'\) \? 'normal' : 'maximized'\)/);
   assert.match(module, /setWindowState\('maximized', \{ focusRestore: true \}\)/);
-  const reveal = module.slice(module.indexOf('const reveal = () => {'), module.indexOf('ESC ARBITRATION'));
-  assert.match(reveal, /setWindowState\('maximized'\)/);
+  const revealStart = module.indexOf('const reveal = () => {');
+  assert.ok(revealStart >= 0, 'reveal() must exist');
+  assert.match(module.slice(revealStart, revealStart + 600), /setWindowState\('maximized'\)/);
 });
 
 test('the launcher keeps focus, restores it, and never disables the focused button', () => {

@@ -7640,11 +7640,19 @@ export function youtubeProxy({
   return {
     name: 'gev-youtube-proxy',
     configureServer(server) {
-      if (autoStartIngest) commentIngest.start();
+      try {
+        if (autoStartIngest) commentIngest.start();
+      } catch (error) {
+        console.error('[gev-youtube-proxy] live-comment ingest failed to start', error);
+      }
       install(server.middlewares);
     },
     configurePreviewServer(server) {
-      if (autoStartIngest) commentIngest.start();
+      try {
+        if (autoStartIngest) commentIngest.start();
+      } catch (error) {
+        console.error('[gev-youtube-proxy] live-comment ingest failed to start', error);
+      }
       install(server.middlewares);
     },
   };

@@ -16,9 +16,10 @@ Updated: September 1, 2026
 > with the other controls, sizes to the header plus tiles, and keeps a reserved
 > fill so Cesium HUD cannot show through type or buttons. Globe clicks around
 > the panel still pass through; choosing a view still tucks to the MISSION
-> CONTROL chip. The chooser opens **expanded** (`is-maximized`) by default;
-> restore from the chip returns to expanded. Maximize toggles in-rail instead
-> of covering the globe.
+> CONTROL chip. The chooser opens **expanded** (`is-maximized`) by default and
+> sizes to its header plus tiles — no 36rem stretch. Restore from the chip
+> returns to that compact expanded window. Maximize toggles in-rail instead of
+> covering the globe.
 
 > **2026-09-01 — LIVE COMMENTS is a reserved broadcast lane.** The heading row
 > has its own fill so globe telemetry cannot show through the red title.

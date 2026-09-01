@@ -1,5 +1,9 @@
-const MIN_POLL_MS = 5_000;
-const MAX_POLL_MS = 30_000;
+/** Browser wait for local /feed memory. Not the YouTube InnerTube interval. */
+export const MEMORY_POLL_LIVE_MS = 800;
+export const MEMORY_POLL_HIDDEN_MS = 5_000;
+export const MEMORY_POLL_IDLE_MS = 8_000;
+export const MIN_POLL_MS = MEMORY_POLL_LIVE_MS;
+export const MAX_POLL_MS = 30_000;
 const GLOBAL_ACTION_COOLDOWN_MS = 4_000;
 const VIEWER_ACTION_COOLDOWN_MS = 8_000;
 const MAX_SEEN = 500;
@@ -8,6 +12,23 @@ const MAX_PENDING_ACTIONS = 20;
 function clampPoll(value) {
   const number = Number(value);
   return Math.max(MIN_POLL_MS, Math.min(MAX_POLL_MS, Number.isFinite(number) ? number : MIN_POLL_MS));
+}
+
+/**
+ * Browser /feed cadence. Never uses ingestPollingIntervalMillis (YouTube worker).
+ *
+ * @param {object} payload
+ * @param {{hidden?: boolean}} [options]
+ * @returns {number}
+ */
+export function memoryPollDelay(payload, { hidden = false } = {}) {
+  if (hidden) return MEMORY_POLL_HIDDEN_MS;
+  const status = String(payload?.status || '');
+  if (payload?.active === true && status === 'live') {
+    return clampPoll(payload.pollingIntervalMillis || MEMORY_POLL_LIVE_MS);
+  }
+  if (status === 'connecting') return 1_000;
+  return MEMORY_POLL_IDLE_MS;
 }
 
 function safeText(value, max = 160) {
@@ -226,7 +247,8 @@ export function createYoutubeHomepageInteraction({
         credentials: 'same-origin',
       });
       const payload = await response.json().catch(() => ({}));
-      delay = clampPoll(payload.pollingIntervalMillis);
+      const hidden = Boolean(documentRef?.hidden) || documentRef?.visibilityState === 'hidden';
+      delay = memoryPollDelay(payload, { hidden });
       if (!response.ok) throw new Error(payload?.error?.message || 'YouTube live chat unavailable');
       if (!payload.active) {
         continuation = '';
