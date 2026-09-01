@@ -63,6 +63,7 @@ import {
   createYoutubeApiCaller,
   listCompatibleBroadcasts,
   pickReusableBroadcast,
+  transitionYoutubeBroadcast,
 } from './src/youtubeBroadcast.js';
 import {
   supportsVerifiedToolIsolation,
@@ -7585,7 +7586,27 @@ export function youtubeProxy({
   });
   const liveSession = sharedLiveSession();
   const recovery = sharedYoutubeRecovery();
-  async function goLiveNow({ authorization, req = null, body = {} } = {}) {
+  const broadcastStatePath = String(
+    process.env.YOUTUBE_BROADCAST_STATE_PATH
+    || path.join(process.cwd(), '.local/youtube-active-broadcast.json'),
+  );
+  const readBroadcastState = async () => {
+    try {
+      return JSON.parse(await fsp.readFile(broadcastStatePath, 'utf8'));
+    } catch {
+      return {};
+    }
+  };
+  const writeBroadcastState = async (state) => {
+    await fsp.mkdir(path.dirname(broadcastStatePath), { recursive: true });
+    await fsp.writeFile(broadcastStatePath, `${JSON.stringify(state)}\n`, { mode: 0o600 });
+  };
+  async function goLiveNow({
+    authorization,
+    req = null,
+    body = {},
+    replaceCurrent = false,
+  } = {}) {
     const activeCall = liveSession.bindAuth(authorization, oauth.proxy);
     if (typeof activeCall !== 'function') {
       const error = new Error('YouTube sign-in required.');
@@ -7595,8 +7616,39 @@ export function youtubeProxy({
     }
     const title = String(body?.title || "God's Eye View LIVE").trim() || "God's Eye View LIVE";
     const privacyStatus = String(body?.privacyStatus || 'public').trim() || 'public';
+    const saved = await readBroadcastState();
+    const replaceId = replaceCurrent
+      ? String(process.env.YOUTUBE_REPLACE_BROADCAST_ID || '').trim()
+      : '';
+    if (replaceId && saved.replacedBroadcastId !== replaceId) {
+      await liveSession.stop().catch(() => {});
+      try {
+        await transitionYoutubeBroadcast(activeCall, {
+          broadcastId: replaceId,
+          broadcastStatus: 'complete',
+        });
+      } catch (error) {
+        // A completed/not-found broadcast no longer needs stopping. Authentication,
+        // quota, and transient failures must retry rather than create duplicates.
+        if (!['incompatible', 'not-found'].includes(error?.kind)) throw error;
+      }
+      const replacement = await liveSession.provision({
+        title,
+        description: String(body?.description || 'Live from God\'s Eye View').trim(),
+        privacyStatus,
+        autoGoLive: true,
+      }, activeCall);
+      await writeBroadcastState({
+        replacedBroadcastId: replaceId,
+        activeBroadcastId: replacement.broadcast?.id || '',
+        watchUrl: replacement.broadcast?.watchUrl || '',
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    const current = await readBroadcastState();
     const preferId = String(
       body?.broadcastId
+      || current.activeBroadcastId
       || process.env.YOUTUBE_BROADCAST_ID
       || youtubeVideoIdFromWatchUrl(process.env.YOUTUBE_WATCH_URL),
     ).trim();
@@ -7653,7 +7705,7 @@ export function youtubeProxy({
       if (recovery.attempt) return recovery.attempt;
       recovery.attempt = (async () => {
       try {
-        const result = await goLiveNow({ authorization });
+        const result = await goLiveNow({ authorization, replaceCurrent: true });
         if (recovery.timer) clearTimeout(recovery.timer);
         recovery.timer = null;
         recovery.nextAttemptAt = '';
