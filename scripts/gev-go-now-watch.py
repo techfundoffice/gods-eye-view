@@ -14,7 +14,6 @@ SESSION = 'http://127.0.0.1:5000/api/youtube/live/session'
 GO = 'http://127.0.0.1:5000/api/youtube/live/go-now'
 INGEST = 'http://127.0.0.1:5000/api/youtube/live/ingest-key'
 OUT = '/tmp/gev-go-now-result.json'
-DISABLED = '/tmp/gev-disable-legacy-watchdog'
 KEY_FILE = '/home/runner/workspace/.local/youtube-stream-key'
 WATCH_FILE = '/home/runner/workspace/.local/youtube-watch-url'
 ENV_FILE = '/home/runner/workspace/.env'
@@ -28,6 +27,15 @@ BODY = json.dumps({
     'privacyStatus': 'public',
     'description': "Live from God's Eye View",
 }).encode()
+ACTIVE_STATUSES = (
+    'starting',
+    'encoding',
+    'ingesting',
+    'waiting-for-youtube',
+    'live',
+    'stopping',
+)
+STOP = 'http://127.0.0.1:5000/api/youtube/live/stop'
 
 
 def get(url):
@@ -39,6 +47,13 @@ def post():
     request = urllib.request.Request(GO, data=BODY, method='POST')
     request.add_header('Content-Type', 'application/json')
     with urllib.request.urlopen(request, timeout=120) as response:
+        return response.status, json.loads(response.read().decode())
+
+
+def post_stop():
+    request = urllib.request.Request(STOP, data=b'{}', method='POST')
+    request.add_header('Content-Type', 'application/json')
+    with urllib.request.urlopen(request, timeout=20) as response:
         return response.status, json.loads(response.read().decode())
 
 
@@ -74,6 +89,18 @@ def session_snapshot():
 def finished(payload):
     status = payload.get('liveStatus') or payload.get('status') or ''
     return status == 'live' and bool(payload.get('watchUrl'))
+
+
+def session_blocks_go_now(status):
+    return str(status or '') in ACTIVE_STATUSES
+
+
+def dead_encoder(snap):
+    status = str(snap.get('status') or '')
+    if status not in ('encoding', 'starting'):
+        return False
+    frames = snap.get('framesSent') or 0
+    return frames <= 0
 
 
 def first_line(path):
@@ -383,8 +410,6 @@ def try_stream_key():
 def run_watch_loop():
     global last_connector_check, last_public_check
     while True:
-        if Path(DISABLED).exists():
-            return
         try:
             if try_stream_key():
                 break
@@ -399,17 +424,44 @@ def run_watch_loop():
                 except Exception:
                     pass
             snap = session_snapshot()
-            if snap['status'] in ('encoding', 'ingesting', 'waiting-for-youtube', 'live'):
+            if dead_encoder(snap):
+                try:
+                    post_stop()
+                except Exception:
+                    pass
+                time.sleep(2)
+                continue
+            if session_blocks_go_now(snap['status']):
                 write(snap)
                 if finished(snap):
                     break
+                now = time.time()
+                if now - last_public_check > 20:
+                    last_public_check = now
+                    try:
+                        watch = snap.get('watchUrl') or first_line(WATCH_FILE) or env_value('YOUTUBE_WATCH_URL') or replit_secret('YOUTUBE_WATCH_URL') or DEFAULT_WATCH
+                        public = public_youtube_live(watch)
+                        if public['isLiveNow'] and (snap.get('framesSent') or 0) > 0:
+                            result = {
+                                'status': 'live',
+                                'watchUrl': public['watchUrl'],
+                                'liveStatus': 'live',
+                                'source': 'youtube-public',
+                                'at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                            }
+                            write(result)
+                            break
+                    except Exception:
+                        pass
+                time.sleep(2)
+                continue
             now = time.time()
             if now - last_public_check > 20:
                 last_public_check = now
                 try:
                     watch = snap.get('watchUrl') or first_line(WATCH_FILE) or env_value('YOUTUBE_WATCH_URL') or replit_secret('YOUTUBE_WATCH_URL') or DEFAULT_WATCH
                     public = public_youtube_live(watch)
-                    if public['isLiveNow'] and snap['status'] in ('encoding', 'ingesting', 'waiting-for-youtube', 'live') and (snap.get('framesSent') or 0) > 0:
+                    if public['isLiveNow'] and snap['status'] in ACTIVE_STATUSES and (snap.get('framesSent') or 0) > 0:
                         result = {
                             'status': 'live',
                             'watchUrl': public['watchUrl'],
@@ -441,14 +493,24 @@ def run_watch_loop():
                         time.sleep(5)
                         continue
                 except urllib.error.HTTPError as error:
-                    error.read()
+                    raw = error.read()
+                    kind = ''
+                    try:
+                        kind = str((json.loads(raw.decode()) or {}).get('error', {}).get('kind') or '')
+                    except Exception:
+                        kind = ''
                     write({
                         'status': 'error',
                         'http': error.code,
                         'source': 'go-now',
                         'at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                     })
-                    time.sleep(5)
+                    if error.code == 409:
+                        time.sleep(15)
+                    elif error.code == 403 and kind == 'quota':
+                        time.sleep(120)
+                    else:
+                        time.sleep(5)
                     continue
         except Exception:
             time.sleep(2)

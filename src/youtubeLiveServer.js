@@ -1,10 +1,10 @@
 /**
  * `/api/youtube/live` — shared encoder status and loopback go-now.
  *
- * Mutating ingest (stream-key start / stop) is ADMIN-only. The public
- * homepage no longer starts a broadcast. Start/stop reuse the same ffmpeg
- * controller as `/api/admin/live`. Loopback `go-now` / `preflight` stay for
- * the managed watcher. GET `/session` remains a redacted public snapshot.
+ * Mutating ingest (stream-key start) is ADMIN-only. The public homepage no
+ * longer starts a broadcast. Start/stop reuse the same ffmpeg controller as
+ * `/api/admin/live`. Loopback `go-now` / `stop` / `preflight` stay for the
+ * managed watcher. GET `/session` remains a redacted public snapshot.
  *
  * @module youtubeLiveServer
  */
@@ -119,54 +119,34 @@ export function createYoutubeLiveMiddleware({
       }
 
       if (action === 'ingest-key' && req.method === 'POST') {
-        const loopback = isLoopbackAddress(req.socket?.remoteAddress || req.connection?.remoteAddress);
-        if (!loopback || !req.headers?.[YOUTUBE_LIVE_REQUEST_HEADER]) {
-          sendJson(res, 401, {
-            error: {
-              kind: 'authentication',
-              message: 'Sign in to ADMIN to paste a Studio stream key and start ingest.',
-            },
-          });
-          return;
-        }
-        const body = await readJsonBody(req);
-        try {
-          const result = await live.start({
-            streamKey: String(body.streamKey || '').trim(),
-            ingestUrl: String(body.ingestUrl || 'rtmps://a.rtmp.youtube.com/live2').trim(),
-            captureUrl: body.captureUrl,
-          });
-          sendJson(res, result.status === 'error' ? 502 : 202, {
-            live: result,
-            broadcast: body.watchUrl ? { watchUrl: String(body.watchUrl) } : null,
-          });
-        } catch (error) {
-          sendJson(res, error?.status || 400, {
-            error: {
-              kind: error?.kind || 'invalid',
-              message: error?.message || 'Unable to start the local live encoder',
-            },
-          });
-        }
+        sendJson(res, 401, {
+          error: {
+            kind: 'authentication',
+            message: 'Sign in to ADMIN to paste a Studio stream key and start ingest.',
+          },
+        });
         return;
       }
 
       if (action === 'stop' && req.method === 'POST') {
-        if (!req.headers?.[YOUTUBE_LIVE_REQUEST_HEADER]) {
-          sendJson(res, 403, {
-            error: { kind: 'csrf', message: `Missing ${YOUTUBE_LIVE_REQUEST_HEADER} header` },
-          });
-          return;
-        }
-        const authorization = await authorizeRequest(req);
-        if (!authorization) {
-          sendJson(res, 401, {
-            error: {
-              kind: 'authentication',
-              message: 'Sign in to ADMIN or YouTube to stop the broadcast.',
-            },
-          });
-          return;
+        const loopback = isLoopbackAddress(req.socket?.remoteAddress || req.connection?.remoteAddress);
+        if (!loopback) {
+          if (!req.headers?.[YOUTUBE_LIVE_REQUEST_HEADER]) {
+            sendJson(res, 403, {
+              error: { kind: 'csrf', message: `Missing ${YOUTUBE_LIVE_REQUEST_HEADER} header` },
+            });
+            return;
+          }
+          const authorization = await authorizeRequest(req);
+          if (!authorization) {
+            sendJson(res, 401, {
+              error: {
+                kind: 'authentication',
+                message: 'Sign in to ADMIN or YouTube to stop the broadcast.',
+              },
+            });
+            return;
+          }
         }
         sendJson(res, 200, { live: await live.stop() });
         return;
