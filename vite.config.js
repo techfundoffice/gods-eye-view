@@ -54,6 +54,7 @@ import { createYoutubeCommentHarnessMiddleware } from './src/youtubeCommentHarne
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
 import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatServer.js';
+import { createLiveCommentIngestWorker } from './src/youtubeLiveCommentIngest.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
 import { createAdminMiddleware } from './src/adminServer.js';
@@ -7498,6 +7499,8 @@ export function youtubeProxy({
   adminAuth = sharedReplitAdminAuth(),
   harness = toollessCursor,
   commentHarnessConfigured = Boolean(process.env.CURSOR_API_KEY),
+  liveCommentIngest = null,
+  autoStartIngest = true,
 } = {}) {
   const authorizeAdminRequest = (req) => adminAuth.authenticate(req);
   const middleware = createYoutubeProxyMiddleware({
@@ -7589,21 +7592,11 @@ export function youtubeProxy({
       return snap;
     },
   });
+  const commentIngest = liveCommentIngest || createLiveCommentIngestWorker({
+    channelHandle: process.env.YOUTUBE_CHANNEL_HANDLE || 'TechfundOffice',
+  });
   const homepageChatMiddleware = createYoutubeHomepageChatMiddleware({
-    getOwnerCall: async () => {
-      if (typeof oauth.findWritableAuthorization !== 'function') return null;
-      try {
-        const authorization = await oauth.findWritableAuthorization();
-        if (!authorization) return null;
-        return {
-          call: createYoutubeApiCaller(oauth.proxy, authorization),
-          ownerKey: String(authorization.sessionId || authorization.sub || 'channel-owner'),
-        };
-      } catch (error) {
-        if (error?.kind === 'authentication' || error?.status === 401) return null;
-        throw error;
-      }
-    },
+    ingest: commentIngest,
   });
   const envStreamKey = String(process.env.YOUTUBE_STREAM_KEY || '').trim();
   if (autoGoLiveEnabled() && envStreamKey) {
@@ -7647,9 +7640,11 @@ export function youtubeProxy({
   return {
     name: 'gev-youtube-proxy',
     configureServer(server) {
+      if (autoStartIngest) commentIngest.start();
       install(server.middlewares);
     },
     configurePreviewServer(server) {
+      if (autoStartIngest) commentIngest.start();
       install(server.middlewares);
     },
   };

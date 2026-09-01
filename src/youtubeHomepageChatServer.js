@@ -95,7 +95,7 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
 
 function publicFeedBody(identity, extras = {}) {
   const status = boundedText(identity.status || 'offline', 40) || 'offline';
-  const verifiedLive = identity.active === true && status === 'live' && Boolean(identity.liveChatId);
+  const verifiedLive = identity.active === true && status === 'live' && Boolean(identity.videoId || identity.liveChatId);
   return {
     active: verifiedLive,
     status: verifiedLive ? 'live' : status,
@@ -124,6 +124,7 @@ function publicFeedBody(identity, extras = {}) {
  * @param {object|null} [options.commandRuntime]
  */
 export function createYoutubeHomepageChatMiddleware({
+  ingest = null,
   discoverActive = null,
   listChat = null,
   discovery = null,
@@ -181,6 +182,37 @@ export function createYoutubeHomepageChatMiddleware({
     }
 
     for (const name of VIEWER_IDENTITY_PARAMS) parsed.searchParams.delete(name);
+
+    if (ingest && typeof ingest.snapshot === 'function' && typeof discoverActive !== 'function') {
+      const snap = ingest.snapshot() || {};
+      const live = snap.active === true && snap.status === 'live' && Boolean(snap.videoId);
+      lastBinding = {
+        videoId: live ? boundedText(snap.videoId, 80) : '',
+        generation: Math.max(0, Number(snap.generation) || 0),
+        commandsEnabled: live,
+      };
+      const commands = await commandRuntime?.statuses?.(lastBinding) || [];
+      const items = live
+        ? (snap.items || []).map((item) => publicMessage(item, snap.videoId, now, { commandsEnabled: true })).filter(Boolean)
+        : [];
+      if (live) {
+        for (const item of items) {
+          void Promise.resolve(commandRuntime?.registerMessage?.(item, lastBinding)).catch(() => {});
+        }
+      }
+      sendJson(res, 200, publicFeedBody(snap, {
+        items,
+        pollingIntervalMillis: Math.max(5_000, Math.min(30_000, Number(snap.pollingIntervalMillis) || 5_000)),
+        commands,
+        ...(snap.error?.kind || snap.error?.message ? {
+          error: {
+            kind: boundedText(snap.error.kind, 40),
+            message: boundedText(snap.error.message, 160),
+          },
+        } : {}),
+      }));
+      return;
+    }
 
     let identity = {};
     try {

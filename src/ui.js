@@ -367,6 +367,11 @@ const RIGHT_STACK_OBSTACLE_SELECTOR = [
   '#cesium-credits .cesium-credit-textContainer',
   '#command-dock',
   '#gev-voice-control',
+  '#gev-nextchat',
+  '#gev-nextchat .gev-nextchat-action-lane',
+  '#gev-nextchat .gev-nextchat-live-lane',
+  '#gev-command-legend',
+  '.live-news-ticker',
 ].join(', ');
 /** Display labels shown in the mini-status readout for each active style. */
 const STYLE_STATUS_LABELS = {

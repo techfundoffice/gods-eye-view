@@ -7,6 +7,10 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Changed
 
+- Homepage chrome no longer stacks on itself: the command dock sits above the
+  COMMANDS bar and news ticker, right-rail tabs yield to LIVE COMMENTS, HUD
+  telemetry sits inboard of comments, and left HUD yields to Mission Control
+  while the chooser is open. Dock pin buttons stay inside their trays.
 - First-run Mission Control is a transparent left-rail overlay so the live
   globe stays visible while reading “Comment on YouTube chat to choose your
   view.” and picking a view. Heading, options, and status stay readable via

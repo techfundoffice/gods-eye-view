@@ -531,6 +531,8 @@ test('Cockpit panel corridors reserve the owned topline readouts', () => {
   assert.match(rightObstacles[1], /#cockpit-hud \.cockpit-topline/);
   assert.match(leftObstacles[1], /#cockpit-hud \.cockpit-topline > div/);
   assert.match(rightObstacles[1], /#cockpit-hud \.cockpit-topline > div/);
+  assert.match(rightObstacles[1], /#gev-nextchat/);
+  assert.match(rightObstacles[1], /#gev-command-legend/);
   const leftLayout = ui.match(
     /_syncLeftPanelAdaptiveLayout\(\) \{([\s\S]*?)\n  \}\n\n  \/\*\*/,
   );

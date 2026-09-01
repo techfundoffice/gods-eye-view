@@ -40,6 +40,7 @@ test('production YouTube plugin explicitly wires verified isolation and ADMIN au
     authorizeRequest: async () => ({ sessionId: 'youtube', getAccessToken: async () => 'token' }),
   };
   const plugin = youtubeProxy({
+    autoStartIngest: false,
     oauth,
     commentHarnessConfigured: true,
     commentHarnessInterpreter: async () => '{"kind":"reject","intent":null,"reason":"No","confidence":0}',
@@ -94,6 +95,7 @@ test('production YouTube routes accept the same valid password ADMIN cookie as t
   };
   const mounted = new Map();
   const plugin = youtubeProxy({
+    autoStartIngest: false,
     oauth: {
       writeEnabled: false,
       middleware() {},
@@ -119,6 +121,7 @@ test('production YouTube routes accept the same valid password ADMIN cookie as t
 test('production YouTube plugin mounts the unauthenticated homepage live-comment feed', async () => {
   const mounted = new Map();
   const plugin = youtubeProxy({
+    autoStartIngest: false,
     oauth: {
       writeEnabled: false,
       middleware() {},

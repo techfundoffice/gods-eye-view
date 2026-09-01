@@ -473,5 +473,15 @@ export function createYoutubeInnerTubeChat({
     };
   }
 
-  return { poll, cache };
+  function seedSession(videoId, html, cacheKey = 'local') {
+    const id = normalizeVideoId(videoId);
+    if (!id) throw innerTubeError('invalid-request', 'A YouTube video id is required.', 400);
+    const options = parseWatchPageOptions(html);
+    const session = { ...options, liveId: options.liveId || id, at: now() };
+    cache.set(`${String(cacheKey || 'local')}:${id}`, session);
+    evictOldest(cache);
+    return session;
+  }
+
+  return { poll, cache, seedSession };
 }

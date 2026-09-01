@@ -2,6 +2,14 @@
 
 Updated: September 1, 2026
 
+> **2026-09-01 — overlapping homepage chrome is unburied.** The command dock
+> sits above the COMMANDS legend and live-news ticker (`bottom: 4.5rem`).
+> `#right-context-rail` treats LIVE COMMENTS, the command legend, and the
+> ticker as layout obstacles. Intel HUD right corners sit inboard of the
+> comments column on desktop. Left HUD shifts past Mission Control while the
+> chooser is open. Dock pin controls stay inside their trays instead of
+> stacking on the globe.
+
 > **2026-09-01 — first-run Mission Control is transparent over the live globe.**
 > The chooser stays on the left rail with the same window controls, YouTube
 > instruction, and view tiles, but the card, scanline, borders, shadows, and

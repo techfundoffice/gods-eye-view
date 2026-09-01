@@ -490,9 +490,9 @@ test('the full-width rail cannot inherit a height that overrides its floor', () 
 
 test('every open dock tray clears the required credit at every modelled viewport', () => {
   // Below 900px the tray widens to nearly the viewport and lands on the
-  // bottom-left corner where the credit lives. The clearance is NOT one fixed
-  // number: the dock is anchored at 2vh down to 721px and re-anchors to a flat
-  // 8px at 720px, while the credit keeps its 2vh base throughout.
+  // bottom-left corner where the credit lives. The dock and the credit now
+  // share a 4.5rem bottom anchor (ticker + COMMANDS legend + gap) at every
+  // modelled width, including 720px.
   const failures = [];
   for (const scenario of TRAY_SCENARIOS) {
     for (const width of WIDTHS.filter((w) => w <= 900)) {
@@ -552,13 +552,13 @@ test('the full-width context rail clears the required credit at every modelled v
   assert.deepEqual(failures, [], `context rail re-enters the credit band at ${failures.join(', ')}`);
 });
 
-test('the dock anchor changes at 720px — the 2vh cancellation is band-limited', () => {
-  assert.equal(resolve(['#command-dock'], 'bottom', 800, 'dock').decl.value, '2vh');
-  assert.equal(resolve(['#command-dock'], 'bottom', 720, 'dock').decl.value, '8px');
+test('the dock and credit share the 4.5rem ticker+legend anchor at every width', () => {
+  assert.equal(resolve(['#command-dock'], 'bottom', 800, 'dock').decl.value, '4.5rem');
+  assert.equal(resolve(['#command-dock'], 'bottom', 720, 'dock').decl.value, '4.5rem');
   assert.equal(
     resolve(CREDIT_SELECTORS, 'bottom', 720, 'credit').decl.value,
-    'calc(2vh + 5rem)',
-    'the credit keeps its 2vh base below 720px — that asymmetry is the whole hazard',
+    'calc(4.5rem + 5rem)',
+    'credit stays on the same 4.5rem base as the dock below 720px',
   );
 });
 
