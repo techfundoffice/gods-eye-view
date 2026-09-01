@@ -397,6 +397,17 @@ test('the menu is the four owner-ordered missions', () => {
     'the infrastructure mission must be gone, not dormant');
 });
 
+test('a successful choice stays visible until the visitor explicitly dismisses it', () => {
+  const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
+  const successPath = module.slice(
+    module.indexOf('if (outcome?.ok) {'),
+    module.indexOf('const failed = outcome?.failedLayerIds'),
+  );
+  assert.doesNotMatch(successPath, /dismiss\(/);
+  assert.match(successPath, /setBusy\(false\)/);
+  assert.match(successPath, /press ESC to close/);
+});
+
 test('Live Contacts and Space Missions go through the one setContextMode facade', async () => {
   for (const [choice, mode] of [['contacts', 'contacts'], ['space-missions', 'space-missions']]) {
     const spy = missionSpy();

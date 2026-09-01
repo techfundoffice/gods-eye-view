@@ -235,8 +235,8 @@ export function rememberFirstRunSessionDismissed(sessionStorageRef) {
 /**
  * Run a launcher choice against the app's existing internal APIs.
  *
- * A failed mission is NOT closed: the visitor can retry or fall back to manual
- * exploration rather than being stranded on a map they did not ask for.
+ * The chooser stays open after every mission, successful or not. A visitor can
+ * compare views without reloading and closes it explicitly with Escape.
  *
  * @param {string} choice Key of FIRST_RUN_MISSIONS.
  * @param {object} deps
@@ -454,7 +454,11 @@ export function initFirstRunExperience({
     }
     if (closing) return;
     if (outcome?.ok) {
-      dismiss();
+      if (status) {
+        status.dataset.sticky = 'true';
+        status.textContent = 'View selected. Choose another view or press ESC to close.';
+      }
+      setBusy(false);
       return;
     }
     const failed = outcome?.failedLayerIds?.length
