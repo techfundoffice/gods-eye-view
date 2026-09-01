@@ -971,14 +971,14 @@
        a reserved fill so globe HUD cannot show through the tiles. Globe clicks
        around the panel still pass through; do not add a scrim. -->
   <nav id="mission-control-nav" aria-label="Mission Control">
-  <aside id="first-run-launcher" role="region" aria-label="Mission Control" hidden>
+  <aside id="first-run-launcher" class="is-maximized" role="region" aria-label="Mission Control" hidden>
     <header class="first-run-header">
       <span class="first-run-kicker">MISSION CONTROL</span>
       <div class="first-run-window-controls" role="group" aria-label="Mission Control size">
         <button id="first-run-minimize" class="first-run-window-control" type="button" aria-label="Minimize Mission Control" title="Minimize Mission Control">
           <span class="material-symbols-outlined" aria-hidden="true">minimize</span>
         </button>
-        <button id="first-run-maximize" class="first-run-window-control" type="button" aria-label="Maximize Mission Control" aria-pressed="false" title="Maximize Mission Control">
+        <button id="first-run-maximize" class="first-run-window-control" type="button" aria-label="Restore Mission Control size" aria-pressed="true" title="Restore Mission Control size">
           <span class="material-symbols-outlined" aria-hidden="true">open_in_full</span>
         </button>
       </div>

@@ -1,0 +1,66 @@
+# Safer HUD comment latency (incremental)
+
+OBS/FFmpeg is not in the chat path. Extra HUD lag is GEV’s **browser** wait on `/feed`, stacked on a server InnerTube worker that already follows YouTube’s interval.
+
+Do **not** drop the 5s floor everywhere. Do **not** merge this with Task #27’s Data API identity path. Production stays on the InnerTube worker in `vite.config.js`.
+
+## Keep unchanged
+
+- Server InnerTube poll cadence: honor YouTube/`timeoutMs` (existing 2–15s clamp on the **worker only**).
+- `/feed` remains a read-only in-memory snapshot and the compatibility API.
+- Dedup, continuation, generation reset on broadcast change/end, cooldowns, validated camera actions, encoder lifecycle.
+- `streamList` optional later; not this change.
+- Official owner-scoped `liveBroadcasts` helpers in `src/youtubeBroadcast.js` stay unused by homepage ingest.
+
+## Implement (latency only)
+
+### 1. Snapshot tells the truth about freshness
+
+Worker snapshot already has items. Add:
+
+- `updatedAt` (ms)
+- `ingestPollingIntervalMillis` (what the **YouTube** worker is actually waiting)
+- `snapshotAgeMs` optional
+
+Do not advertise a fake `pollingIntervalMillis: 5000` if that value is only a browser hint.
+
+### 2. Faster **app-memory** delivery, not faster YouTube polling
+
+In `src/youtubeHomepageInteraction.js`:
+
+- Keep YouTube worker interval alone.
+- Browser may poll `/feed` more often than 5s because `/feed` is local memory, not InnerTube.
+- Bounded minimum (e.g. 500–1000ms) when the tab is visible and status is `live`.
+- Visibility-aware backoff: hidden tab / `offline` / `ended` / `unavailable` → slower (5–30s), not a tight loop.
+- Do not poll InnerTube from the browser.
+
+### 3. Generation resets stay mandatory
+
+On `active: false`, videoId change, or generation change: still clear continuation, `seen`, command state, pending camera assumptions (current `poll()` already does this). Latency work must not skip that branch.
+
+### 4. SSE only as an add-on
+
+If added: `EventSource` (or similar) **plus** `/feed` fallback. SSE must not replace `/feed`. Handle disconnect, reconnect, proxy buffering, and one ingest fan-out to many viewers. Ship poll-only first if SSE is risky this pass.
+
+### 5. Tests
+
+- Worker interval unchanged when browser interval drops.
+- `/feed` does not call InnerTube/Data API.
+- Hidden-tab / offline backoff.
+- Broadcast change and ended: generation reset, no duplicate comments, commands cancelled.
+- Rate-limit/unavailable: no YouTube stampede.
+
+### 6. Verify
+
+Restart one Vite on 5000. Studio comment → HUD time vs before. Confirm encoder/OBS unchanged. Confirm quota-exhausted Data API still does not stop InnerTube ingest.
+
+## Files
+
+`src/youtubeLiveCommentIngest.js`, `src/youtubeHomepageInteraction.js`, `src/youtubeHomepageChatServer.js` (snapshot fields only), tests. Not `youtubeBroadcast.js` identity path, not OBS.
+
+## Explicit non-goals this pass
+
+- Task #27 official `liveBroadcasts.list` homepage identity.
+- Polling YouTube faster than its `pollingIntervalMillis` / InnerTube timeout.
+- Removing `/feed`.
+- Blanket `MIN_POLL_MS = 0`.

@@ -9676,6 +9676,7 @@ body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-left
   bottom: auto;
   left: auto;
   width: 100%;
+  min-height: min(36rem, calc(100dvh - 5.75rem - 5.5rem));
   max-height: min(78dvh, calc(100dvh - 5.75rem - 5.5rem));
 }
 
@@ -9893,6 +9894,7 @@ body.scene-playback-mode #first-run-launcher {
     bottom: auto;
     left: auto;
     width: 100%;
+    min-height: min(36rem, calc(100dvh - 4.9rem - 5.25rem));
     max-height: min(74dvh, calc(100dvh - 4.9rem - 5.25rem));
     padding: 0.75rem;
     transform: translateY(0.65rem) scale(0.985);

@@ -636,7 +636,8 @@ test('markup, startup ordering and accessibility remain pinned', () => {
 
   assert.match(html, /id="mission-control-nav" aria-label="Mission Control"/);
   assert.match(html, /id="first-run-minimize"[^>]*class="first-run-window-control"/);
-  assert.match(html, /id="first-run-maximize"[^>]*class="first-run-window-control"/);
+  assert.match(html, /id="first-run-launcher"[^>]*class="is-maximized"/);
+  assert.match(html, /id="first-run-maximize"[^>]*class="first-run-window-control"[^>]*aria-pressed="true"/);
   assert.match(html, /id="first-run-restore" class="first-run-restore"/);
 });
 
@@ -685,6 +686,7 @@ test('Mission Control is left-rail chrome with a reserved fill over the live glo
 
   const maximized = css.slice(css.indexOf('#first-run-launcher.is-maximized {'), css.indexOf('#first-run-launcher.is-maximized .first-run-choices'));
   assert.match(maximized, /position: relative/);
+  assert.match(maximized, /min-height: min\(36rem/);
   assert.doesNotMatch(maximized, /position:\s*fixed/);
 
   // Window states, short/narrow viewports, and reduced-motion stay distinct.
@@ -702,7 +704,9 @@ test('Mission Control is left-rail chrome with a reserved fill over the live glo
   assert.match(successPath, /setWindowState\('minimized', \{ focusRestore: true \}\)/);
   assert.doesNotMatch(successPath, /dismiss\(/);
   assert.match(module, /setWindowState\(root\.classList\.contains\('is-maximized'\) \? 'normal' : 'maximized'\)/);
-  assert.match(module, /setWindowState\('normal', \{ focusRestore: true \}\)/);
+  assert.match(module, /setWindowState\('maximized', \{ focusRestore: true \}\)/);
+  const reveal = module.slice(module.indexOf('const reveal = () => {'), module.indexOf('ESC ARBITRATION'));
+  assert.match(reveal, /setWindowState\('maximized'\)/);
 });
 
 test('the launcher keeps focus, restores it, and never disables the focused button', () => {

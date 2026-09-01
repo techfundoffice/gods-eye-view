@@ -14,7 +14,8 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 - First-run Mission Control is left-rail chrome: no YouTube-chat heading, no
   forbidden-cockpit pitch, no GEV MIC tip, and no “ESC to dismiss.” View tiles
   sit under the header on a reserved fill so globe HUD cannot show through
-  them. Clicks around the panel still reach the globe.
+  them. Clicks around the panel still reach the globe. The window opens
+  expanded by default.
 - LIVE COMMENTS has a reserved heading row and lane fill. Author and message
   stack as separate rows. GEV Actions, comments, status, COMMANDS, and the
   news ticker stay in non-overlapping layout areas.

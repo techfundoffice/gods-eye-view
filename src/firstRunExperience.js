@@ -554,7 +554,7 @@ export function initFirstRunExperience({
     if (!closing) setWindowState(root.classList.contains('is-maximized') ? 'normal' : 'maximized');
   });
   restoreButton?.addEventListener('click', () => {
-    if (!closing) setWindowState('normal', { focusRestore: true });
+    if (!closing) setWindowState('maximized', { focusRestore: true });
   });
   // Capture phase: the app binds its own global hotkeys (including bare letters
   // that cycle detection and styles), and the launcher owns the keyboard first.
@@ -575,6 +575,7 @@ export function initFirstRunExperience({
     if (revealed || closing) return;
     revealed = true;
     root.hidden = false;
+    setWindowState('maximized');
     globalThis.requestAnimationFrame?.(() => {
       if (closing) return;
       root.classList.add('visible');
