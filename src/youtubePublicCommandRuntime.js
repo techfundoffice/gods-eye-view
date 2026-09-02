@@ -176,10 +176,23 @@ export function createYoutubePublicCommandRuntime({
     const target = bindingWithExecutor(binding);
     if (!target.commandsEnabled) return null;
     const rows = await ledger.list();
-    const record = rows.find((row) => row.state === 'awaiting-execution'
+    let record = rows.find((row) => row.state === 'awaiting-execution'
       && row.videoId === target.videoId
       && row.generation === target.generation
       && row.captureExecutorId === target.captureExecutorId);
+    if (!record) {
+      const received = rows.find((row) => row.state === 'received'
+        && row.videoId === target.videoId
+        && row.generation === target.generation
+        && row.captureExecutorId === target.captureExecutorId);
+      if (received) {
+        const claimed = await ledger.compareAndSet(received.id, 'received', { state: 'interpreting' });
+        if (claimed.changed) {
+          const advanced = await coordinator.advance(received.id, target);
+          record = advanced.record?.state === 'awaiting-execution' ? advanced.record : null;
+        }
+      }
+    }
     if (!record) return null;
     const claimed = await ledger.compareAndSet(record.id, 'awaiting-execution', {
       state: 'executing',
@@ -197,15 +210,33 @@ export function createYoutubePublicCommandRuntime({
     };
   }
 
-  async function nextViewerLease(binding = {}) {
+  async function nextViewerLease(binding = {}, viewContext = {}) {
     await reconcileBinding(binding);
     const target = bindingWithExecutor(binding);
     if (!target.commandsEnabled) return null;
     const rows = await ledger.list();
-    const record = rows.find((row) => row.state === 'awaiting-execution'
+    let record = rows.find((row) => row.state === 'awaiting-execution'
       && row.videoId === target.videoId
       && row.generation === target.generation
       && row.captureExecutorId === target.captureExecutorId);
+    if (!record) {
+      const received = rows.find((row) => row.state === 'received'
+        && row.videoId === target.videoId
+        && row.generation === target.generation
+        && row.captureExecutorId === target.captureExecutorId);
+      if (received) {
+        const claimed = await ledger.compareAndSet(received.id, 'received', { state: 'interpreting' });
+        if (claimed.changed) {
+          const advanced = await coordinator.advance(
+            received.id,
+            target,
+            null,
+            viewContext,
+          );
+          record = advanced.record?.state === 'awaiting-execution' ? advanced.record : null;
+        }
+      }
+    }
     if (!record) return null;
     const claimed = await ledger.compareAndSet(record.id, 'awaiting-execution', {
       state: 'executing',
@@ -240,8 +271,9 @@ export function createYoutubePublicCommandRuntime({
           sendJson(res, 200, { lease });
           return true;
         }
-        if (req.method === 'GET' && parsed.pathname === '/agent/lease') {
-          const lease = await nextViewerLease(binding);
+        if ((req.method === 'GET' || req.method === 'POST') && parsed.pathname === '/agent/lease') {
+          const body = req.method === 'POST' ? await readJson(req) : {};
+          const lease = await nextViewerLease(binding, body.viewContext);
           sendJson(res, 200, { lease });
           return true;
         }
@@ -278,6 +310,7 @@ export function createYoutubePublicCommandRuntime({
             target,
             body.nonce,
             body.result && typeof body.result === 'object' ? body.result : { ok: false, error: 'Invalid result' },
+            body.viewContext,
           );
           sendJson(res, accepted.ok ? 200 : 409, accepted);
           return true;

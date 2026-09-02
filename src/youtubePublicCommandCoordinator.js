@@ -38,18 +38,22 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     };
     const inserted = await ledger.insert(record);
     if (!inserted.inserted || !valid) return { recognized: true, duplicate: !inserted.inserted, record: inserted.record };
-    await ledger.compareAndSet(record.id, 'received', { state: 'interpreting' });
     if (parsed.command === '/help') {
+      await ledger.compareAndSet(record.id, 'received', { state: 'interpreting' });
       await ledger.compareAndSet(record.id, 'interpreting', {
         state: 'succeeded',
         answer: PUBLIC_HELP_REPLY,
       });
       return { recognized: true, record: await ledger.get(record.id) };
     }
+    if (comment?.deferAgent === true) {
+      return { recognized: true, record: await ledger.get(record.id) };
+    }
+    await ledger.compareAndSet(record.id, 'received', { state: 'interpreting' });
     return advance(record.id, binding);
   }
 
-  async function advance(commandId, binding, continuation = null) {
+  async function advance(commandId, binding, continuation = null, viewContext = {}) {
     let record = await ledger.get(commandId);
     if (!record || record.generation !== Number(binding?.generation) || record.videoId !== bounded(binding?.videoId, 80)) {
       if (record && !['succeeded', 'rejected', 'failed', 'cancelled'].includes(record.state)) await ledger.compareAndSet(record.id, record.state, { state: 'cancelled', reason: 'Live generation changed' });
@@ -75,6 +79,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
           toolResult: continuation.result,
           priorCall: record.validatedTool,
         } : {}),
+        viewContext: viewContext && typeof viewContext === 'object' ? viewContext : {},
       });
     } catch (error) {
       if (error?.kind === 'rate-limited') {
@@ -126,7 +131,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     return advance(record.id, binding, { responseId: record.modelResponseId, callId: record.functionCallId, result });
   }
 
-  async function acceptViewerToolResult(commandId, binding, nonce, result) {
+  async function acceptViewerToolResult(commandId, binding, nonce, result, viewContext = {}) {
     const record = await ledger.get(commandId);
     if (!record || record.state !== 'executing') return { ok: false, reason: 'state' };
     if (bounded(nonce, PUBLIC_COMMAND_LIMITS.id) !== bounded(record.nonce, PUBLIC_COMMAND_LIMITS.id)) {
@@ -153,7 +158,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       responseId: record.modelResponseId,
       callId: record.functionCallId,
       result,
-    });
+    }, viewContext);
   }
 
   return {

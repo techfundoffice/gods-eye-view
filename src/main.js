@@ -94,6 +94,7 @@ function describeError(error) {
 /** @constant {string} Governor hold owner for 3D Tiles streaming. */
 const TILESET_STREAM_HOLD = 'tileset-stream';
 const TILESET_BOOTSTRAP_HOLD_MS = 10000;
+const STARTUP_WATCHDOG_MS = 15000;
 
 /**
  * Keep frames flowing while a 3D tileset is still streaming.
@@ -204,6 +205,29 @@ async function init() {
   // Past the gate: decorative animation timers may start.
   initLogoGaze();
 
+  let viewer = null;
+  let startupWatchdog = null;
+  let startupFallbackShown = false;
+  const clearStartupWatchdog = () => {
+    if (startupWatchdog == null) return;
+    clearTimeout(startupWatchdog);
+    startupWatchdog = null;
+  };
+  const showStartupFallback = (reason) => {
+    if (startupFallbackShown) return;
+    startupFallbackShown = true;
+    clearStartupWatchdog();
+    try { viewer?.destroy?.(); } catch (destroyError) {
+      console.warn('[Init] Partial viewer cleanup failed:', destroyError);
+    }
+    document.getElementById('cesiumContainer')?.replaceChildren();
+    initWebGLFallback({
+      loadingScreen,
+      loaderStatus,
+      reason,
+    });
+  };
+
   try {
     loaderStatus.textContent = 'Configuring viewer...';
 
@@ -223,7 +247,6 @@ async function init() {
     window.__GOOGLE_MAPS_API_KEY__ = googleKeyPresent ? googleApiKey : '';
 
     // Create the Cesium viewer with minimal chrome
-    let viewer = null;
     try {
       viewer = new Cesium.Viewer('cesiumContainer', {
         // The viewer's own context can report different limits from the
@@ -317,6 +340,7 @@ async function init() {
         // Cesium normally stops its loop after a render error, but set the flag
         // synchronously as well so no queued frame can repeat the failure.
         viewer.useDefaultRenderLoop = false;
+        clearStartupWatchdog();
         reportGpuIncompatibility('render', classifyCesiumStartupError(renderError), {
           message: describeError(renderError),
         });
@@ -345,6 +369,12 @@ async function init() {
     // The throwaway probe and the viewer's real context have both passed, and
     // the render-error backstop is installed. Only now may frames begin.
     viewer.useDefaultRenderLoop = true;
+    // Bound the remaining bootstrap so a stalled external tileset or map-stack
+    // request cannot leave the entire interface behind the loading screen.
+    startupWatchdog = setTimeout(() => {
+      console.error(`[Init] Startup exceeded ${STARTUP_WATCHDOG_MS}ms; continuing in 2D fallback mode.`);
+      showStartupFallback('startup-timeout');
+    }, STARTUP_WATCHDOG_MS);
 
     // Cap the default render loop at 60 fps. Cesium's loop otherwise runs at
     // the display's refresh rate — 120 Hz on ProMotion panels — doubling GPU
@@ -386,6 +416,7 @@ async function init() {
           key: googleApiKey,
           onlyUsingWithGoogleGeocoder: true,
         });
+        if (startupFallbackShown) return;
         viewer.scene.primitives.add(tileset);
         keepTilesetStreaming(tileset);
         // Google Maps Platform ToS: keep Google attribution on screen while
@@ -429,6 +460,7 @@ async function init() {
       onError: (message) => console.warn('[MapStack]', message),
     });
     await mapStackController.setStack(tileset ? 'photoreal' : 'osm', { silent: true });
+    if (startupFallbackShown) return;
 
     // Initialize the style manager (post-processing, HUD, locations, share links)
     const styleManager = new StyleManager(viewer, { mapStackController });
@@ -586,6 +618,7 @@ async function init() {
     youtubeHomepageInteraction?.setRunner(window.__godsEyeView.voiceCommands.runner);
     extensionBridge?.setRunner(window.__godsEyeView.voiceCommands.runner);
     youtubePanel?.setActionRunner(window.__godsEyeView.voiceCommands.runner);
+    clearStartupWatchdog();
 
   } catch (error) {
     console.error("God's Eye View initialization failed:", error);
@@ -595,15 +628,7 @@ async function init() {
     // Cesium/data-layer startup can fail independently of the surrounding
     // ADMIN, YouTube, and chat surfaces, so tear down any partial viewer and
     // reveal the supported 2D experience instead of showing an infinite loader.
-    try { viewer?.destroy?.(); } catch (destroyError) {
-      console.warn('[Init] Partial viewer cleanup failed:', destroyError);
-    }
-    document.getElementById('cesiumContainer')?.replaceChildren();
-    initWebGLFallback({
-      loadingScreen,
-      loaderStatus,
-      reason: 'startup-error',
-    });
+    showStartupFallback('startup-error');
     console.error(`[Init] GEV interface continued in 2D fallback mode: ${startupError}`);
   }
 }
