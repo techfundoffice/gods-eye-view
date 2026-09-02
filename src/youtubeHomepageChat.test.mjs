@@ -119,6 +119,7 @@ test('homepage feed is tied to the discovered live broadcast and exposes normali
     publishedAt: '2026-08-31T22:30:00.000Z',
     source: 'youtube',
     agentMode: 'execute',
+    deferAgent: true,
     actions: [],
   });
   const serialized = JSON.stringify(response.body);
@@ -632,6 +633,7 @@ test('visible live page executes an AI tool lease and posts its result', async (
       calls.push({ action, args });
       return { ok: true, action, preset: args.preset };
     },
+    getViewContext: async () => ({ camera: { latitude: 32.7, longitude: -117.2 } }),
     documentRef: null,
     clock: {
       setTimeout() { return 1; },
@@ -649,6 +651,12 @@ test('visible live page executes an AI tool lease and posts its result', async (
     commandId: 'cmd-1',
     nonce: 'nonce-1',
     result: { ok: true, action: 'run_view_preset', preset: '/live-contacts' },
+    viewContext: { camera: { latitude: 32.7, longitude: -117.2 } },
+  });
+  const leaseRequest = requests.find(({ url }) => url.includes('/agent/lease'));
+  assert.equal(leaseRequest.options.method, 'POST');
+  assert.deepEqual(JSON.parse(leaseRequest.options.body), {
+    viewContext: { camera: { latitude: 32.7, longitude: -117.2 } },
   });
   assert.equal(requests.filter(({ url }) => url.includes('/agent/lease')).length, 1);
   assert.equal(requests.filter(({ url }) => url.includes('/agent/result')).length, 1);

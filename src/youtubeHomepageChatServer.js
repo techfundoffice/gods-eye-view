@@ -88,9 +88,7 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
     || (String(raw.authorDetails?.displayName || '').startsWith('@') ? raw.authorDetails.displayName : ''),
     80,
   );
-  const inferredActions = commandsEnabled && !slash.recognized
-    ? inferHomepageViewerActions(normalized.text)
-    : [];
+  const agentRequested = commandsEnabled && slash.command !== '/help';
   return {
     id: normalized.commentId,
     videoId: normalized.videoId,
@@ -99,7 +97,7 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
     text: normalized.text,
     publishedAt: normalized.receivedAt,
     source: 'youtube',
-    ...(inferredActions.length ? { agentMode: 'execute' } : {}),
+    ...(agentRequested ? { agentMode: 'execute', deferAgent: true } : {}),
     actions: [],
   };
 }
@@ -206,10 +204,9 @@ export function createYoutubeHomepageChatMiddleware({
       const items = live
         ? (snap.items || []).map((item) => publicMessage(item, snap.videoId, now, { commandsEnabled: true })).filter(Boolean)
         : [];
-      if (live) {
-        for (const item of items) {
-          void Promise.resolve(commandRuntime?.registerMessage?.(item, lastBinding)).catch(() => {});
-        }
+      if (live && items.length) {
+        const latestItem = items.at(-1);
+        void Promise.resolve(commandRuntime?.registerMessage?.(latestItem, lastBinding)).catch(() => {});
       }
       sendJson(res, 200, publicFeedBody(snap, {
         items,
@@ -272,8 +269,9 @@ export function createYoutubeHomepageChatMiddleware({
         .map((item) => publicMessage(item, videoId, now, { commandsEnabled: true }))
         .filter(Boolean);
       const binding = lastBinding;
-      for (const item of items) {
-        void Promise.resolve(commandRuntime?.registerMessage?.(item, binding)).catch(() => {});
+      if (items.length) {
+        const latestItem = items.at(-1);
+        void Promise.resolve(commandRuntime?.registerMessage?.(latestItem, binding)).catch(() => {});
       }
       const commands = await commandRuntime?.statuses?.(binding) || [];
       sendJson(res, 200, publicFeedBody(identity, {

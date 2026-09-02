@@ -157,6 +157,7 @@ export function createYoutubePublicCommandRuntime({
       author: { displayName: message?.author, handle: message?.authorHandle },
       authorHandle: message?.authorHandle,
       agentMode: message?.agentMode,
+      deferAgent: message?.deferAgent === true,
     }, bindingWithExecutor(binding));
   }
 

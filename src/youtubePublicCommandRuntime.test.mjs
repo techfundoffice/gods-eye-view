@@ -77,11 +77,14 @@ test('executor lease is redeemed only once by compare-and-set', async () => {
 
 test('visible viewer lease runs the AI tool and continues to a final reply', async () => {
   const ledger = createInMemoryPublicCommandLedger();
+  const interpreted = [];
   const runtime = createYoutubePublicCommandRuntime({
     ledger,
-    interpret: async (input) => input.toolResult
-      ? { ok: true, kind: 'complete', text: 'Live Contacts is active. What next?' }
-      : {
+    interpret: async (input) => {
+      interpreted.push(input);
+      return input.toolResult
+        ? { ok: true, kind: 'complete', text: 'Live Contacts is active. What next?' }
+        : {
         ok: true,
         kind: 'tool',
         call: {
@@ -90,20 +93,34 @@ test('visible viewer lease runs the AI tool and continues to a final reply', asy
           responseId: 'response',
           callId: 'call',
         },
-      },
+      };
+    },
   });
   await runtime.rotateExecutor();
   const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
-  await runtime.registerMessage({ id: 'comment', text: '/live-contacts', author: 'viewer' }, binding);
+  await runtime.registerMessage({
+    id: 'comment',
+    text: '/live-contacts',
+    author: 'viewer',
+    agentMode: 'execute',
+    deferAgent: true,
+  }, binding);
+  assert.equal(interpreted.length, 0);
   const middleware = runtime.middleware({ getBinding: () => binding });
 
   const lease = await invoke(middleware, {
+    method: 'POST',
     url: '/agent/lease',
     remoteAddress: '10.0.0.5',
     host: 'app.example.replit.dev',
+    body: { viewContext: { camera: { heading: 90 }, layers: ['aircraft'] } },
   });
   assert.equal(lease.statusCode, 200);
   assert.equal(lease.body.lease.tool.name, 'run_view_preset');
+  assert.deepEqual(interpreted[0].viewContext, {
+    camera: { heading: 90 },
+    layers: ['aircraft'],
+  });
 
   const result = await invoke(middleware, {
     method: 'POST',
@@ -114,11 +131,16 @@ test('visible viewer lease runs the AI tool and continues to a final reply', asy
       commandId: lease.body.lease.commandId,
       nonce: lease.body.lease.nonce,
       result: { ok: true, action: 'run_view_preset', preset: '/live-contacts' },
+      viewContext: { camera: { heading: 120 }, layers: ['aircraft', 'flights'] },
     },
   });
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.record.state, 'succeeded');
   assert.equal(result.body.record.answer, 'Live Contacts is active. What next?');
+  assert.deepEqual(interpreted[1].viewContext, {
+    camera: { heading: 120 },
+    layers: ['aircraft', 'flights'],
+  });
 });
 
 test('visible viewer result rejects a stale nonce without changing the lease', async () => {

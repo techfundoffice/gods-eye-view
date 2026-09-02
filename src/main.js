@@ -179,7 +179,15 @@ const adminConsole = initAdminConsole();
 // Chat chrome is in index.html; wiring mounts outside the WebGL gate so a
 // headless / no-GPU load still has the composer. Voice attaches after globe init.
 const nextchat = initNextchat({ commandRegistry: PUBLIC_COMMAND_REGISTRY });
-const youtubeHomepageInteraction = initYoutubeHomepageInteraction({ nextchat });
+const youtubeHomepageInteraction = initYoutubeHomepageInteraction({
+  nextchat,
+  getViewContext: async () => {
+    const runner = window.__godsEyeView?.voiceCommands?.runner;
+    if (typeof runner !== 'function') return {};
+    const state = await runner('get_current_view_state', {});
+    return state?.ok === false ? {} : state;
+  },
+});
 const extensionBridge = initGevExtensionBridge({ nextchat });
 
 async function init() {

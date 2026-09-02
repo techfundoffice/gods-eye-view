@@ -52,6 +52,7 @@ export function createYoutubeHomepageInteraction({
   fetchImpl = globalThis.fetch,
   nextchat = null,
   runner = null,
+  getViewContext = null,
   documentRef = globalThis.document,
   now = Date.now,
   clock = globalThis,
@@ -79,6 +80,16 @@ export function createYoutubeHomepageInteraction({
       badge.textContent = state === 'live' ? 'YT LIVE' : state === 'error' ? 'YT ERROR' : 'YT OFFLINE';
       badge.dataset.state = state || 'offline';
       badge.hidden = false;
+    }
+  }
+
+  async function readViewContext() {
+    if (typeof getViewContext !== 'function') return {};
+    try {
+      const context = await getViewContext();
+      return context && typeof context === 'object' ? context : {};
+    } catch {
+      return {};
     }
   }
 
@@ -307,9 +318,10 @@ export function createYoutubeHomepageInteraction({
     executorBusy = true;
     try {
       const response = await fetchImpl('/api/youtube/homepage-chat/agent/lease', {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         credentials: 'same-origin',
+        body: JSON.stringify({ viewContext: await readViewContext() }),
       });
       if (!response.ok) return;
       const payload = await response.json().catch(() => ({}));
@@ -336,6 +348,7 @@ export function createYoutubeHomepageInteraction({
           commandId: lease.commandId,
           nonce: lease.nonce,
           result,
+          viewContext: await readViewContext(),
         }),
       });
     } finally {
