@@ -223,7 +223,7 @@ async function init() {
     window.__GOOGLE_MAPS_API_KEY__ = googleKeyPresent ? googleApiKey : '';
 
     // Create the Cesium viewer with minimal chrome
-    let viewer;
+    let viewer = null;
     try {
       viewer = new Cesium.Viewer('cesiumContainer', {
         // The viewer's own context can report different limits from the
@@ -589,8 +589,22 @@ async function init() {
 
   } catch (error) {
     console.error("God's Eye View initialization failed:", error);
-    loaderStatus.textContent = `Error: ${describeError(error)}`;
-    loaderStatus.style.color = '#ff4444';
+    const startupError = describeError(error);
+    window.__gevStartupError = startupError;
+    // Never leave the whole application trapped behind the splash screen.
+    // Cesium/data-layer startup can fail independently of the surrounding
+    // ADMIN, YouTube, and chat surfaces, so tear down any partial viewer and
+    // reveal the supported 2D experience instead of showing an infinite loader.
+    try { viewer?.destroy?.(); } catch (destroyError) {
+      console.warn('[Init] Partial viewer cleanup failed:', destroyError);
+    }
+    document.getElementById('cesiumContainer')?.replaceChildren();
+    initWebGLFallback({
+      loadingScreen,
+      loaderStatus,
+      reason: 'startup-error',
+    });
+    console.error(`[Init] GEV interface continued in 2D fallback mode: ${startupError}`);
   }
 }
 
