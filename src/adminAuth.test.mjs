@@ -55,7 +55,7 @@ test('hashing an empty password is refused outright', () => {
   assert.throws(() => hashAdminPassword(''), /must not be empty/);
 });
 
-test('the credential comes from the hash first, then the plaintext, else nothing', () => {
+test('the credential comes from a valid hash, then plaintext, else nothing', () => {
   const hash = hashAdminPassword('a-long-enough-password');
   assert.deepEqual(resolveAdminPasswordHash({ ADMIN_PASSWORD_HASH: hash }), { hash, source: 'hash' });
 
@@ -64,8 +64,13 @@ test('the credential comes from the hash first, then the plaintext, else nothing
   assert.equal(verifyAdminPassword('a-long-enough-password', derived.hash), true);
 
   assert.equal(resolveAdminPasswordHash({}), null);
-  // An unusable ADMIN_PASSWORD_HASH must disable the console, never fall back.
-  assert.equal(resolveAdminPasswordHash({ ADMIN_PASSWORD_HASH: 'garbage', ADMIN_PASSWORD: 'x' }), null);
+  // A stale/mangled hash must not mask the configured local password.
+  const fallback = resolveAdminPasswordHash({
+    ADMIN_PASSWORD_HASH: 'garbage',
+    ADMIN_PASSWORD: 'a-long-enough-password',
+  });
+  assert.equal(fallback.source, 'password');
+  assert.equal(verifyAdminPassword('a-long-enough-password', fallback.hash), true);
 });
 
 test('login backoff stays flat then grows to a five-minute ceiling', () => {

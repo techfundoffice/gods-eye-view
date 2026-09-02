@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GEV Bridge</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="eyebrow">GOD'S EYE VIEW</span>
+        <h1>YouTube bridge</h1>
+        <p>Viewer-local control. Starts disabled.</p>
+      </header>
+      <label for="target">GEV tab</label>
+      <select id="target">
+        <option value="">No allowed GEV tab found</option>
+      </select>
+      <div class="actions">
+        <button id="enable" type="button">ENABLE</button>
+        <button id="pause" type="button" disabled>PAUSE</button>
+        <button id="stop" class="danger" type="button">STOP</button>
+      </div>
+      <p id="status" class="status" role="status">Loading bridge state…</p>
+      <dl>
+        <div><dt>Forwarded</dt><dd id="forwarded">0</dd></div>
+        <div><dt>Filtered</dt><dd id="rejected">0</dd></div>
+      </dl>
+      <p class="hint">Only bounded slash commands are accepted. Ordinary chat stays on YouTube.</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

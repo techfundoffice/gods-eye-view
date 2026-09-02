@@ -1,8 +1,15 @@
 # God's Eye View Current State
 
-Updated: September 1, 2026
+Updated: September 2, 2026
 
-> **2026-09-01 — YouTube globe is centered; chrome occupies distinct boxes.** #cesiumContainer fills the rectangle right of Mission Control and above the south-pole comments/dock/ticker band. Mission Control is a left rail that stops at `--youtube-south-band` (DATA LAYERS scrolls inside that card). LIVE COMMENTS sits right of that rail and above the command dock. Visual Presets stay in the dock; dock children are height-capped so they cannot grow into comments. HUD corners stay out of those bands so labels do not stack.
+> **2026-09-02 — live-news ticker is two additive messages.** The south-pole
+> marquee still scrolls `Comment on YouTube chat to choose your view. Live at
+> [URL] Now!` and also scrolls `Download our Google Chrome extension named
+> Cloud Computer AI Agent to control this channel.` `#live-news-ticker-url`
+> is still filled only from the server-owned active YouTube broadcast. There
+> is no Chrome Web Store link.
+
+> **2026-09-01 — YouTube globe is centered; chrome occupies distinct boxes.** #cesiumContainer fills the rectangle right of Mission Control and above the south-pole comments/dock/ticker band. Mission Control is a left rail that stops at `--youtube-south-band` (DATA LAYERS scrolls inside that card). LIVE COMMENTS sits right of that rail and above the command dock. Visual Presets stay in the dock (in-flow, not a slide-up tray): expanded #control-panel clips at 7.5rem and its .dock-popover-content is `bottom: auto`, so the accordion cannot paint presets over LIVE COMMENTS. HUD corners stay out of those bands so labels do not stack.
 
 > **2026-09-01 — south-pole band, always-on Visual Presets.** LIVE COMMENTS + GEV Agent Replies sit under the globe with no overlay scrollbar. VISUAL PRESETS stay expanded on the command dock even if a stored pin/collapse would hide them.
 

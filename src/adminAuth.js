@@ -115,11 +115,12 @@ export function verifyAdminPassword(password, stored) {
 export function resolveAdminPasswordHash(env = process.env) {
   const configuredHash = String(env?.ADMIN_PASSWORD_HASH || '').trim();
   if (configuredHash) {
-    if (!isAdminPasswordHash(configuredHash)) {
-      console.warn('[Admin] ADMIN_PASSWORD_HASH is not a scrypt$... value; admin console stays disabled.');
-      return null;
+    if (isAdminPasswordHash(configuredHash)) {
+      return { hash: configuredHash, source: 'hash' };
     }
-    return { hash: configuredHash, source: 'hash' };
+    // A stale or dotenv-expanded hash must not mask a usable local password.
+    // Keep the warning actionable, then continue to the password fallback.
+    console.warn('[Admin] ADMIN_PASSWORD_HASH is not a scrypt$... value; falling back to ADMIN_PASSWORD.');
   }
   const plaintext = String(env?.ADMIN_PASSWORD || '').trim();
   if (!plaintext) return null;

@@ -355,6 +355,50 @@ test('broadcast presentation keeps reserved comment chrome and a legend above th
   const dockKids = css.slice(css.indexOf('#command-dock > #location-bar,'), css.indexOf('#command-dock > #location-bar {'));
   assert.match(dockKids, /max-height:\s*7\.5rem/, 'dock children cannot grow into the comments band');
   assert.match(dockKids, /overflow:\s*hidden/);
+
+  const youtubePresetsMark = '/* YouTube south-pole: VISUAL PRESETS stay inside the dock */';
+  const presetsInDock = css.indexOf(youtubePresetsMark);
+  assert.ok(presetsInDock >= 0, 'YouTube Visual Presets in-dock override exists');
+  const youtubePresets = css.slice(presetsInDock);
+  assert.match(
+    youtubePresets,
+    /#command-dock > #control-panel:not\(\.collapsed\) \{[\s\S]*?overflow:\s*hidden/,
+    'last expanded Visual Presets rule clips instead of overflowing',
+  );
+  assert.doesNotMatch(
+    youtubePresets,
+    /#command-dock > #control-panel:not\(\.collapsed\) \{[\s\S]*?overflow:\s*visible/,
+    'expanded #control-panel cannot overflow:visible on the YouTube layout',
+  );
+  assert.match(
+    youtubePresets,
+    /#command-dock #control-panel:not\(\.collapsed\) \.dock-popover-content[\s\S]*?bottom:\s*auto/,
+    'expanded Visual Presets popover stays in the dock, not above it',
+  );
+  assert.doesNotMatch(
+    youtubePresets,
+    /bottom:\s*calc\(100%/,
+    '.dock-popover-content is not bottom:100% on the YouTube Visual Presets layout',
+  );
+  const accordionVisible = css.indexOf(`#command-dock > #control-panel:not(.collapsed) {
+  position: relative;
+  flex-basis: var(--dock-side-compact);
+  width: var(--dock-side-compact);
+  overflow: visible;
+}`);
+  assert.ok(accordionVisible >= 0, 'accordion overflow:visible still exists for LOCATION');
+  assert.ok(
+    presetsInDock > accordionVisible,
+    'in-dock Visual Presets override must win over accordion overflow:visible',
+  );
+  const popoverAbove = css.indexOf(`#command-dock .dock-popover-content {
+  position: absolute;
+  bottom: calc(100% + 0.65rem);`);
+  assert.ok(popoverAbove >= 0, 'LOCATION can still use a slide-up tray');
+  assert.ok(
+    presetsInDock > popoverAbove,
+    'in-dock Visual Presets override must win over popover-above-dock',
+  );
   const hideStart = css.indexOf('#gev-nextchat-toggle,\n.gev-nextchat-header,\n.gev-nextchat-guidance,\n.gev-nextchat-composer {');
   assert.ok(hideStart >= 0, 'south-pole hides operator copy');
   const hideBlock = css.slice(hideStart, css.indexOf('}', hideStart) + 1);

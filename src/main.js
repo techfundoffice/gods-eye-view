@@ -23,6 +23,7 @@ import { SceneDirector } from './scenes/director.js';
 import { initGevVoiceCommands } from './voice/gevRealtime.js';
 import { initNextchat } from './voice/nextchat.js';
 import { initYoutubeHomepageInteraction } from './youtubeHomepageInteraction.js';
+import { initGevExtensionBridge } from './extensionBridge.js';
 import { PUBLIC_COMMAND_REGISTRY } from './youtubePublicCommandPolicy.js';
 import { MapStackController } from './mapStackController.js';
 import {
@@ -51,6 +52,7 @@ import {
   showWebGLCompatibilityState,
   validateSceneContext,
 } from './webglCapability.js';
+import { initWebGLFallback } from './webglFallback.js';
 import { isTransientCesiumWorkerImportError } from './cesiumWorkerRecovery.js';
 
 /**
@@ -177,6 +179,7 @@ const adminConsole = initAdminConsole();
 // headless / no-GPU load still has the composer. Voice attaches after globe init.
 const nextchat = initNextchat({ commandRegistry: PUBLIC_COMMAND_REGISTRY });
 const youtubeHomepageInteraction = initYoutubeHomepageInteraction({ nextchat });
+const extensionBridge = initGevExtensionBridge({ nextchat });
 
 async function init() {
   const loadingScreen = document.getElementById('loading-screen');
@@ -184,11 +187,17 @@ async function init() {
 
   if (!webglCapability.supported) {
     reportGpuIncompatibility('probe', webglCapability.reason, webglCapability.limits);
+    initWebGLFallback({
+      loadingScreen,
+      loaderStatus,
+      reason: webglCapability.reason,
+    });
     showWebGLCompatibilityState({
       loadingScreen,
       loaderStatus,
       reason: webglCapability.reason,
     });
+    loadingScreen.classList.add('hidden');
     return;
   }
 
@@ -260,11 +269,17 @@ async function init() {
       // — but the copy still names which limit Cesium actually rejected.
       if (!isWebGLInitializationError(viewerError)) throw viewerError;
       document.getElementById('cesiumContainer')?.replaceChildren();
+      initWebGLFallback({
+        loadingScreen,
+        loaderStatus,
+        reason: classifyCesiumStartupError(viewerError),
+      });
       showWebGLCompatibilityState({
         loadingScreen,
         loaderStatus,
         reason: classifyCesiumStartupError(viewerError),
       });
+      loadingScreen.classList.add('hidden');
       return;
     }
 
@@ -279,11 +294,17 @@ async function init() {
       reportGpuIncompatibility(sceneContext.source, sceneContext.reason, sceneContext.limits);
       try { viewer.destroy(); } catch { /* nothing usable to tear down */ }
       document.getElementById('cesiumContainer')?.replaceChildren();
+      initWebGLFallback({
+        loadingScreen,
+        loaderStatus,
+        reason: sceneContext.reason,
+      });
       showWebGLCompatibilityState({
         loadingScreen,
         loaderStatus,
         reason: sceneContext.reason,
       });
+      loadingScreen.classList.add('hidden');
       return;
     }
 
@@ -555,6 +576,7 @@ async function init() {
       youtubePanel,
       youtubeHomepageInteraction,
       adminConsole,
+      extensionBridge,
       getRenderGovernorDiagnostics,
       requestRender: governorRequestRender,
     };
@@ -562,6 +584,7 @@ async function init() {
     window.__godsEyeView.nextchat = nextchat;
     nextchat?.attachVoice(window.__godsEyeView.voiceCommands);
     youtubeHomepageInteraction?.setRunner(window.__godsEyeView.voiceCommands.runner);
+    extensionBridge?.setRunner(window.__godsEyeView.voiceCommands.runner);
     youtubePanel?.setActionRunner(window.__godsEyeView.voiceCommands.runner);
 
   } catch (error) {

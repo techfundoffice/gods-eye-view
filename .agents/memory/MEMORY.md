@@ -6,3 +6,4 @@
 - [Public live-chat binding](public-live-chat-binding.md) — ADMIN operates manually; the chatbot reads the server-owned YouTube broadcast and routes approved view requests through GEV MCP.
 - [YouTube encoder clocking](youtube-encoder-clocking.md) — CDP JPEG ingest needs FFmpeg real-time pacing; resolve replacement broadcasts through the channel `/live` URL.
 - [Detached Vite port ownership](detached-vite-port.md) — a manually backgrounded dev server can outlive the managed workflow and claim port 5000.
+- [Admin password precedence](admin-password-precedence.md) — malformed hashes must fall back to a configured password instead of disabling ADMIN.

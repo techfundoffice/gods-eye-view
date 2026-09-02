@@ -103,7 +103,10 @@ test('Vite loadEnv + resolveAdminPasswordHash keep $ in scrypt hashes and passwo
     assert.equal(isAdminPasswordHash(expanded.ADMIN_PASSWORD_HASH), false);
     assert.equal(verifyAdminPassword(operatorPassword, expanded.ADMIN_PASSWORD_HASH || ''), false);
     assert.notEqual(expanded.ADMIN_PASSWORD, dollarPassword);
-    assert.equal(resolveAdminPasswordHash(expanded), null);
+    // Even the expanded/mangled hash must not mask a valid password fallback.
+    const expandedCredential = resolveAdminPasswordHash(expanded);
+    assert.equal(expandedCredential?.source, 'password');
+    assert.equal(verifyAdminPassword(expanded.ADMIN_PASSWORD, expandedCredential.hash), true);
 
     // Empty inherited env is how a shell says unset; it must not shadow .env.
     process.env.ADMIN_PASSWORD_HASH = '';

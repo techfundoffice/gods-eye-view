@@ -2899,6 +2899,86 @@ body.cockpit-mode:has(#left-panel-stack > .panel-collapsible:not(.collapsed)) .c
   height: 2em;
   will-change: transform;
 }
+
+/* A no-WebGL browser should still get a usable application shell. The
+   fallback is explicit about what is unavailable rather than rendering a
+   fake live data globe. */
+#cesiumContainer.gev-2d-fallback-container {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(7, 55, 73, 0.3), transparent 36%),
+    #02070e;
+  overflow: hidden;
+}
+
+.gev-2d-fallback-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0.92;
+}
+
+.gev-2d-fallback-status {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(5.5rem, 13vh, 8rem);
+  z-index: 3;
+  width: min(440px, calc(100% - 2rem));
+  transform: translateX(-50%);
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid rgba(0, 212, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(2, 13, 19, 0.88);
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: rgba(235, 249, 255, 0.78);
+  pointer-events: auto;
+}
+
+.gev-2d-fallback-kicker {
+  display: block;
+  color: #66e7ff;
+  font: 600 0.62rem/1 var(--font-mono);
+  letter-spacing: 0.18em;
+}
+
+.gev-2d-fallback-status h2 {
+  margin: 0.75rem 0 0.45rem;
+  color: #edfaff;
+  font: 500 1.05rem/1.2 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gev-2d-fallback-status p {
+  margin: 0;
+  color: rgba(226, 240, 244, 0.72);
+  font: 0.72rem/1.6 var(--font-mono);
+}
+
+.gev-2d-fallback-retry {
+  margin-top: 0.9rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(0, 212, 255, 0.45);
+  border-radius: 4px;
+  background: rgba(0, 212, 255, 0.08);
+  color: #8cefff;
+  cursor: pointer;
+  font: 600 0.62rem/1 var(--font-mono);
+  letter-spacing: 0.12em;
+}
+
+.gev-2d-fallback-retry:hover,
+.gev-2d-fallback-retry:focus-visible {
+  background: rgba(0, 212, 255, 0.18);
+  outline: none;
+}
+
+@media (max-width: 720px) {
+  .gev-2d-fallback-status {
+    bottom: 5rem;
+  }
+}
 .cockpit-roll-track > span {
   display: block;
   flex: 0 0 1em;
@@ -11646,7 +11726,7 @@ body.scene-playback-mode #gev-nextchat {
   gap: 0.55rem;
   min-width: max-content;
   padding-left: 100%;
-  animation: live-news-ticker-scroll 28s linear infinite;
+  animation: live-news-ticker-scroll 40s linear infinite;
   will-change: transform;
 }
 
@@ -12124,4 +12204,34 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 #command-dock #control-panel.collapsed .map-source-section,
 #command-dock #control-panel.collapsed .dock-popover-content {
   display: block !important;
+}
+
+/* YouTube south-pole: VISUAL PRESETS stay inside the dock */
+#command-dock > #control-panel,
+#command-dock > #control-panel:not(.collapsed) {
+  overflow: hidden;
+  max-height: 7.5rem;
+}
+
+#command-dock #control-panel .panel-inner,
+#command-dock #control-panel:not(.collapsed) .panel-inner {
+  overflow: hidden;
+}
+
+#command-dock #control-panel .dock-popover-content,
+#command-dock #control-panel:not(.collapsed) .dock-popover-content,
+#command-dock.dock-has-pinned-tray #control-panel:not(.collapsed):not(.dock-pinned) .dock-popover-content,
+#command-dock.dock-has-two-pinned-trays #control-panel.dock-pinned-top.dock-pinned:not(.collapsed) .dock-popover-content {
+  position: relative;
+  bottom: auto;
+  top: auto;
+  right: auto;
+  left: auto;
+  width: auto;
+  margin-bottom: 0;
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  overflow: hidden;
 }

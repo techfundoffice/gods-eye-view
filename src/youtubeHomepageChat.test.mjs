@@ -313,6 +313,7 @@ test('ticker markup is permanent, bottom-fixed, and preserves every existing con
   assert.match(html, /id="live-news-ticker-url"/);
   assert.match(html, /Live at/);
   assert.match(html, /Now!/);
+  assert.match(html, /Download our Google Chrome extension named Cloud Computer AI Agent to control this channel\./);
   assert.match(css, /\.live-news-ticker \{[\s\S]*?position: fixed;[\s\S]*?bottom: 0;/);
   assert.match(css, /--live-news-ticker-height/);
   const tickerRule = css.slice(css.indexOf('.live-news-ticker {'), css.indexOf('}', css.indexOf('.live-news-ticker {')));
@@ -324,7 +325,7 @@ test('ticker markup is permanent, bottom-fixed, and preserves every existing con
   assert.match(tickerRule, /text-align: left/);
   assert.match(css, /\.live-news-ticker-label \{[\s\S]*?flex: 0 0 auto;[\s\S]*?text-align: left;/);
   assert.match(css, /\.live-news-ticker-viewport \{[\s\S]*?overflow: hidden;/);
-  assert.match(css, /\.live-news-ticker-content \{[\s\S]*?animation: live-news-ticker-scroll 28s linear infinite;/);
+  assert.match(css, /\.live-news-ticker-content \{[\s\S]*?animation: live-news-ticker-scroll 40s linear infinite;/);
   assert.match(css, /@keyframes live-news-ticker-scroll \{[\s\S]*?translateX\(-100%\)/);
   assert.match(adminReserveRule, /inset: 0 0 var\(--live-news-ticker-height\) 0/);
   assert.match(adminReserveRule, /z-index: 1400/);

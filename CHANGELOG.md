@@ -3,6 +3,12 @@
 This changelog records public product changes. For the authoritative description
 of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md).
 
+## [Unreleased] — 2026-09-02
+
+### Added
+
+- The live-news ticker still scrolls **Comment on YouTube chat to choose your view. Live at [stream URL] Now!** and now also scrolls **Download our Google Chrome extension named Cloud Computer AI Agent to control this channel.** The stream URL remains the only ticker link.
+
 ## [Unreleased] — 2026-09-01
 
 ### Added
@@ -11,7 +17,7 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Changed
 
-- YouTube globe is centered in the clear rectangle (Cesium sits above the south-pole band and right of Mission Control). LIVE COMMENTS sits right of Mission Control and above Visual Presets; dock children cannot grow into comments; DATA LAYERS scrolls inside Mission Control. HUD, comments, presets, and COMMANDS occupy separate bands so labels do not stack.
+- YouTube globe is centered in the clear rectangle (Cesium sits above the south-pole band and right of Mission Control). LIVE COMMENTS sits right of Mission Control and above Visual Presets; expanded Visual Presets stay in the dock (not a tray over comments); DATA LAYERS scrolls inside Mission Control. HUD, comments, presets, and COMMANDS occupy separate bands so labels do not stack.
 - South-pole homepage band: LIVE COMMENTS + GEV Agent Replies sit under the globe with no overlay scrollbar; VISUAL PRESETS stay expanded on the command dock.
 - Homepage LIVE COMMENTS is a paired two-column overlay: each YouTube comment on the left and the GEV agent reply on the right, keyed by commentId. The composer, CHAT toggle, and COMMANDS bar stay visible; only the paired thread scrolls.
 - Public YouTube globe commands and the HUD five-word summary use OpenRouter's

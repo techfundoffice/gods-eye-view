@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "GEV YouTube Viewer Bridge",
+  "version": "0.1.0",
+  "description": "Forward approved YouTube live-chat view commands to the viewer's selected God's Eye View tab.",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://*.replit.app/*",
+    "https://*.replit.dev/*",
+    "https://*.repl.co/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "GEV YouTube Bridge",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["commands.js", "youtube-chat-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.replit.app/*",
+        "https://*.replit.dev/*",
+        "https://*.repl.co/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["gev-content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
