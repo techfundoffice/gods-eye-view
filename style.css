@@ -12235,3 +12235,70 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   pointer-events: auto;
   overflow: hidden;
 }
+
+/* ── Viewer text safety ─────────────────────────────────────────────
+   The broadcast headings are semantic lane labels, not lane containers.
+   They inherit the lane classes for legacy selectors, so reset the layout
+   properties here or the two headings can size themselves independently and
+   collide with the live dock below. */
+#gev-nextchat-pairs-head {
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+#gev-nextchat-pairs-head > #gev-nextchat-live-heading,
+#gev-nextchat-pairs-head > #gev-nextchat-action-heading {
+  display: block;
+  flex: 0 0 auto;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  padding: 0.42rem 0.58rem;
+  overflow: hidden;
+  border-radius: 0.55rem;
+  color: rgba(232, 234, 237, 0.78);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.13em;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#gev-nextchat-pairs-head > #gev-nextchat-live-heading {
+  border: 1px solid rgba(255, 107, 107, 0.22);
+  background: rgba(18, 8, 10, 0.88);
+}
+
+#gev-nextchat-pairs-head > #gev-nextchat-live-heading::before {
+  content: '●';
+  display: inline-block;
+  margin-right: 0.35rem;
+  color: #ff6b6b;
+}
+
+#gev-nextchat-pairs-head > #gev-nextchat-action-heading {
+  border: 1px solid rgba(0, 212, 255, 0.24);
+  background: rgba(6, 15, 22, 0.76);
+}
+
+/* Leave a clear gap between the chat band and the pinned location tray. */
+#gev-nextchat {
+  bottom: calc(4.5rem + var(--youtube-dock-lift) + 0.5rem);
+}
+
+/* The degraded renderer should not let the compatibility copy show through
+   its status card or compete with the viewer controls. */
+.gev-2d-fallback-status {
+  background: rgba(2, 13, 19, 0.97);
+}
+
+body.webgl-fallback-active #loading-screen {
+  display: none !important;
+}
