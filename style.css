@@ -14820,11 +14820,21 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
 
 #command-dock {
   bottom: calc(var(--live-news-ticker-height, 2rem) + var(--broadcast-legend-height, 2rem) + 0.35rem) !important;
-  left: calc(var(--youtube-mc-band) + 1rem) !important;
-  right: max(0.75rem, env(safe-area-inset-right)) !important;
-  width: auto !important;
-  max-width: none !important;
+  left: max(0.75rem, env(safe-area-inset-left)) !important;
+  right: auto !important;
+  width: calc(var(--youtube-mc-band) - 1.5rem) !important;
+  max-width: calc(100vw - max(1.5rem, env(safe-area-inset-left) + env(safe-area-inset-right))) !important;
   transform: none !important;
+}
+
+#command-dock > #control-panel,
+#command-dock > #control-panel:not(.collapsed),
+#command-dock > #control-panel.dock-pinned:not(.collapsed),
+#command-dock > #control-panel.dock-pinned-top:not(.collapsed) {
+  box-sizing: border-box;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
 }
 
 #gev-nextchat {
