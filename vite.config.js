@@ -7775,7 +7775,7 @@ export default defineConfig(({ mode }) => {
       // When binding to all interfaces, allow any host; otherwise restrict to local names
       allowedHosts: (env.HOST === '0.0.0.0' || env.HOST === '::')
         ? true
-        : ['localhost', '127.0.0.1', '.local'],
+        : ['localhost', '127.0.0.1', '.local', '.replit.dev'],
       // Keep Replit's workspace tooling and runtime caches from triggering
       // Vite restarts while the preview is open. Source files remain watched.
       watch: {
