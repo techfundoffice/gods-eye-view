@@ -2,7 +2,7 @@
 
 Updated: September 1, 2026
 
-> **2026-09-01 — YouTube globe is centered.** #cesiumContainer fills the rectangle right of Mission Control and above the south-pole comments/dock/ticker band. HUD corners stay out of those bands so labels do not stack.
+> **2026-09-01 — YouTube globe is centered; chrome occupies distinct boxes.** #cesiumContainer fills the rectangle right of Mission Control and above the south-pole comments/dock/ticker band. Mission Control is a left rail that stops at `--youtube-south-band` (DATA LAYERS scrolls inside that card). LIVE COMMENTS sits right of that rail and above the command dock. Visual Presets stay in the dock; dock children are height-capped so they cannot grow into comments. HUD corners stay out of those bands so labels do not stack.
 
 > **2026-09-01 — south-pole band, always-on Visual Presets.** LIVE COMMENTS + GEV Agent Replies sit under the globe with no overlay scrollbar. VISUAL PRESETS stay expanded on the command dock even if a stored pin/collapse would hide them.
 
