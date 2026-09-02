@@ -547,8 +547,8 @@ try {
   await page.click('.dock-pin-btn[data-pin-target="control-panel"]');
   const desktop = await trayMetrics();
   check(
-    'desktop tray is one row and fully inside the viewport',
-    desktop.rows === 1
+    'desktop Map Source chips stack vertically inside the viewport',
+    desktop.rows === 4
       && desktop.popover.left >= 0
       && desktop.popover.right <= desktop.viewport.width,
     JSON.stringify(desktop),
@@ -558,10 +558,10 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 180));
   const at620 = await trayMetrics();
   check(
-    '620 px tray uses two rows without clipping',
+    '620 px tray keeps four vertical chips without clipping',
     at620.expanded === 'true'
       && at620.pinned
-      && at620.rows === 2
+      && at620.rows === 4
       && at620.popover.left >= 0
       && at620.popover.right <= at620.viewport.width,
     JSON.stringify(at620),
@@ -578,7 +578,7 @@ try {
     '480 px live resize keeps the open tray and every tile in bounds',
     at480.expanded === 'true'
       && at480.pinned
-      && at480.rows === 2
+      && at480.rows === 4
       && at480.popover.left >= 0
       && at480.popover.right <= at480.viewport.width
       && allRectsInside,

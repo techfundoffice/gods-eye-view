@@ -54,6 +54,7 @@
       <span class="material-symbols-outlined" aria-hidden="true">public</span>
     </button>
   </nav>
+  <div id="hud-center-cluster" aria-label="Look-at readout"></div>
   <div id="global-loading-status" role="status" aria-live="polite" aria-atomic="true" hidden>
     <span id="global-loading-label">LOADING LIVE DATA</span>
     <span id="global-loading-detail"></span>
@@ -540,7 +541,20 @@
           <span id="map-source-label">MAP SOURCE</span>
           <span id="map-stack-status" class="pp-stack-status" aria-live="polite">3D</span>
         </div>
-        <div id="map-stack-chips" class="map-stack-chip-row" role="group" aria-label="Map source"></div>
+        <div id="map-stack-chips" class="map-stack-chip-row" role="group" aria-label="Map source">
+          <button type="button" class="map-stack-chip active" data-stack-id="photoreal" title="Google 3D" aria-pressed="true">
+            <span class="map-stack-chip-label">Google 3D</span>
+          </button>
+          <button type="button" class="map-stack-chip" data-stack-id="bing-aerial" title="Bing Aerial" aria-pressed="false">
+            <span class="map-stack-chip-label">Bing Aerial</span>
+          </button>
+          <button type="button" class="map-stack-chip" data-stack-id="bing-labels" title="Bing Labels" aria-pressed="false">
+            <span class="map-stack-chip-label">Bing Labels</span>
+          </button>
+          <button type="button" class="map-stack-chip" data-stack-id="osm" title="OSM" aria-pressed="false">
+            <span class="map-stack-chip-label">OSM</span>
+          </button>
+        </div>
       </section>
       </div>
       <div id="style-mini-status" class="panel-mini-status" aria-live="polite">

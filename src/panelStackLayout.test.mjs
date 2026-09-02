@@ -265,8 +265,8 @@ test('Map Source uses four compact tiles in the bottom Visual Presets tray', () 
   assert.match(html, /id="control-panel"[\s\S]*?class="map-source-section"[\s\S]*?id="map-stack-chips"/);
   assert.match(
     css,
-    /\.map-stack-chip-row\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/,
-    'the desktop source selector keeps all four tiles on one row',
+    /#command-dock #control-panel \.map-stack-chip-row[\s\S]*?flex-direction:\s*column/,
+    'Map Source chips stack vertically inside Visual Presets',
   );
 });
 

@@ -243,8 +243,27 @@ export class IntelHUD {
 
   _placeClassificationBelowMissionControl() {
     const nav = document.getElementById("mission-control-nav");
-    const stamp = this._el.querySelector(".hud-top-left");
-    if (nav && stamp) nav.appendChild(stamp);
+    const cluster = document.getElementById("hud-center-cluster");
+    if (!this._el) return;
+    const edge = this._el.querySelector(".hud-left-edge");
+    if (edge) edge.hidden = true;
+    const launcher = document.getElementById("first-run-launcher");
+    const top = this._el.querySelector(".hud-top-left") || document.querySelector(".hud-top-left");
+    const layers = nav && (nav.querySelector(".first-run-layers") || document.querySelector(".first-run-layers"));
+    const bottom = this._el.querySelector(".hud-bottom-left") || document.querySelector(".hud-bottom-left");
+    if (nav && launcher && launcher.parentElement === nav) nav.appendChild(launcher);
+    if (nav && layers) nav.appendChild(layers);
+    const locationBar = document.getElementById("location-bar");
+    const choices = launcher && launcher.querySelector(".first-run-choices");
+    if (launcher && locationBar) {
+      locationBar.classList.remove("collapsed");
+      if (choices) launcher.insertBefore(locationBar, choices);
+      else launcher.appendChild(locationBar);
+    }
+    if (cluster) {
+      if (bottom) cluster.appendChild(bottom);
+      if (top) cluster.appendChild(top);
+    }
   }
 
   /**

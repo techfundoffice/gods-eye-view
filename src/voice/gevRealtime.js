@@ -2597,12 +2597,17 @@ function createVoiceControl({ reset = false } = {}) {
       </div>
     `;
     const host = document.getElementById("first-run-launcher") || document.getElementById("command-dock") || document.body;
-    host.appendChild(root);
+    const hostChoices = host.id === "first-run-launcher" ? host.querySelector(".first-run-choices") : null;
+    if (hostChoices) host.insertBefore(root, hostChoices);
+    else host.appendChild(root);
     root.querySelector('.gev-voice-error-dismiss')?.addEventListener('click', () => {
       root.classList.add('error-dismissed');
     });
   }
-  const mission = document.getElementById("first-run-launcher"); if (mission && root.parentElement !== mission) mission.appendChild(root);
+  const mission = document.getElementById("first-run-launcher");
+  const missionChoices = mission && mission.querySelector(".first-run-choices");
+  if (mission && missionChoices) mission.insertBefore(root, missionChoices);
+  else if (mission && root.parentElement !== mission) mission.appendChild(root);
   return {
     root,
     button: root.querySelector('#gev-voice-button'),

@@ -357,6 +357,24 @@ export function initFirstRunExperience({
   const nav = documentRef.getElementById("mission-control-nav");
   const layers = root.querySelector(".first-run-layers");
   if (nav && layers && layers.parentElement !== nav) nav.appendChild(layers);
+  if (nav) {
+    const cluster = documentRef.getElementById("hud-center-cluster");
+    const top = (cluster && cluster.querySelector(".hud-top-left")) || nav.querySelector(":scope > .hud-top-left") || documentRef.querySelector("#intel-hud .hud-top-left") || documentRef.querySelector(".hud-top-left");
+    const bottom = (cluster && cluster.querySelector(".hud-bottom-left")) || nav.querySelector(":scope > .hud-bottom-left") || documentRef.querySelector("#intel-hud .hud-bottom-left") || documentRef.querySelector(".hud-bottom-left");
+    if (root.parentElement === nav) nav.appendChild(root);
+    if (layers) nav.appendChild(layers);
+    if (cluster) {
+      if (bottom) cluster.appendChild(bottom);
+      if (top) cluster.appendChild(top);
+    }
+    const locationBar = documentRef.getElementById("location-bar");
+    const choices = root.querySelector(".first-run-choices");
+    if (locationBar) {
+      locationBar.classList.remove("collapsed");
+      if (choices) root.insertBefore(locationBar, choices);
+      else root.appendChild(locationBar);
+    }
+  }
   const maximizeButton = root.querySelector('#first-run-maximize');
   const defaultStatus = status?.textContent || '';
   const previouslyFocused = documentRef.activeElement;

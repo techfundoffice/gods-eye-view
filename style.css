@@ -12396,3 +12396,454 @@ body:has(#first-run-launcher.visible) .hud-left-edge {
 #first-run-launcher:not(.visible) ~ .first-run-layers {
   display: none;
 }
+
+/* One left nav: Mission Control + mic + stamp + DATA LAYERS + coords. No clones, no scroll rail. */
+#mission-control-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow: visible;
+  top: 5.75rem;
+  bottom: auto;
+  height: auto;
+  max-height: calc(100dvh - 5.75rem - var(--youtube-south-band) - 0.4rem);
+  width: var(--youtube-mc-band);
+  pointer-events: none;
+}
+#mission-control-nav > * {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex: 0 0 auto;
+  pointer-events: auto;
+}
+#first-run-launcher.visible {
+  max-height: none;
+  overflow: visible;
+}
+#first-run-launcher > #gev-voice-control {
+  position: relative;
+  inset: auto;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+  flex-basis: auto !important;
+  height: auto !important;
+  margin: 0.4rem 0 0 !important;
+  overflow: hidden;
+}
+#mission-control-nav > .hud-top-left,
+#mission-control-nav > .hud-bottom-left {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  z-index: 1;
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  color: var(--first-run-ink, rgba(54, 220, 255, 0.86));
+  background: rgba(6, 15, 22, 0.76);
+  border: 1px solid rgba(54, 220, 255, 0.22);
+  border-radius: 0.65rem;
+}
+#mission-control-nav > .hud-top-left .hud-summary {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+#mission-control-nav > .first-run-layers {
+  overflow: visible;
+  margin: 0;
+  padding: 0.45rem 0.5rem;
+  color: var(--first-run-ink, rgba(54, 220, 255, 0.86));
+  background: rgba(6, 15, 22, 0.76);
+  border: 1px solid rgba(54, 220, 255, 0.22);
+  border-radius: 0.65rem;
+}
+#mission-control-nav > .first-run-layers .first-run-layers-list {
+  overflow: visible;
+  max-height: none;
+  height: auto;
+}
+body:has(#first-run-launcher.visible) #left-panel-stack {
+  display: none !important;
+}
+body:has(#first-run-launcher.visible) .hud-left-edge {
+  display: none !important;
+}
+#first-run-launcher[hidden] ~ .first-run-layers,
+#first-run-launcher:not(.visible) ~ .first-run-layers,
+#first-run-launcher[hidden] ~ .hud-top-left,
+#first-run-launcher:not(.visible) ~ .hud-top-left,
+#first-run-launcher[hidden] ~ .hud-bottom-left,
+#first-run-launcher:not(.visible) ~ .hud-bottom-left {
+  display: none;
+}
+#mission-control-nav,
+#mission-control-nav * {
+  scrollbar-width: none !important;
+}
+#mission-control-nav ::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+@media (max-height: 900px) {
+  .first-run-choices button { min-height: 1.55rem; padding: 0.16rem 0.35rem; }
+  .first-run-layers-list button { min-height: 1.05rem; padding: 0.04rem 0.28rem; }
+}
+
+
+/* Left-nav visual order: Mission Control, stamp, DATA LAYERS, coords. */
+#mission-control-nav > #first-run-launcher { order: 1; }
+#mission-control-nav > .hud-top-left { order: 2; }
+#mission-control-nav > .first-run-layers { order: 3; }
+#mission-control-nav > .hud-bottom-left { order: 4; }
+
+/* Visual Presets: far left of the command dock, all 7 styles visible. No voice column. */
+#command-dock {
+  display: flex;
+  flex-direction: row;
+  grid-template-areas: none;
+  grid-template-columns: none;
+}
+#command-dock > #control-panel {
+  order: 1;
+  border-left: 1px solid var(--glass-border, rgba(123, 189, 211, 0.18));
+  border-right: 0;
+  border-top-left-radius: var(--panel-radius, 0.65rem);
+  border-bottom-left-radius: var(--panel-radius, 0.65rem);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+#command-dock > #control-panel > .panel-inner {
+  border-top-left-radius: var(--panel-radius, 0.65rem);
+  border-bottom-left-radius: var(--panel-radius, 0.65rem);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+#command-dock > #location-bar {
+  order: 2;
+  border-left: 1px solid rgba(123, 189, 211, 0.18);
+  border-right: 1px solid var(--glass-border, rgba(123, 189, 211, 0.18));
+  border-top-right-radius: var(--panel-radius, 0.65rem);
+  border-bottom-right-radius: var(--panel-radius, 0.65rem);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+#command-dock > #location-bar > .location-inner {
+  border-top-right-radius: var(--panel-radius, 0.65rem);
+  border-bottom-right-radius: var(--panel-radius, 0.65rem);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+#command-dock > #control-panel,
+#command-dock > #control-panel:not(.collapsed),
+#command-dock > #control-panel.dock-pinned:not(.collapsed),
+#command-dock > #control-panel.dock-pinned-top:not(.collapsed) {
+  flex: 1 1 auto;
+  flex-basis: auto !important;
+  width: auto !important;
+  min-width: 28rem;
+  max-width: min(46rem, 72vw);
+  overflow: visible;
+}
+#command-dock #style-buttons.button-grid,
+#command-dock #style-buttons {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow: visible;
+  width: 100%;
+  gap: 6px;
+  scrollbar-width: none;
+}
+#command-dock #style-buttons .style-btn {
+  min-width: 0;
+  flex: 1 1 0;
+  padding: 10px 6px 8px;
+}
+#command-dock .map-source-section,
+#command-dock #map-stack-chips {
+  overflow: visible;
+}
+
+
+/* Hard-left command dock: Visual Presets flush to the left edge. */
+#command-dock,
+#command-dock:has(#location-bar:not(.collapsed)),
+#command-dock:has(#control-panel:not(.collapsed)) {
+  left: max(0.65rem, env(safe-area-inset-left));
+  right: auto;
+  transform: none;
+  justify-content: flex-start;
+}
+
+
+/* Visual Presets: vertical stack, not a horizontal strip. */
+#command-dock #style-buttons.button-grid,
+#command-dock #style-buttons {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  overflow: visible;
+  width: 100%;
+  gap: 0.28rem;
+}
+#command-dock #style-buttons .style-btn {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0.35rem 0.55rem;
+}
+#command-dock > #control-panel,
+#command-dock > #control-panel:not(.collapsed),
+#command-dock > #control-panel.dock-pinned:not(.collapsed),
+#command-dock > #control-panel.dock-pinned-top:not(.collapsed) {
+  min-width: 11.5rem;
+  max-width: 16rem;
+  width: 16rem;
+}
+
+
+/* Grow Visual Presets upward so the vertical stack is fully visible. */
+#command-dock { align-items: flex-end; }
+#command-dock > #control-panel,
+#command-dock > #control-panel:not(.collapsed),
+#command-dock > #control-panel.dock-pinned:not(.collapsed),
+#command-dock > #control-panel.dock-pinned-top:not(.collapsed) {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 3.75rem;
+  align-self: flex-end;
+  overflow: visible !important;
+}
+#command-dock > #control-panel .panel-inner,
+#command-dock > #control-panel .dock-popover-content,
+#command-dock #control-panel-popover {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  flex: 0 0 auto;
+}
+#command-dock #style-buttons.button-grid,
+#command-dock #style-buttons {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+/* Map Source lives in the Visual Presets box as a vertical list, always visible. */
+#command-dock #control-panel:not(.collapsed) .dock-popover-content {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  width: 100% !important;
+  height: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  display: flex !important;
+  flex-direction: column;
+  overflow: visible !important;
+}
+#command-dock #control-panel .dock-popover-content::after {
+  display: none !important;
+}
+#command-dock #control-panel .map-source-section {
+  display: grid !important;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  overflow: visible;
+}
+#command-dock #control-panel .map-stack-chip-row,
+#command-dock #control-panel #map-stack-chips {
+  display: flex !important;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  grid-template-columns: none !important;
+  width: 100%;
+  gap: 0.28rem;
+  overflow: visible;
+}
+#command-dock #control-panel .map-stack-chip {
+  width: 100%;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  white-space: normal;
+}
+
+/* Map Source chip rows match Visual Presets button size. */
+#command-dock #control-panel .map-stack-chip {
+  min-height: 2rem;
+  padding: 0.35rem 0.55rem;
+  justify-content: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Classification stamp + coords sit together under #top-center-actions. */
+#hud-center-cluster {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  z-index: 101;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.7rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  max-width: min(44rem, calc(100vw - 8rem));
+}
+#hud-center-cluster .hud-top-left,
+#hud-center-cluster .hud-bottom-left {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  margin: 0;
+  pointer-events: auto;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.36);
+}
+#hud-center-cluster .hud-bottom-left {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+#hud-center-cluster .hud-top-left {
+  flex: 1 1 auto;
+  min-width: 14rem;
+  max-width: 22rem;
+}
+#hud-center-cluster .hud-summary {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+body.ui-clean-view #hud-center-cluster {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+#global-loading-status {
+  top: 13.75rem !important;
+}
+
+/* Mic sits above LIVE CONTACTS in Mission Control. MOVE, no clone. */
+#first-run-launcher > .first-run-header { order: 1; }
+#first-run-launcher > #gev-voice-control {
+  order: 2;
+  margin: 0 0 0.4rem !important;
+}
+#first-run-launcher > .first-run-choices { order: 3; }
+
+/* Location lives in Mission Control under the mic, cities vertical, always visible. */
+#first-run-launcher {
+  overflow: visible !important;
+  max-height: none !important;
+}
+#first-run-launcher > .first-run-header { order: 1; }
+#first-run-launcher > #gev-voice-control { order: 2; }
+#first-run-launcher > #location-bar { order: 3; }
+#first-run-launcher > .first-run-choices { order: 4; }
+#first-run-launcher > #location-bar,
+#first-run-launcher > #location-bar.collapsed,
+#first-run-launcher > #location-bar.dock-pinned {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+  margin: 0 0 0.4rem;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+#first-run-launcher #location-bar .panel-glow,
+#first-run-launcher #location-bar .panel-collapse-btn,
+#first-run-launcher #location-bar .dock-pin-btn,
+#first-run-launcher #location-bar .location-mini-status {
+  display: none !important;
+}
+#first-run-launcher #location-bar .location-inner,
+#first-run-launcher #location-bar .dock-popover-content,
+#first-run-launcher #location-bar.collapsed .dock-popover-content,
+#first-run-launcher #location-bar.dock-pinned .dock-popover-content {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  overflow: visible !important;
+  display: flex !important;
+  flex-direction: column;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+#first-run-launcher .location-toolbar {
+  display: flex;
+  margin: 0 0 0.3rem;
+}
+#first-run-launcher .location-city-row,
+#first-run-launcher #location-pills,
+#first-run-launcher .location-pills {
+  display: flex !important;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  width: 100%;
+  gap: 0.28rem;
+  overflow: visible !important;
+}
+#first-run-launcher .location-search-wrap { order: 1; width: 100%; }
+#first-run-launcher #location-pills { order: 2; }
+#first-run-launcher .location-pill,
+#first-run-launcher .location-search-wrap,
+#first-run-launcher #location-search {
+  width: 100%;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+#first-run-launcher .location-pill {
+  justify-content: flex-start;
+  border-radius: 0.35rem;
+  white-space: normal;
+}
