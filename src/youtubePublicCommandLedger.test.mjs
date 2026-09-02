@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createFilePublicCommandLedger,
   createInMemoryPublicCommandLedger,
+  PUBLIC_COMMAND_STATES,
   PUBLIC_COMMAND_TERMINAL_STATES,
 } from './youtubePublicCommandLedger.js';
 import { promises as fs } from 'node:fs';
@@ -83,4 +84,37 @@ test('returned values are copies and bounded adapter evicts old terminal entries
   await ledger.insert({ ...record('two', 'b'), state: 'succeeded' });
   await ledger.insert(record('three', 'c'));
   assert.equal(await ledger.get('one'), null);
+});
+test('a restart cancels in-flight commands but leaves deferred ones queued', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gev-ledger-'));
+  const filePath = path.join(dir, 'ledger.json');
+  const base = { videoId: 'v1', generation: 1, captureExecutorId: 'exec-1' };
+
+  const first = createFilePublicCommandLedger({ filePath });
+  await first.insert({ ...base, id: 'a', commentId: 'c-a', state: 'received' });
+  await first.insert({ ...base, id: 'b', commentId: 'c-b', state: 'received' });
+  await first.compareAndSet('b', 'received', { state: 'interpreting' });
+  await first.compareAndSet('b', 'interpreting', { state: 'deferred', retryAt: 123 });
+
+  // Fresh process against the same file.
+  const second = createFilePublicCommandLedger({ filePath });
+  await second.ready();
+  assert.equal((await second.get('a')).state, 'cancelled');
+  // The regression this guards: hydration used to cancel everything
+  // non-terminal, so a restart during a rate-limit burst silently dropped the
+  // whole queue.
+  assert.equal((await second.get('b')).state, 'deferred');
+  assert.equal((await second.get('b')).retryAt, 123);
+
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
+test('deferred is non-terminal and round-trips back into interpreting', async () => {
+  assert.ok(PUBLIC_COMMAND_STATES.includes('deferred'));
+  assert.ok(!PUBLIC_COMMAND_TERMINAL_STATES.includes('deferred'));
+  const ledger = createInMemoryPublicCommandLedger();
+  await ledger.insert({ id: 'x', videoId: 'v', commentId: 'c', state: 'received' });
+  await ledger.compareAndSet('x', 'received', { state: 'interpreting' });
+  assert.equal((await ledger.compareAndSet('x', 'interpreting', { state: 'deferred' })).changed, true);
+  assert.equal((await ledger.compareAndSet('x', 'deferred', { state: 'interpreting' })).changed, true);
 });

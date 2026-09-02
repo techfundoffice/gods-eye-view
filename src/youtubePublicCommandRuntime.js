@@ -77,6 +77,9 @@ function publicRecord(record) {
     state: bounded(record?.state, 32),
     reason: bounded(record?.reason, 160),
     answer: bounded(record?.answer, 1000),
+    // Surfaced so a queued row can honestly say when it retries instead of
+    // reading as a dead end.
+    retryAt: Number(record?.retryAt) || 0,
     updatedAt: Number(record?.updatedAt || record?.createdAt) || 0,
   };
 }
@@ -130,23 +133,44 @@ export function createYoutubePublicCommandRuntime({
     const target = bindingWithExecutor(binding);
     const verified = target.commandsEnabled && target.videoId && target.captureExecutorId;
     const reason = verified ? 'Live video or generation changed' : 'Verified YouTube live session ended';
+    // A deferred command is queued behind an upstream rate limit and has never
+    // been leased to a runner, so it is bound to the video and generation but
+    // NOT to an executor session. Holding it to the executor id would cancel
+    // every queued comment on restart and undo the deferral entirely.
+    const stale = (record) => !verified
+      || record.videoId !== target.videoId
+      || record.generation !== target.generation
+      || (record.state !== 'deferred' && record.captureExecutorId !== target.captureExecutorId);
     if (typeof ledger.cancelWhere === 'function') {
-      return ledger.cancelWhere((record) => !verified
-        || record.videoId !== target.videoId
-        || record.generation !== target.generation
-        || record.captureExecutorId !== target.captureExecutorId, reason);
+      return ledger.cancelWhere(stale, reason);
     }
     let count = 0;
     for (const record of await ledger.list()) {
-      if (!terminal.has(record.state) && (!verified
-        || record.videoId !== target.videoId
-        || record.generation !== target.generation
-        || record.captureExecutorId !== target.captureExecutorId)) {
+      if (!terminal.has(record.state) && stale(record)) {
         const cancelled = await ledger.compareAndSet(record.id, record.state, { state: 'cancelled', reason });
         if (cancelled.changed) count += 1;
       }
     }
     return count;
+  }
+
+  /**
+   * Oldest deferred command whose retry window has opened, or null.
+   *
+   * Draining rides the lease poll the browser already runs, so a queued
+   * comment needs no separate timer or lifecycle to come back.
+   *
+   * @param {object[]} rows
+   * @param {object} target Verified live binding.
+   * @returns {object|null}
+   */
+  function dueDeferred(rows, target) {
+    return rows
+      .filter((row) => row.state === 'deferred'
+        && row.videoId === target.videoId
+        && row.generation === target.generation
+        && (Number(row.retryAt) || 0) <= now())
+      .sort((a, b) => (Number(a.retryAt) || 0) - (Number(b.retryAt) || 0))[0] || null;
   }
 
   async function registerMessage(message, binding) {
@@ -181,6 +205,13 @@ export function createYoutubePublicCommandRuntime({
       && row.videoId === target.videoId
       && row.generation === target.generation
       && row.captureExecutorId === target.captureExecutorId);
+    if (!record) {
+      const resumable = dueDeferred(rows, target);
+      if (resumable) {
+        const advanced = await coordinator.resumeDeferred(resumable.id, target);
+        record = advanced.record?.state === 'awaiting-execution' ? advanced.record : null;
+      }
+    }
     if (!record) {
       const received = rows.find((row) => row.state === 'received'
         && row.videoId === target.videoId
@@ -220,6 +251,13 @@ export function createYoutubePublicCommandRuntime({
       && row.videoId === target.videoId
       && row.generation === target.generation
       && row.captureExecutorId === target.captureExecutorId);
+    if (!record) {
+      const resumable = dueDeferred(rows, target);
+      if (resumable) {
+        const advanced = await coordinator.resumeDeferred(resumable.id, target, viewContext);
+        record = advanced.record?.state === 'awaiting-execution' ? advanced.record : null;
+      }
+    }
     if (!record) {
       const received = rows.find((row) => row.state === 'received'
         && row.videoId === target.videoId

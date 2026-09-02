@@ -4,7 +4,7 @@ import {
   OPENROUTER_CHAT_URL,
   OPENROUTER_FREE_MODEL,
   catalogToolsToOpenRouter,
-  createOpenRouterFreeRateLimiter,
+  retryAfterMs,
   openRouterFreeModel,
   postOpenRouterChat,
 } from './openrouterFreeClient.js';
@@ -23,30 +23,9 @@ test('openrouter/auto is refused so YouTube commands cannot bill', async () => {
     model: 'openrouter/auto',
     messages: [{ role: 'user', content: 'hi' }],
     fetchImpl: async () => { throw new Error('should not fetch'); },
-    limiter: { tryTake: () => ({ ok: true }) },
   });
   assert.equal(result.ok, false);
   assert.equal(result.kind, 'provider');
-});
-
-test('rate limiter trips before the provider after 20 calls in a minute', async () => {
-  let now = 1_000;
-  const limiter = createOpenRouterFreeRateLimiter({ rpm: 2, rpd: 3, now: () => now });
-  assert.equal((await postOpenRouterChat({
-    apiKey: 'k', messages: [], limiter,
-    fetchImpl: async () => ({ ok: true, json: async () => ({ id: 'a', model: 'x:free' }) }),
-  })).ok, true);
-  assert.equal((await postOpenRouterChat({
-    apiKey: 'k', messages: [], limiter,
-    fetchImpl: async () => ({ ok: true, json: async () => ({ id: 'b', model: 'x:free' }) }),
-  })).ok, true);
-  const blocked = await postOpenRouterChat({
-    apiKey: 'k', messages: [], limiter,
-    fetchImpl: async () => ({ ok: true, json: async () => ({ id: 'c' }) }),
-  });
-  assert.equal(blocked.ok, false);
-  assert.equal(blocked.kind, 'rate-limited');
-  assert.equal(blocked.status, 429);
 });
 
 test('catalog tools wrap into OpenAI-style function tools', () => {
@@ -64,9 +43,36 @@ test('missing key is unconfigured and does not hit the network', async () => {
     apiKey: '',
     messages: [{ role: 'user', content: 'hi' }],
     fetchImpl: async () => { called = true; },
-    limiter: { tryTake: () => ({ ok: true }) },
   });
   assert.equal(result.kind, 'unconfigured');
   assert.equal(called, false);
   assert.equal(OPENROUTER_CHAT_URL, 'https://openrouter.ai/api/v1/chat/completions');
+});
+
+test('retry-after seconds and HTTP-date both become milliseconds', () => {
+  const withHeader = (value) => ({ headers: { get: () => value } });
+  assert.equal(retryAfterMs(withHeader('30')), 30_000);
+  assert.equal(retryAfterMs(withHeader('0')), 0);
+  const soon = new Date(Date.now() + 20_000).toUTCString();
+  const parsed = retryAfterMs(withHeader(soon));
+  assert.ok(parsed > 15_000 && parsed <= 20_000, `expected ~20s, got ${parsed}`);
+  // Test doubles return bare objects; a missing headers bag must not throw.
+  assert.equal(retryAfterMs({}), 0);
+  assert.equal(retryAfterMs(withHeader('not-a-date')), 0);
+});
+
+test('a rate-limited response carries the upstream retry hint back to the caller', async () => {
+  const result = await postOpenRouterChat({
+    apiKey: 'sk-or-test',
+    messages: [{ role: 'user', content: 'hi' }],
+    fetchImpl: async () => ({
+      ok: false,
+      status: 429,
+      headers: { get: (name) => (name === 'retry-after' ? '45' : null) },
+      json: async () => ({ error: 'rate limited' }),
+    }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.kind, 'rate-limited');
+  assert.equal(result.retryAfterMs, 45_000);
 });

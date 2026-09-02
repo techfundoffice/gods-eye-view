@@ -125,7 +125,6 @@ export function createPublicResponsesInterpreter({
   model,
   fetchImpl = globalThis.fetch,
   now = Date.now,
-  limiter,
 } = {}) {
   return async function interpret(input, { signal } = {}) {
     const resolvedKey = apiKey !== undefined ? apiKey : openRouterApiKey();
@@ -158,12 +157,12 @@ export function createPublicResponsesInterpreter({
         maxTokens: 500,
         fetchImpl,
         signal: controller.signal,
-        limiter,
       });
       if (!result.ok) {
         throw Object.assign(new Error(result.payload?.error || 'Public command AI request failed'), {
           status: result.status,
           kind: result.kind || 'provider',
+          retryAfterMs: Number(result.retryAfterMs) || 0,
         });
       }
       return parsePublicChatCompletionsOutput(result.payload, input.mode);

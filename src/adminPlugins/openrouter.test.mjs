@@ -118,3 +118,72 @@ test('pane shows PRESENT and never echoes the raw key', async () => {
   assert.doesNotMatch(host.textContent, /sk-or-v1-/);
   cleanup();
 });
+
+test('pane renders a model selector defaulting to the free router', async () => {
+  const status = {
+    present: true,
+    source: 'admin',
+    model: 'openrouter/free',
+    choices: [
+      { id: 'openrouter/free', label: 'Free Models Router', tier: 'free' },
+      { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', tier: 'paid' },
+    ],
+  };
+  const doc = fakeDocument();
+  const host = doc.createElement('div');
+  const cleanup = renderOpenRouterPane(host, {
+    document: doc,
+    client: {
+      openrouterStatus: async () => status,
+      saveOpenrouterKey: async () => status,
+      saveOpenrouterModel: async () => status,
+      testOpenrouter: async () => ({ ok: true, status: 200 }),
+    },
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  // The regression: Model was a hardcoded <dd>, so no model was selectable.
+  const select = host.querySelector('#admin-openrouter-model');
+  assert.ok(select, 'a model selector must exist');
+  assert.equal(select.tagName, 'select');
+  assert.equal(select.children.length, 2);
+  assert.equal(select.value, 'openrouter/free');
+  assert.match(host.textContent, /Gemini 2\.5 Flash/);
+  // Paid choices must be visibly labelled as paid.
+  assert.match(host.textContent, /PAID/);
+  cleanup();
+});
+
+test('choosing a model saves it and shows the effective model', async () => {
+  const saved = [];
+  const doc = fakeDocument();
+  const host = doc.createElement('div');
+  const cleanup = renderOpenRouterPane(host, {
+    document: doc,
+    client: {
+      openrouterStatus: async () => ({
+        present: true, source: 'admin', model: 'openrouter/free',
+        choices: [
+          { id: 'openrouter/free', label: 'Free Models Router', tier: 'free' },
+          { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', tier: 'paid' },
+        ],
+      }),
+      saveOpenrouterKey: async () => ({ present: true, model: 'openrouter/free' }),
+      saveOpenrouterModel: async (model) => {
+        saved.push(model);
+        return { present: true, source: 'admin', model, choices: [] };
+      },
+      testOpenrouter: async () => ({ ok: true, status: 200 }),
+    },
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  const select = host.querySelector('#admin-openrouter-model');
+  select.value = 'google/gemini-2.5-flash';
+  await select.listeners.change();
+  assert.deepEqual(saved, ['google/gemini-2.5-flash']);
+  assert.match(host.textContent, /google\/gemini-2\.5-flash/);
+  cleanup();
+});

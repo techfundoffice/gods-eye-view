@@ -7,6 +7,31 @@ import {
   validatePublicToolCall,
 } from './youtubePublicCommandPolicy.js';
 
+/** Backoff floor and ceiling for a deferred retry. */
+export const DEFER_BASE_MS = 2_000;
+export const DEFER_MAX_MS = 120_000;
+
+/**
+ * How long a rate-limited command waits before its next interpret attempt.
+ *
+ * The upstream's own `Retry-After` wins when present — OpenRouter knows when
+ * its window reopens and we do not. Otherwise back off exponentially, with
+ * jitter so a burst of comments deferred by the same 429 does not come back as
+ * one synchronised herd.
+ *
+ * @param {number} deferrals Deferrals already recorded for this command.
+ * @param {number} [retryAfterMs] Upstream hint; 0 when absent.
+ * @param {() => number} [random] Injected for deterministic tests.
+ * @returns {number} Milliseconds to wait.
+ */
+export function deferralDelayMs(deferrals, retryAfterMs = 0, random = Math.random) {
+  const hint = Number(retryAfterMs) || 0;
+  if (hint > 0) return Math.min(hint, DEFER_MAX_MS);
+  const attempt = Math.max(0, Number(deferrals) || 0);
+  const backoff = Math.min(DEFER_BASE_MS * (2 ** attempt), DEFER_MAX_MS);
+  return Math.round(backoff * (0.5 + (random() * 0.5)));
+}
+
 const bounded = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
 
 /**
@@ -83,10 +108,21 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       });
     } catch (error) {
       if (error?.kind === 'rate-limited') {
+        // Wait the window out instead of killing the comment. No model turn
+        // was spent, so remainingTurns is untouched; expiresAt is pushed past
+        // the retry because the 20s command budget measures model latency, not
+        // time spent queued behind somebody else's rate limit.
+        const deferrals = (Number(record.deferrals) || 0);
+        const delay = deferralDelayMs(deferrals, error?.retryAfterMs);
+        const retryAt = now() + delay;
         await ledger.compareAndSet(record.id, 'interpreting', {
-          state: 'rejected', reason: 'OpenRouter free rate limit',
+          state: 'deferred',
+          reason: 'Upstream rate limit — queued for retry',
+          deferrals: deferrals + 1,
+          retryAt,
+          expiresAt: retryAt + PUBLIC_COMMAND_LIMITS.totalMs,
         });
-        return { ok: false, reason: 'rate-limited' };
+        return { ok: false, reason: 'rate-limited', retryAt, record: await ledger.get(record.id) };
       }
       await ledger.compareAndSet(record.id, 'interpreting', { state: 'failed', reason: bounded(error?.message || 'Interpreter failed', 160) });
       return { ok: false, reason: 'interpreter' };
@@ -161,9 +197,29 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     }, viewContext);
   }
 
+  /**
+   * Put one due deferred command back through the interpreter.
+   *
+   * @param {string} commandId
+   * @param {object} binding Verified live binding.
+   * @param {object} [viewContext]
+   * @returns {Promise<object>}
+   */
+  async function resumeDeferred(commandId, binding, viewContext = {}) {
+    // Re-stamp the executor: the command outlived the session that was current
+    // when it was deferred, and the lease filters match on this id.
+    const claimed = await ledger.compareAndSet(commandId, 'deferred', {
+      state: 'interpreting',
+      captureExecutorId: bounded(binding?.captureExecutorId, 160),
+    });
+    if (!claimed.changed) return { ok: false, reason: 'state' };
+    return advance(commandId, binding, null, viewContext);
+  }
+
   return {
     register,
     advance,
+    resumeDeferred,
     acceptToolResult,
     acceptViewerToolResult,
     cancelAfterRestart: ledger.cancelNonterminal,

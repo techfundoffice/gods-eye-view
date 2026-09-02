@@ -2,7 +2,7 @@
   {
     "id": "openrouter",
     "label": "OpenRouter",
-    "description": "Set the OpenRouter API key used by YouTube comments and COMMANDS (openrouter/free).",
+    "description": "Set the OpenRouter API key and select which tool-capable model handles YouTube comments and COMMANDS.",
     "module": "./openrouter.js"
   },
   {
