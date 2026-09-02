@@ -3,14 +3,19 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 export const PUBLIC_COMMAND_STATES = Object.freeze([
-  'received', 'interpreting', 'awaiting-execution', 'executing',
+  'received', 'interpreting', 'deferred', 'awaiting-execution', 'executing',
   'awaiting-model', 'succeeded', 'rejected', 'failed', 'cancelled',
 ]);
 export const PUBLIC_COMMAND_TERMINAL_STATES = Object.freeze(['succeeded', 'rejected', 'failed', 'cancelled']);
 
+/**
+ * `deferred` is deliberately NON-terminal: an upstream rate limit is a wait,
+ * not a verdict, and writing it as `rejected` killed the comment forever.
+ */
 const TRANSITIONS = Object.freeze({
   received: ['interpreting', 'rejected', 'cancelled', 'failed'],
-  interpreting: ['awaiting-execution', 'succeeded', 'rejected', 'failed', 'cancelled'],
+  interpreting: ['awaiting-execution', 'deferred', 'succeeded', 'rejected', 'failed', 'cancelled'],
+  deferred: ['interpreting', 'cancelled', 'failed'],
   'awaiting-execution': ['executing', 'cancelled', 'failed'],
   executing: ['awaiting-model', 'succeeded', 'failed', 'cancelled'],
   'awaiting-model': ['interpreting', 'succeeded', 'rejected', 'failed', 'cancelled'],
@@ -130,7 +135,14 @@ export function createFilePublicCommandLedger({
       for (const record of Array.isArray(payload?.records) ? payload.records : []) {
         await memory.insert(record);
       }
-      await memory.cancelNonterminal('Coordinator restarted before completion');
+      // A deferred command is waiting out an upstream rate-limit window, not
+      // mid-flight against a runner that died with the process. Cancelling it
+      // here would make a restart during a rate-limit burst silently drop
+      // every queued comment, which is the failure this state exists to stop.
+      await memory.cancelWhere(
+        (record) => record.state !== 'deferred',
+        'Coordinator restarted before completion',
+      );
       await persist();
     } catch (error) {
       if (error?.code !== 'ENOENT') throw error;

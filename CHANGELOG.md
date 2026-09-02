@@ -7,6 +7,26 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Added
 
+- ADMIN → OpenRouter now has a **model selector** beside the API key. It offers
+  `openrouter/free` (the default) plus Gemini options, each labelled FREE or
+  PAID. Only models that support tool calling are offered, because a model
+  without it replies in prose and never moves the globe. The selection is what
+  live YouTube comments are answered with.
+
+### Changed
+
+- A YouTube comment hitting an OpenRouter rate limit is now **queued and
+  retried** instead of being permanently rejected. Retries honour the
+  provider's own `Retry-After`, back off with jitter, and survive a restart.
+- The local 20/min · 50/day request cap has been **removed**. Provider limits
+  still apply and are handled by the retry behaviour above.
+
+### Fixed
+
+- Only the last comment of each live-chat poll batch was being processed —
+  every other comment in the batch was silently dropped before reaching the
+  model. All comments in a batch are now handled.
+
 - The live-news ticker still scrolls **Comment on YouTube chat to choose your view. Live at [stream URL] Now!** and now also scrolls **Download our Google Chrome extension named Cloud Computer AI Agent to control this channel.** The stream URL remains the only ticker link.
 
 ## [Unreleased] — 2026-09-01

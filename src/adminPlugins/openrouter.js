@@ -1,5 +1,5 @@
 /**
- * ADMIN plugin: OpenRouter Free Models Router key.
+ * ADMIN plugin: OpenRouter API key + model selection.
  *
  * Operator pastes the key after login (wp-admin style). The raw key never
  * renders; the pane shows PRESENT / KEY REQUIRED and a Test ping.
@@ -11,6 +11,12 @@ import { createAdminClient } from '../adminConsole.js';
 
 export const OPENROUTER_PLUGIN_ID = 'openrouter';
 export const OPENROUTER_PLUGIN_LABEL = 'OpenRouter';
+
+/**
+ * Fallback shown before the first status lands. The authoritative choice list
+ * is server-side; the browser never invents a model id.
+ */
+const DEFAULT_MODEL = 'openrouter/free';
 
 /**
  * @param {Document} doc
@@ -43,7 +49,7 @@ export function renderOpenRouterPane(container, context = {}) {
     doc,
     'p',
     'admin-openrouter-lead',
-    'YouTube comments and COMMANDS use the Free Models Router (openrouter/free). The key stays on the server.',
+    'YouTube comments and COMMANDS run on the model selected here. Only tool-capable models are offered — one without function calling replies in prose and never moves the globe. The key stays on the server.',
   );
 
   const statusEl = el(doc, 'p', 'admin-openrouter-status', 'Loading…');
@@ -51,6 +57,13 @@ export function renderOpenRouterPane(container, context = {}) {
   statusEl.setAttribute('role', 'status');
 
   const facts = el(doc, 'dl', 'admin-openrouter-facts');
+
+  const modelLabel = el(doc, 'label', 'admin-openrouter-model-label', 'Model');
+  modelLabel.setAttribute('for', 'admin-openrouter-model');
+  const modelSelect = el(doc, 'select', 'admin-openrouter-model');
+  modelSelect.id = 'admin-openrouter-model';
+  const modelRowEl = el(doc, 'div', 'admin-openrouter-model-row');
+  modelRowEl.append(modelLabel, modelSelect);
 
   const form = el(doc, 'form', 'admin-openrouter-form');
   form.id = 'admin-openrouter-form';
@@ -64,7 +77,7 @@ export function renderOpenRouterPane(container, context = {}) {
   const save = el(doc, 'button', 'scene-btn', 'SAVE');
   save.id = 'admin-openrouter-save';
   save.type = 'submit';
-  const testBtn = el(doc, 'button', 'scene-btn', 'TEST /FREE');
+  const testBtn = el(doc, 'button', 'scene-btn', 'TEST');
   testBtn.id = 'admin-openrouter-test';
   testBtn.type = 'button';
   form.append(label, input, save, testBtn);
@@ -73,20 +86,38 @@ export function renderOpenRouterPane(container, context = {}) {
   message.id = 'admin-openrouter-message';
   message.hidden = true;
 
+  function paintModelChoices(status) {
+    const choices = Array.isArray(status?.choices) && status.choices.length
+      ? status.choices
+      : [{ id: DEFAULT_MODEL, label: 'Free Models Router', tier: 'free' }];
+    const current = String(status?.model || DEFAULT_MODEL);
+    if (typeof modelSelect.replaceChildren === 'function') modelSelect.replaceChildren();
+    for (const choice of choices) {
+      const option = el(doc, 'option', '', `${choice.label} · ${String(choice.tier || '').toUpperCase()}`);
+      option.value = choice.id;
+      if (choice.id === current) option.selected = true;
+      modelSelect.append(option);
+    }
+    modelSelect.value = current;
+  }
+
   function paintStatus(status) {
     const present = Boolean(status?.present);
     statusEl.dataset.openrouterState = present ? 'present' : 'missing';
     statusEl.textContent = present
-      ? `PRESENT · ${status.source || 'admin'} · ${status.model || 'openrouter/free'}`
+      ? `PRESENT · ${status.source || 'admin'} · ${status.model || DEFAULT_MODEL}`
       : 'KEY REQUIRED · paste an OpenRouter key and Save';
     statusEl.classList.toggle('warn', !present);
+    paintModelChoices(status);
     if (typeof facts.replaceChildren === 'function') {
       const keyRow = el(doc, 'div');
       const dt = el(doc, 'dt', '', 'API key');
       const dd = el(doc, 'dd', '', present ? 'PRESENT' : 'KEY REQUIRED');
       keyRow.append(dt, dd);
       const modelRow = el(doc, 'div');
-      modelRow.append(el(doc, 'dt', '', 'Model'), el(doc, 'dd', '', 'openrouter/free'));
+      // The effective model the live comment path will send, which is not
+      // necessarily the stored one — OPENROUTER_MODEL can still override it.
+      modelRow.append(el(doc, 'dt', '', 'Model'), el(doc, 'dd', '', String(status?.model || DEFAULT_MODEL)));
       facts.replaceChildren(keyRow, modelRow);
     }
   }
@@ -126,9 +157,27 @@ export function renderOpenRouterPane(container, context = {}) {
     }
   }
 
+  async function onModelChange() {
+    message.hidden = true;
+    const chosen = String(modelSelect.value || '');
+    try {
+      const status = await client.saveOpenrouterModel(chosen);
+      paintStatus(status);
+      message.hidden = false;
+      message.textContent = `Model set to ${status.model || chosen}.`;
+    } catch (error) {
+      message.hidden = false;
+      message.textContent = error?.message || 'Could not save the OpenRouter model.';
+      // Put the control back on the server's truth rather than leaving it
+      // showing a selection that was never persisted.
+      void refresh().catch(() => {});
+    }
+  }
+
   form.addEventListener('submit', onSave);
   testBtn.addEventListener('click', onTest);
-  root.append(title, lead, statusEl, facts, form, message);
+  modelSelect.addEventListener('change', onModelChange);
+  root.append(title, lead, statusEl, facts, modelRowEl, form, message);
   if (typeof container.replaceChildren === 'function') container.replaceChildren(root);
   else container.append?.(root);
   void refresh().catch((error) => {
@@ -139,6 +188,7 @@ export function renderOpenRouterPane(container, context = {}) {
   return () => {
     form.removeEventListener?.('submit', onSave);
     testBtn.removeEventListener?.('click', onTest);
+    modelSelect.removeEventListener?.('change', onModelChange);
     if (typeof container.replaceChildren === 'function') container.replaceChildren();
   };
 }
@@ -146,7 +196,7 @@ export function renderOpenRouterPane(container, context = {}) {
 const openRouterPlugin = {
   id: OPENROUTER_PLUGIN_ID,
   label: OPENROUTER_PLUGIN_LABEL,
-  description: 'Set the OpenRouter API key used by YouTube comments and COMMANDS (openrouter/free).',
+  description: 'Set the OpenRouter API key and select which tool-capable model handles YouTube comments and COMMANDS.',
   render: renderOpenRouterPane,
 };
 

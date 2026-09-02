@@ -4,43 +4,22 @@
  * openrouter/auto (auto can bill).
  */
 
-import { resolveOpenRouterApiKey } from './openrouterAdminSecret.js';
+import { resolveOpenRouterApiKey, resolveOpenRouterModel } from './openrouterAdminSecret.js';
 
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 export const OPENROUTER_FREE_MODEL = 'openrouter/free';
 
-const FREE_RPM = 20;
-const FREE_RPD = 50;
-
-export function createOpenRouterFreeRateLimiter({
-  rpm = FREE_RPM,
-  rpd = FREE_RPD,
-  now = Date.now,
-} = {}) {
-  const minute = [];
-  const day = [];
-  return {
-    tryTake() {
-      const t = now();
-      while (minute.length && t - minute[0] > 60_000) minute.shift();
-      while (day.length && t - day[0] > 86_400_000) day.shift();
-      if (minute.length >= rpm || day.length >= rpd) {
-        return { ok: false, kind: 'rate-limited', rpm: minute.length, rpd: day.length };
-      }
-      minute.push(t);
-      day.push(t);
-      return { ok: true, rpm: minute.length, rpd: day.length };
-    },
-    snapshot() {
-      return { rpm: minute.length, rpd: day.length, rpmCap: rpm, rpdCap: rpd };
-    },
-  };
-}
-
-const defaultLimiter = createOpenRouterFreeRateLimiter();
-
+/**
+ * The model every live-comment request is sent with.
+ *
+ * Resolution order is ADMIN selection → `OPENROUTER_MODEL` → the free router.
+ * This is the single point the public-comment path reads, so the console's
+ * choice takes effect here or not at all.
+ *
+ * @returns {string}
+ */
 export function openRouterFreeModel() {
-  const configured = String(process.env.OPENROUTER_MODEL || OPENROUTER_FREE_MODEL).trim();
+  const configured = String(resolveOpenRouterModel() || OPENROUTER_FREE_MODEL).trim();
   if (!configured || configured === 'openrouter/auto' || configured.includes('auto:free')) {
     return OPENROUTER_FREE_MODEL;
   }
@@ -64,7 +43,27 @@ export function openRouterHeaders(apiKey = openRouterApiKey()) {
 }
 
 /**
- * POST chat/completions to openrouter/free.
+ * Read the upstream's own retry hint off a rate-limited response.
+ *
+ * OpenRouter knows when its window reopens and we do not, so the server's
+ * `Retry-After` (seconds, or an HTTP date) beats any local guess. Test doubles
+ * return bare objects with no `headers`, so every access is defensive.
+ *
+ * @param {object} response
+ * @returns {number} Milliseconds to wait, or 0 when the upstream gave no hint.
+ */
+export function retryAfterMs(response) {
+  const raw = response?.headers?.get?.('retry-after');
+  const header = String(raw ?? '').trim();
+  if (!header) return 0;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return Math.max(0, Math.round(seconds * 1000));
+  const at = Date.parse(header);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : 0;
+}
+
+/**
+ * POST chat/completions to the resolved OpenRouter model.
  */
 export async function postOpenRouterChat({
   apiKey = openRouterApiKey(),
@@ -75,17 +74,12 @@ export async function postOpenRouterChat({
   maxTokens = 500,
   fetchImpl = globalThis.fetch,
   signal,
-  limiter = defaultLimiter,
 } = {}) {
   if (!apiKey) {
     return { ok: false, status: 503, payload: { error: 'OPENROUTER_API_KEY is not set' }, kind: 'unconfigured' };
   }
   if (model === 'openrouter/auto' || String(model).includes('auto:free')) {
     return { ok: false, status: 400, payload: { error: 'Paid auto router is not allowed' }, kind: 'provider' };
-  }
-  const taken = limiter.tryTake();
-  if (!taken.ok) {
-    return { ok: false, status: 429, payload: { error: 'OpenRouter free rate limit' }, kind: 'rate-limited' };
   }
   const body = {
     model,
@@ -106,7 +100,7 @@ export async function postOpenRouterChat({
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const kind = response.status === 429 || response.status === 402 ? 'rate-limited' : 'provider';
-    return { ok: false, status: response.status, payload, kind };
+    return { ok: false, status: response.status, payload, kind, retryAfterMs: retryAfterMs(response) };
   }
   return {
     ok: true,

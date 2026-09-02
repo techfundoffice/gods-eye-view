@@ -379,6 +379,7 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     stopLive: () => request('/live/stop', { method: 'POST' }),
     openrouterStatus: () => request('/openrouter'),
     saveOpenrouterKey: (apiKey) => request('/openrouter', { method: 'POST', body: { apiKey } }),
+    saveOpenrouterModel: (model) => request('/openrouter', { method: 'POST', body: { model } }),
     testOpenrouter: () => request('/openrouter/test', { method: 'POST' }),
     youtubeStatus: () => youtubeRequest('/status'),
     youtubeConnectUrl: () => '/api/youtube/auth/start?go=1',

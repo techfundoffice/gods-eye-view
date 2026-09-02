@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createYoutubePublicCommandCoordinator } from './youtubePublicCommandCoordinator.js';
+import {
+  DEFER_MAX_MS,
+  createYoutubePublicCommandCoordinator,
+  deferralDelayMs,
+} from './youtubePublicCommandCoordinator.js';
 import { createInMemoryPublicCommandLedger } from './youtubePublicCommandLedger.js';
 import { PUBLIC_HELP_REPLY } from './youtubePublicCommandPolicy.js';
 
@@ -194,4 +198,67 @@ test('/live-contacts and /explore-manually start the AI before choosing run_view
   assert.equal(calls, 3);
   assert.equal(done.record.state, 'succeeded');
   assert.equal(done.record.answer, 'Live Contacts is active. What next?');
+});
+test('an upstream rate limit defers the command instead of rejecting it forever', async () => {
+  const clock = 1_000;
+  const ledger = createInMemoryPublicCommandLedger({ now: () => clock });
+  const coordinator = createYoutubePublicCommandCoordinator({
+    ledger,
+    now: () => clock,
+    id: (() => { let n = 0; return () => `id-${++n}`; })(),
+    interpret: async () => {
+      throw Object.assign(new Error('OpenRouter rate limit'), { kind: 'rate-limited', retryAfterMs: 30_000 });
+    },
+  });
+
+  const result = await coordinator.register(comment('c1', '/x take me to Mexico'), binding);
+  const record = await ledger.get(result.record.id);
+
+  // The regression this guards: 'rejected' is terminal, so a transient 429
+  // used to kill the comment permanently.
+  assert.equal(record.state, 'deferred');
+  assert.notEqual(record.state, 'rejected');
+  assert.equal(record.retryAt, clock + 30_000, 'upstream Retry-After must win over local backoff');
+  assert.equal(record.deferrals, 1);
+  assert.ok(record.expiresAt > record.retryAt, 'budget must outlive the retry or the resume just fails');
+  // No model turn was spent, so the turn budget must be untouched.
+  assert.equal(record.remainingTurns, 3);
+});
+
+test('a deferred command resumes through the interpreter and can then succeed', async () => {
+  let clock = 1_000;
+  const ledger = createInMemoryPublicCommandLedger({ now: () => clock });
+  let attempts = 0;
+  const coordinator = createYoutubePublicCommandCoordinator({
+    ledger,
+    now: () => clock,
+    id: (() => { let n = 0; return () => `id-${++n}`; })(),
+    interpret: async () => {
+      attempts += 1;
+      if (attempts === 1) throw Object.assign(new Error('limited'), { kind: 'rate-limited', retryAfterMs: 5_000 });
+      return { ok: true, kind: 'complete', text: 'Flying to Mexico.' };
+    },
+  });
+
+  const result = await coordinator.register(comment('c2', '/x take me to Mexico'), binding);
+  assert.equal((await ledger.get(result.record.id)).state, 'deferred');
+
+  clock += 5_000;
+  const resumed = await coordinator.resumeDeferred(result.record.id, binding);
+  assert.equal(resumed.ok, true);
+  assert.equal(resumed.record.state, 'succeeded');
+  assert.equal(resumed.record.answer, 'Flying to Mexico.');
+  assert.equal(attempts, 2);
+});
+
+test('deferral backoff prefers the upstream hint, else grows and stays jittered', () => {
+  assert.equal(deferralDelayMs(0, 45_000), 45_000);
+  assert.equal(deferralDelayMs(9, 10 * DEFER_MAX_MS), DEFER_MAX_MS, 'an absurd hint is still bounded');
+  // Jitter is the lower half-range: [0.5, 1.0) of the exponential step.
+  assert.equal(deferralDelayMs(0, 0, () => 0), 1_000);
+  assert.equal(deferralDelayMs(1, 0, () => 0), 2_000);
+  assert.equal(deferralDelayMs(2, 0, () => 0), 4_000);
+  assert.ok(deferralDelayMs(3, 0, () => 0.999) > deferralDelayMs(3, 0, () => 0), 'jitter must vary the delay');
+  // The ceiling bounds the exponential step; jitter is applied after it.
+  assert.ok(deferralDelayMs(50, 0, () => 0.999) <= DEFER_MAX_MS);
 });

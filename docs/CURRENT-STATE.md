@@ -22,6 +22,42 @@ Updated: September 2, 2026
 > execute the matching Mission Control views through `run_view_preset` on the
 > GEV action runner. `/help` does not call the public-command model.
 
+> **2026-09-02 — the public-comment model is ADMIN-selectable, and rate limits
+> no longer kill comments.** Four changes to the live YouTube comment path:
+>
+> 1. **Model selection.** The ADMIN → OpenRouter pane now carries a model
+>    `<select>` beside the key. Choices come from the server
+>    (`OPENROUTER_MODEL_CHOICES` in `src/openrouterAdminSecret.js`); a model id
+>    posted by the browser is rejected unless it is on that allowlist. Every
+>    choice must support OpenRouter **function calling** — a model without it
+>    answers in prose and the globe never moves — so the list is
+>    `openrouter/free` (default, free) plus paid Gemini entries. No free Gemini
+>    variant supports tool calling, so every Gemini choice is paid. `:batch`
+>    variants are excluded: they resolve through the async batch API, not the
+>    synchronous chat-completions call this path makes.
+> 2. **Resolution.** `openRouterFreeModel()` now resolves ADMIN selection →
+>    `OPENROUTER_MODEL` → `openrouter/free`. An unset admin selection is stored
+>    as `''`, which is what keeps the env override reachable. This is the single
+>    point the live comment path reads.
+> 3. **The local rate limiter is gone.** The hardcoded 20/min · 50/day gate in
+>    `postOpenRouterChat` applied to every model regardless of tier and is
+>    removed. OpenRouter's own limits still apply and are now handled as (4).
+> 4. **Rate limits defer instead of rejecting.** An upstream 429 moves the
+>    command to a new **non-terminal** `deferred` state with a `retryAt`, rather
+>    than the terminal `rejected` that killed the comment permanently. Backoff
+>    honours the upstream `Retry-After` and is otherwise exponential with
+>    jitter; `expiresAt` is pushed past the retry because the 20 s command
+>    budget measures model latency, not queue time. Deferred rows survive both
+>    ledger hydration and executor rotation, and drain through the lease poll
+>    the browser already runs. `remainingTurns` is untouched — no model turn was
+>    spent.
+>
+> Separately, `createYoutubeHomepageChatMiddleware` registered only
+> `items.at(-1)` of each poll batch, silently dropping every other comment
+> before any model saw it. It now registers the whole batch via
+> `registerBatch()`; the ledger's videoId+commentId uniqueness still makes
+> re-registration a no-op.
+
 > **2026-09-01 — public YouTube commands use OpenRouter `openrouter/free`.**
 > `/x` `/y` `/z` and related public chat commands are interpreted by
 > `src/youtubePublicResponsesInterpreter.js` via OpenRouter chat completions

@@ -102,6 +102,32 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
   };
 }
 
+/**
+ * Register every comment in one poll batch, oldest first.
+ *
+ * Registration is sequential so the ledger's per-comment uniqueness check sees
+ * a stable view; one comment failing must not stop the rest of the batch from
+ * being registered.
+ *
+ * @param {object|null} commandRuntime
+ * @param {object[]} items Normalized public messages.
+ * @param {object} binding Verified live binding.
+ * @returns {Promise<number>} Count registered without throwing.
+ */
+export async function registerBatch(commandRuntime, items, binding) {
+  if (typeof commandRuntime?.registerMessage !== 'function') return 0;
+  let registered = 0;
+  for (const item of items) {
+    try {
+      await commandRuntime.registerMessage(item, binding);
+      registered += 1;
+    } catch {
+      // One bad comment must not strand the batch behind it.
+    }
+  }
+  return registered;
+}
+
 function publicFeedBody(identity, extras = {}) {
   const status = boundedText(identity.status || 'offline', 40) || 'offline';
   const verifiedLive = identity.active === true && status === 'live' && Boolean(identity.videoId || identity.liveChatId);
@@ -205,8 +231,12 @@ export function createYoutubeHomepageChatMiddleware({
         ? (snap.items || []).map((item) => publicMessage(item, snap.videoId, now, { commandsEnabled: true })).filter(Boolean)
         : [];
       if (live && items.length) {
-        const latestItem = items.at(-1);
-        void Promise.resolve(commandRuntime?.registerMessage?.(latestItem, lastBinding)).catch(() => {});
+        // Every new comment is registered, not just the batch's last one: a
+        // busy chat delivers several per poll, and taking `items.at(-1)`
+        // silently dropped the rest before any model saw them. The ledger's
+        // videoId+commentId uniqueness still makes re-registration a no-op, so
+        // replaying a batch cannot double-process a comment.
+        void Promise.resolve(registerBatch(commandRuntime, items, lastBinding)).catch(() => {});
       }
       sendJson(res, 200, publicFeedBody(snap, {
         items,
@@ -270,8 +300,7 @@ export function createYoutubeHomepageChatMiddleware({
         .filter(Boolean);
       const binding = lastBinding;
       if (items.length) {
-        const latestItem = items.at(-1);
-        void Promise.resolve(commandRuntime?.registerMessage?.(latestItem, binding)).catch(() => {});
+        void Promise.resolve(registerBatch(commandRuntime, items, binding)).catch(() => {});
       }
       const commands = await commandRuntime?.statuses?.(binding) || [];
       sendJson(res, 200, publicFeedBody(identity, {

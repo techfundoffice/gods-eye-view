@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import {
   createYoutubeHomepageChatMiddleware,
   inferHomepageViewerActions,
+  registerBatch,
 } from './youtubeHomepageChatServer.js';
 import {
   MEMORY_POLL_HIDDEN_MS,
@@ -705,4 +706,33 @@ test('vite homepage middleware is constructed with commandRuntime', () => {
   const src = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
   assert.match(src, /createYoutubePublicCommandRuntime\s*\(/);
   assert.match(src, /createYoutubeHomepageChatMiddleware\(\s*\{[\s\S]*commandRuntime/);
+});
+
+test('every comment in a poll batch is registered, not just the last', async () => {
+  const seen = [];
+  const runtime = { registerMessage: async (item) => { seen.push(item.id); } };
+  const items = [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }, { id: 'c4' }];
+  const count = await registerBatch(runtime, items, { videoId: 'v', generation: 1 });
+  // The regression: `items.at(-1)` registered only 'c4' and dropped the rest
+  // before any model saw them.
+  assert.deepEqual(seen, ['c1', 'c2', 'c3', 'c4']);
+  assert.equal(count, 4);
+});
+
+test('one failing comment does not strand the rest of the batch', async () => {
+  const seen = [];
+  const runtime = {
+    registerMessage: async (item) => {
+      if (item.id === 'c2') throw new Error('bad comment');
+      seen.push(item.id);
+    },
+  };
+  const count = await registerBatch(runtime, [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }], {});
+  assert.deepEqual(seen, ['c1', 'c3']);
+  assert.equal(count, 2);
+});
+
+test('a runtime without registerMessage is a no-op', async () => {
+  assert.equal(await registerBatch(null, [{ id: 'c1' }], {}), 0);
+  assert.equal(await registerBatch({}, [{ id: 'c1' }], {}), 0);
 });

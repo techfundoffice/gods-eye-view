@@ -658,10 +658,13 @@ export function createAdminMiddleware({
         if (segments.length === 1 && req.method === 'POST') {
           const body = await readJsonBody(req);
           try {
-            openrouterSecret.setKey(body.apiKey);
+            // Key and model are independent fields on one record, so a save
+            // that carries only one must not disturb the other.
+            if ('apiKey' in body) openrouterSecret.setKey(body.apiKey);
+            if ('model' in body) openrouterSecret.setModel(body.model);
           } catch (error) {
             sendJson(res, error.status || 400, {
-              error: { kind: error.kind || 'invalid', message: error.message || 'Invalid OpenRouter key' },
+              error: { kind: error.kind || 'invalid', message: error.message || 'Invalid OpenRouter settings' },
             });
             return;
           }
