@@ -7687,6 +7687,8 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
   inset: auto;
   width: auto;
   max-width: none;
+  max-height: 7.5rem;
+  overflow: hidden;
   transform: none;
 }
 
@@ -8155,6 +8157,7 @@ body.recording-mode #cesium-credits {
 #command-dock .button-grid {
   flex-wrap: wrap;
   gap: 0.3rem;
+  max-height: 5.5rem;
   overflow: hidden;
   overflow-x: hidden;
   scrollbar-width: none;
@@ -9548,10 +9551,11 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   position: fixed;
   z-index: 147;
   top: 5.75rem;
-  bottom: auto;
+  bottom: var(--youtube-south-band);
   height: auto;
+  overflow: hidden;
   left: max(0.65rem, env(safe-area-inset-left));
-  width: min(17rem, calc(100vw - 5rem));
+  width: var(--youtube-mc-band);
   pointer-events: none;
 }
 
@@ -9562,7 +9566,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   height: auto;
   /* Cap to the viewport on very short screens. Desktop must fit missions plus
      every Data Layers row without a list scrollbar. */
-  max-height: min(92dvh, calc(100dvh - 5.75rem - 3rem));
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   padding: 0.5rem 0.55rem 0.45rem;
@@ -9815,8 +9819,9 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 .first-run-layers {
   display: flex;
   flex-direction: column;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
   margin-top: 0.28rem;
 }
 
@@ -9835,7 +9840,8 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   margin-top: 0.28rem;
   height: auto;
   max-height: none;
-  overflow: visible;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .first-run-layers-list button {
@@ -11750,13 +11756,13 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 /* south-pole LIVE COMMENTS band */
 #gev-nextchat {
   top: auto;
-  right: auto;
-  left: 50%;
-  bottom: calc(4.5rem + 8.25rem);
-  width: min(94vw, 1240px);
-  max-height: 6.75rem;
-  height: 6.75rem;
-  transform: translateX(-50%);
+  right: var(--youtube-hud-gutter);
+  left: calc(var(--youtube-mc-band) + max(0.65rem, env(safe-area-inset-left)));
+  bottom: calc(4.5rem + var(--youtube-dock-lift));
+  width: auto;
+  max-height: var(--youtube-comments-height);
+  height: var(--youtube-comments-height);
+  transform: none;
   pointer-events: none;
   overflow: hidden;
 }
@@ -11766,14 +11772,6 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 .gev-nextchat-guidance,
 .gev-nextchat-composer {
   display: none;
-}
-
-.gev-nextchat-guidance {
-  display: grid;
-}
-
-.gev-nextchat-composer {
-  flex-shrink: 0;
 }
 
 #gev-nextchat-status {

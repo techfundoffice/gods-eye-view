@@ -336,6 +336,31 @@ test('broadcast presentation keeps reserved comment chrome and a legend above th
     /\.hud-bottom-left,[\s\S]*?bottom:\s*calc\(var\(--youtube-south-band\)/,
     'HUD bottom stays above the south-pole words',
   );
+
+  const mcNav = css.slice(css.indexOf('#mission-control-nav {'), css.indexOf('#first-run-launcher {'));
+  assert.match(mcNav, /bottom:\s*var\(--youtube-south-band\)/, 'Mission Control stops above the south-pole band');
+  assert.match(mcNav, /width:\s*var\(--youtube-mc-band\)/);
+  const south = css.indexOf('/* south-pole LIVE COMMENTS band');
+  assert.ok(south >= 0, 'south-pole LIVE COMMENTS band comment exists');
+  const chat = css.slice(south, css.indexOf('#gev-nextchat-toggle,', south));
+  assert.match(chat, /left:\s*calc\(var\(--youtube-mc-band\)/, 'LIVE COMMENTS starts at the MC band, not a full-width centered strip');
+  assert.doesNotMatch(chat, /left:\s*50%/);
+  assert.doesNotMatch(chat, /min\(94vw/);
+  assert.match(chat, /bottom:\s*calc\(4\.5rem \+ var\(--youtube-dock-lift\)\)/);
+  assert.match(chat, /height:\s*var\(--youtube-comments-height\)/);
+  const dock = css.slice(css.indexOf('#command-dock {'), css.indexOf('#command-dock > #location-bar,'));
+  assert.match(dock, /bottom:\s*4\.5rem/);
+  assert.doesNotMatch(dock, /max-height:/, 'credit model forbids max-height on #command-dock itself');
+  assert.match(css, /--youtube-dock-lift:\s*8\.25rem/);
+  const dockKids = css.slice(css.indexOf('#command-dock > #location-bar,'), css.indexOf('#command-dock > #location-bar {'));
+  assert.match(dockKids, /max-height:\s*7\.5rem/, 'dock children cannot grow into the comments band');
+  assert.match(dockKids, /overflow:\s*hidden/);
+  const hideStart = css.indexOf('#gev-nextchat-toggle,\n.gev-nextchat-header,\n.gev-nextchat-guidance,\n.gev-nextchat-composer {');
+  assert.ok(hideStart >= 0, 'south-pole hides operator copy');
+  const hideBlock = css.slice(hideStart, css.indexOf('}', hideStart) + 1);
+  assert.match(hideBlock, /display:\s*none/);
+  const afterHide = css.slice(css.indexOf('}', hideStart) + 1, css.indexOf('}', hideStart) + 220);
+  assert.doesNotMatch(afterHide, /\.gev-nextchat-guidance \{\s*display:\s*grid/);
 });
 
 test('createEmptySession starts with no messages to replay', () => {

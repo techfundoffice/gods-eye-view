@@ -429,13 +429,9 @@ test('Mission Control keeps DATA LAYERS toggles under the mission tiles', () => 
   assert.doesNotMatch(toggle, /flyToGlobe|setContextMode|setWindowState\('minimized'/);
 
   const nav = css.slice(css.indexOf('#mission-control-nav {'), css.indexOf('#first-run-launcher {'));
-  const widthMatch = nav.match(/width:\s*min\(([\d.]+)rem/);
-  assert.ok(widthMatch, 'desktop Mission Control must declare a rem width');
-  assert.ok(
-    Number(widthMatch[1]) < 22,
-    `desktop Mission Control width ${widthMatch[1]}rem must be narrower than 22rem`,
-  );
-  assert.doesNotMatch(nav, /min\(22rem/);
+  assert.match(nav, /width:\s*var\(--youtube-mc-band\)/);
+  assert.match(nav, /bottom:\s*var\(--youtube-south-band\)/);
+  assert.match(css, /--youtube-mc-band:\s*min\(17rem/);
 
   assert.match(css, /--youtube-mc-band:\s*min\(17rem/);
   const hudStart = css.indexOf('/* Left HUD never shares Mission Control');
@@ -445,8 +441,7 @@ test('Mission Control keeps DATA LAYERS toggles under the mission tiles', () => 
 
   const list = css.slice(css.indexOf('.first-run-layers-list {'), css.indexOf('.first-run-layers-list button {'));
   assert.doesNotMatch(list, /max-height:\s*8\.5rem/);
-  assert.doesNotMatch(list, /overflow-y:\s*(auto|scroll)/);
-  assert.match(list, /overflow:\s*visible/);
+  assert.match(list, /overflow-y:\s*auto/, 'DATA LAYERS scrolls inside Mission Control instead of covering comments');
   assert.match(list, /max-height:\s*none/);
 });
 
@@ -663,8 +658,8 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   // `[hidden] { display: none }`, which would strand the card in the
   // accessibility tree until it is revealed or removed.
   assert.match(base, /display: flex/);
-  assert.match(base, /max-height: min\(92dvh/);
-  assert.match(css, /#mission-control-nav \{[\s\S]*?bottom:\s*auto;[\s\S]*?width:/);
+  assert.match(base, /max-height: 100%/);
+  assert.match(css, /#mission-control-nav \{[\s\S]*?bottom:\s*var\(--youtube-south-band\);[\s\S]*?width:/);
   assert.match(css, /#first-run-launcher\[hidden\] \{\s*display: none;\s*\}/);
   // Only the mission list may scroll: the heading, checkbox and status line
   // have to stay on screen at every height.
@@ -715,7 +710,7 @@ test('Mission Control is left-rail chrome with a reserved fill over the live glo
   const nav = css.slice(css.indexOf('#mission-control-nav {'), css.indexOf('#first-run-launcher {'));
   assert.match(nav, /pointer-events: none/);
   assert.match(nav, /z-index: 147/);
-  assert.match(nav, /bottom:\s*auto/);
+  assert.match(nav, /bottom:\s*var\(--youtube-south-band\)/);
   assert.match(nav, /left: max\(0\.65rem, env\(safe-area-inset-left\)\)/);
   assert.doesNotMatch(nav, /pointer-events:\s*auto/);
   assert.doesNotMatch(html, /first-run-scrim|mission-control-scrim/);
