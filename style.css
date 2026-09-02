@@ -11603,22 +11603,6 @@ body.recording-mode .admin-launch {
   line-height: 1.35;
 }
 
-@media (max-width: 760px) {
-  .gev-nextchat-split {
-    grid-template-columns: 1fr;
-  }
-
-  .gev-nextchat-lane + .gev-nextchat-lane {
-    border-top: 1px solid var(--glass-border);
-    border-left: 0;
-  }
-
-  .gev-nextchat-thread {
-    min-height: 105px;
-    max-height: 150px;
-  }
-}
-
 #gev-nextchat-composer {
   flex: 1;
   min-height: 44px;
@@ -11835,10 +11819,8 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 }
 
 /* ── Broadcast interaction overlay ─────────────────────────────────
-   GEV Actions and LIVE COMMENTS are reserved chrome lanes. The globe stays
-   visible around them, not through headings or comment rows. These rules
-   follow the legacy NextChat rules as a reversible presentation layer while
-   retaining all established DOM ids. */
+   The chronological conversation is reserved chrome. The globe stays
+   visible around it, not through headings or comment rows. */
 /* south-pole LIVE COMMENTS band */
 #gev-nextchat {
   top: auto;
@@ -11846,6 +11828,7 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   left: calc(var(--youtube-mc-band) + max(0.65rem, env(safe-area-inset-left)));
   bottom: calc(4.5rem + var(--youtube-dock-lift));
   width: auto;
+  max-width: min(32rem, calc(100vw - 2rem));
   max-height: var(--youtube-comments-height);
   height: var(--youtube-comments-height);
   transform: none;
@@ -11895,17 +11878,25 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   gap: 0;
 }
 
-.gev-nextchat-pairs-head,
-.gev-nextchat-pair {
-  display: grid;
-  grid-template-columns: minmax(0, 0.44fr) minmax(0, 0.56fr);
-}
-
-.gev-nextchat-pairs-head {
+.gev-nextchat-thread-heading {
   flex: 0 0 auto;
   position: sticky;
   top: 0;
   z-index: 1;
+  margin: 0;
+  padding: 0.42rem 0.58rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 107, 107, 0.22);
+  border-radius: 0.55rem;
+  background: rgba(18, 8, 10, 0.88);
+  color: #ff6b6b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.13em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px #000;
 }
 
 .gev-nextchat-pairs {
@@ -11915,8 +11906,12 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 }
 
 .gev-nextchat-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
   align-items: stretch;
   min-height: 0;
+  padding: 0.5rem 0;
 }
 
 .gev-nextchat-pair-cell {
@@ -11929,6 +11924,8 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 }
 
 .gev-nextchat-action-lane {
+  align-self: stretch;
+  width: 100%;
   overflow: hidden;
   border: 1px solid rgba(0, 212, 255, 0.24);
   border-radius: 0.55rem;
@@ -11939,19 +11936,8 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   pointer-events: auto;
 }
 
-.gev-nextchat-lane > h3 {
-  padding: 0.42rem 0.58rem;
-  border: 0;
-  color: rgba(232, 234, 237, 0.78);
-  font-size: 0.68rem;
-  line-height: 1.2;
-  letter-spacing: 0.13em;
-  text-shadow: 0 1px 3px #000;
-}
-
-.gev-nextchat-action-lane > h3 {
-  border-bottom: 1px solid rgba(0, 212, 255, 0.18);
-  color: #72e8ff;
+.gev-nextchat-pair + .gev-nextchat-pair {
+  border-top: 1px solid rgba(114, 232, 255, 0.12);
 }
 
 .gev-nextchat-live-lane {
@@ -11967,26 +11953,6 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   backdrop-filter: blur(10px) saturate(1.15);
   -webkit-backdrop-filter: blur(10px) saturate(1.15);
   pointer-events: auto;
-}
-
-.gev-nextchat-live-lane > h3 {
-  position: relative;
-  z-index: 1;
-  flex: 0 0 auto;
-  padding: 0.42rem 0.58rem;
-  border-bottom: 1px solid rgba(255, 107, 107, 0.22);
-  background: rgba(18, 8, 10, 0.88);
-  color: #ff6b6b;
-  font-size: 0.72rem;
-}
-
-.gev-nextchat-heading-legacy {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 .gev-nextchat-thread {
@@ -12035,7 +12001,10 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 }
 
 .gev-nextchat-live-lane .gev-nextchat-timestamp {
-  display: none;
+  display: block;
+  margin-top: 0.25rem;
+  color: rgba(232, 234, 237, 0.55);
+  font-size: 0.62rem;
 }
 
 .gev-nextchat-live-lane .gev-nextchat-msg-older {
@@ -12045,12 +12014,45 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 .gev-nextchat-action-lane .gev-nextchat-msg {
   min-height: 1.35rem;
   margin-bottom: 0.25rem;
-  padding-left: 5.8rem;
+  padding-left: 0;
 }
 
-.gev-nextchat-action-lane .gev-nextchat-role,
+.gev-nextchat-action-lane .gev-nextchat-role {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: #72e8ff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gev-nextchat-action-lane .gev-nextchat-status-label {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: #ffd36b;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='succeeded'] .gev-nextchat-status-label,
+.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='validated'] .gev-nextchat-status-label {
+  color: #66f0bd;
+}
+
+.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='rejected'] .gev-nextchat-status-label,
+.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='failed'] .gev-nextchat-status-label,
+.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='cancelled'] .gev-nextchat-status-label {
+  color: #ff8b94;
+}
+
 .gev-nextchat-action-lane .gev-nextchat-timestamp {
-  display: none;
+  display: block;
+  margin-bottom: 0.2rem;
+  color: rgba(232, 234, 237, 0.55);
+  font-size: 0.62rem;
 }
 
 .gev-nextchat-action-lane .gev-nextchat-text {
@@ -12061,33 +12063,6 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   line-height: 1.35;
   text-shadow: 0 1px 2px #000;
   white-space: pre-wrap;
-}
-
-.gev-nextchat-action-lane .gev-nextchat-msg::before {
-  content: attr(data-action-state);
-  position: absolute;
-  top: 0.05rem;
-  left: 0;
-  width: 5.25rem;
-  overflow: hidden;
-  color: #ffd36b;
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='succeeded']::before,
-.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='validated']::before {
-  color: #66f0bd;
-}
-
-.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='rejected']::before,
-.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='failed']::before,
-.gev-nextchat-action-lane .gev-nextchat-msg[data-action-state='cancelled']::before {
-  color: #ff8b94;
 }
 
 /* Registry-driven command strip; horizontal overflow is intentional on narrow
@@ -12166,11 +12141,6 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
     overflow: hidden;
   }
 
-  .gev-nextchat-pairs-head,
-  .gev-nextchat-pair {
-    grid-template-columns: 1fr;
-  }
-
   .gev-nextchat-action-lane {
     align-self: stretch;
     width: 100%;
@@ -12242,56 +12212,11 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   overflow: hidden;
 }
 
-/* ── Viewer text safety ─────────────────────────────────────────────
-   The broadcast headings are semantic lane labels, not lane containers.
-   They inherit the lane classes for legacy selectors, so reset the layout
-   properties here or the two headings can size themselves independently and
-   collide with the live dock below. */
-#gev-nextchat-pairs-head {
-  align-items: stretch;
-  gap: 0.5rem;
-}
-
-#gev-nextchat-pairs-head > #gev-nextchat-live-heading,
-#gev-nextchat-pairs-head > #gev-nextchat-action-heading {
-  display: block;
-  flex: 0 0 auto;
-  align-self: stretch;
-  min-width: 0;
-  min-height: 0;
-  height: auto;
-  margin: 0;
-  padding: 0.42rem 0.58rem;
-  overflow: hidden;
-  border-radius: 0.55rem;
-  color: rgba(232, 234, 237, 0.78);
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: 0.13em;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  pointer-events: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#gev-nextchat-pairs-head > #gev-nextchat-live-heading {
-  border: 1px solid rgba(255, 107, 107, 0.22);
-  background: rgba(18, 8, 10, 0.88);
-}
-
-#gev-nextchat-pairs-head > #gev-nextchat-live-heading::before {
+#gev-nextchat-thread-heading::before {
   content: '●';
   display: inline-block;
   margin-right: 0.35rem;
   color: #ff6b6b;
-}
-
-#gev-nextchat-pairs-head > #gev-nextchat-action-heading {
-  border: 1px solid rgba(0, 212, 255, 0.24);
-  background: rgba(6, 15, 22, 0.76);
 }
 
 /* Leave a clear gap between the chat band and the pinned location tray.
@@ -13784,25 +13709,43 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
 }
 
 
-/* Youtube Chat + GEV Agent Replies two-column instrument under ORB. */
+/* Chronological Youtube Chat + GEV Agent conversation under ORB. */
 #admin-stamp-stack #youtube-comments-panel {
-  width: min(640px, calc(100vw - 48px)) !important;
-  max-width: min(640px, calc(100vw - 48px)) !important;
+  width: min(34rem, calc(100vw - 3rem)) !important;
+  max-width: min(34rem, calc(100vw - 3rem)) !important;
 }
 
 .youtube-chat-columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
-.youtube-chat-col {
-  min-width: 0;
+.youtube-conversation-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.35rem;
+  max-height: min(36vh, 320px) !important;
+  overflow: auto;
+}
+
+.youtube-conversation-list > .youtube-comment-thread {
+  gap: 0.3rem;
+  padding: 0.45rem 0.5rem;
+}
+
+.youtube-conversation-list > .youtube-comment-thread + .youtube-comment-thread {
+  border-top: 1px solid rgba(114, 232, 255, 0.14);
+}
+
+.youtube-agent-role {
+  color: #7ef0ff !important;
+  -webkit-text-fill-color: #7ef0ff !important;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
 }
 
 .youtube-chat-col-title {
@@ -13817,13 +13760,15 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
   line-height: 1.2;
 }
 
-#youtube-agent-replies-list,
 #youtube-comments-list {
-  max-height: min(28vh, 240px);
+  max-height: min(36vh, 320px);
   overflow: auto;
 }
 
 .youtube-agent-reply {
+  margin-top: 0.25rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid rgba(0, 212, 255, 0.14);
   display: flex;
   flex-direction: column;
   align-items: flex-start;

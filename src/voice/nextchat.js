@@ -135,9 +135,10 @@ function matchesLiveBroadcast(state, videoId, generation) {
 
 export function orderPairedRows(rows, { limit = NEXTCHAT_MAX_PAIRED_ROWS } = {}) {
   const list = Array.isArray(rows) ? rows.slice() : [];
-  list.sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+  list.sort((a, b) => Number(a.createdAt ?? a.updatedAt ?? 0) - Number(b.createdAt ?? b.updatedAt ?? 0));
   const cap = Number.isFinite(limit) ? Math.max(0, limit) : list.length;
-  return list.slice(0, cap);
+  if (cap === 0) return [];
+  return cap >= list.length ? list : list.slice(-cap);
 }
 
 /**
@@ -188,6 +189,14 @@ export function upsertLiveCommentRow(state, payload, now = Date.now()) {
     { hasActions: Number(payload?.metadata?.actionCount || payload?.actionCount || 0) > 0 },
   );
   const existing = (state.pairedRows || []).find((row) => row.key === key);
+  const receivedAt = String(
+    payload?.receivedAt
+    || payload?.publishedAt
+    || payload?.metadata?.receivedAt
+    || existing?.receivedAt
+    || '',
+  ).slice(0, 40);
+  const parsedReceivedAt = Date.parse(receivedAt);
   const row = {
     key,
     commentId,
@@ -200,6 +209,9 @@ export function upsertLiveCommentRow(state, payload, now = Date.now()) {
       ? existing.replyState
       : replyState,
     replyText: existing?.replyText || defaultReplyText(replyState),
+    receivedAt,
+    createdAt: existing?.createdAt
+      ?? (Number.isFinite(parsedReceivedAt) ? parsedReceivedAt : now),
     updatedAt: now,
   };
   const pairedRows = [row, ...(state.pairedRows || []).filter((item) => item.key !== key)];
@@ -1028,9 +1040,12 @@ export function renderPairedRows(containerEl, rows, { now = Date.now(), onNeedsA
     pair.className = 'gev-nextchat-pair';
     pair.dataset.commentId = row.commentId || '';
     pair.dataset.replyState = row.replyState || 'display';
-    const receivedAt = Number(row.updatedAt);
-    if (Number.isFinite(receivedAt)) {
-      const age = now - receivedAt;
+    const commentTimestamp = row.receivedAt || (
+      Number.isFinite(Number(row.createdAt)) ? new Date(Number(row.createdAt)).toISOString() : ''
+    );
+    const commentTime = Date.parse(commentTimestamp);
+    if (Number.isFinite(commentTime)) {
+      const age = now - commentTime;
       if (age >= NEXTCHAT_COMMENT_FULL_OPACITY_MS) pair.classList.add('gev-nextchat-msg-older');
       else if (typeof onNeedsAgeRefresh === 'function') {
         onNeedsAgeRefresh(NEXTCHAT_COMMENT_FULL_OPACITY_MS - Math.max(0, age));
@@ -1045,6 +1060,13 @@ export function renderPairedRows(containerEl, rows, { now = Date.now(), onNeedsA
     liveBody.className = 'gev-nextchat-text';
     liveBody.textContent = row.commentText || '';
     live.append(liveWho, liveBody);
+    if (commentTimestamp && Number.isFinite(commentTime)) {
+      const timestamp = doc.createElement('time');
+      timestamp.className = 'gev-nextchat-timestamp';
+      timestamp.dateTime = commentTimestamp;
+      timestamp.textContent = formatViewerTimestamp(commentTimestamp);
+      live.appendChild(timestamp);
+    }
 
     const reply = doc.createElement('div');
     reply.className = 'gev-nextchat-action-lane gev-nextchat-pair-cell';
@@ -1054,10 +1076,13 @@ export function renderPairedRows(containerEl, rows, { now = Date.now(), onNeedsA
     const replyWho = doc.createElement('span');
     replyWho.className = 'gev-nextchat-role';
     replyWho.textContent = 'GEV';
+    const replyStatus = doc.createElement('span');
+    replyStatus.className = 'gev-nextchat-status-label';
+    replyStatus.textContent = row.replyState || 'display';
     const replyBody = doc.createElement('div');
     replyBody.className = 'gev-nextchat-text';
     replyBody.textContent = row.replyText || defaultReplyText(row.replyState);
-    replyMsg.append(replyWho, replyBody);
+    replyMsg.append(replyWho, replyStatus, replyBody);
     reply.appendChild(replyMsg);
 
     pair.append(live, reply);

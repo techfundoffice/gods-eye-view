@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { createFilePublicCommandLedger } from './youtubePublicCommandLedger.js';
 import { createYoutubePublicCommandCoordinator } from './youtubePublicCommandCoordinator.js';
 import { createPublicResponsesInterpreter } from './youtubePublicResponsesInterpreter.js';
-import { PUBLIC_COMMAND_LIMITS } from './youtubePublicCommandPolicy.js';
+import { PUBLIC_COMMAND_LIMITS, validatePublicToolCall } from './youtubePublicCommandPolicy.js';
 
 export const PUBLIC_EXECUTOR_HEADER = 'x-gev-capture-executor';
 export const PUBLIC_EXECUTOR_ROUTE = '/api/youtube/homepage-chat/executor';
@@ -160,6 +160,35 @@ export function createYoutubePublicCommandRuntime({
       agentMode: message?.agentMode,
       deferAgent: message?.deferAgent === true,
     }, bindingWithExecutor(binding));
+  }
+
+  async function enqueueTool({ name, args = {}, source = 'api' } = {}, binding = {}) {
+    const target = bindingWithExecutor(binding);
+    if (!target.commandsEnabled || !target.videoId || !executor) {
+      return { ok: false, error: { kind: 'offline', message: 'Go live before running GEV actions.' } };
+    }
+    const checked = validatePublicToolCall('execute', name, args && typeof args === 'object' ? args : {});
+    if (!checked.ok) return { ok: false, error: { kind: 'invalid', message: checked.reason } };
+    const record = {
+      id: randomUUID(),
+      videoId: target.videoId,
+      commentId: `${bounded(source, 32)}-${randomUUID()}`,
+      generation: Number(target.generation) || 0,
+      captureExecutorId: target.captureExecutorId,
+      viewer: bounded(source, 80) || 'api',
+      authorHandle: bounded(source, 80) || 'api',
+      comment: bounded(checked.name, 160),
+      command: 'viewer-request',
+      mode: 'execute',
+      state: 'awaiting-execution',
+      nonce: randomUUID(),
+      validatedTool: checked,
+      remainingTurns: PUBLIC_COMMAND_LIMITS.modelTurns,
+      remainingTools: Math.max(0, PUBLIC_COMMAND_LIMITS.toolCalls - 1),
+      expiresAt: Date.now() + PUBLIC_COMMAND_LIMITS.totalMs,
+    };
+    const inserted = await ledger.insert(record);
+    return { ok: true, command: publicRecord(inserted.record) };
   }
 
   async function statuses(binding = {}) {
@@ -342,6 +371,7 @@ export function createYoutubePublicCommandRuntime({
     rotateExecutor,
     currentExecutor,
     registerMessage,
+    enqueueTool,
     statuses,
     reconcileBinding,
     nextViewerLease,

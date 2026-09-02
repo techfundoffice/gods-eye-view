@@ -56,11 +56,11 @@ function fakeFetch(responses = []) {
 test('the dashboard menu includes the gated Composio control plane', () => {
   assert.deepEqual(
     ADMIN_MENU_ITEMS.map((item) => item.id),
-    ['create-plugin', 'mcp-server', 'composio', 'live-stream'],
+    ['create-plugin', 'mcp-server', 'live-stream', 'openrouter', 'gev-api'],
   );
   assert.deepEqual(
     ADMIN_MENU_ITEMS.map((item) => item.label),
-    ['Create Plugin', 'MCP Server', 'Composio', 'Go Live'],
+    ['Create Plugin', 'MCP Server', 'Go Live', 'OpenRouter', 'GEV API'],
   );
   for (const item of ADMIN_MENU_ITEMS) {
     assert.ok(item.id && item.description, `${item.label} has an id and a description`);
@@ -68,13 +68,13 @@ test('the dashboard menu includes the gated Composio control plane', () => {
 
   const dashboard = html.match(/<div id="admin-dashboard"[\s\S]*?<div id="admin-plugin-host"/);
   assert.ok(dashboard, 'the dashboard markup is missing from index.html');
-  assert.match(dashboard[0], /data-admin-view="composio"/);
-  assert.match(dashboard[0], /data-admin-pane="composio"/);
-  assert.match(dashboard[0], /id="admin-composio-state"/);
-  assert.match(dashboard[0], /id="admin-composio-tool"/);
-  assert.match(dashboard[0], /id="admin-composio-account"/);
-  assert.match(dashboard[0], /id="admin-composio-test"/);
-  assert.match(dashboard[0], /id="admin-composio-run"/);
+  assert.match(dashboard[0], /data-admin-view="gev-api"/);
+  assert.match(dashboard[0], /data-admin-pane="gev-api"/);
+  assert.match(dashboard[0], /id="admin-gev-api-status"/);
+  assert.match(dashboard[0], /id="admin-gev-api-list"/);
+  assert.match(dashboard[0], /id="admin-gev-api-curl"/);
+  assert.match(dashboard[0], /id="admin-gev-api-mcp"/);
+  assert.match(dashboard[0], /data-admin-view="openrouter"/);
   assert.match(dashboard[0], /data-admin-view="create-plugin"/);
   assert.match(dashboard[0], /data-admin-view="mcp-server"/);
   assert.match(dashboard[0], /data-admin-view="live-stream"/);

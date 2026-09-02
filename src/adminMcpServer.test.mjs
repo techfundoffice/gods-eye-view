@@ -56,13 +56,18 @@ test('initialize advertises the protocol version, tools, and server identity', a
 test('tools/list returns every declared tool with a schema', async () => {
   const server = createAdminMcpServer({ builder: stubBuilder() });
   const response = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  const names = response.result.tools.map((tool) => tool.name).sort();
-  assert.deepEqual(names, [
+  const names = response.result.tools.map((tool) => tool.name);
+  for (const required of [
     'create_admin_plugin',
     'get_admin_plugin',
     'list_admin_plugins',
     'send_admin_plugin_message',
-  ]);
+    'fly_to_location',
+    'zoom_to_globe',
+    'get_current_view_state',
+  ]) {
+    assert.ok(names.includes(required), required);
+  }
   for (const tool of adminMcpToolDefinitions()) {
     assert.equal(tool.inputSchema.type, 'object', `${tool.name} declares an object schema`);
     assert.ok(tool.description.length > 10, `${tool.name} is described`);

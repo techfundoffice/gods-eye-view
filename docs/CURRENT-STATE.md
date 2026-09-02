@@ -38,7 +38,7 @@ Updated: September 2, 2026
 
 > **2026-09-01 — south-pole band, always-on Visual Presets.** LIVE COMMENTS + GEV Agent Replies sit under the globe with no overlay scrollbar. VISUAL PRESETS stay expanded on the command dock even if a stored pin/collapse would hide them.
 
-> **2026-09-01 — LIVE COMMENTS is how the globe is operated.** The broadcast overlay pairs each viewer comment (left) with the GEV agent reply (right) on one row. Composer, CHAT toggle, COMMANDS, and the ticker stay on screen; only that paired thread scrolls. Camera motion still comes from the validated action runner.
+> **2026-09-02 — LIVE COMMENTS is how the globe is operated.** The broadcast overlay is a chronological single-column conversation: each viewer author, comment, and timestamp is followed directly by the GEV agent reply or interpreting/succeeded/rejected/failed status and reason. Composer, CHAT toggle, COMMANDS, and the ticker stay on screen; only that thread scrolls. Camera motion still comes from the validated action runner.
 
 > **2026-09-01 — `/help` is the first COMMANDS token.** YouTube chat `/help`
 > appears in LIVE COMMENTS. GEV ACTIONS typewrites
@@ -77,10 +77,11 @@ Updated: September 2, 2026
 > (traffic, photoreal, AIS, cables, NWS, quakes, fires, storms, parks, water).
 > Those rows do not fly the camera. The existing DATA LAYERS panel is unchanged.
 
-> **2026-09-01 — LIVE COMMENTS is a reserved broadcast lane.** The heading row
-> has its own fill so globe telemetry cannot show through the red title.
-> Author and message stack as block rows (timestamps stay hidden). GEV Actions,
-> comments, status, the COMMANDS legend, and the live-news ticker remain
+> **2026-09-02 — LIVE COMMENTS is a reserved broadcast lane.** A single
+> conversation heading and each stacked viewer/GEV exchange have their own
+> filled surfaces so globe telemetry cannot show through the text. Viewer
+> author, comment, and timestamp appear first; the GEV label and reply/status
+> appear directly underneath. The COMMANDS legend and live-news ticker remain
 > separate non-overlapping layout areas. The globe stays visible around these
 > surfaces, not through them.
 
@@ -103,7 +104,8 @@ Updated: September 2, 2026
 > Replay / missing chat / consent interstitial stay labeled (`LIVE ENDED`,
 > `NO ACTIVE LIVE CHAT`, `YOUTUBE UNAVAILABLE`). Every chat item is published
 > into the homepage ChatGPT-style overlay (`#gev-nextchat`) as a `viewer`
-> message: author name plus full comment text as text content only. Comments,
+> message: author name, full comment text, and the published timestamp. The
+> corresponding GEV reply or command status stays directly below it. Comments,
 > channel/video lists, and Go Live still use Data API v3. START CHAT is
 > enabled from the selected own video, not from `activeLiveChatId`.
 

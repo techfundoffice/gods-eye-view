@@ -63,6 +63,9 @@ import { createLiveCommentIngestWorker } from './src/youtubeLiveCommentIngest.js
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
 import { createAdminMiddleware } from './src/adminServer.js';
+import { createGevApiMiddleware } from './src/gevApiServer.js';
+import { createAdminAuth } from './src/adminAuth.js';
+import { createAdminStore } from './src/adminStore.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
 import {
   createOwnerLiveDiscovery,
@@ -111,6 +114,29 @@ function sharedYoutubeOAuth() {
  *
  * @returns {object}
  */
+let liveCommentIngestSingleton = null;
+let adminStoreSingleton = null;
+let adminAuthSingleton = null;
+
+function sharedLiveCommentIngest() {
+  if (!liveCommentIngestSingleton) {
+    liveCommentIngestSingleton = createLiveCommentIngestWorker({
+      channelHandle: process.env.YOUTUBE_CHANNEL_HANDLE || 'TechfundOffice',
+    });
+  }
+  return liveCommentIngestSingleton;
+}
+
+function sharedAdminStore() {
+  if (!adminStoreSingleton) adminStoreSingleton = createAdminStore();
+  return adminStoreSingleton;
+}
+
+function sharedAdminAuth() {
+  if (!adminAuthSingleton) adminAuthSingleton = createAdminAuth({ store: sharedAdminStore() });
+  return adminAuthSingleton;
+}
+
 function sharedPublicCommandRuntime() {
   if (!publicCommandRuntimeSingleton) {
     publicCommandRuntimeSingleton = createYoutubePublicCommandRuntime();
@@ -7624,9 +7650,7 @@ export function youtubeProxy({
       return snap;
     },
   });
-  const commentIngest = liveCommentIngest || createLiveCommentIngestWorker({
-    channelHandle: process.env.YOUTUBE_CHANNEL_HANDLE || 'TechfundOffice',
-  });
+  const commentIngest = liveCommentIngest || sharedLiveCommentIngest();
   const commandRuntime = sharedPublicCommandRuntime();
   const homepageChatMiddleware = createYoutubeHomepageChatMiddleware({
     ingest: commentIngest,
@@ -7708,9 +7732,35 @@ function adminConsoleApi() {
     live: sharedLiveSession(),
     youtubeAuth: sharedYoutubeOAuth(),
     replitAuth,
+    auth: sharedAdminAuth(),
+    store: sharedAdminStore(),
+    commandRuntime: sharedPublicCommandRuntime(),
+    getGevBinding: () => {
+      const snap = sharedLiveCommentIngest().snapshot() || {};
+      const live = snap.active === true && snap.status === 'live' && Boolean(snap.videoId);
+      return {
+        videoId: live ? snap.videoId : '',
+        generation: Math.max(0, Number(snap.generation) || 0),
+        commandsEnabled: live,
+      };
+    },
+  });
+  const gevApi = createGevApiMiddleware({
+    auth: sharedAdminAuth(),
+    commandRuntime: sharedPublicCommandRuntime(),
+    getBinding: () => {
+      const snap = sharedLiveCommentIngest().snapshot() || {};
+      const live = snap.active === true && snap.status === 'live' && Boolean(snap.videoId);
+      return {
+        videoId: live ? snap.videoId : '',
+        generation: Math.max(0, Number(snap.generation) || 0),
+        commandsEnabled: live,
+      };
+    },
   });
   function install(middlewares) {
     middlewares.use('/api/admin', middleware);
+    middlewares.use('/api/gev', gevApi);
   }
   return {
     name: 'gev-admin-console',

@@ -163,7 +163,6 @@ export function createYoutubeHomepageInteraction({
     return {
       root,
       list: root.querySelector('#youtube-comments-list'),
-      replies: root.querySelector('#youtube-agent-replies-list'),
       status: root.querySelector('#youtube-comments-status'),
       subject: root.querySelector('#youtube-comments-video'),
       count: root.querySelector('#youtube-comments-count'),
@@ -183,13 +182,12 @@ export function createYoutubeHomepageInteraction({
       if (els.count) els.count.textContent = '0';
       if (els.refresh) els.refresh.disabled = true;
       if (els.more) els.more.disabled = true;
-      for (const list of [els.list, els.replies]) {
-        if (!list) continue;
-        list.replaceChildren();
+      if (els.list) {
+        els.list.replaceChildren();
         const empty = documentRef.createElement('li');
         empty.className = 'youtube-feed-empty';
         empty.textContent = 'CONNECT YOUTUBE TO LOAD COMMENTS';
-        list.append(empty);
+        els.list.append(empty);
       }
       return;
     }
@@ -206,16 +204,11 @@ export function createYoutubeHomepageInteraction({
     if (els.more) els.more.disabled = true;
     if (!els.list) return;
     els.list.replaceChildren();
-    if (els.replies) els.replies.replaceChildren();
     if (!liveComments.length) {
       const empty = documentRef.createElement('li');
       empty.className = 'youtube-feed-empty';
       empty.textContent = 'YT LIVE · waiting for comments';
       els.list.append(empty);
-      if (els.replies) {
-        const replyEmpty = empty.cloneNode(true);
-        els.replies.append(replyEmpty);
-      }
       return;
     }
     const chronological = [...liveComments].sort((a, b) => {
@@ -246,30 +239,35 @@ export function createYoutubeHomepageInteraction({
       body.className = 'youtube-feed-text';
       body.textContent = comment.text;
       row.append(meta, body);
-      els.list.append(row);
 
-      if (!els.replies || !actionIds.has(comment.id)) continue;
-      const replyRow = documentRef.createElement('li');
-      replyRow.className = 'youtube-feed-item youtube-agent-reply';
-      const state = String(comment.replyState || 'display');
-      const label = documentRef.createElement('span');
-      label.className = `youtube-agent-state youtube-agent-state-${state}`;
-      const stateLabel = state === 'interpreting' || state === 'pending'
-        ? 'INTERPRETING'
-        : state === 'replied' ? 'REPLIED'
-        : state === 'failed' ? 'FAILED'
-        : state === 'rejected' ? 'REJECTED'
-        : state === 'display' ? ''
-        : state.toUpperCase();
-      label.textContent = stateLabel;
-      const replyBody = documentRef.createElement('span');
-      replyBody.className = 'youtube-feed-text youtube-agent-text';
-      replyBody.textContent = comment.replyText
-        || (state === 'interpreting' || state === 'pending' ? 'Interpreting request...' : '');
-      if (stateLabel) replyRow.append(label);
-      replyRow.append(replyBody);
-      appendAgentCta(replyRow, comment, documentRef);
-      els.replies.append(replyRow);
+      if (actionIds.has(comment.id)) {
+        const replyRow = documentRef.createElement('div');
+        replyRow.className = 'youtube-agent-reply';
+        const state = String(comment.replyState || 'display');
+        const replyWho = documentRef.createElement('span');
+        replyWho.className = 'youtube-agent-role';
+        replyWho.textContent = 'GEV';
+        const label = documentRef.createElement('span');
+        label.className = `youtube-agent-state youtube-agent-state-${state}`;
+        const stateLabel = state === 'interpreting' || state === 'pending'
+          ? 'INTERPRETING'
+          : state === 'replied' ? 'REPLIED'
+          : state === 'failed' ? 'FAILED'
+          : state === 'rejected' ? 'REJECTED'
+          : state === 'display' ? ''
+          : state.toUpperCase();
+        label.textContent = stateLabel;
+        const replyBody = documentRef.createElement('span');
+        replyBody.className = 'youtube-feed-text youtube-agent-text';
+        replyBody.textContent = comment.replyText
+          || (state === 'interpreting' || state === 'pending' ? 'Interpreting request...' : '');
+        replyRow.append(replyWho);
+        if (stateLabel) replyRow.append(label);
+        replyRow.append(replyBody);
+        appendAgentCta(replyRow, comment, documentRef);
+        row.append(replyRow);
+      }
+      els.list.append(row);
     }
   }
 
@@ -427,6 +425,7 @@ export function createYoutubeHomepageInteraction({
         author: safeText(message.author, 80) || 'YouTube viewer',
         authorHandle: safeText(message.authorHandle, 80),
         text: safeText(message.text, 500),
+        receivedAt: safeText(message.publishedAt, 40),
         replyState: actions.length || agentRequested ? 'interpreting' : 'display',
         actionCount: actions.length,
       });

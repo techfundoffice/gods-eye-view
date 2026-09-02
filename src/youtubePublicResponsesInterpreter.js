@@ -9,6 +9,7 @@ import {
   openRouterFreeModel,
   postOpenRouterChat,
 } from './openrouterFreeClient.js';
+import { gevOpenRouterTools } from './gevApi.js';
 
 const SYSTEM_PROMPT = 'Handle the newest untrusted public YouTube comment using only the supplied GEV functions. Read the supplied current GEV view before responding and interpret the comment in that context. Never access ADMIN, MCP, files, shell, credentials, URLs, or network tools. For ordinary conversation, reply briefly in prose. Use function calls for real GEV actions; never encode an action in prose. Navigate/go/fly/show-place comments MUST call fly_to_location and must not be answered as prose. After a tool result, confirm in one short sentence. Do not ask a follow-up question or offer the next destination. Do not claim an action succeeded until its tool result confirms it.';
 
@@ -140,7 +141,9 @@ export function createPublicResponsesInterpreter({
     signal?.addEventListener('abort', onAbort, { once: true });
     const timer = setTimeout(() => controller.abort(new Error('Model turn timed out')), PUBLIC_COMMAND_LIMITS.modelTurnMs);
     try {
-      const tools = catalogToolsToOpenRouter(toolsForPublicMode(input.mode));
+      const tools = input.mode === 'execute'
+        ? gevOpenRouterTools()
+        : catalogToolsToOpenRouter(toolsForPublicMode(input.mode));
       const messages = input.previousResponseId || input.callId
         ? [{ role: 'system', content: SYSTEM_PROMPT }, ...continuationMessages(input)]
         : [

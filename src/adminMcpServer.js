@@ -13,6 +13,8 @@
  * @module adminMcpServer
  */
 
+import { gevMcpToolDefinitions } from './gevApi.js';
+
 /** Protocol revision advertised in `initialize`. */
 export const MCP_PROTOCOL_VERSION = '2024-11-05';
 /** Server identity reported to MCP clients. */
@@ -34,6 +36,7 @@ export const JSON_RPC_ERRORS = Object.freeze({
  */
 export function adminMcpToolDefinitions() {
   return [
+    ...gevMcpToolDefinitions(),
     {
       name: 'list_admin_plugins',
       description: 'List admin menu plugin builds started from the ADMIN console, newest first.',
@@ -118,7 +121,7 @@ export function toolContent(value, isError = false) {
  * @param {string} [options.version] Reported server version.
  * @returns {{handle: (message: object) => Promise<object|null>, tools: object[]}}
  */
-export function createAdminMcpServer({ builder, version = '1.0.0' }) {
+export function createAdminMcpServer({ builder, version = '1.0.0', runGevAction = null }) {
   if (!builder) throw new TypeError('MCP server requires a plugin builder');
   const tools = adminMcpToolDefinitions();
 
@@ -151,8 +154,17 @@ export function createAdminMcpServer({ builder, version = '1.0.0' }) {
         const job = builder.send(String(args?.jobId ?? ''), String(args?.message ?? ''));
         return job ? toolContent(job) : toolContent('No build with that id.', true);
       }
-      default:
+      default: {
+        if (typeof runGevAction === 'function' && tools.some((tool) => tool.name === name)) {
+          try {
+            const result = await runGevAction(name, args || {});
+            return toolContent(result, result?.ok === false);
+          } catch (error) {
+            return toolContent(error?.message || 'GEV action failed', true);
+          }
+        }
         return toolContent(`Unknown tool: ${name}`, true);
+      }
     }
   }
 

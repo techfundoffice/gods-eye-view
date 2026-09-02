@@ -63,6 +63,11 @@ export const ADMIN_MENU_ITEMS = Object.freeze([
     label: 'OpenRouter',
     description: 'API key and model for YouTube comment actions.',
   },
+  {
+    id: 'gev-api',
+    label: 'GEV API',
+    description: 'REST + MCP documentation for every GEV function.',
+  },
 ]);
 
 /** Viewport width at which the left rail becomes a compact drawer. */
@@ -386,6 +391,7 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     saveOpenrouter: (body) => request('/openrouter', { method: 'POST', body }),
     saveOpenrouterKey: (apiKey) => request('/openrouter', { method: 'POST', body: { apiKey } }),
     testOpenrouter: () => request('/openrouter/test', { method: 'POST' }),
+    gevDocs: () => request('/gev'),
     youtubeStatus: () => youtubeRequest('/status'),
     youtubeConnectUrl: () => '/api/youtube/auth/start?go=1',
     youtubeSignout: () => youtubeRequest('/signout', { method: 'POST' }),
@@ -462,6 +468,8 @@ export class AdminConsoleController {
       youtubeAuth: { configured: false, authenticated: false, canWrite: false, account: null },
       openrouter: { present: false, source: 'missing', model: 'google/gemini-3.8-flash' },
       openrouterLoaded: false,
+      gevApi: null,
+      gevApiLoaded: false,
       liveWatchUrl: '',
       liveBroadcasts: [],
       menuPlugins: [],
@@ -801,6 +809,7 @@ export class AdminConsoleController {
     if (view === 'mcp-server') void this._loadMcp();
     if (view === 'live-stream') void this._loadLive();
     if (view === 'openrouter') void this._loadOpenrouter();
+    if (view === 'gev-api') void this._loadGevApi();
     else this._stopLivePolling();
     const plugin = this.state.menuPlugins.find((entry) => entry.id === view);
     if (plugin) this._mountPluginView(plugin);
@@ -1044,6 +1053,20 @@ export class AdminConsoleController {
       this.state.mcpLoaded = true;
     } catch (error) {
       this.state.message = error.message;
+    }
+    this._render();
+  }
+
+
+  async _loadGevApi() {
+    try {
+      const docs = await this.client.gevDocs();
+      this.state.gevApi = docs;
+      this.state.gevApiLoaded = true;
+      this.state.message = '';
+    } catch (error) {
+      this.state.gevApiLoaded = true;
+      this.state.message = error?.message || 'Unable to load GEV API docs.';
     }
     this._render();
   }
@@ -1628,6 +1651,7 @@ export class AdminConsoleController {
     this._renderPluginList();
     this._renderTranscript();
     this._renderMcp();
+    this._renderGevApi();
     this._renderOpenrouter();
     this._renderLive();
   }
@@ -1727,6 +1751,43 @@ export class AdminConsoleController {
   }
 
   /** @returns {void} */
+
+  _renderGevApi() {
+    const status = this._el('admin-gev-api-status');
+    const list = this._el('admin-gev-api-list');
+    const curl = this._el('admin-gev-api-curl');
+    const mcp = this._el('admin-gev-api-mcp');
+    const docs = this.state.gevApi;
+    if (status) {
+      status.textContent = this.state.gevApiLoaded
+        ? (docs ? `${(docs.functions || []).length} functions · API key required` : (this.state.message || 'Unavailable'))
+        : 'LOADING';
+    }
+    if (curl) curl.textContent = docs?.curl || '';
+    if (mcp) {
+      const cfg = docs?.mcp?.config || docs?.openrouter?.mcp;
+      mcp.textContent = cfg
+        ? JSON.stringify(cfg, null, 2)
+        : 'Enable MCP Server and mint an API key. tools/list is the live GEV catalog for OpenRouter / Gemini.';
+    }
+    if (!list) return;
+    list.replaceChildren();
+    for (const fn of docs?.functions || []) {
+      const row = document.createElement('li');
+      row.className = 'admin-key-row';
+      const name = document.createElement('code');
+      name.textContent = `${fn.method} ${fn.path}`;
+      const desc = document.createElement('span');
+      desc.className = 'admin-key-used';
+      const keys = Object.keys(fn.parameters?.properties || {});
+      desc.textContent = keys.length
+        ? `${fn.description || fn.name} · ${keys.join(', ')}`
+        : (fn.description || fn.name);
+      row.append(name, desc);
+      list.append(row);
+    }
+  }
+
   _renderMcp() {
     const toggle = this._el('admin-mcp-toggle');
     if (toggle) {

@@ -31,6 +31,7 @@ import {
   serializeAdminCookie,
 } from './adminAuth.js';
 import { createAdminMcpServer } from './adminMcpServer.js';
+import { gevApiDocumentation } from './gevApi.js';
 import { createPluginBuilder, readPluginManifest } from './adminPluginBuilder.js';
 import { normalizePluginManifest } from './adminPluginRegistry.js';
 import { createAdminStore } from './adminStore.js';
@@ -182,8 +183,20 @@ export function createAdminMiddleware({
   readManifest = readPluginManifest,
   version = '1.0.0',
   openrouterSecret = createOpenRouterAdminSecret(),
+  commandRuntime = null,
+  getGevBinding = () => ({}),
 } = {}) {
-  const mcp = createAdminMcpServer({ builder, version });
+  const mcp = createAdminMcpServer({
+    builder,
+    version,
+    runGevAction: async (name, args) => {
+      if (typeof commandRuntime?.enqueueTool !== 'function') {
+        return { ok: false, error: { kind: 'unavailable', message: 'GEV action runtime is not ready' } };
+      }
+      const binding = typeof getGevBinding === 'function' ? (getGevBinding() || {}) : {};
+      return commandRuntime.enqueueTool({ name, args, source: 'mcp' }, binding);
+    },
+  });
 
   /**
    * @param {object} req
@@ -465,6 +478,14 @@ export function createAdminMiddleware({
 
       // The generated-plugin menu. Read fresh from disk on every request so a
       // build that just finished shows up without restarting the dev server.
+      if (first === 'gev' && segments.length === 1 && req.method === 'GET') {
+        const host = String(req.headers?.host || '').trim();
+        const proto = String(req.headers?.['x-forwarded-proto'] || 'https').split(',')[0].trim() || 'https';
+        const origin = host ? `${proto}://${host}` : '';
+        sendJson(res, 200, gevApiDocumentation({ origin }));
+        return;
+      }
+
       if (first === 'menu' && segments.length === 1 && req.method === 'GET') {
         sendJson(res, 200, { plugins: normalizePluginManifest(readManifest()) });
         return;

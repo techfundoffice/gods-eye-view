@@ -19,7 +19,7 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 - YouTube globe is centered in the clear rectangle (Cesium sits above the south-pole band and right of Mission Control). LIVE COMMENTS sits right of Mission Control and above Visual Presets; expanded Visual Presets stay in the dock (not a tray over comments); DATA LAYERS scrolls inside Mission Control. HUD, comments, presets, and COMMANDS occupy separate bands so labels do not stack.
 - South-pole homepage band: LIVE COMMENTS + GEV Agent Replies sit under the globe with no overlay scrollbar; VISUAL PRESETS stay expanded on the command dock.
-- Homepage LIVE COMMENTS is a paired two-column overlay: each YouTube comment on the left and the GEV agent reply on the right, keyed by commentId. The composer, CHAT toggle, and COMMANDS bar stay visible; only the paired thread scrolls.
+- Homepage LIVE COMMENTS is a chronological single-column conversation: each YouTube comment shows its author, full text, and timestamp, followed directly by the GEV agent reply or status/reason. Exchanges remain keyed by commentId, while the composer, CHAT toggle, and COMMANDS bar stay visible and only the thread scrolls.
 - Public YouTube globe commands and the HUD five-word summary use OpenRouter's
   Free Models Router (`openrouter/free`) instead of OpenAI. GEV MIC / Realtime
   is unchanged and still skipped. Free-pool rate limits reject extra public
@@ -36,9 +36,10 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
   expanded by default and stays content-sized (compact tiles, no tall empty
   card). A DATA LAYERS list under the mission tiles toggles existing globe
   feeds (not a rename of the card, and not Google’s proprietary catalog).
-- LIVE COMMENTS has a reserved heading row and lane fill. Author and message
-  stack as separate rows. GEV Actions, comments, status, COMMANDS, and the
-  news ticker stay in non-overlapping layout areas.
+- LIVE COMMENTS has one reserved conversation heading and stacked exchange
+  cards. Viewer author, message, and timestamp appear above the GEV label and
+  reply/status, while comments, COMMANDS, and the news ticker stay in
+  non-overlapping layout areas.
 - First-run Mission Control copy uses one cyan: tile titles, subcopy, and icons
   match **MISSION CONTROL**. The chooser no longer shows “ESC to dismiss.”
 

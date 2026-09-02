@@ -31,6 +31,7 @@ import {
   appendViewerMessage,
   publishNextChatMessage,
   renderCommandLegend,
+  renderPairedRows,
   sanitizeAuthorHandle,
   setHarnessStatus,
   setLiveBroadcast,
@@ -280,33 +281,37 @@ test('broadcast overlay bounds comments/actions and renders the injected registr
   assert.equal(root.attributes.has('hidden'), true);
 });
 
-test('broadcast presentation keeps reserved comment chrome and a legend above the ticker', () => {
+test('broadcast presentation renders one chronological conversation above the ticker', () => {
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../../style.css', import.meta.url), 'utf8');
-  const commentIndex = html.indexOf('id="gev-nextchat-live-heading"');
-  const replyIndex = html.indexOf('id="gev-nextchat-action-heading"');
+  const headingIndex = html.indexOf('id="gev-nextchat-thread-heading"');
   const pairsIndex = html.indexOf('id="gev-nextchat-pairs"');
   const legendIndex = html.indexOf('id="gev-command-legend"');
   const tickerIndex = html.indexOf('id="live-news-ticker"');
 
-  assert.ok(commentIndex > 0 && commentIndex < replyIndex, 'LIVE COMMENTS heading is left of GEV AGENT REPLIES');
-  assert.ok(pairsIndex > replyIndex, 'paired rows follow the sticky headings');
+  assert.ok(headingIndex > 0 && headingIndex < pairsIndex, 'conversation heading precedes the rows');
+  assert.doesNotMatch(html, /gev-nextchat-(?:pairs-head|live-heading|action-heading)/, 'side-by-side headings are gone');
   assert.ok(legendIndex > pairsIndex && legendIndex < tickerIndex, 'legend is immediately before ticker');
 
   const liveLaneStart = css.indexOf('.gev-nextchat-live-lane {');
   const liveLane = css.slice(liveLaneStart, css.indexOf('}', liveLaneStart) + 1);
   assert.match(liveLane, /background: rgba\(6, 15, 22, 0\.62\)/);
   assert.doesNotMatch(liveLane, /background:\s*transparent/);
-  const liveHeading = css.slice(css.indexOf('.gev-nextchat-live-lane > h3 {'), css.indexOf('.gev-nextchat-heading-legacy'));
-  assert.match(liveHeading, /background: rgba\(18, 8, 10, 0\.88\)/);
-  assert.match(liveHeading, /flex: 0 0 auto/);
+  const pair = css.slice(css.indexOf('.gev-nextchat-pair {'), css.indexOf('.gev-nextchat-pair-cell {'));
+  assert.match(pair, /display: flex/);
+  assert.match(pair, /flex-direction: column/);
+  assert.doesNotMatch(pair, /grid-template-columns/);
+  const threadHeading = css.slice(css.indexOf('.gev-nextchat-thread-heading {'), css.indexOf('.gev-nextchat-pairs {'));
+  assert.match(threadHeading, /background: rgba\(18, 8, 10, 0\.88\)/);
+  assert.match(threadHeading, /flex: 0 0 auto/);
   const liveRole = css.slice(css.indexOf('.gev-nextchat-live-lane .gev-nextchat-role {'), css.indexOf('.gev-nextchat-live-lane .gev-nextchat-text {'));
   assert.match(liveRole, /display: block/);
   assert.doesNotMatch(liveRole, /display:\s*inline/);
   const liveText = css.slice(css.indexOf('.gev-nextchat-live-lane .gev-nextchat-text {'), css.indexOf('.gev-nextchat-live-lane .gev-nextchat-timestamp {'));
   assert.match(liveText, /display: block/);
   assert.doesNotMatch(liveText, /display:\s*inline/);
-  assert.match(css, /\.gev-nextchat-live-lane \.gev-nextchat-timestamp \{[\s\S]*?display:\s*none/);
+  assert.match(css, /\.gev-nextchat-live-lane \.gev-nextchat-timestamp \{[\s\S]*?display:\s*block/);
+  assert.match(css, /\.gev-nextchat-action-lane \.gev-nextchat-role \{[\s\S]*?display:\s*block/);
   assert.match(css, /\.gev-nextchat-action-lane \{[\s\S]*?background: rgba\(6, 15, 22, 0\.76\)/);
   assert.match(css, /#gev-command-legend[\s\S]*?overflow:\s*hidden/);
   assert.match(css, /\.gev-command-legend-items[\s\S]*?overflow-x:\s*auto/);
@@ -351,7 +356,7 @@ test('broadcast presentation keeps reserved comment chrome and a legend above th
   const dock = css.slice(css.indexOf('#command-dock {'), css.indexOf('#command-dock > #location-bar,'));
   assert.match(dock, /bottom:\s*4\.5rem/);
   assert.doesNotMatch(dock, /max-height:/, 'credit model forbids max-height on #command-dock itself');
-  assert.match(css, /--youtube-dock-lift:\s*8\.25rem/);
+  assert.match(css, /--youtube-dock-lift:\s*6\.35rem/);
   const dockKids = css.slice(css.indexOf('#command-dock > #location-bar,'), css.indexOf('#command-dock > #location-bar {'));
   assert.match(dockKids, /max-height:\s*7\.5rem/, 'dock children cannot grow into the comments band');
   assert.match(dockKids, /overflow:\s*hidden/);
@@ -430,8 +435,8 @@ test('homepage chrome keeps the globe, GEV MIC, and NextChat controls', () => {
   assert.match(html, /id="gev-nextchat-new"/);
   assert.match(html, /New chat/);
   assert.match(html, /id="gev-nextchat-pairs"/);
-  assert.match(html, /YOUTUBE LIVE COMMENTS · ALL/);
-  assert.match(html, /GEV AGENT REPLIES/);
+  assert.match(html, /YOUTUBE CHAT/);
+  assert.doesNotMatch(html, /YOUTUBE LIVE COMMENTS · ALL|GEV AGENT REPLIES/);
   assert.match(html, /OPERATE FROM LIVE COMMENTS/);
   assert.match(css, /html, body \{[\s\S]*?overflow: hidden/);
   const pairsStart = css.indexOf('.gev-nextchat-pairs {');
@@ -580,17 +585,66 @@ test('paired rows share one commentId and update the reply cell in place', () =>
     author: 'Ordinary',
     text: 'love the stream',
   }, 4000);
-  assert.equal(state.pairedRows[0].commentText, 'love the stream');
-  assert.equal(state.pairedRows[0].replyState, 'display');
+  assert.equal(state.pairedRows[1].commentText, 'love the stream');
+  assert.equal(state.pairedRows[1].replyState, 'display');
   assert.equal(sanitizeAuthorHandle(''), '');
   assert.equal(sanitizeAuthorHandle('Cool Name'), '');
   assert.equal(sanitizeAuthorHandle('@verifiedHandle'), '@verifiedHandle');
   const ordered = orderPairedRows(state.pairedRows);
-  assert.equal(ordered[0].commentId, 'c2');
+  assert.deepEqual(ordered.map((row) => row.commentId), ['c1', 'c2']);
+});
+
+test('paired row renderer stacks the viewer timestamp above the GEV status and reply', () => {
+  class RenderElement {
+    constructor(documentRef, tagName) {
+      this.ownerDocument = documentRef;
+      this.tagName = tagName;
+      this.children = [];
+      this.dataset = {};
+      this.className = '';
+      this.classList = { add: (...names) => names.forEach((name) => { this.className += ` ${name}`; }) };
+      this.textContent = '';
+    }
+    append(...children) {
+      this.children.push(...children);
+    }
+    appendChild(child) {
+      this.children.push(child);
+    }
+    replaceChildren(...children) {
+      this.children = children;
+    }
+  }
+  const documentRef = {
+    createElement(tagName) {
+      return new RenderElement(documentRef, tagName);
+    },
+  };
+  const container = new RenderElement(documentRef, 'section');
+  renderPairedRows(container, [{
+    commentId: 'c1',
+    authorDisplay: 'Viewer One',
+    commentText: 'show the harbor',
+    receivedAt: '2026-09-02T12:34:00.000Z',
+    createdAt: Date.parse('2026-09-02T12:34:00.000Z'),
+    replyState: 'rejected',
+    replyText: 'Rejected: the request was not specific enough.',
+  }], { now: Date.parse('2026-09-02T12:35:00.000Z') });
+
+  const pair = container.children[0];
+  const viewer = pair.children[0];
+  const agent = pair.children[1];
+  assert.equal(viewer.children[0].textContent, 'Viewer One');
+  assert.equal(viewer.children[1].textContent, 'show the harbor');
+  assert.equal(viewer.children[2].tagName, 'time');
+  assert.equal(viewer.children[2].dateTime, '2026-09-02T12:34:00.000Z');
+  assert.equal(agent.children[0].children[0].textContent, 'GEV');
+  assert.equal(agent.children[0].children[1].textContent, 'rejected');
+  assert.match(agent.children[0].children[2].textContent, /not specific enough/);
 });
 
 
-test('a late /help reply moves that pair above a newer ordinary comment', () => {
+test('a late /help reply does not disturb chronological comment order', () => {
   let state = setLiveBroadcast(createNextchatState(), { videoId: 'vid', generation: 1 });
   state = upsertLiveCommentRow(state, {
     commentId: 'help-1',
@@ -608,7 +662,7 @@ test('a late /help reply moves that pair above a newer ordinary comment', () => 
     text: 'nice stream',
     replyState: 'display',
   }, 2000);
-  assert.equal(orderPairedRows(state.pairedRows)[0].commentId, 'chat-2');
+  assert.equal(orderPairedRows(state.pairedRows)[0].commentId, 'help-1');
   state = updateAgentReplyRow(state, {
     commentId: 'help-1',
     videoId: 'vid',

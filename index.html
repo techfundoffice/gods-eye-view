@@ -56,16 +56,7 @@
         </div>
         <div id="youtube-comments-video" class="youtube-summary">NO VIDEO SELECTED</div>
         <div id="youtube-comments-status" class="youtube-comments-status" role="status" aria-live="polite">CONNECT YOUTUBE TO LOAD COMMENTS</div>
-        <div class="youtube-chat-columns">
-          <div class="youtube-chat-col" data-col="comments">
-            <h3 class="youtube-chat-col-title">Youtube Chat</h3>
-            <ol id="youtube-comments-list" class="youtube-feed-list youtube-comments-list"></ol>
-          </div>
-          <div class="youtube-chat-col" data-col="replies">
-            <h3 class="youtube-chat-col-title">GEV Agent Replies</h3>
-            <ol id="youtube-agent-replies-list" class="youtube-feed-list youtube-agent-replies-list"></ol>
-          </div>
-        </div>
+        <ol id="youtube-comments-list" class="youtube-feed-list youtube-comments-list youtube-conversation-list"></ol>
         <div class="youtube-comments-actions" hidden>
           <button id="youtube-comments-refresh" class="scene-btn" type="button" disabled>REFRESH</button>
           <button id="youtube-comments-more" class="scene-btn" type="button" disabled>LOAD MORE</button>
@@ -650,16 +641,13 @@
       </header>
       <div class="gev-nextchat-guidance" role="note">
         <strong>OPERATE FROM LIVE COMMENTS</strong>
-        <span>Each YouTube comment is on the left. The GEV agent reply for that commenter is on the right. Validated view requests still move the globe.</span>
+        <span>Each YouTube comment is followed by its GEV reply or status. Validated view requests still move the globe.</span>
       </div>
       <div class="gev-nextchat-body">
         <div class="gev-nextchat-main">
           <div class="gev-nextchat-split">
-            <div class="gev-nextchat-pairs-head">
-              <h3 id="gev-nextchat-live-heading" class="gev-nextchat-live-lane">LIVE COMMENTS <span class="gev-nextchat-heading-legacy">· YOUTUBE LIVE COMMENTS · ALL</span></h3>
-              <h3 id="gev-nextchat-action-heading" class="gev-nextchat-action-lane">GEV AGENT REPLIES</h3>
-            </div>
-            <div id="gev-nextchat-pairs" class="gev-nextchat-pairs" role="log" aria-label="Paired live comments and agent replies" aria-live="polite"></div>
+            <h3 id="gev-nextchat-thread-heading" class="gev-nextchat-thread-heading">YOUTUBE CHAT</h3>
+            <div id="gev-nextchat-pairs" class="gev-nextchat-pairs" role="log" aria-label="YouTube chat and GEV agent replies" aria-live="polite"></div>
           </div>
           <p id="gev-nextchat-status" class="gev-nextchat-status" role="status" aria-live="polite"></p>
           <form id="gev-nextchat-form" class="gev-nextchat-composer">
@@ -836,6 +824,10 @@
                 <strong>OpenRouter</strong>
                 <small>API key and model for YouTube comment actions.</small>
               </button>
+              <button class="admin-menu-item" type="button" data-admin-view="gev-api" aria-current="false">
+                <strong>GEV API</strong>
+                <small>REST + MCP documentation for every GEV function.</small>
+              </button>
             </div>
             <div class="admin-nav-group" data-admin-nav-group="plugins" role="group" aria-labelledby="admin-nav-plugins-heading">
               <h3 id="admin-nav-plugins-heading" class="admin-nav-heading">Plugins</h3>
@@ -883,8 +875,10 @@
             <button id="admin-mcp-toggle" class="scene-btn" type="button" aria-pressed="false">ENABLE MCP SERVER</button>
           </div>
           <p class="admin-mcp-help">
-            While enabled, an external MCP client can reach this console over JSON-RPC at
-            <code>/api/admin/mcp</code> using an API key below. Keys are shown once and stored only as hashes.
+            While enabled, an external MCP client (Claude, Cursor, OpenRouter MCP, or any future model host)
+            can reach every GEV function over JSON-RPC at <code>/api/admin/mcp</code> using an API key below.
+            The same keys authorize <code>POST /api/gev/<function></code>. Keys are shown once and stored only as hashes.
+            YouTube live chat uses this catalog through OpenRouter automatically — no extra MCP wiring required for chat.
           </p>
           <form id="admin-mcp-key-form" class="admin-mcp-key-form" autocomplete="off">
             <label class="admin-field" for="admin-mcp-key-label">
@@ -897,6 +891,22 @@
           <ul id="admin-mcp-keys" class="admin-mcp-keys"></ul>
           <span class="admin-mcp-label">CLIENT CONFIGURATION</span>
           <pre id="admin-mcp-snippet" class="admin-mcp-snippet"></pre>
+        </div>
+
+
+        <div class="admin-pane admin-pane-gev-api" data-admin-pane="gev-api" hidden>
+          <p class="admin-mcp-help">
+            Every GEV function is available as <code>POST /api/gev/<name></code> with the same
+            ADMIN API keys as MCP. OpenRouter (Gemini or any future model) and YouTube live chat
+            use this catalog. Actions run on the live capture globe.
+          </p>
+          <p id="admin-gev-api-status" class="admin-live-summary" role="status" aria-live="polite">LOADING</p>
+          <span class="admin-mcp-label">ENDPOINTS</span>
+          <ul id="admin-gev-api-list" class="admin-mcp-keys"></ul>
+          <span class="admin-mcp-label">EXAMPLE</span>
+          <pre id="admin-gev-api-curl" class="admin-mcp-snippet"></pre>
+          <span class="admin-mcp-label">MCP / OPENROUTER</span>
+          <pre id="admin-gev-api-mcp" class="admin-mcp-snippet"></pre>
         </div>
 
         <div class="admin-pane admin-pane-openrouter" data-admin-pane="openrouter" hidden>
