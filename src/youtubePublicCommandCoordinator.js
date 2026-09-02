@@ -9,6 +9,32 @@ import {
 
 const bounded = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
 
+
+function isCameraTool(tool, result) {
+  const name = String(tool?.name || result?.action || '');
+  return name === 'fly_to_location' || name === 'zoom_to_globe' || name === 'move_camera'
+    || name === 'frame_overhead' || name === 'fly_route';
+}
+
+function answerFromToolResult(tool, result) {
+  const query = bounded(result?.label || result?.query || tool?.arguments?.query || tool?.name || 'view', 160);
+  if (result?.ok === false) return bounded(result?.error || 'Action failed', 180);
+  if (tool?.name === 'fly_to_location' || result?.action === 'fly_to_location') {
+    return `Navigated to ${query}.`;
+  }
+  return bounded(result?.message || result?.answer || `Completed ${query}.`, 180);
+}
+
+function inferNavigateTool(comment) {
+  const text = bounded(comment, PUBLIC_COMMAND_LIMITS.commentText);
+  const match = text.match(/\b(?:navigate to|take me to|go to|fly to|zoom to|focus on|look at|show me|show|see|view|find|locate)\s+(?:me\s+)?(.{2,160})$/i);
+  if (!match) return null;
+  const query = bounded(match[1], 160).replace(/[.?!]+$/, '').trim();
+  if (!query || /^(?:it|this|that|there|something|anything)$/i.test(query)) return null;
+  return { name: 'fly_to_location', arguments: { query, viewMode: 'close' } };
+}
+
+
 /**
  * Model-first coordinator. It persists validated calls for a separate trusted
  * capture executor; it never imports or directly invokes the browser runner.
@@ -35,6 +61,8 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       state: valid ? 'received' : 'rejected',
       reason: valid ? '' : (parsed.reason || 'Unknown public command mode'),
       expiresAt: now() + PUBLIC_COMMAND_LIMITS.totalMs,
+      remainingTurns: PUBLIC_COMMAND_LIMITS.modelTurns,
+      remainingTools: PUBLIC_COMMAND_LIMITS.toolCalls,
     };
     const inserted = await ledger.insert(record);
     if (!inserted.inserted || !valid) return { recognized: true, duplicate: !inserted.inserted, record: inserted.record };
@@ -59,7 +87,26 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       if (record && !['succeeded', 'rejected', 'failed', 'cancelled'].includes(record.state)) await ledger.compareAndSet(record.id, record.state, { state: 'cancelled', reason: 'Live generation changed' });
       return { ok: false, reason: 'stale' };
     }
-    if (record.expiresAt <= now() || record.remainingTurns <= 0) {
+    if (record.state === 'received') {
+      await ledger.compareAndSet(record.id, 'received', {
+        state: 'interpreting',
+        expiresAt: now() + PUBLIC_COMMAND_LIMITS.totalMs,
+        remainingTurns: Math.max(Number(record.remainingTurns) || 0, PUBLIC_COMMAND_LIMITS.modelTurns),
+        remainingTools: Math.max(Number(record.remainingTools) || 0, PUBLIC_COMMAND_LIMITS.toolCalls),
+      });
+      record = await ledger.get(record.id);
+    }
+    if (continuation?.result && continuation.result.ok !== false && isCameraTool(record.validatedTool, continuation.result)) {
+      const answer = answerFromToolResult(record.validatedTool, continuation.result);
+      await ledger.compareAndSet(record.id, record.state, {
+        state: 'succeeded',
+        answer,
+        reason: '',
+        executionResult: structuredClone(continuation.result),
+      });
+      return { ok: true, record: await ledger.get(record.id) };
+    }
+    if (record.remainingTurns <= 0 && record.remainingTools <= 0) {
       await ledger.compareAndSet(record.id, record.state, { state: 'failed', reason: 'Command budget exhausted' });
       return { ok: false, reason: 'budget' };
     }
@@ -72,7 +119,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     try {
       output = await interpret({
         mode: record.mode, comment: record.comment, viewer: record.viewer,
-        videoId: record.videoId, generation: record.generation, startedAt: record.createdAt,
+        videoId: record.videoId, generation: record.generation, startedAt: now(),
         remainingTurns: record.remainingTurns,
         ...(continuation ? {
           previousResponseId: continuation.responseId, callId: continuation.callId,
@@ -84,7 +131,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     } catch (error) {
       if (error?.kind === 'rate-limited') {
         await ledger.compareAndSet(record.id, 'interpreting', {
-          state: 'rejected', reason: 'OpenRouter free rate limit',
+          state: 'rejected', reason: 'OpenRouter rate limit',
         });
         return { ok: false, reason: 'rate-limited' };
       }
@@ -95,16 +142,37 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     if (!output?.ok) {
       await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: bounded(output?.reason, 160), remainingTurns: turns });
     } else if (output.kind === 'complete') {
-      await ledger.compareAndSet(record.id, 'interpreting', { state: 'succeeded', answer: bounded(output.text, 1000), remainingTurns: turns });
+      const forced = inferNavigateTool(record.comment);
+      const checkedForce = forced
+        ? validatePublicToolCall(record.mode, forced.name, forced.arguments)
+        : { ok: false };
+      if (checkedForce.ok && record.remainingTools > 0) {
+        await ledger.compareAndSet(record.id, 'interpreting', {
+          state: 'awaiting-execution',
+          nonce: id(),
+          modelResponseId: output.responseId || record.modelResponseId || '',
+          functionCallId: output.call?.callId || `forced-fly-${record.id}`,
+          validatedTool: checkedForce,
+          remainingTurns: Math.max(1, turns),
+          remainingTools: Math.max(0, record.remainingTools - 1),
+        });
+      } else {
+        await ledger.compareAndSet(record.id, 'interpreting', { state: 'succeeded', answer: bounded(output.text, 1000), remainingTurns: turns });
+      }
     } else {
+      const forced = inferNavigateTool(record.comment);
+      const checkedForce = forced
+        ? validatePublicToolCall(record.mode, forced.name, forced.arguments)
+        : { ok: false };
       const checked = validatePublicToolCall(record.mode, output.call?.name, output.call?.arguments);
-      if (!checked.ok || record.remainingTools <= 0) {
-        await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: checked.reason || 'Tool budget exhausted', remainingTurns: turns });
+      const chosen = checkedForce.ok ? checkedForce : checked;
+      if (!chosen.ok || record.remainingTools <= 0) {
+        await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: chosen.reason || checked.reason || 'Tool budget exhausted', remainingTurns: turns });
       } else {
         await ledger.compareAndSet(record.id, 'interpreting', {
           state: 'awaiting-execution', nonce: id(), modelResponseId: output.call.responseId,
-          functionCallId: output.call.callId, validatedTool: checked,
-          remainingTurns: turns, remainingTools: record.remainingTools - 1,
+          functionCallId: output.call.callId, validatedTool: chosen,
+          remainingTurns: Math.max(1, turns), remainingTools: Math.max(0, record.remainingTools - 1),
         });
       }
     }
@@ -127,6 +195,16 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       });
       return { ok: false, reason: 'stale-or-invalid' };
     }
+    if (result && result.ok !== false && isCameraTool(record.validatedTool, result)) {
+      await ledger.compareAndSet(record.id, 'executing', {
+        state: 'succeeded',
+        nonce: null,
+        executionResult: structuredClone(result),
+        answer: answerFromToolResult(record.validatedTool, result),
+        reason: '',
+      });
+      return { ok: true, record: await ledger.get(record.id) };
+    }
     await ledger.compareAndSet(record.id, 'executing', { state: 'awaiting-model', nonce: null, executionResult: structuredClone(result) });
     return advance(record.id, binding, { responseId: record.modelResponseId, callId: record.functionCallId, result });
   }
@@ -148,6 +226,16 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
         reason: checked.ok ? 'Verified live binding changed' : 'Stored tool failed revalidation',
       });
       return { ok: false, reason: 'stale-or-invalid' };
+    }
+    if (result && result.ok !== false && isCameraTool(record.validatedTool, result)) {
+      await ledger.compareAndSet(record.id, 'executing', {
+        state: 'succeeded',
+        nonce: null,
+        executionResult: structuredClone(result),
+        answer: answerFromToolResult(record.validatedTool, result),
+        reason: '',
+      });
+      return { ok: true, record: await ledger.get(record.id) };
     }
     await ledger.compareAndSet(record.id, 'executing', {
       state: 'awaiting-model',

@@ -701,6 +701,37 @@ test('with commandRuntime, /help becomes a succeeded command with commentId', as
   assert.equal(response.body.commands[0].authorHandle, '@patHandle');
 });
 
+
+test('with commandRuntime, every live chat item is registered not only the latest', async () => {
+  const registered = [];
+  const middleware = createYoutubeHomepageChatMiddleware({
+    discoverActive: async () => liveIdentity(),
+    listChat: async () => ({
+      items: [
+        {
+          id: 'chat-a',
+          snippet: { displayMessage: 'navigate to Tokyo', publishedAt: '2026-09-01T00:00:00.000Z' },
+          authorDetails: { displayName: 'Ada' },
+        },
+        {
+          id: 'chat-b',
+          snippet: { displayMessage: 'navigate to Paris', publishedAt: '2026-09-01T00:00:01.000Z' },
+          authorDetails: { displayName: 'Bob' },
+        },
+      ],
+      nextPageToken: '',
+      pollingIntervalMillis: 5000,
+    }),
+    commandRuntime: {
+      registerMessage: async (item) => { registered.push(item.id); },
+      statuses: async () => [],
+    },
+  });
+  const response = await invoke(middleware, '/feed');
+  assert.equal(response.status, 200);
+  assert.deepEqual(registered, ['chat-a', 'chat-b']);
+});
+
 test('vite homepage middleware is constructed with commandRuntime', () => {
   const src = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
   assert.match(src, /createYoutubePublicCommandRuntime\s*\(/);

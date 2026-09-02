@@ -13,7 +13,7 @@ test('openrouter/auto is refused so YouTube commands cannot bill', async () => {
   const saved = process.env.OPENROUTER_MODEL;
   process.env.OPENROUTER_MODEL = 'openrouter/auto';
   try {
-    assert.equal(openRouterFreeModel(), OPENROUTER_FREE_MODEL);
+    assert.equal(openRouterFreeModel(), 'google/gemini-3.8-flash');
   } finally {
     if (saved === undefined) delete process.env.OPENROUTER_MODEL;
     else process.env.OPENROUTER_MODEL = saved;
@@ -33,15 +33,15 @@ test('rate limiter trips before the provider after 20 calls in a minute', async 
   let now = 1_000;
   const limiter = createOpenRouterFreeRateLimiter({ rpm: 2, rpd: 3, now: () => now });
   assert.equal((await postOpenRouterChat({
-    apiKey: 'k', messages: [], limiter,
+    apiKey: 'k', model: 'openrouter/free', messages: [], limiter,
     fetchImpl: async () => ({ ok: true, json: async () => ({ id: 'a', model: 'x:free' }) }),
   })).ok, true);
   assert.equal((await postOpenRouterChat({
-    apiKey: 'k', messages: [], limiter,
+    apiKey: 'k', model: 'openrouter/free', messages: [], limiter,
     fetchImpl: async () => ({ ok: true, json: async () => ({ id: 'b', model: 'x:free' }) }),
   })).ok, true);
   const blocked = await postOpenRouterChat({
-    apiKey: 'k', messages: [], limiter,
+    apiKey: 'k', model: 'openrouter/free', messages: [], limiter,
     fetchImpl: async () => ({ ok: true, json: async () => ({ id: 'c' }) }),
   });
   assert.equal(blocked.ok, false);

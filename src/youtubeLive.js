@@ -499,6 +499,7 @@ export class YouTubeCommentsPanelView {
    */
   render(state) {
     if (!this.root) return;
+    if (this.root.dataset.liveHomepage === '1') return;
     const summary = summarizeCommentsPanel(state);
     setText(this._subject, summary.subject);
     setText(this._status, summary.status);

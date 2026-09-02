@@ -262,6 +262,10 @@ async function init() {
         // that real context has been validated below; otherwise its first
         // requestAnimationFrame can enter Scene.render with zeroed limits.
         useDefaultRenderLoop: false,
+        // Cesium's default overlay ("An error occurred while rendering.
+        // Rendering has stopped.") covers the globe after a transient worker
+        // import. We recover in renderError; do not leave that panel up.
+        showRenderLoopErrors: false,
         timeline: false,
         animation: false,
         baseLayerPicker: false,
@@ -343,7 +347,15 @@ async function init() {
     // context mid-session) surfaces here instead of as a repeating uncaught
     // error. Cesium has already stopped its render loop by this point.
     let workerImportRecoveryAttempts = 0;
+    const dismissCesiumErrorPanel = () => {
+      const panel = viewer?.cesiumWidget?.container?.querySelector?.('.cesium-widget-errorPanel');
+      if (panel) panel.remove();
+    };
+    viewer.scene.postRender.addEventListener(() => {
+      workerImportRecoveryAttempts = 0;
+    });
     viewer.scene.renderError.addEventListener((_scene, renderError) => {
+      dismissCesiumErrorPanel();
       if (isWebGLInitializationError(renderError)) {
         // Cesium normally stops its loop after a render error, but set the flag
         // synchronously as well so no queued frame can repeat the failure.
@@ -360,10 +372,13 @@ async function init() {
         return;
       }
 
-      if (!isTransientCesiumWorkerImportError(renderError) || workerImportRecoveryAttempts >= 3) return;
+      if (!isTransientCesiumWorkerImportError(renderError)) {
+        viewer.useDefaultRenderLoop = true;
+        return;
+      }
       workerImportRecoveryAttempts += 1;
       const attempt = workerImportRecoveryAttempts;
-      console.warn(`[Cesium] Geometry worker import was interrupted; resuming render loop (${attempt}/3).`);
+      console.warn(`[Cesium] Geometry worker import was interrupted; resuming render loop (${attempt}).`);
       // CesiumWidget disables its loop after raising renderError. Resume on a
       // later task, once that catch path has completed and the preview proxy
       // has had a chance to reconnect.

@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { createFilePublicCommandLedger } from './youtubePublicCommandLedger.js';
 import { createYoutubePublicCommandCoordinator } from './youtubePublicCommandCoordinator.js';
 import { createPublicResponsesInterpreter } from './youtubePublicResponsesInterpreter.js';
+import { PUBLIC_COMMAND_LIMITS } from './youtubePublicCommandPolicy.js';
 
 export const PUBLIC_EXECUTOR_HEADER = 'x-gev-capture-executor';
 export const PUBLIC_EXECUTOR_ROUTE = '/api/youtube/homepage-chat/executor';
@@ -187,7 +188,12 @@ export function createYoutubePublicCommandRuntime({
         && row.generation === target.generation
         && row.captureExecutorId === target.captureExecutorId);
       if (received) {
-        const claimed = await ledger.compareAndSet(received.id, 'received', { state: 'interpreting' });
+        const claimed = await ledger.compareAndSet(received.id, 'received', {
+          state: 'interpreting',
+          expiresAt: Date.now() + PUBLIC_COMMAND_LIMITS.totalMs,
+          remainingTurns: PUBLIC_COMMAND_LIMITS.modelTurns,
+          remainingTools: PUBLIC_COMMAND_LIMITS.toolCalls,
+        });
         if (claimed.changed) {
           const advanced = await coordinator.advance(received.id, target);
           record = advanced.record?.state === 'awaiting-execution' ? advanced.record : null;
@@ -226,7 +232,12 @@ export function createYoutubePublicCommandRuntime({
         && row.generation === target.generation
         && row.captureExecutorId === target.captureExecutorId);
       if (received) {
-        const claimed = await ledger.compareAndSet(received.id, 'received', { state: 'interpreting' });
+        const claimed = await ledger.compareAndSet(received.id, 'received', {
+          state: 'interpreting',
+          expiresAt: Date.now() + PUBLIC_COMMAND_LIMITS.totalMs,
+          remainingTurns: PUBLIC_COMMAND_LIMITS.modelTurns,
+          remainingTools: PUBLIC_COMMAND_LIMITS.toolCalls,
+        });
         if (claimed.changed) {
           const advanced = await coordinator.advance(
             received.id,

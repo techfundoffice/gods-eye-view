@@ -15,6 +15,11 @@ export const COMMAND_DOCK_PINNABLE_PANEL_IDS = Object.freeze([
 /** Trays that must stay expanded on the homepage globe regardless of stored pin. */
 export const ALWAYS_VISIBLE_DOCK_PANEL_IDS = Object.freeze([
   'control-panel',
+  'location-bar',
+  'pp-toggles',
+  'cctv-panel',
+  'global-context-panel',
+  'radio-panel',
 ]);
 
 /**

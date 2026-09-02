@@ -4,10 +4,11 @@
  * openrouter/auto (auto can bill).
  */
 
-import { resolveOpenRouterApiKey } from './openrouterAdminSecret.js';
+import { resolveOpenRouterApiKey, resolveOpenRouterModel } from './openrouterAdminSecret.js';
 
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 export const OPENROUTER_FREE_MODEL = 'openrouter/free';
+export const OPENROUTER_DEFAULT_MODEL = 'google/gemini-3.8-flash';
 
 const FREE_RPM = 20;
 const FREE_RPD = 50;
@@ -40,11 +41,7 @@ export function createOpenRouterFreeRateLimiter({
 const defaultLimiter = createOpenRouterFreeRateLimiter();
 
 export function openRouterFreeModel() {
-  const configured = String(process.env.OPENROUTER_MODEL || OPENROUTER_FREE_MODEL).trim();
-  if (!configured || configured === 'openrouter/auto' || configured.includes('auto:free')) {
-    return OPENROUTER_FREE_MODEL;
-  }
-  return configured;
+  return resolveOpenRouterModel();
 }
 
 export function openRouterApiKey() {
@@ -83,9 +80,13 @@ export async function postOpenRouterChat({
   if (model === 'openrouter/auto' || String(model).includes('auto:free')) {
     return { ok: false, status: 400, payload: { error: 'Paid auto router is not allowed' }, kind: 'provider' };
   }
-  const taken = limiter.tryTake();
-  if (!taken.ok) {
-    return { ok: false, status: 429, payload: { error: 'OpenRouter free rate limit' }, kind: 'rate-limited' };
+  // Local 20/min 50/day cap is for openrouter/free only. Paid Gemini 3 must not inherit it.
+  const isFreeRouter = model === OPENROUTER_FREE_MODEL || model === 'openrouter/free';
+  if (isFreeRouter) {
+    const taken = limiter.tryTake();
+    if (!taken.ok) {
+      return { ok: false, status: 429, payload: { error: 'OpenRouter free rate limit' }, kind: 'rate-limited' };
+    }
   }
   const body = {
     model,

@@ -15,9 +15,29 @@ import {
 } from './youtubeCommentHarness.js';
 import { validateViewIntent } from './youtubeViewAgent.js';
 import { parsePublicCommand } from './youtubePublicCommandPolicy.js';
+import { isLoopbackAddress } from './youtubeOAuth.js';
 
 const MAX_CONTINUATION = 4096;
 const VIEWER_IDENTITY_PARAMS = ['videoId', 'liveChatId', 'broadcastId', 'session', 'sessionId', 'authorization'];
+
+function readJsonBody(req, maxBytes = 4000) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(Object.assign(new Error('too large'), { status: 413 }));
+        req.destroy();
+      } else chunks.push(chunk);
+    });
+    req.on('end', () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); }
+      catch { reject(Object.assign(new Error('invalid json'), { status: 400 })); }
+    });
+    req.on('error', reject);
+  });
+}
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
@@ -97,7 +117,7 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
     text: normalized.text,
     publishedAt: normalized.receivedAt,
     source: 'youtube',
-    ...(agentRequested ? { agentMode: 'execute', deferAgent: true } : {}),
+    ...(agentRequested ? { agentMode: 'execute', deferAgent: false } : {}),
     actions: [],
   };
 }
@@ -179,6 +199,50 @@ export function createYoutubeHomepageChatMiddleware({
   return async function youtubeHomepageChatMiddleware(req, res) {
     const method = String(req.method || 'GET').toUpperCase();
     const parsed = new URL(String(req.url || '/'), 'http://internal');
+    if (parsed.pathname === '/inject') {
+      const loopback = isLoopbackAddress(req.socket?.remoteAddress || req.connection?.remoteAddress);
+      if (!loopback) {
+        sendJson(res, 403, { error: { kind: 'forbidden', message: 'Inject is loopback only.' } });
+        return;
+      }
+      if (method !== 'POST') {
+        sendJson(res, 405, { error: { kind: 'method', message: 'POST only' } });
+        return;
+      }
+      let body = {};
+      try { body = await readJsonBody(req); }
+      catch (error) {
+        sendJson(res, error.status || 400, { error: { kind: 'invalid', message: error.message } });
+        return;
+      }
+      const text = boundedText(body.text, 500);
+      if (!text) {
+        sendJson(res, 400, { error: { kind: 'invalid', message: 'text required' } });
+        return;
+      }
+      const snap = ingest && typeof ingest.snapshot === 'function' ? (ingest.snapshot() || {}) : {};
+      const videoId = boundedText(body.videoId || snap.videoId, 80);
+      const raw = {
+        id: boundedText(body.id, 160) || `inject-${Date.now()}`,
+        videoId,
+        snippet: { displayMessage: text, publishedAt: new Date(now()).toISOString() },
+        authorDetails: { displayName: boundedText(body.author, 80) || 'GEV Verify' },
+        authorHandle: boundedText(body.authorHandle, 80) || '@gevverify',
+        text,
+        author: { displayName: boundedText(body.author, 80) || 'GEV Verify' },
+      };
+      if (ingest && typeof ingest.inject === 'function') ingest.inject(raw);
+      lastBinding = {
+        videoId,
+        generation: Math.max(0, Number(snap.generation) || 0),
+        commandsEnabled: true,
+      };
+      const item = publicMessage(raw, videoId, now, { commandsEnabled: true });
+      const registered = item ? await commandRuntime?.registerMessage?.(item, lastBinding) : { recognized: false };
+      const commands = await commandRuntime?.statuses?.(lastBinding) || [];
+      sendJson(res, 200, { ok: true, item, registered, commands: commands.slice(-5) });
+      return;
+    }
     if ((parsed.pathname.startsWith('/executor') || parsed.pathname.startsWith('/agent')) && executorMiddleware) {
       await executorMiddleware(req, res);
       return;
@@ -205,8 +269,9 @@ export function createYoutubeHomepageChatMiddleware({
         ? (snap.items || []).map((item) => publicMessage(item, snap.videoId, now, { commandsEnabled: true })).filter(Boolean)
         : [];
       if (live && items.length) {
-        const latestItem = items.at(-1);
-        void Promise.resolve(commandRuntime?.registerMessage?.(latestItem, lastBinding)).catch(() => {});
+        for (const item of items) {
+          void Promise.resolve(commandRuntime?.registerMessage?.(item, lastBinding)).catch(() => {});
+        }
       }
       sendJson(res, 200, publicFeedBody(snap, {
         items,
@@ -270,8 +335,9 @@ export function createYoutubeHomepageChatMiddleware({
         .filter(Boolean);
       const binding = lastBinding;
       if (items.length) {
-        const latestItem = items.at(-1);
-        void Promise.resolve(commandRuntime?.registerMessage?.(latestItem, binding)).catch(() => {});
+        for (const item of items) {
+          void Promise.resolve(commandRuntime?.registerMessage?.(item, binding)).catch(() => {});
+        }
       }
       const commands = await commandRuntime?.statuses?.(binding) || [];
       sendJson(res, 200, publicFeedBody(identity, {

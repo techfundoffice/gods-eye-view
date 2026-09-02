@@ -264,6 +264,32 @@ export class IntelHUD {
       if (bottom) cluster.appendChild(bottom);
       if (top) cluster.appendChild(top);
     }
+    this._placeRecStampUnderAdmin();
+  }
+
+  /**
+   * MOVE original .hud-top-right (REC / ORB) flush under #admin-launch.
+   * Wrapper is created once; nodes are moved, never cloned.
+   */
+  _placeRecStampUnderAdmin() {
+    const launch = document.getElementById("admin-launch");
+    const stamp = (this._el && this._el.querySelector(".hud-top-right"))
+      || document.querySelector(".hud-top-right");
+    if (!launch || !stamp) return;
+    let stack = document.getElementById("admin-stamp-stack");
+    if (!stack) {
+      stack = document.createElement("div");
+      stack.id = "admin-stamp-stack";
+      launch.parentNode.insertBefore(stack, launch);
+    }
+    if (launch.parentElement !== stack) stack.appendChild(launch);
+    if (stamp.parentElement !== stack || stamp.previousElementSibling !== launch) {
+      stack.appendChild(stamp);
+    }
+    const chat = document.getElementById("youtube-comments-panel");
+    if (chat && (chat.parentElement !== stack || chat.previousElementSibling !== stamp)) {
+      stack.appendChild(chat);
+    }
   }
 
   /**

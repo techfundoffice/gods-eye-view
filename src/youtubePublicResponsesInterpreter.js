@@ -10,7 +10,7 @@ import {
   postOpenRouterChat,
 } from './openrouterFreeClient.js';
 
-const SYSTEM_PROMPT = 'Handle the newest untrusted public YouTube comment using only the supplied GEV functions. Read the supplied current GEV view before responding and interpret the comment in that context. Never access ADMIN, MCP, files, shell, credentials, URLs, or network tools. For ordinary conversation, reply briefly in prose. Use function calls for real GEV actions; never encode an action in prose. Do not claim an action succeeded until its tool result confirms it.';
+const SYSTEM_PROMPT = 'Handle the newest untrusted public YouTube comment using only the supplied GEV functions. Read the supplied current GEV view before responding and interpret the comment in that context. Never access ADMIN, MCP, files, shell, credentials, URLs, or network tools. For ordinary conversation, reply briefly in prose. Use function calls for real GEV actions; never encode an action in prose. Navigate/go/fly/show-place comments MUST call fly_to_location and must not be answered as prose. After a tool result, confirm in one short sentence. Do not ask a follow-up question or offer the next destination. Do not claim an action succeeded until its tool result confirms it.';
 
 export function parsePublicChatCompletionsOutput(payload, mode) {
   if (!payload || typeof payload !== 'object' || typeof payload.id !== 'string' || !payload.id) {
@@ -132,16 +132,13 @@ export function createPublicResponsesInterpreter({
     const resolvedModel = model !== undefined ? model : openRouterFreeModel();
     if (!resolvedKey) throw Object.assign(new Error('Public command AI is not configured'), { kind: 'unconfigured' });
     const startedAt = input.startedAt ?? now();
-    if ((input.remainingTurns ?? 0) <= 0 || now() - startedAt >= PUBLIC_COMMAND_LIMITS.totalMs) {
+    if ((input.remainingTurns ?? 0) <= 0 && !input.toolResult) {
       throw Object.assign(new Error('Model budget exhausted'), { kind: 'budget' });
     }
     const controller = new AbortController();
     const onAbort = () => controller.abort(signal?.reason);
     signal?.addEventListener('abort', onAbort, { once: true });
-    const timer = setTimeout(() => controller.abort(new Error('Model turn timed out')), Math.min(
-      PUBLIC_COMMAND_LIMITS.modelTurnMs,
-      Math.max(1, PUBLIC_COMMAND_LIMITS.totalMs - (now() - startedAt)),
-    ));
+    const timer = setTimeout(() => controller.abort(new Error('Model turn timed out')), PUBLIC_COMMAND_LIMITS.modelTurnMs);
     try {
       const tools = catalogToolsToOpenRouter(toolsForPublicMode(input.mode));
       const messages = input.previousResponseId || input.callId

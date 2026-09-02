@@ -319,6 +319,7 @@ const LEFT_STACK_OBSTACLE_SELECTOR = [
   '#gev-voice-control',
   '#pp-toggles',
   '#param-slider-panel',
+  '#display-cctv-dock',
 ].join(', ');
 /**
  * Whether an element currently occupies screen space a layout must respect.
@@ -374,6 +375,7 @@ const RIGHT_STACK_OBSTACLE_SELECTOR = [
   '#gev-nextchat .gev-nextchat-live-lane',
   '#gev-command-legend',
   '.live-news-ticker',
+  '#display-cctv-dock',
 ].join(', ');
 /** Display labels shown in the mini-status readout for each active style. */
 const STYLE_STATUS_LABELS = {
@@ -2238,6 +2240,11 @@ export class StyleManager {
     // DOM refs
     this._styleIndicator = document.getElementById('active-style-name');
     this._sliderPanel = document.getElementById('param-slider-panel');
+    this._sliderPanel?.classList.add('active');
+    for (const id of ['bloom-slider-row', 'sharpen-slider-row', 'detection-slider-row']) {
+      document.getElementById(id)?.classList.add('visible');
+    }
+
     this._sliderContainer = document.getElementById('param-sliders');
     this._ppToggles = document.getElementById('pp-toggles');
     this._bloomBtn = document.getElementById('bloom-toggle');
@@ -2647,6 +2654,10 @@ export class StyleManager {
     this._initLeftPanelAdaptiveLayout();
     this._initRightPanelAdaptiveLayout();
     this._initRadioPanel();
+    this.setPanelCollapsed('radio-panel', false, { persist: false, syncShare: false });
+    this.setPanelCollapsed('pp-toggles', false, { persist: false, syncShare: false });
+    this.setPanelCollapsed('cctv-panel', false, { persist: false, syncShare: false });
+    this.setPanelCollapsed('global-context-panel', false, { persist: false, syncShare: false });
     this._initCctvPanel();
     this._initGlobalContextPanel();
     this._initLocationBar();
@@ -2840,7 +2851,7 @@ export class StyleManager {
   _settleLocationSearchUi(generation, { clear = true } = {}) {
     if (this._activeLocationSearchGeneration !== generation) return;
     this._activeLocationSearchGeneration = null;
-    this._locationSearch?.classList.remove('searching', 'expanded');
+    this._locationSearch?.classList.remove('searching');
     if (clear && this._locationSearch) this._locationSearch.value = '';
     this._hideLocationSuggestions();
     this._locationSearch?.blur();
@@ -3382,7 +3393,7 @@ export class StyleManager {
       if (keyMap[e.key]) this.setStyle(keyMap[e.key]);
       if (e.key === 'Escape') {
         if (this._locationSearch.classList.contains('expanded')) {
-          this._locationSearch.classList.remove('expanded');
+          /* keep location search expanded */
           this._locationSearch.value = '';
           this._hideLocationSuggestions();
           this._locationSearch.blur();
@@ -3980,8 +3991,7 @@ export class StyleManager {
     // Respect markup defaults, persisted choices, and shared panel state.
     // Auto-hover provides compact transient behavior without overwriting the
     // state that the collapse buttons report.
-    this._initAutoHoverPanel('control-panel', { openDelayMs: 140, closeDelayMs: 420 });
-    this._initAutoHoverPanel('location-bar', { openDelayMs: 140, closeDelayMs: 420 });
+    // Auto-hover skipped: YouTube comment operation cannot hover to open trays.
     this._initCommandDockPins();
     this._initCommandDockTrayMetrics();
     this._maybeNotifyLayoutReset();
@@ -5356,9 +5366,9 @@ export class StyleManager {
     this._globalContextMissionsBtn?.setAttribute('aria-selected', String(missionsActive));
     if (this._globalContextFlightsBtn) this._globalContextFlightsBtn.tabIndex = missionsActive ? -1 : 0;
     if (this._globalContextMissionsBtn) this._globalContextMissionsBtn.tabIndex = missionsActive ? 0 : -1;
-    if (this._contextModeStandby) this._contextModeStandby.hidden = flightsActive || missionsActive;
-    if (this._contextFlightsView) this._contextFlightsView.hidden = !flightsActive;
-    if (this._contextMissionsView) this._contextMissionsView.hidden = !missionsActive;
+    if (this._contextModeStandby) this._contextModeStandby.hidden = true;
+    if (this._contextFlightsView) this._contextFlightsView.hidden = false;
+    if (this._contextMissionsView) this._contextMissionsView.hidden = false;
     this.cockpitView?.syncEntry();
     // Every _contextMode mutation funnels through here; the sync no-ops until
     // the transaction settles, so this is the activation/deactivation edge.
@@ -5373,9 +5383,9 @@ export class StyleManager {
     this._radioTunerAbort = new AbortController();
     const tunerListenerOptions = { signal: this._radioTunerAbort.signal };
     const setRadioDisclosure = (expanded, { returnFocus = false } = {}) => {
-      const open = Boolean(expanded);
+      const open = true;
       this._contextRadioDock?.classList.toggle('disclosure-open', open);
-      if (this._contextRadioMini) this._contextRadioMini.hidden = !open;
+      if (this._contextRadioMini) this._contextRadioMini.hidden = false;
       this._syncContextRadioLauncherState();
       if (!open && returnFocus) this._contextRadioToggleBtn?.focus({ preventScroll: true });
     };
@@ -5655,7 +5665,7 @@ export class StyleManager {
     document.addEventListener('pointerdown', (event) => {
       if (!this._contextRadioDock?.classList.contains('disclosure-open')) return;
       if (event.target?.closest?.('#context-radio-dock')) return;
-      setRadioDisclosure(false);
+      setRadioDisclosure(true);
     }, tunerListenerOptions);
     document.addEventListener('pointerdown', (event) => {
       if (!this._cockpitUtilityControls || event.target?.closest?.('#cockpit-utility-controls')) return;
@@ -6026,7 +6036,7 @@ export class StyleManager {
     }
 
     const tunerAvailable = interactive && state.filteredCount > 0;
-    if (this._radioTuner) this._radioTuner.hidden = !tunerAvailable;
+    if (this._radioTuner) this._radioTuner.hidden = false;
     if (this._radioTunerSlider) this._radioTunerSlider.disabled = !tunerAvailable;
     if (this._radioTunerBandLabel) {
       const activeCategory = state.categories.find((category) => category.id === state.filter);
@@ -6160,14 +6170,8 @@ export class StyleManager {
       this._radioPlaybackState.textContent = `${uncertainMessage || unavailable || lifecycleMessage || state.error || messages[state.audioState] || 'Ready'}${tuningSuffix}${voiceSuffix}${catalogSuffix}${outsideFilter}`;
       this._radioPlaybackState.classList.toggle('error', Boolean(uncertainMessage || unavailable || state.error || state.audioState === 'error'));
     }
-    if (
-      !enabled
-      && !transitioning
-      && !this._preservePanelStateDuringLayerClear
-      && !this._radioPanel.classList.contains('collapsed')
-    ) {
-      this.setPanelCollapsed('radio-panel', true);
-    }
+    // Sight-first HUD: Radio transport stays on the first layer even when off.
+    if (this._radioPanel) this.setPanelCollapsed('radio-panel', false, { persist: false, syncShare: false });
     this._scheduleRightPanelLayout();
   }
 
@@ -6798,12 +6802,8 @@ export class StyleManager {
     // to offer controls for things already happening, while competing with the
     // first-run mission card for the one first impression there is. A stored
     // choice still wins in both directions, so anyone who opens it keeps it.
-    if (panelId === 'pp-toggles' && stored === null) collapsed = true;
-    // LOCATION and VISUAL PRESETS start PINNED+expanded for a first-time
-    // visitor. A stored collapse still wins, as with every other panel.
-    if (COMMAND_DOCK_PINNABLE_PANEL_IDS.includes(panelId) && stored === null) {
-      collapsed = false;
-    }
+    // YouTube GEV agent cannot click: every panel stays expanded.
+    collapsed = false;
     panelEl.classList.toggle('collapsed', collapsed);
     this._syncPanelCollapseButton(panelEl);
   }
@@ -6823,35 +6823,43 @@ export class StyleManager {
   }
 
   /**
-   * Builds one fixed right-side rail from Display, CCTV, its parameter
-   * controls, and Global Context (which owns the nested Radio companion).
-   * The rail then measures the live HUD chrome at runtime so it can stay
-   * aligned and within the available vertical corridor.
+   * Builds the right-side rail from Global Context (nested Radio) and
+   * YouTube comments. DISPLAY and CCTV live in #display-cctv-dock — the
+   * original nodes are parented there (never cloned) and are not right-rail
+   * children. The rail then measures live HUD chrome at runtime.
    * @returns {void}
    */
   _initRightPanelAdaptiveLayout() {
-    const stack = this._rightPanelStack;
-    if (!stack || !this._ppToggles) return;
-
-    this._ppToggles.style.removeProperty('top');
-    this._ppToggles.style.removeProperty('right');
-    this._ppToggles.style.removeProperty('bottom');
-    this._ppToggles.style.removeProperty('left');
-    this._ppToggles.style.removeProperty('z-index');
-    this._ppToggles.classList.remove('panel-draggable', 'panel-dragging');
-    this._ppToggles.querySelector('.pp-header-row')?.removeAttribute('title');
-    stack.prepend(this._ppToggles);
-    const globalContextPanel = document.getElementById('global-context-panel');
-    if (this._cctvPanel) {
-      this._cctvPanel.style.removeProperty('top');
-      this._cctvPanel.style.removeProperty('right');
-      this._cctvPanel.style.removeProperty('bottom');
-      this._cctvPanel.style.removeProperty('left');
-      this._cctvPanel.style.removeProperty('z-index');
-      this._cctvPanel.classList.remove('panel-draggable', 'panel-dragging');
-      stack.insertBefore(this._cctvPanel, globalContextPanel);
-      this._syncPanelCollapseButton(this._cctvPanel);
+    const contextDock = document.getElementById('context-hud-dock');
+    const contextPanel = document.getElementById('global-context-panel');
+    if (contextDock && contextPanel && contextPanel.parentElement !== contextDock) {
+      contextDock.appendChild(contextPanel);
     }
+    const stack = this._rightPanelStack;
+    const dock = document.getElementById('display-cctv-dock');
+    const resetFloating = (panel) => {
+      if (!panel) return;
+      panel.style.removeProperty('top');
+      panel.style.removeProperty('right');
+      panel.style.removeProperty('bottom');
+      panel.style.removeProperty('left');
+      panel.style.removeProperty('z-index');
+      panel.style.removeProperty('max-height');
+      panel.classList.remove('panel-draggable', 'panel-dragging', 'layout-auto-collapsed');
+    };
+    if (dock) {
+      if (this._ppToggles) {
+        resetFloating(this._ppToggles);
+        this._ppToggles.querySelector('.pp-header-row')?.removeAttribute('title');
+        dock.appendChild(this._ppToggles);
+      }
+      if (this._cctvPanel) {
+        resetFloating(this._cctvPanel);
+        dock.appendChild(this._cctvPanel);
+        this._syncPanelCollapseButton(this._cctvPanel);
+      }
+    }
+    const globalContextPanel = document.getElementById('global-context-panel');
     if (this._sliderPanel) {
       this._sliderPanel.style.removeProperty('top');
       this._sliderPanel.style.removeProperty('right');
@@ -6860,15 +6868,16 @@ export class StyleManager {
       this._sliderPanel.style.removeProperty('max-height');
       const detectionGroup = this._detectionBtn?.closest('.pp-toggle-group');
       if (detectionGroup) detectionGroup.after(this._sliderPanel);
-      else this._ppToggles.append(this._sliderPanel);
+      else this._ppToggles?.append(this._sliderPanel);
     }
+    if (!stack) return;
     if (typeof ResizeObserver !== 'undefined') {
       this._rightStackResizeObserver = new ResizeObserver(() => {
         this._scheduleRightPanelLayout();
       });
       this._rightStackResizeObserver.observe(stack);
       const commentsPanel = document.getElementById('youtube-comments-panel');
-      for (const panel of [this._ppToggles, this._cctvPanel, globalContextPanel, commentsPanel]) {
+      for (const panel of [globalContextPanel, commentsPanel]) {
         if (panel) this._rightStackResizeObserver.observe(panel);
       }
       document.querySelectorAll(RIGHT_STACK_OBSTACLE_SELECTOR).forEach((element) => {
@@ -7074,6 +7083,8 @@ export class StyleManager {
       allocatedHeights: expandedHeights,
       collapseLaterPanels: shouldFocus && this.hud.getVariant() === 'tactical',
     }) : [];
+    // YouTube GEV agent cannot click: never auto-collapse right-rail panels.
+    autoCollapseIndices = [];
     if (autoCollapseIndices.length) {
       for (const index of autoCollapseIndices) {
         const panel = expandedPanels[index];
@@ -7433,6 +7444,8 @@ export class StyleManager {
       allocatedHeights: allocatedExpandedHeights,
       collapseLaterPanels: shouldFocus && this.hud.getVariant() === 'tactical',
     }) : [];
+    // YouTube GEV agent cannot click: never auto-collapse HUD panels.
+    autoCollapseIndices = [];
     if (autoCollapseIndices.length) {
       for (const index of autoCollapseIndices) {
         const panel = expandedPanels[index];
@@ -7486,7 +7499,7 @@ export class StyleManager {
    * @returns {void}
    */
   _syncPanelCollapseButton(panelEl) {
-    const isRightRail = ['pp-toggles', 'cctv-panel', 'global-context-panel', 'youtube-comments-panel'].includes(panelEl?.id);
+    const isRightRail = ['global-context-panel', 'youtube-comments-panel'].includes(panelEl?.id);
     const collapsed = panelEl.classList.contains('collapsed');
     panelEl.querySelectorAll('.panel-collapse-btn[data-collapse-target]').forEach((btn) => {
       const owner = btn.closest('[data-panel-id], #param-slider-panel');
@@ -7758,7 +7771,8 @@ export class StyleManager {
   } = {}) {
     const panelEl = document.getElementById(panelId);
     if (!panelEl) return;
-    if (panelId === "control-panel") collapsed = false;
+    // YouTube GEV agent cannot click to expand. Never collapse HUD panels.
+    collapsed = false;
     if (explicit && !restore) this.shareLinkManager?.claimRestoreLane?.('panel', panelId);
     const nextCollapsed = Boolean(collapsed);
     const wasAutoCollapsed = panelEl.classList.contains('layout-auto-collapsed');
@@ -9339,15 +9353,8 @@ export class StyleManager {
   _initLocationBar() {
     const QWERTY_KEYS = ['Q', 'W', 'E', 'R', 'T'];
 
-    // Render city pills (no submenu wrappers — POI row is separate)
-    for (const [cityId, city] of Object.entries(CITY_POIS)) {
-      const pill = document.createElement('button');
-      pill.className = 'location-pill';
-      pill.dataset.locationId = cityId;
-      pill.textContent = city.name;
-      pill.addEventListener('click', () => this._onCityPillClick(cityId));
-      this._locationPills.appendChild(pill);
-    }
+    // City preset pills removed from Location UI; CITY_POIS still powers search/fly-to.
+    if (this._locationPills) this._locationPills.replaceChildren();
 
     // QWERTY keyboard navigation for POIs
     this._poiKeydownHandler = (e) => {
@@ -9370,13 +9377,10 @@ export class StyleManager {
 
     // Search toggle (expand/collapse)
     this._searchToggle.addEventListener('click', () => {
-      this._locationSearch.classList.toggle('expanded');
-      if (this._locationSearch.classList.contains('expanded')) {
-        this._locationSearch.focus();
-      } else {
-        this._hideLocationSuggestions();
-      }
+      this._locationSearch.classList.add('expanded');
+      this._locationSearch.focus();
     });
+    this._locationSearch?.classList.add('expanded');
 
     this._locationSuggest = createLocationSuggestController({
       fetchSuggestions: fetchPlaceSuggestions,
@@ -9728,9 +9732,11 @@ export class StyleManager {
     // free-text destination has been superseded. Clearing only on a real id
     // leaves the search path's own _setActiveLocation(null) untouched.
     if (locationId) this._searchedLocationLabel = null;
-    this._locationPills.querySelectorAll('.location-pill').forEach(pill => {
-      pill.classList.toggle('active', pill.dataset.locationId === locationId);
-    });
+    if (this._locationPills) {
+      this._locationPills.querySelectorAll('.location-pill').forEach(pill => {
+        pill.classList.toggle('active', pill.dataset.locationId === locationId);
+      });
+    }
     this._updateLocationMiniStatus();
   }
 
@@ -10270,7 +10276,7 @@ export class StyleManager {
     if (!this._cctvPanel) return;
     const inner = this._cctvPanel.querySelector('.cctv-panel-inner');
     requestAnimationFrame(() => {
-      if (this._cctvPanel.parentElement?.id === 'right-context-rail') {
+      if (this._cctvPanel.parentElement?.id === 'display-cctv-dock' || this._cctvPanel.parentElement?.id === 'right-context-rail') {
         this._cctvPanel.style.maxHeight = '';
         if (inner) inner.style.maxHeight = '';
         this._scheduleRightPanelLayout();

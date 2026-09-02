@@ -687,10 +687,10 @@ export function resolveChromiumPath(env = process.env, exists = isExecutableFile
  */
 export function resolveFfmpegPath(env = process.env, exists = isExecutableFile) {
   const explicit = String(env.FFMPEG_PATH || '').trim();
-  if (explicit && (explicit.includes('/') || explicit.startsWith('.'))) {
-    return exists(explicit) ? explicit : null;
+  if (explicit && (explicit.includes('/') || explicit.startsWith('.')) && exists(explicit)) {
+    return explicit;
   }
-  const name = explicit || 'ffmpeg';
+  const name = (explicit && !explicit.includes('/') && explicit) || 'ffmpeg';
   const dirs = String(env.PATH || '').split(':').filter(Boolean);
   for (const dir of dirs) {
     const candidate = `${dir}/${name}`;

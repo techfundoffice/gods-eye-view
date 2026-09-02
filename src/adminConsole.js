@@ -58,6 +58,11 @@ export const ADMIN_MENU_ITEMS = Object.freeze([
     label: 'Go Live',
     description: 'Capture the globe with headless Chromium and push it to YouTube over RTMP.',
   },
+  {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    description: 'API key and model for YouTube comment actions.',
+  },
 ]);
 
 /** Viewport width at which the left rail becomes a compact drawer. */
@@ -378,6 +383,7 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     ingestLiveKey: (options) => request('/live/ingest-key', { method: 'POST', body: options }),
     stopLive: () => request('/live/stop', { method: 'POST' }),
     openrouterStatus: () => request('/openrouter'),
+    saveOpenrouter: (body) => request('/openrouter', { method: 'POST', body }),
     saveOpenrouterKey: (apiKey) => request('/openrouter', { method: 'POST', body: { apiKey } }),
     testOpenrouter: () => request('/openrouter/test', { method: 'POST' }),
     youtubeStatus: () => youtubeRequest('/status'),
@@ -454,6 +460,8 @@ export class AdminConsoleController {
       freshToken: '',
       live: { status: 'idle', log: [], framesSent: 0, target: '', error: null, phases: null },
       youtubeAuth: { configured: false, authenticated: false, canWrite: false, account: null },
+      openrouter: { present: false, source: 'missing', model: 'google/gemini-3.8-flash' },
+      openrouterLoaded: false,
       liveWatchUrl: '',
       liveBroadcasts: [],
       menuPlugins: [],
@@ -541,6 +549,11 @@ export class AdminConsoleController {
     this._el('admin-youtube-signout')?.addEventListener('click', () => void this._signOutYoutube());
 
     this._el('admin-mcp-toggle')?.addEventListener('click', () => void this._toggleMcp());
+    this._el('admin-openrouter-form')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void this._saveOpenrouter();
+    });
+    this._el('admin-openrouter-test')?.addEventListener('click', () => void this._testOpenrouter());
     this._el('admin-mcp-key-form')?.addEventListener('submit', (event) => {
       event.preventDefault();
       void this._createKey();
@@ -787,6 +800,7 @@ export class AdminConsoleController {
     this._render();
     if (view === 'mcp-server') void this._loadMcp();
     if (view === 'live-stream') void this._loadLive();
+    if (view === 'openrouter') void this._loadOpenrouter();
     else this._stopLivePolling();
     const plugin = this.state.menuPlugins.find((entry) => entry.id === view);
     if (plugin) this._mountPluginView(plugin);
@@ -1032,6 +1046,67 @@ export class AdminConsoleController {
       this.state.message = error.message;
     }
     this._render();
+  }
+
+  async _loadOpenrouter() {
+    try {
+      this.state.openrouter = await this.client.openrouterStatus();
+      this.state.openrouterLoaded = true;
+    } catch (error) {
+      this.state.message = error.message;
+    }
+    this._render();
+  }
+
+  async _saveOpenrouter() {
+    const model = String(this._el('admin-openrouter-model')?.value || '').trim();
+    const apiKey = String(this._el('admin-openrouter-key')?.value || '').trim();
+    const body = {};
+    if (model) body.model = model;
+    if (apiKey) body.apiKey = apiKey;
+    if (!body.model && !body.apiKey) {
+      this.state.message = 'Enter a model or an API key.';
+      this._render();
+      return;
+    }
+    try {
+      this.state.openrouter = await this.client.saveOpenrouter(body);
+      this.state.openrouterLoaded = true;
+      this.state.message = `Saved OpenRouter model ${this.state.openrouter.model}.`;
+      const keyField = this._el('admin-openrouter-key');
+      if (keyField) keyField.value = '';
+    } catch (error) {
+      this.state.message = error.message;
+    }
+    this._render();
+  }
+
+  async _testOpenrouter() {
+    try {
+      const result = await this.client.testOpenrouter();
+      this.state.message = result?.ok
+        ? `OpenRouter ok · ${result.model || this.state.openrouter.model}`
+        : (result?.error || 'OpenRouter test failed');
+    } catch (error) {
+      this.state.message = error.message;
+    }
+    this._render();
+  }
+
+  _renderOpenrouter() {
+    const model = this._el('admin-openrouter-model');
+    if (model && this.state.openrouterLoaded && document.activeElement !== model) {
+      model.value = this.state.openrouter.model || '';
+    }
+    const status = this._el('admin-openrouter-status');
+    if (status) {
+      if (!this.state.openrouterLoaded) status.textContent = 'OpenRouter settings have not loaded yet.';
+      else {
+        const src = this.state.openrouter.source || 'missing';
+        const present = this.state.openrouter.present ? 'key present' : 'no key';
+        status.textContent = `${this.state.openrouter.model || 'unset'} · ${present} · ${src}`;
+      }
+    }
   }
 
   /**
@@ -1553,6 +1628,7 @@ export class AdminConsoleController {
     this._renderPluginList();
     this._renderTranscript();
     this._renderMcp();
+    this._renderOpenrouter();
     this._renderLive();
   }
 

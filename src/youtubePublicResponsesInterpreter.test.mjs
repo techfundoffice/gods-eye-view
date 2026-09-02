@@ -6,7 +6,7 @@ import {
   parsePublicChatCompletionsOutput,
   parsePublicResponsesOutput,
 } from './youtubePublicResponsesInterpreter.js';
-import { OPENROUTER_CHAT_URL, OPENROUTER_FREE_MODEL } from './openrouterFreeClient.js';
+import { OPENROUTER_CHAT_URL, OPENROUTER_DEFAULT_MODEL } from './openrouterFreeClient.js';
 
 const chat = (payload, ok = true, status = 200) => ({
   ok, status, json: async () => payload,
@@ -92,7 +92,7 @@ test('request posts to OpenRouter free with OpenAI-style tools and bounded publi
     viewContext: { label: 'safe' },
   });
   assert.equal(url, OPENROUTER_CHAT_URL);
-  assert.equal(request.model, OPENROUTER_FREE_MODEL);
+  assert.equal(request.model, OPENROUTER_DEFAULT_MODEL);
   assert.deepEqual(request.tools.map((tool) => tool.function.name), ['zoom_to_globe']);
   assert.equal(request.messages[0].role, 'system');
   const user = JSON.parse(request.messages[1].content);
@@ -128,7 +128,7 @@ test('budget exhaustion fails before provider access', async () => {
     apiKey: 'secret', now: () => 25_000,
     fetchImpl: async () => { called = true; },
   });
-  await assert.rejects(interpret({ mode: 'analyze', remainingTurns: 1, startedAt: 0 }), /budget/i);
+  await assert.rejects(interpret({ mode: 'analyze', remainingTurns: 0, startedAt: 0 }), /budget/i);
   assert.equal(called, false);
 });
 

@@ -6,10 +6,90 @@ export const MEMORY_POLL_HIDDEN_MS = 5_000;
 export const MEMORY_POLL_IDLE_MS = 8_000;
 export const MIN_POLL_MS = MEMORY_POLL_LIVE_MS;
 export const MAX_POLL_MS = 30_000;
-const GLOBAL_ACTION_COOLDOWN_MS = 4_000;
-const VIEWER_ACTION_COOLDOWN_MS = 8_000;
+const GLOBAL_ACTION_COOLDOWN_MS = 45_000;
+const VIEWER_ACTION_COOLDOWN_MS = 90_000;
 const MAX_SEEN = 500;
 const MAX_PENDING_ACTIONS = 20;
+
+const MAX_PANEL_COMMENTS = 100;
+/** Visible rows that fit a 720p public frame without clipping mid-comment. */
+export const MAX_VISIBLE_COMMENTS = 14;
+export const MAX_VISIBLE_ACTIONS = 14;
+
+/** Chat-able next beats the GEV agent can pitch after a succeeded action. */
+const YT_NEXT_BEATS = [
+  { id: 'radio', want: 'turn on the radio', chat: 'enable radio' },
+  { id: 'radio-news', want: 'tune a local news station', chat: 'play news radio' },
+  { id: 'radio-music', want: 'play music radio', chat: 'play music radio' },
+  { id: 'nvg', want: 'switch to night vision', chat: 'NVG' },
+  { id: 'flir', want: 'switch to thermal FLIR', chat: 'FLIR' },
+  { id: 'crt', want: 'switch to CRT', chat: 'CRT' },
+  { id: 'noir', want: 'switch to noir', chat: 'noir' },
+  { id: 'anime', want: 'switch to anime', chat: 'anime' },
+  { id: 'snow', want: 'switch to snow', chat: 'snow' },
+  { id: 'cctv', want: 'turn on nearby CCTV', chat: 'enable CCTV' },
+  { id: 'detect', want: 'turn on detection overlay', chat: 'enable detection' },
+  { id: 'flights', want: 'show live flights', chat: 'show flights' },
+  { id: 'military', want: 'show military flights', chat: 'show military flights' },
+  { id: 'ships', want: 'show live ships', chat: 'show ships' },
+  { id: 'earthquakes', want: 'show earthquakes', chat: 'show earthquakes' },
+  { id: 'satellites', want: 'show satellites', chat: 'show satellites' },
+  { id: 'iss', want: 'show the next ISS pass', chat: 'next ISS pass' },
+  { id: 'cockpit', want: 'enter cockpit view', chat: 'enter cockpit' },
+  { id: 'zoom-in', want: 'zoom in closer', chat: 'zoom in' },
+  { id: 'zoom-globe', want: 'zoom out to the whole globe', chat: 'zoom to globe' },
+  { id: 'orbit', want: 'orbit the camera', chat: 'orbit left' },
+  { id: 'contacts', want: 'open live contacts', chat: 'show contacts' },
+  { id: 'missions', want: 'open space missions', chat: 'show space missions' },
+  { id: 'aircraft', want: 'select the nearest aircraft', chat: 'select nearest aircraft' },
+  { id: 'photoreal', want: 'switch to Google 3D', chat: 'Google 3D' },
+  { id: 'bloom', want: 'turn on bloom', chat: 'enable bloom' },
+];
+let ytNextBeatCursor = 0;
+let lastYoutubeCtaAt = 0;
+const YOUTUBE_CTA_GAP_MS = 75_000;
+
+function pickYoutubeNextBeat(comment) {
+  const blob = `${comment?.text || ''} ${comment?.replyText || ''} ${comment?.replyState || ''}`.toLowerCase();
+  const skip = new Set();
+  if (/\bradio\b/.test(blob)) {
+    skip.add('radio'); skip.add('radio-news'); skip.add('radio-music');
+  }
+  if (/\b(nvg|night vision|surveillance)\b/.test(blob)) skip.add('nvg');
+  if (/\b(flir|thermal)\b/.test(blob)) skip.add('flir');
+  if (/\bcctv\b/.test(blob)) skip.add('cctv');
+  if (/\bdetect/.test(blob)) skip.add('detect');
+  if (/\bflight/.test(blob)) skip.add('flights');
+  if (/\bcockpit\b/.test(blob)) skip.add('cockpit');
+  const pool = YT_NEXT_BEATS.filter((beat) => !skip.has(beat.id));
+  const list = pool.length ? pool : YT_NEXT_BEATS;
+  const beat = list[ytNextBeatCursor % list.length];
+  ytNextBeatCursor += 1;
+  return beat;
+}
+
+function appendAgentCta(replyRow, comment, documentRef) {
+  const state = String(comment?.replyState || '');
+  if (state !== 'succeeded' && state !== 'replied' && state !== 'validated') return;
+  const nowCta = Date.now();
+  if (nowCta - lastYoutubeCtaAt < YOUTUBE_CTA_GAP_MS) return;
+  lastYoutubeCtaAt = nowCta;
+  const beat = pickYoutubeNextBeat(comment);
+  const cta = documentRef.createElement('span');
+  cta.className = 'youtube-agent-cta';
+  const want = documentRef.createElement('span');
+  want.className = 'youtube-agent-cta-want';
+  want.textContent = `DO YOU WANT TO ${beat.want}?`;
+  const how = documentRef.createElement('span');
+  how.className = 'youtube-agent-cta-how';
+  how.textContent = 'If so, chat this on YouTube:';
+  const phrase = documentRef.createElement('span');
+  phrase.className = 'youtube-agent-cta-chat';
+  phrase.textContent = beat.chat;
+  cta.append(want, how, phrase);
+  replyRow.append(cta);
+}
+
 
 function clampPoll(value) {
   const number = Number(value);
@@ -70,9 +150,143 @@ export function createYoutubeHomepageInteraction({
   const seen = new Set();
   const pendingActions = [];
   const commandStates = new Map();
+  const liveComments = [];
+  let broadcastTitle = '';
   const badge = documentRef?.getElementById?.('gev-nextchat-live-badge') || null;
   const ticker = documentRef?.getElementById?.('live-news-ticker') || null;
   const tickerUrl = documentRef?.getElementById?.('live-news-ticker-url') || null;
+
+
+  function commentsPanelEls() {
+    const root = documentRef?.getElementById?.('youtube-comments-panel');
+    if (!root) return null;
+    return {
+      root,
+      list: root.querySelector('#youtube-comments-list'),
+      replies: root.querySelector('#youtube-agent-replies-list'),
+      status: root.querySelector('#youtube-comments-status'),
+      subject: root.querySelector('#youtube-comments-video'),
+      count: root.querySelector('#youtube-comments-count'),
+      refresh: root.querySelector('#youtube-comments-refresh'),
+      more: root.querySelector('#youtube-comments-more'),
+    };
+  }
+
+  function renderLiveCommentsPanel({ active = false, title = '', videoId: liveVideoId = '' } = {}) {
+    const els = commentsPanelEls();
+    if (!els) return;
+    if (!active) {
+      delete els.root.dataset.liveHomepage;
+      liveComments.length = 0;
+      if (els.subject) els.subject.textContent = 'NO VIDEO SELECTED';
+      if (els.status) els.status.textContent = 'CONNECT YOUTUBE TO LOAD COMMENTS';
+      if (els.count) els.count.textContent = '0';
+      if (els.refresh) els.refresh.disabled = true;
+      if (els.more) els.more.disabled = true;
+      for (const list of [els.list, els.replies]) {
+        if (!list) continue;
+        list.replaceChildren();
+        const empty = documentRef.createElement('li');
+        empty.className = 'youtube-feed-empty';
+        empty.textContent = 'CONNECT YOUTUBE TO LOAD COMMENTS';
+        list.append(empty);
+      }
+      return;
+    }
+    els.root.dataset.liveHomepage = '1';
+    const heading = safeText(title || liveVideoId || 'LIVE', 100);
+    if (els.subject) els.subject.textContent = `${heading} · LIVE`;
+    if (els.status) {
+      els.status.textContent = liveComments.length
+        ? `${liveComments.length} LIVE COMMENT${liveComments.length === 1 ? '' : 'S'}`
+        : 'YT LIVE · waiting for comments';
+    }
+    if (els.count) els.count.textContent = String(liveComments.length);
+    if (els.refresh) els.refresh.disabled = true;
+    if (els.more) els.more.disabled = true;
+    if (!els.list) return;
+    els.list.replaceChildren();
+    if (els.replies) els.replies.replaceChildren();
+    if (!liveComments.length) {
+      const empty = documentRef.createElement('li');
+      empty.className = 'youtube-feed-empty';
+      empty.textContent = 'YT LIVE · waiting for comments';
+      els.list.append(empty);
+      if (els.replies) {
+        const replyEmpty = empty.cloneNode(true);
+        els.replies.append(replyEmpty);
+      }
+      return;
+    }
+    const chronological = [...liveComments].sort((a, b) => {
+      const ta = Date.parse(a.publishedAt) || 0;
+      const tb = Date.parse(b.publishedAt) || 0;
+      return ta - tb;
+    });
+    const visibleComments = chronological.length <= MAX_VISIBLE_COMMENTS
+      ? chronological
+      : chronological.slice(-MAX_VISIBLE_COMMENTS);
+    const visibleActions = chronological.filter((item) => {
+      const state = String(item.replyState || 'display');
+      return Boolean(item.replyText) || state !== 'display';
+    });
+    const actionWindow = visibleActions.length <= MAX_VISIBLE_ACTIONS
+      ? visibleActions
+      : visibleActions.slice(-MAX_VISIBLE_ACTIONS);
+    const actionIds = new Set(actionWindow.map((item) => item.id));
+    for (const comment of visibleComments) {
+      const row = documentRef.createElement('li');
+      row.className = 'youtube-feed-item youtube-comment-thread';
+      const meta = documentRef.createElement('span');
+      meta.className = 'youtube-feed-meta';
+      meta.textContent = comment.publishedAt
+        ? `${comment.author} · ${comment.publishedAt}`
+        : comment.author;
+      const body = documentRef.createElement('span');
+      body.className = 'youtube-feed-text';
+      body.textContent = comment.text;
+      row.append(meta, body);
+      els.list.append(row);
+
+      if (!els.replies || !actionIds.has(comment.id)) continue;
+      const replyRow = documentRef.createElement('li');
+      replyRow.className = 'youtube-feed-item youtube-agent-reply';
+      const state = String(comment.replyState || 'display');
+      const label = documentRef.createElement('span');
+      label.className = `youtube-agent-state youtube-agent-state-${state}`;
+      const stateLabel = state === 'interpreting' || state === 'pending'
+        ? 'INTERPRETING'
+        : state === 'replied' ? 'REPLIED'
+        : state === 'failed' ? 'FAILED'
+        : state === 'rejected' ? 'REJECTED'
+        : state === 'display' ? ''
+        : state.toUpperCase();
+      label.textContent = stateLabel;
+      const replyBody = documentRef.createElement('span');
+      replyBody.className = 'youtube-feed-text youtube-agent-text';
+      replyBody.textContent = comment.replyText
+        || (state === 'interpreting' || state === 'pending' ? 'Interpreting request...' : '');
+      if (stateLabel) replyRow.append(label);
+      replyRow.append(replyBody);
+      appendAgentCta(replyRow, comment, documentRef);
+      els.replies.append(replyRow);
+    }
+  }
+
+  function notifyAgentReply(payload) {
+    nextchat?.updateAgentReply?.(payload);
+    const id = safeText(payload?.commentId, 160);
+    if (!id) return;
+    const row = liveComments.find((item) => item.id === id);
+    if (!row) return;
+    if (payload.replyState) row.replyState = String(payload.replyState);
+    if (payload.replyText != null && payload.replyText !== '') {
+      row.replyText = safeText(payload.replyText, 240);
+    } else if (row.replyState === 'interpreting' || row.replyState === 'pending') {
+      row.replyText = row.replyText || 'Interpreting request...';
+    }
+    renderLiveCommentsPanel({ active: true, title: broadcastTitle, videoId });
+  }
 
   function setStatus(message, state = '') {
     nextchat?.setHarnessStatus?.(safeText(message, 200));
@@ -151,7 +365,7 @@ export function createYoutubeHomepageInteraction({
         });
         if (result?.ok === false) {
           setStatus(`YT LIVE · request rejected: ${safeText(result.error || result.reason || 'view unavailable', 100)}`, 'live');
-          nextchat?.updateAgentReply?.({
+          notifyAgentReply({
             commentId: safeText(message.id, 160),
             videoId: safeText(message.videoId, 80),
             generation,
@@ -162,7 +376,7 @@ export function createYoutubeHomepageInteraction({
         }
       } catch (error) {
         setStatus(`YT LIVE · view request failed: ${safeText(error?.message || 'unavailable', 100)}`, 'error');
-        nextchat?.updateAgentReply?.({
+        notifyAgentReply({
           commentId: safeText(message.id, 160),
           videoId: safeText(message.videoId, 80),
           generation,
@@ -176,7 +390,7 @@ export function createYoutubeHomepageInteraction({
       || actions.at?.(-1)?.action
       || 'view';
     setStatus(`YT LIVE · showing ${safeText(destination, 100)} for ${viewer}`, 'live');
-    nextchat?.updateAgentReply?.({
+    notifyAgentReply({
       commentId: safeText(message.id, 160),
       videoId: safeText(message.videoId, 80),
       generation,
@@ -216,6 +430,13 @@ export function createYoutubeHomepageInteraction({
         replyState: actions.length || agentRequested ? 'interpreting' : 'display',
         actionCount: actions.length,
       });
+      liveComments.unshift({
+        id: safeText(message.id, 160),
+        author: safeText(message.author, 80) || 'YouTube viewer',
+        text: safeText(message.text, 500),
+        publishedAt: safeText(message.publishedAt, 40),
+      });
+      while (liveComments.length > MAX_PANEL_COMMENTS) liveComments.pop();
       await applyMessageActions(message);
     }
   }
@@ -242,8 +463,15 @@ export function createYoutubeHomepageInteraction({
             authorHandle: safeText(command.authorHandle, 80),
             actionState: 'succeeded',
           });
+          notifyAgentReply({
+            commentId,
+            videoId: commandVideoId,
+            generation: commandGeneration,
+            replyState: 'replied',
+            replyText: answer,
+          });
         } else {
-          nextchat?.updateAgentReply?.({
+          notifyAgentReply({
             commentId,
             videoId: commandVideoId,
             generation: commandGeneration,
@@ -255,7 +483,7 @@ export function createYoutubeHomepageInteraction({
         continue;
       }
       const detail = safeText(command.answer || command.reason, 180);
-      nextchat?.updateAgentReply?.({
+      notifyAgentReply({
         commentId,
         videoId: commandVideoId,
         generation: commandGeneration,
@@ -384,6 +612,8 @@ export function createYoutubeHomepageInteraction({
           setTickerUrl(payload.watchUrl, true);
           setStatus('YT LIVE · connecting to YouTube chat', 'live');
         } else {
+          broadcastTitle = '';
+          renderLiveCommentsPanel({ active: false });
           setTickerUrl('', false);
           const state = ['ended', 'unavailable', 'unauthenticated', 'error'].includes(feedStatus)
             ? 'error'
@@ -408,15 +638,22 @@ export function createYoutubeHomepageInteraction({
           viewerLastActionAt.clear();
           lastActionAt = 0;
           commandStates.clear();
+          liveComments.length = 0;
         }
         videoId = nextVideoId;
         generation = nextGeneration;
+        broadcastTitle = safeText(payload.title, 100);
         nextchat?.setLiveBroadcast?.({ videoId, generation });
         commandsEnabled = payload.commandsEnabled === true;
         continuation = safeText(payload.nextPageToken, 4096) || continuation;
         setTickerUrl(payload.watchUrl, true);
         setStatus(`YT LIVE · showing every comment from ${safeText(payload.title || videoId, 100)}`, 'live');
         await ingest(payload.items || []);
+        renderLiveCommentsPanel({
+          active: true,
+          title: broadcastTitle,
+          videoId,
+        });
         publishCommandStatuses(payload.commands || []);
         await drainViewerAgent();
         await drainCaptureExecutor();

@@ -240,6 +240,17 @@ export function createLiveCommentIngestWorker({
   }
 
   return {
+    inject(raw) {
+      const item = raw && typeof raw === "object" ? raw : null;
+      if (!item) return snapshot();
+      if (!videoId) {
+        videoId = String(item.videoId || "").trim();
+        status = videoId ? "live" : status;
+      }
+      pushItems([item]);
+      updatedAt = now();
+      return snapshot();
+    },
     start() {
       if (!stopped && timer != null) return;
       stopped = false;

@@ -34,14 +34,14 @@ function pinButtonMarkup(html, panelId) {
 
 test('first-run pin policy pins only when nothing is stored', () => {
   assert.deepEqual([...COMMAND_DOCK_PINNABLE_PANEL_IDS], ['control-panel', 'location-bar']);
-  assert.deepEqual([...ALWAYS_VISIBLE_DOCK_PANEL_IDS], ['control-panel']);
+  assert.deepEqual([...ALWAYS_VISIBLE_DOCK_PANEL_IDS], ['control-panel', 'location-bar', 'pp-toggles', 'cctv-panel']);
   assert.equal(resolveCommandDockPin(null, null), true, 'empty store is PINNED');
   assert.equal(resolveCommandDockPin('1', '1'), true, 'stored pin wins over collapse');
   assert.equal(resolveCommandDockPin('0', '0'), false, 'stored unpin wins over expand');
   assert.equal(resolveCommandDockPin(null, '1'), false, 'stored collapse is not re-forced open');
   assert.equal(resolveCommandDockPin(null, '0'), false, 'stored expand without a pin is not force-pinned');
   assert.equal(resolveCommandDockPin('0', '1', 'control-panel'), true, 'Visual Presets stay open over stored hide');
-  assert.equal(resolveCommandDockPin('0', '0', 'location-bar'), false, 'LOCATION still honours stored unpin');
+  assert.equal(resolveCommandDockPin('0', '0', 'location-bar'), true, 'LOCATION stays expanded');
 });
 
 test('markup ships LOCATION and VISUAL PRESETS PINNED and expanded', () => {

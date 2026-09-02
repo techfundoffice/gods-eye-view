@@ -61,7 +61,7 @@ test('public status never includes the raw key', () => {
   const status = store.publicStatus('');
   assert.equal(status.present, true);
   assert.equal(status.source, 'admin');
-  assert.equal(status.model, 'openrouter/free');
+  assert.equal(status.model, 'google/gemini-3.8-flash');
   assert.equal(JSON.stringify(status).includes('sk-or-'), false);
 });
 
@@ -73,4 +73,20 @@ test('writes are owner-only and atomic', () => {
   assert.deepEqual(kinds, ['mkdir', 'write', 'rename']);
   assert.equal(fsImpl.calls[1][2].mode, 0o600);
   assert.equal(JSON.parse(fsImpl.files['/secret.json']).apiKey.startsWith('sk-or-'), true);
+});
+
+test('setModel persists and publicStatus returns it', () => {
+  const fsImpl = memoryFs();
+  const store = createOpenRouterAdminSecret({ file: '/secret.json', fsImpl });
+  store.setKey('sk-or-v1-abcdefghijklmnopqrstuvwxyz012345');
+  store.setModel('google/gemini-3-pro-preview');
+  const status = store.publicStatus('');
+  assert.equal(status.model, 'google/gemini-3-pro-preview');
+  assert.equal(JSON.parse(fsImpl.files['/secret.json']).model, 'google/gemini-3-pro-preview');
+});
+
+test('setModel rejects auto router slugs', () => {
+  const fsImpl = memoryFs();
+  const store = createOpenRouterAdminSecret({ file: '/secret.json', fsImpl });
+  assert.throws(() => store.setModel('openrouter/auto'));
 });

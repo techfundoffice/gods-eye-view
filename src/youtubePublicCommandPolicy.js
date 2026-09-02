@@ -7,10 +7,10 @@ export const PUBLIC_COMMAND_LIMITS = Object.freeze({
   commentText: 500,
   viewerName: 80,
   id: 160,
-  modelTurnMs: 12_000,
-  totalMs: 20_000,
-  modelTurns: 3,
-  toolCalls: 3,
+  modelTurnMs: 90_000,
+  totalMs: 86_400_000,
+  modelTurns: 8,
+  toolCalls: 4,
 });
 
 const string = (extra = {}) => ({ type: 'string', ...extra });

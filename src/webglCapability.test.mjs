@@ -406,6 +406,7 @@ test('the real Cesium context is validated before its render loop starts', () =>
 
   assert.ok(viewerIndex >= 0, 'viewer construction must still exist');
   assert.ok(pausedIndex > viewerIndex, 'viewer must be constructed with its render loop paused');
+  assert.match(main, /showRenderLoopErrors:\s*false/, 'Cesium must not paint the Rendering has stopped overlay');
   assert.ok(validationIndex > pausedIndex, 'the real context must be validated after construction');
   assert.ok(renderErrorIndex > validationIndex, 'the render-error backstop must follow validation');
   assert.ok(resumedIndex > renderErrorIndex, 'rendering may resume only after validation and the backstop');

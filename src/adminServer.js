@@ -658,10 +658,22 @@ export function createAdminMiddleware({
         if (segments.length === 1 && req.method === 'POST') {
           const body = await readJsonBody(req);
           try {
-            openrouterSecret.setKey(body.apiKey);
+            if (Object.prototype.hasOwnProperty.call(body || {}, 'apiKey')) {
+              openrouterSecret.setKey(body.apiKey);
+            }
+            if (Object.prototype.hasOwnProperty.call(body || {}, 'model')) {
+              openrouterSecret.setModel(body.model);
+            }
+            if (!Object.prototype.hasOwnProperty.call(body || {}, 'apiKey')
+              && !Object.prototype.hasOwnProperty.call(body || {}, 'model')) {
+              const error = new Error('Provide an apiKey or model');
+              error.status = 400;
+              error.kind = 'invalid';
+              throw error;
+            }
           } catch (error) {
             sendJson(res, error.status || 400, {
-              error: { kind: error.kind || 'invalid', message: error.message || 'Invalid OpenRouter key' },
+              error: { kind: error.kind || 'invalid', message: error.message || 'Invalid OpenRouter settings' },
             });
             return;
           }

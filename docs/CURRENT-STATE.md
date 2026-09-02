@@ -2,6 +2,31 @@
 
 Updated: September 2, 2026
 
+> **2026-09-02 — globe executes chat; prompts slow down.** Stale `FFMPEG_PATH` made preflight report ffmpeg=false and killed capture. Resolver now falls back to PATH. Navigate prose completions are forced into `fly_to_location` so the capture/viewer executor actually moves Earth. Follow-up CTAs wait 75s; camera cooldowns are 45s global / 90s per viewer. Agent copy must not ask the next question after a fly.
+
+
+> **2026-09-02 — comment + GEV action history fills the page.** The stamp
+> stack no longer subtracts hidden CONTEXT/CCTV docks from its height.
+> The homepage paints up to 14 live comments and 14 GEV replies, oldest
+> first, taking a newest window only when history exceeds that. Comment
+> bodies are not line-clamped.
+
+
+> **2026-09-02 — live chat / GEV reply ink is ice, not black.** Comment
+> bodies are `#f7fdff`. GEV agent replies are `#b8f7ff`. The 4-side black
+> text-shadow on `#youtube-comments-panel *` is removed from those nodes so
+> YouTube compression does not turn the thread into a black smear.
+
+
+> **2026-09-02 — YouTube public frame is top-down.** Title + quote
+> (`GODS EYE VIEW` / `NO PLACE LEFT BEHIND`) live in `--youtube-north-band`
+> (7.25rem). `#cesiumContainer` and `#mission-control-nav` start under that
+> header and stop at a compact south strip (ticker + COMMANDS + command dock).
+> CONTEXT and DISPLAY/CCTV docks are removed from the public 720p frame so
+> viewers see the top of the page before the bottom chrome. Do not restore
+> bottom-up `--youtube-south-band` stacking that ate ~31rem on 720p.
+
+
 > **2026-09-02 — live-news ticker is two additive messages.** The south-pole
 > marquee still scrolls `Comment on YouTube chat to choose your view. Live at
 > [URL] Now!` and also scrolls `Download our Google Chrome extension named

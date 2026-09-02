@@ -2232,7 +2232,7 @@ async function flyToRequestedLocation(viewer, args, {
   const rangeM = Number.isFinite(requestedRangeM)
     ? clampNumber(requestedRangeM, 100, 20000000, 900)
     : null;
-  const locationId = normalizeLocationId(args.locationId || args.query);
+  const locationId = normalizeLocationId(args.locationId);
   const immediate = (navigate) => (
     typeof runImmediate === 'function' ? runImmediate(navigate) : navigate()
   );

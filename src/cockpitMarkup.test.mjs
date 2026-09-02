@@ -284,7 +284,7 @@ test('Cockpit owns a focused shared Display portal and compact Radio controls', 
 });
 
 test('Display orders 3D above Celestial, Clean UI below it, and Parameters below Detection', () => {
-  const display = html.match(/id="pp-toggles"[\s\S]*?id="clean-view-exit"/);
+  const display = html.match(/id="pp-toggles"[\s\S]*?id="sharpen-intensity-value"/);
   assert.ok(display, 'Display markup is missing');
   assert.match(
     display[0],

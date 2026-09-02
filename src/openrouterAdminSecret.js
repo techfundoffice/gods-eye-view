@@ -7,7 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const OPENROUTER_SECRET_FILE = '.gev-cache/openrouter-secret.json';
-export const OPENROUTER_ADMIN_MODEL = 'openrouter/free';
+export const OPENROUTER_ADMIN_MODEL = 'google/gemini-3.8-flash';
+export const OPENROUTER_DEFAULT_MODEL = OPENROUTER_ADMIN_MODEL;
+
 
 const DUMMY_KEYS = new Set(['', '_DUMMY_API_KEY_', 'undefined', 'null']);
 
@@ -15,6 +17,19 @@ const DUMMY_KEYS = new Set(['', '_DUMMY_API_KEY_', 'undefined', 'null']);
  * @param {unknown} value
  * @returns {boolean}
  */
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function normalizeOpenRouterModel(value) {
+  const model = String(value ?? '').trim();
+  if (!model || model.length > 120) return '';
+  if (model === 'openrouter/auto' || model.includes('auto:free')) return '';
+  if (!/^[a-z0-9._-]+\/[a-z0-9._:+-]+$/i.test(model)) return '';
+  return model;
+}
+
 export function isUsableOpenRouterKey(value) {
   const key = String(value ?? '').trim();
   if (!key || DUMMY_KEYS.has(key) || key.startsWith('_DUMMY')) return false;
@@ -29,7 +44,7 @@ export function normalizeOpenRouterSecret(raw) {
   const apiKey = typeof raw?.apiKey === 'string' ? raw.apiKey.trim() : '';
   return {
     apiKey: isUsableOpenRouterKey(apiKey) ? apiKey : '',
-    model: OPENROUTER_ADMIN_MODEL,
+    model: normalizeOpenRouterModel(raw?.model) || OPENROUTER_DEFAULT_MODEL,
     updatedAt: typeof raw?.updatedAt === 'string' ? raw.updatedAt : '',
   };
 }
@@ -60,7 +75,7 @@ export function createOpenRouterAdminSecret({
     cache = normalizeOpenRouterSecret(next);
     const serialized = `${JSON.stringify({
       apiKey: cache.apiKey,
-      model: OPENROUTER_ADMIN_MODEL,
+      model: cache.model || OPENROUTER_DEFAULT_MODEL,
       updatedAt: cache.updatedAt || new Date().toISOString(),
     }, null, 2)}\n`;
     try {
@@ -76,14 +91,25 @@ export function createOpenRouterAdminSecret({
 
   function setKey(apiKey) {
     const trimmed = String(apiKey ?? '').trim();
-    if (!trimmed) return write({ apiKey: '', updatedAt: new Date().toISOString() });
+    if (!trimmed) return write({ apiKey: '', model: read().model, updatedAt: new Date().toISOString() });
     if (!isUsableOpenRouterKey(trimmed)) {
       const error = new Error('OpenRouter API key is not usable');
       error.status = 400;
       error.kind = 'invalid';
       throw error;
     }
-    return write({ apiKey: trimmed, updatedAt: new Date().toISOString() });
+    return write({ apiKey: trimmed, model: read().model, updatedAt: new Date().toISOString() });
+  }
+
+  function setModel(model) {
+    const normalized = normalizeOpenRouterModel(model);
+    if (!normalized) {
+      const error = new Error('OpenRouter model is not usable');
+      error.status = 400;
+      error.kind = 'invalid';
+      throw error;
+    }
+    return write({ apiKey: read().apiKey, model: normalized, updatedAt: new Date().toISOString() });
   }
 
   function publicStatus(envKey = process.env.OPENROUTER_API_KEY) {
@@ -93,11 +119,11 @@ export function createOpenRouterAdminSecret({
     return {
       present: adminPresent || envPresent,
       source: adminPresent ? 'admin' : envPresent ? 'env' : 'missing',
-      model: OPENROUTER_ADMIN_MODEL,
+      model: read().model || OPENROUTER_DEFAULT_MODEL,
     };
   }
 
-  return { file: resolved, read, write, setKey, publicStatus };
+  return { file: resolved, read, write, setKey, setModel, publicStatus };
 }
 
 const defaultSecret = createOpenRouterAdminSecret();
@@ -129,4 +155,28 @@ export function resolveOpenRouterApiKey({
   if (isUsableOpenRouterKey(adminKey)) return String(adminKey).trim();
   if (isUsableOpenRouterKey(envKey)) return String(envKey).trim();
   return '';
+}
+
+export function setOpenRouterAdminModel(model) {
+  return defaultSecret.setModel(model);
+}
+
+/**
+ * ADMIN-stored model first, then OPENROUTER_MODEL, then Gemini 3.8 Flash.
+ * `openrouter/auto` is never returned.
+ *
+ * @param {object} [options]
+ * @param {string} [options.adminModel]
+ * @param {string} [options.envModel]
+ * @returns {string}
+ */
+export function resolveOpenRouterModel({
+  adminModel = defaultSecret.read().model,
+  envModel = process.env.OPENROUTER_MODEL,
+} = {}) {
+  const admin = normalizeOpenRouterModel(adminModel);
+  if (admin) return admin;
+  const env = normalizeOpenRouterModel(envModel);
+  if (env) return env;
+  return OPENROUTER_DEFAULT_MODEL;
 }
