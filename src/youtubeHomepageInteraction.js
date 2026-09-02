@@ -140,10 +140,24 @@ export function createYoutubeHomepageInteraction({
         });
         if (result?.ok === false) {
           setStatus(`YT LIVE · request rejected: ${safeText(result.error || result.reason || 'view unavailable', 100)}`, 'live');
+          nextchat?.updateAgentReply?.({
+            commentId: safeText(message.id, 160),
+            videoId: safeText(message.videoId, 80),
+            generation,
+            replyState: 'failed',
+            replyText: safeText(result.error || result.reason || 'view unavailable', 180),
+          });
           return;
         }
       } catch (error) {
         setStatus(`YT LIVE · view request failed: ${safeText(error?.message || 'unavailable', 100)}`, 'error');
+        nextchat?.updateAgentReply?.({
+          commentId: safeText(message.id, 160),
+          videoId: safeText(message.videoId, 80),
+          generation,
+          replyState: 'failed',
+          replyText: safeText(error?.message || 'unavailable', 180),
+        });
         return;
       }
     }
@@ -151,6 +165,13 @@ export function createYoutubeHomepageInteraction({
       || actions.at?.(-1)?.action
       || 'view';
     setStatus(`YT LIVE · showing ${safeText(destination, 100)} for ${viewer}`, 'live');
+    nextchat?.updateAgentReply?.({
+      commentId: safeText(message.id, 160),
+      videoId: safeText(message.videoId, 80),
+      generation,
+      replyState: 'replied',
+      replyText: `showing ${safeText(destination, 100)}`,
+    });
   }
 
   async function ingest(items) {
@@ -161,15 +182,27 @@ export function createYoutubeHomepageInteraction({
       const actions = Array.isArray(message.actions) ? message.actions : [];
       nextchat?.publishViewerMessage?.({
         author: safeText(message.author, 80) || 'YouTube viewer',
+        authorHandle: safeText(message.authorHandle, 80),
         text: safeText(message.text, 500),
         metadata: {
           source: 'youtube',
           commentId: safeText(message.id, 160),
           videoId: safeText(message.videoId, 80),
+          generation,
           receivedAt: safeText(message.publishedAt, 40),
-          actionState: actions.length ? 'validated' : 'chat',
+          actionState: actions.length ? 'interpreting' : 'chat',
           actionCount: actions.length,
         },
+      });
+      nextchat?.upsertLiveComment?.({
+        commentId: safeText(message.id, 160),
+        videoId: safeText(message.videoId, 80),
+        generation,
+        author: safeText(message.author, 80) || 'YouTube viewer',
+        authorHandle: safeText(message.authorHandle, 80),
+        text: safeText(message.text, 500),
+        replyState: actions.length ? 'interpreting' : 'display',
+        actionCount: actions.length,
       });
       await applyMessageActions(message);
     }
@@ -183,36 +216,41 @@ export function createYoutubeHomepageInteraction({
       commandStates.set(id, state);
       while (commandStates.size > 100) commandStates.delete(commandStates.keys().next().value);
       const slash = safeText(command.command, 32);
+      const commentId = safeText(command.commentId, 160);
+      const commandVideoId = safeText(command.videoId, 80);
+      const commandGeneration = Math.max(0, Number(command.generation) || generation);
       if (slash === '/help' && state === 'succeeded') {
         const answer = safeText(command.answer, 1000) || PUBLIC_HELP_REPLY;
         if (typeof nextchat?.typeActionReply === 'function') {
-          nextchat.typeActionReply(answer);
+          nextchat.typeActionReply(answer, {
+            commentId,
+            videoId: commandVideoId,
+            generation: commandGeneration,
+            author: safeText(command.viewer, 80),
+            authorHandle: safeText(command.authorHandle, 80),
+            actionState: 'succeeded',
+          });
         } else {
-          nextchat?.publishViewerMessage?.({
-            author: 'GEV',
-            text: answer,
-            metadata: {
-              source: 'youtube-command',
-              commentId: safeText(command.commentId, 160),
-              videoId: safeText(command.videoId, 80),
-              receivedAt: new Date(Number(command.updatedAt) || now()).toISOString(),
-              actionState: 'succeeded',
-            },
+          nextchat?.updateAgentReply?.({
+            commentId,
+            videoId: commandVideoId,
+            generation: commandGeneration,
+            replyState: 'replied',
+            replyText: answer,
+            actionState: 'succeeded',
           });
         }
         continue;
       }
       const detail = safeText(command.answer || command.reason, 180);
-      nextchat?.publishViewerMessage?.({
-        author: safeText(command.viewer, 80) || 'GEV agent',
-        text: `${slash || 'command'} · ${state}${detail ? ` · ${detail}` : ''}`,
-        metadata: {
-          source: 'youtube-command',
-          commentId: safeText(command.commentId, 160),
-          videoId: safeText(command.videoId, 80),
-          receivedAt: new Date(Number(command.updatedAt) || now()).toISOString(),
-          actionState: state,
-        },
+      nextchat?.updateAgentReply?.({
+        commentId,
+        videoId: commandVideoId,
+        generation: commandGeneration,
+        replyState: state,
+        actionState: state,
+        replyText: `${slash || 'command'} · ${state}${detail ? ` · ${detail}` : ''}`,
+        address: state === 'succeeded' || state === 'validated',
       });
     }
   }
@@ -279,6 +317,7 @@ export function createYoutubeHomepageInteraction({
         commandsEnabled = false;
         seen.clear();
         commandStates.clear();
+        nextchat?.setLiveBroadcast?.({ videoId: '', generation: 0 });
         const feedStatus = safeText(payload.status, 40);
         const errorText = safeText(payload.error?.message, 160);
         if (feedStatus === 'connecting') {
@@ -312,6 +351,7 @@ export function createYoutubeHomepageInteraction({
         }
         videoId = nextVideoId;
         generation = nextGeneration;
+        nextchat?.setLiveBroadcast?.({ videoId, generation });
         commandsEnabled = payload.commandsEnabled === true;
         continuation = safeText(payload.nextPageToken, 4096) || continuation;
         setTickerUrl(payload.watchUrl, true);

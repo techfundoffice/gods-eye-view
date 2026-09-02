@@ -22,6 +22,7 @@ import {
   isLiveCommentMessage,
   loadNextchatState,
   orderLiveCommentMessages,
+  orderPairedRows,
   newChat,
   persistNextchatState,
   selectSession,
@@ -29,8 +30,12 @@ import {
   appendViewerMessage,
   publishNextChatMessage,
   renderCommandLegend,
+  sanitizeAuthorHandle,
   setHarnessStatus,
+  setLiveBroadcast,
   typeActionReply,
+  updateAgentReplyRow,
+  upsertLiveCommentRow,
 } from './nextchat.js';
 import { PUBLIC_COMMAND_REGISTRY, PUBLIC_HELP_REPLY } from '../youtubePublicCommandPolicy.js';
 
@@ -276,13 +281,15 @@ test('broadcast overlay bounds comments/actions and renders the injected registr
 test('broadcast presentation keeps reserved comment chrome and a legend above the ticker', () => {
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../../style.css', import.meta.url), 'utf8');
-  const actionIndex = html.indexOf('id="gev-nextchat-action-thread"');
-  const commentIndex = html.indexOf('id="gev-nextchat-live-thread"');
+  const commentIndex = html.indexOf('id="gev-nextchat-live-heading"');
+  const replyIndex = html.indexOf('id="gev-nextchat-action-heading"');
+  const pairsIndex = html.indexOf('id="gev-nextchat-pairs"');
   const legendIndex = html.indexOf('id="gev-command-legend"');
   const tickerIndex = html.indexOf('id="live-news-ticker"');
 
-  assert.ok(actionIndex > 0 && actionIndex < commentIndex, 'actions remain above comments');
-  assert.ok(legendIndex > commentIndex && legendIndex < tickerIndex, 'legend is immediately before ticker');
+  assert.ok(commentIndex > 0 && commentIndex < replyIndex, 'LIVE COMMENTS heading is left of GEV AGENT REPLIES');
+  assert.ok(pairsIndex > replyIndex, 'paired rows follow the sticky headings');
+  assert.ok(legendIndex > pairsIndex && legendIndex < tickerIndex, 'legend is immediately before ticker');
 
   const liveLaneStart = css.indexOf('.gev-nextchat-live-lane {');
   const liveLane = css.slice(liveLaneStart, css.indexOf('}', liveLaneStart) + 1);
@@ -348,11 +355,13 @@ test('homepage chrome keeps the globe, GEV MIC, and NextChat controls', () => {
   assert.doesNotMatch(html, /id="gev-nextchat-sessions"/);
   assert.match(html, /id="gev-nextchat-new"/);
   assert.match(html, /New chat/);
-  assert.match(html, /id="gev-nextchat-live-thread"/);
+  assert.match(html, /id="gev-nextchat-pairs"/);
   assert.match(html, /YOUTUBE LIVE COMMENTS · ALL/);
-  assert.match(html, /id="gev-nextchat-action-thread"/);
-  assert.match(html, /GEV ACTIONS · VIEW REQUESTS/);
-  assert.match(html, /Every viewer comment appears below/);
+  assert.match(html, /GEV AGENT REPLIES/);
+  assert.match(html, /OPERATE FROM LIVE COMMENTS/);
+  assert.match(css, /\.gev-nextchat-composer \{[\s\S]*?flex-shrink: 0/);
+  assert.match(css, /html, body \{[\s\S]*?overflow: hidden/);
+  assert.match(css, /\.gev-nextchat-pairs \{[\s\S]*?overflow: auto/);
   assert.match(html, /id="gev-nextchat-composer"/);
   assert.match(html, /<textarea[^>]*id="gev-nextchat-composer"/);
   assert.match(html, /id="gev-nextchat-send"/);
@@ -452,4 +461,51 @@ test('LIVE COMMENTS keeps /help viewer text and GEV ACTIONS keeps the typed repl
   assert.deepEqual(messages.filter(isLiveCommentMessage).map((message) => message.content), ['/help']);
   assert.deepEqual(messages.filter(isActionLaneMessage).map((message) => message.content), [PUBLIC_HELP_REPLY]);
   assert.equal(isLiveCommentMessage(messages[1]), false);
+});
+
+test('paired rows share one commentId and update the reply cell in place', () => {
+  let state = setLiveBroadcast(createNextchatState(), { videoId: 'vid', generation: 3 });
+  state = upsertLiveCommentRow(state, {
+    commentId: 'c1',
+    videoId: 'vid',
+    generation: 3,
+    author: 'marcusmanagementservices488',
+    text: '/help',
+    replyState: 'interpreting',
+  }, 1000);
+  assert.equal(state.pairedRows.length, 1);
+  assert.equal(state.pairedRows[0].commentText, '/help');
+  assert.equal(state.pairedRows[0].replyText, 'Interpreting request…');
+  state = updateAgentReplyRow(state, {
+    commentId: 'c1',
+    videoId: 'vid',
+    generation: 3,
+    replyState: 'replied',
+    replyText: PUBLIC_HELP_REPLY,
+  }, 2000);
+  assert.equal(state.pairedRows.length, 1);
+  assert.match(state.pairedRows[0].replyText, /^marcusmanagementservices488\n/);
+  assert.match(state.pairedRows[0].replyText, /\/live-contacts/);
+  state = updateAgentReplyRow(state, {
+    commentId: 'c1',
+    videoId: 'other',
+    generation: 3,
+    replyState: 'replied',
+    replyText: 'stale',
+  }, 3000);
+  assert.doesNotMatch(state.pairedRows[0].replyText, /stale/);
+  state = upsertLiveCommentRow(state, {
+    commentId: 'c2',
+    videoId: 'vid',
+    generation: 3,
+    author: 'Ordinary',
+    text: 'love the stream',
+  }, 4000);
+  assert.equal(state.pairedRows[0].commentText, 'love the stream');
+  assert.equal(state.pairedRows[0].replyState, 'display');
+  assert.equal(sanitizeAuthorHandle(''), '');
+  assert.equal(sanitizeAuthorHandle('Cool Name'), '');
+  assert.equal(sanitizeAuthorHandle('@verifiedHandle'), '@verifiedHandle');
+  const ordered = orderPairedRows(state.pairedRows);
+  assert.equal(ordered[0].commentId, 'c2');
 });

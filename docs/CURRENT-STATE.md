@@ -2,6 +2,8 @@
 
 Updated: September 1, 2026
 
+> **2026-09-01 — LIVE COMMENTS is how the globe is operated.** The broadcast overlay pairs each viewer comment (left) with the GEV agent reply (right) on one row. Composer, CHAT toggle, COMMANDS, and the ticker stay on screen; only that paired thread scrolls. Camera motion still comes from the validated action runner.
+
 > **2026-09-01 — `/help` is the first COMMANDS token.** YouTube chat `/help`
 > appears in LIVE COMMENTS. GEV ACTIONS typewrites
 > `I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually`.

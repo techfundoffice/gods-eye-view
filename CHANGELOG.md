@@ -11,6 +11,7 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ### Changed
 
+- Homepage LIVE COMMENTS is a paired two-column overlay: each YouTube comment on the left and the GEV agent reply on the right, keyed by commentId. The composer, CHAT toggle, and COMMANDS bar stay visible; only the paired thread scrolls.
 - Public YouTube globe commands and the HUD five-word summary use OpenRouter's
   Free Models Router (`openrouter/free`) instead of OpenAI. GEV MIC / Realtime
   is unchanged and still skipped. Free-pool rate limits reject extra public

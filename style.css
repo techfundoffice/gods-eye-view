@@ -11743,9 +11743,16 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 .gev-nextchat-header,
 .gev-nextchat-guidance,
 .gev-nextchat-composer {
-  /* Retain the homepage copy and controls in the DOM for rollback, while the
-     broadcast presentation keeps only the two live lanes visible. */
-  display: none;
+  display: flex;
+  pointer-events: auto;
+}
+
+.gev-nextchat-guidance {
+  display: grid;
+}
+
+.gev-nextchat-composer {
+  flex-shrink: 0;
 }
 
 #gev-nextchat-status {
@@ -11778,7 +11785,39 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 }
 
 .gev-nextchat-split {
-  gap: 0.65rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
+}
+
+.gev-nextchat-pairs-head,
+.gev-nextchat-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 0.44fr) minmax(0, 0.56fr);
+}
+
+.gev-nextchat-pairs-head {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.gev-nextchat-pairs {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.gev-nextchat-pair {
+  align-items: stretch;
+  min-height: 0;
+}
+
+.gev-nextchat-pair-cell {
+  min-width: 0;
+  padding: 0.38rem 0.58rem 0.46rem;
 }
 
 .gev-nextchat-lane + .gev-nextchat-lane {
@@ -11786,8 +11825,6 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 }
 
 .gev-nextchat-action-lane {
-  flex: 0 0 auto;
-  max-height: 9.5rem;
   overflow: hidden;
   border: 1px solid rgba(0, 212, 255, 0.24);
   border-radius: 0.55rem;
@@ -11854,18 +11891,9 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   scrollbar-width: none;
 }
 
-.gev-nextchat-action-lane .gev-nextchat-thread {
-  max-height: 7.5rem;
-  padding: 0.38rem 0.58rem 0.46rem;
-}
-
-.gev-nextchat-live-lane .gev-nextchat-thread {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: min(19rem, calc(100dvh - var(--broadcast-overlay-top) - var(--broadcast-bottom-safe) - 11rem));
-  padding: 0.38rem 0.58rem 0.46rem;
-  overflow: auto;
-  background: transparent;
+.gev-nextchat-action-lane .gev-nextchat-text {
+  -webkit-line-clamp: unset;
+  white-space: pre-wrap;
 }
 
 .gev-nextchat-msg {
@@ -11922,14 +11950,13 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 }
 
 .gev-nextchat-action-lane .gev-nextchat-text {
-  display: -webkit-box;
-  overflow: hidden;
+  display: block;
+  overflow: visible;
   color: #f3fbff;
   font-size: 0.75rem;
   line-height: 1.35;
   text-shadow: 0 1px 2px #000;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  white-space: pre-wrap;
 }
 
 .gev-nextchat-action-lane .gev-nextchat-msg::before {
@@ -12032,18 +12059,15 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
     max-height: calc(100dvh - var(--broadcast-overlay-top) - var(--broadcast-bottom-safe) - 0.5rem);
   }
 
+  .gev-nextchat-pairs-head,
+  .gev-nextchat-pair {
+    grid-template-columns: 1fr;
+  }
+
   .gev-nextchat-action-lane {
-    align-self: flex-end;
-    width: min(22rem, 100%);
-    max-height: 8rem;
-  }
-
-  .gev-nextchat-action-lane .gev-nextchat-thread {
-    max-height: 6rem;
-  }
-
-  .gev-nextchat-live-lane .gev-nextchat-thread {
-    max-height: min(16rem, calc(100dvh - var(--broadcast-overlay-top) - var(--broadcast-bottom-safe) - 9.5rem));
+    align-self: stretch;
+    width: 100%;
+    max-height: none;
   }
 }
 
@@ -12058,15 +12082,7 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   }
 
   .gev-nextchat-action-lane {
-    max-height: 6.4rem;
-  }
-
-  .gev-nextchat-action-lane .gev-nextchat-thread {
-    max-height: 4.4rem;
-  }
-
-  .gev-nextchat-live-lane .gev-nextchat-thread {
-    max-height: calc(100dvh - var(--broadcast-overlay-top) - var(--broadcast-bottom-safe) - 7.5rem);
+    max-height: none;
   }
 }
 

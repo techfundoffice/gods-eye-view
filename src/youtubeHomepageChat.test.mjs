@@ -390,7 +390,7 @@ test('homepage interaction displays every comment and runs validated actions wit
   assert.equal(displayed.length, 3);
   assert.equal(displayed[0].author, 'CruiseWatcher');
   assert.equal(displayed[0].text, 'I want to see the earthquake in Ensenada, Mexico.');
-  assert.equal(displayed[0].metadata.actionState, 'validated');
+  assert.equal(displayed[0].metadata.actionState, 'interpreting');
   assert.equal(displayed[2].metadata.actionState, 'chat');
   assert.deepEqual(calls.map((call) => call.action), ['set_layer_visibility', 'fly_to_location']);
   assert.ok(statuses.some((status) => /showing Ensenada, Mexico for CruiseWatcher/i.test(status)));

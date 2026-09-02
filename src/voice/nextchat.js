@@ -12,7 +12,9 @@ export const NEXTCHAT_MAX_MESSAGES = 100;
 export const VOICE_CHANNEL_WAIT_MS = 20000;
 export const NEXTCHAT_MAX_LIVE_COMMENTS = 7;
 export const NEXTCHAT_MAX_ACTIONS = 3;
+export const NEXTCHAT_MAX_PAIRED_ROWS = 12;
 export const NEXTCHAT_COMMENT_FULL_OPACITY_MS = 12000;
+export const INTERPRETING_REPLY_TEXT = 'Interpreting request…';
 /** HUD-matching typewriter for GEV ACTIONS replies. */
 export const ACTION_REPLY_TYPE_STEP = 2;
 export const ACTION_REPLY_TYPE_MS = 24;
@@ -55,6 +57,191 @@ export function orderLiveCommentMessages(messages, { limit = NEXTCHAT_MAX_LIVE_C
 /** GEV ACTIONS · VIEW REQUESTS lane. */
 export function isActionLaneMessage(message) {
   return PUBLIC_ACTION_STATES.has(String(message.metadata?.actionState || '').toLowerCase());
+}
+
+const PAIRED_REPLY_STATES = new Set([
+  'pending',
+  'interpreting',
+  'replied',
+  'rejected',
+  'failed',
+  'cancelled',
+  'display',
+]);
+
+export function pairedRowKey(commentId, videoId, generation) {
+  return `${String(commentId || '')}\0${String(videoId || '')}\0${String(Number(generation) || 0)}`;
+}
+
+export function sanitizeDisplayName(value) {
+  return String(value || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80);
+}
+
+/**
+ * Verified handle only. Empty unless the caller supplied a handle. Never
+ * invents `@` from a display name or channel id.
+ * @param {string} [value]
+ * @returns {string} `@handle` or ''
+ */
+export function sanitizeAuthorHandle(value) {
+  const raw = String(value || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+  if (!raw) return '';
+  const stripped = raw.replace(/^@+/, '').slice(0, 79);
+  if (!stripped || stripped.includes(' ')) return '';
+  return `@${stripped}`;
+}
+
+export function displayCommentAuthor({ authorHandle, authorDisplay, author } = {}) {
+  return sanitizeAuthorHandle(authorHandle)
+    || sanitizeDisplayName(authorDisplay || author)
+    || 'Viewer';
+}
+
+export function formatAddressedReply(identity, text) {
+  const who = displayCommentAuthor(identity);
+  const body = String(text || '')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ')
+    .replace(/\r\n/g, '\n')
+    .trim()
+    .slice(0, 1000);
+  return body ? `${who}\n${body}` : who;
+}
+
+export function normalizeReplyState(value, { hasActions = false } = {}) {
+  const raw = String(value || '').toLowerCase();
+  if (raw === 'chat') return 'display';
+  if (raw === 'succeeded' || raw === 'validated') return 'replied';
+  if (raw === 'received' || raw === 'awaiting-execution' || raw === 'executing' || raw === 'awaiting-model') {
+    return 'interpreting';
+  }
+  if (PAIRED_REPLY_STATES.has(raw)) return raw;
+  return hasActions ? 'interpreting' : 'display';
+}
+
+function defaultReplyText(state) {
+  if (state === 'interpreting' || state === 'pending') return INTERPRETING_REPLY_TEXT;
+  if (state === 'rejected') return 'Rejected';
+  if (state === 'failed') return 'Failed';
+  if (state === 'cancelled') return 'Cancelled';
+  return '';
+}
+
+function matchesLiveBroadcast(state, videoId, generation) {
+  const live = state?.liveBroadcast || { videoId: '', generation: 0 };
+  if (live.videoId && videoId && videoId !== live.videoId) return false;
+  if (live.generation && generation && Number(generation) !== Number(live.generation)) return false;
+  return true;
+}
+
+export function orderPairedRows(rows, { limit = NEXTCHAT_MAX_PAIRED_ROWS } = {}) {
+  const list = Array.isArray(rows) ? rows.slice() : [];
+  list.sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+  const cap = Number.isFinite(limit) ? Math.max(0, limit) : list.length;
+  return list.slice(0, cap);
+}
+
+/**
+ * Switch the active YouTube broadcast. A new video/generation drops stale rows.
+ * @param {object} state
+ * @param {{videoId?: string, generation?: number}} payload
+ * @returns {object}
+ */
+export function setLiveBroadcast(state, payload = {}) {
+  const videoId = String(payload.videoId || '').slice(0, 80);
+  const generation = Math.max(0, Number(payload.generation) || 0);
+  const current = state.liveBroadcast || { videoId: '', generation: 0 };
+  if (current.videoId === videoId && current.generation === generation) {
+    return { ...state, liveBroadcast: { videoId, generation } };
+  }
+  return {
+    ...state,
+    liveBroadcast: { videoId, generation },
+    pairedRows: [],
+  };
+}
+
+/**
+ * Insert or refresh the left cell of a paired LIVE COMMENTS row.
+ * @param {object} state
+ * @param {object} payload
+ * @param {number} [now]
+ * @returns {object}
+ */
+export function upsertLiveCommentRow(state, payload, now = Date.now()) {
+  const commentId = String(payload?.commentId || payload?.metadata?.commentId || '').slice(0, 160);
+  const videoId = String(payload?.videoId || payload?.metadata?.videoId || state.liveBroadcast?.videoId || '').slice(0, 80);
+  const generation = Math.max(
+    0,
+    Number(payload?.generation ?? payload?.metadata?.generation ?? state.liveBroadcast?.generation) || 0,
+  );
+  if (!commentId) return state;
+  if (!matchesLiveBroadcast(state, videoId, generation)) return state;
+  const commentText = String(payload?.text ?? payload?.content ?? '')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ')
+    .replace(/\r\n/g, '\n')
+    .trim()
+    .slice(0, 500);
+  if (!commentText) return state;
+  const key = pairedRowKey(commentId, videoId, generation);
+  const replyState = normalizeReplyState(
+    payload?.replyState || payload?.metadata?.actionState,
+    { hasActions: Number(payload?.metadata?.actionCount || payload?.actionCount || 0) > 0 },
+  );
+  const existing = (state.pairedRows || []).find((row) => row.key === key);
+  const row = {
+    key,
+    commentId,
+    videoId,
+    generation,
+    authorDisplay: sanitizeDisplayName(payload?.authorDisplay || payload?.author) || 'Viewer',
+    authorHandle: sanitizeAuthorHandle(payload?.authorHandle),
+    commentText,
+    replyState: existing?.replyState && existing.replyState !== 'display'
+      ? existing.replyState
+      : replyState,
+    replyText: existing?.replyText || defaultReplyText(replyState),
+    updatedAt: now,
+  };
+  const pairedRows = [row, ...(state.pairedRows || []).filter((item) => item.key !== key)];
+  return { ...state, pairedRows: orderPairedRows(pairedRows) };
+}
+
+/**
+ * Update the right cell of an existing paired row. Stale video/generation is a no-op.
+ * @param {object} state
+ * @param {object} payload
+ * @param {number} [now]
+ * @returns {object}
+ */
+export function updateAgentReplyRow(state, payload, now = Date.now()) {
+  const commentId = String(payload?.commentId || payload?.metadata?.commentId || '').slice(0, 160);
+  const videoId = String(payload?.videoId || payload?.metadata?.videoId || state.liveBroadcast?.videoId || '').slice(0, 80);
+  const generation = Math.max(
+    0,
+    Number(payload?.generation ?? payload?.metadata?.generation ?? state.liveBroadcast?.generation) || 0,
+  );
+  if (!commentId) return state;
+  if (!matchesLiveBroadcast(state, videoId, generation)) return state;
+  const key = pairedRowKey(commentId, videoId, generation);
+  const existing = (state.pairedRows || []).find((row) => row.key === key);
+  if (!existing) return state;
+  const replyState = normalizeReplyState(payload?.replyState || payload?.metadata?.actionState || payload?.actionState);
+  let replyText = payload?.replyText;
+  if (typeof payload?.delta === 'string') {
+    replyText = `${existing.replyText === INTERPRETING_REPLY_TEXT ? '' : existing.replyText || ''}${payload.delta}`;
+  }
+  if (replyText == null) replyText = payload?.text ?? defaultReplyText(replyState);
+  if (payload?.address !== false && replyState === 'replied' && typeof replyText === 'string' && !String(replyText).includes('\n')) {
+    replyText = formatAddressedReply(existing, replyText);
+  }
+  const row = {
+    ...existing,
+    replyState,
+    replyText: String(replyText || '').slice(0, 1200),
+    updatedAt: now,
+  };
+  const pairedRows = [row, ...(state.pairedRows || []).filter((item) => item.key !== key)];
+  return { ...state, pairedRows: orderPairedRows(pairedRows) };
 }
 
 const ASSISTANT_DELTA_TYPES = new Set([
@@ -114,6 +301,8 @@ export function createNextchatState(seed = {}) {
     activeId: seed.activeId || session.id,
     unavailable: seed.unavailable ?? null,
     harnessStatus: seed.harnessStatus ?? null,
+    liveBroadcast: seed.liveBroadcast || { videoId: '', generation: 0 },
+    pairedRows: Array.isArray(seed.pairedRows) ? seed.pairedRows : [],
   };
 }
 
@@ -164,7 +353,14 @@ export function loadNextchatState(storage) {
     const activeId = sessions.some((session) => session.id === parsed.activeId)
       ? parsed.activeId
       : sessions[0].id;
-    return { sessions, activeId, unavailable: null, harnessStatus: null };
+    return {
+      sessions,
+      activeId,
+      unavailable: null,
+      harnessStatus: null,
+      liveBroadcast: { videoId: '', generation: 0 },
+      pairedRows: [],
+    };
   } catch {
     return createNextchatState();
   }
@@ -434,7 +630,13 @@ export function typeActionReply(text, options = {}) {
   const step = Math.max(1, Number(options.step) || ACTION_REPLY_TYPE_STEP);
   const intervalMs = Math.max(1, Number(options.intervalMs) || ACTION_REPLY_TYPE_MS);
   const actionState = options.actionState || 'succeeded';
-  const full = String(text || '');
+  const raw = String(text || '');
+  const full = options.commentId
+    ? formatAddressedReply({
+      authorHandle: options.authorHandle,
+      authorDisplay: options.authorDisplay || options.author,
+    }, raw)
+    : raw;
   if (!store || typeof store.applyActionReplyDelta !== 'function' || !full) {
     return { ok: false };
   }
@@ -447,6 +649,11 @@ export function typeActionReply(text, options = {}) {
     store.applyActionReplyDelta({
       delta: full.slice(index, next),
       actionState,
+      replyState: 'replied',
+      commentId: options.commentId,
+      videoId: options.videoId,
+      generation: options.generation,
+      address: false,
     });
     index = next;
     if (index >= full.length) {
@@ -564,10 +771,25 @@ export function createNextchatStore(storage) {
     },
     applyActionReplyDelta(payload) {
       state = applyActionReplyDelta(state, payload);
+      if (payload?.commentId) {
+        state = updateAgentReplyRow(state, payload);
+      }
       emit();
     },
     finishActionReplyStreaming() {
       state = finishActionReplyStreaming(state);
+      emit();
+    },
+    setLiveBroadcast(payload) {
+      state = setLiveBroadcast(state, payload);
+      emit();
+    },
+    upsertLiveCommentRow(payload) {
+      state = upsertLiveCommentRow(state, payload);
+      emit();
+    },
+    updateAgentReplyRow(payload) {
+      state = updateAgentReplyRow(state, payload);
       emit();
     },
     typeActionReply(text, options = {}) {
@@ -797,6 +1019,53 @@ function renderThread(threadEl, session, {
   threadEl.scrollTop = newestFirst ? 0 : threadEl.scrollHeight;
 }
 
+export function renderPairedRows(containerEl, rows, { now = Date.now(), onNeedsAgeRefresh = null } = {}) {
+  if (!containerEl?.ownerDocument) return;
+  const doc = containerEl.ownerDocument;
+  containerEl.replaceChildren();
+  for (const row of orderPairedRows(rows)) {
+    const pair = doc.createElement('div');
+    pair.className = 'gev-nextchat-pair';
+    pair.dataset.commentId = row.commentId || '';
+    pair.dataset.replyState = row.replyState || 'display';
+    const receivedAt = Number(row.updatedAt);
+    if (Number.isFinite(receivedAt)) {
+      const age = now - receivedAt;
+      if (age >= NEXTCHAT_COMMENT_FULL_OPACITY_MS) pair.classList.add('gev-nextchat-msg-older');
+      else if (typeof onNeedsAgeRefresh === 'function') {
+        onNeedsAgeRefresh(NEXTCHAT_COMMENT_FULL_OPACITY_MS - Math.max(0, age));
+      }
+    }
+    const live = doc.createElement('div');
+    live.className = 'gev-nextchat-live-lane gev-nextchat-pair-cell';
+    const liveWho = doc.createElement('span');
+    liveWho.className = 'gev-nextchat-role';
+    liveWho.textContent = displayCommentAuthor(row);
+    const liveBody = doc.createElement('div');
+    liveBody.className = 'gev-nextchat-text';
+    liveBody.textContent = row.commentText || '';
+    live.append(liveWho, liveBody);
+
+    const reply = doc.createElement('div');
+    reply.className = 'gev-nextchat-action-lane gev-nextchat-pair-cell';
+    const replyMsg = doc.createElement('div');
+    replyMsg.className = 'gev-nextchat-msg gev-nextchat-assistant';
+    replyMsg.dataset.actionState = row.replyState || 'display';
+    const replyWho = doc.createElement('span');
+    replyWho.className = 'gev-nextchat-role';
+    replyWho.textContent = 'GEV';
+    const replyBody = doc.createElement('div');
+    replyBody.className = 'gev-nextchat-text';
+    replyBody.textContent = row.replyText || defaultReplyText(row.replyState);
+    replyMsg.append(replyWho, replyBody);
+    reply.appendChild(replyMsg);
+
+    pair.append(live, reply);
+    containerEl.appendChild(pair);
+  }
+  containerEl.scrollTop = 0;
+}
+
 function registryEntries(registry) {
   if (Array.isArray(registry)) return registry;
   if (registry instanceof Map) return [...registry.values()];
@@ -879,6 +1148,7 @@ export function initNextchat({
   let attachedVoice = voice || null;
   const actionThreadEl = root.querySelector('#gev-nextchat-action-thread');
   const liveThreadEl = root.querySelector('#gev-nextchat-live-thread');
+  const pairsEl = root.querySelector('#gev-nextchat-pairs');
   const statusEl = root.querySelector('#gev-nextchat-status');
   const form = root.querySelector('#gev-nextchat-form');
   const composer = root.querySelector('#gev-nextchat-composer');
@@ -889,25 +1159,29 @@ export function initNextchat({
   let ageRefreshAt = Infinity;
   let legendRegistry = commandRegistry;
 
+  const scheduleAgeRefresh = (delay) => {
+    const dueAt = Date.now() + delay;
+    if (ageRefreshTimer !== null && dueAt >= ageRefreshAt) return;
+    if (ageRefreshTimer !== null) clearTimeout(ageRefreshTimer);
+    ageRefreshAt = dueAt;
+    ageRefreshTimer = setTimeout(() => {
+      ageRefreshTimer = null;
+      ageRefreshAt = Infinity;
+      paint();
+    }, Math.max(1, delay));
+  };
+
   const paint = () => {
     const state = store.getState();
     const session = store.getActiveSession();
-    if (liveThreadEl) {
+    if (pairsEl) {
+      renderPairedRows(pairsEl, state.pairedRows, { onNeedsAgeRefresh: scheduleAgeRefresh });
+    } else if (liveThreadEl) {
       renderThread(liveThreadEl, session, {
         include: isLiveCommentMessage,
         limit: NEXTCHAT_MAX_LIVE_COMMENTS,
         newestFirst: true,
-        onNeedsAgeRefresh(delay) {
-          const dueAt = Date.now() + delay;
-          if (ageRefreshTimer !== null && dueAt >= ageRefreshAt) return;
-          if (ageRefreshTimer !== null) clearTimeout(ageRefreshTimer);
-          ageRefreshAt = dueAt;
-          ageRefreshTimer = setTimeout(() => {
-            ageRefreshTimer = null;
-            ageRefreshAt = Infinity;
-            paint();
-          }, Math.max(1, delay));
-        },
+        onNeedsAgeRefresh: scheduleAgeRefresh,
       });
       renderThread(actionThreadEl, session, {
         include: isActionLaneMessage,
@@ -985,7 +1259,26 @@ export function initNextchat({
       return attachedVoice;
     },
     publishViewerMessage(payload) {
-      return publishNextChatMessage(payload, store);
+      const result = publishNextChatMessage(payload, store);
+      if (result.ok && payload?.metadata?.commentId) {
+        store.upsertLiveCommentRow?.({
+          ...payload,
+          commentId: payload.metadata.commentId,
+          videoId: payload.metadata.videoId,
+          generation: payload.metadata.generation,
+          authorHandle: payload.authorHandle,
+        });
+      }
+      return result;
+    },
+    setLiveBroadcast(payload) {
+      return store.setLiveBroadcast?.(payload);
+    },
+    upsertLiveComment(payload) {
+      return store.upsertLiveCommentRow?.(payload);
+    },
+    updateAgentReply(payload) {
+      return store.updateAgentReplyRow?.(payload);
     },
     typeActionReply(text, options = {}) {
       return typeActionReply(text, { ...options, store });

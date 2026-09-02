@@ -939,20 +939,17 @@
         <button id="gev-nextchat-new" type="button">New chat</button>
       </header>
       <div class="gev-nextchat-guidance" role="note">
-        <strong>DIRECT YOUTUBE COMMENT FEED</strong>
-        <span>Every viewer comment appears below. Clear view requests also appear in GEV ACTIONS and move the globe automatically.</span>
+        <strong>OPERATE FROM LIVE COMMENTS</strong>
+        <span>Each YouTube comment is on the left. The GEV agent reply for that commenter is on the right. Validated view requests still move the globe.</span>
       </div>
       <div class="gev-nextchat-body">
         <div class="gev-nextchat-main">
           <div class="gev-nextchat-split">
-            <section class="gev-nextchat-lane gev-nextchat-action-lane" aria-labelledby="gev-nextchat-action-heading">
-              <h3 id="gev-nextchat-action-heading">GEV ACTIONS · VIEW REQUESTS</h3>
-              <div id="gev-nextchat-action-thread" class="gev-nextchat-thread" aria-label="Validated view requests and agent responses" aria-live="polite"></div>
-            </section>
-            <section class="gev-nextchat-lane gev-nextchat-live-lane" aria-labelledby="gev-nextchat-live-heading">
-              <h3 id="gev-nextchat-live-heading"><span aria-hidden="true">●</span> LIVE COMMENTS <span class="gev-nextchat-heading-legacy">· YOUTUBE LIVE COMMENTS · ALL</span></h3>
-              <div id="gev-nextchat-live-thread" class="gev-nextchat-thread" aria-label="All YouTube viewer comments" aria-live="polite"></div>
-            </section>
+            <div class="gev-nextchat-pairs-head">
+              <h3 id="gev-nextchat-live-heading" class="gev-nextchat-live-lane"><span aria-hidden="true">●</span> LIVE COMMENTS <span class="gev-nextchat-heading-legacy">· YOUTUBE LIVE COMMENTS · ALL</span></h3>
+              <h3 id="gev-nextchat-action-heading" class="gev-nextchat-action-lane">GEV AGENT REPLIES</h3>
+            </div>
+            <div id="gev-nextchat-pairs" class="gev-nextchat-pairs" role="log" aria-label="Paired live comments and agent replies" aria-live="polite"></div>
           </div>
           <p id="gev-nextchat-status" class="gev-nextchat-status" role="status" aria-live="polite"></p>
           <form id="gev-nextchat-form" class="gev-nextchat-composer">
