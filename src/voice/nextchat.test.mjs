@@ -323,15 +323,18 @@ test('broadcast presentation keeps reserved comment chrome and a legend above th
   );
   const rem = Number(overlayWidth.match(/^min\((\d+(?:\.\d+)?)rem/)[1]);
   assert.ok(Number.isFinite(rem) && rem > 0 && rem < 22, `LIVE COMMENTS must be narrower than 22rem, got ${rem}rem`);
+  assert.match(css, /--youtube-south-band:/);
+  assert.match(css, /#cesiumContainer \{[\s\S]*?left:\s*var\(--youtube-mc-band\)[\s\S]*?bottom:\s*var\(--youtube-south-band\)/);
+  assert.match(css, /html, body \{[\s\S]*?overflow: hidden/);
   assert.match(
     css,
-    /\.hud-top-right[\s\S]*?right:\s*calc\(var\(--broadcast-overlay-width\)/,
-    'HUD right inset tracks the overlay-width token',
+    /\.hud-top-right,[\s\S]*?right:\s*var\(--youtube-hud-gutter\)/,
+    'HUD right sits in a gutter, not a tall comments column',
   );
   assert.match(
     css,
-    /\.hud-right-edge[\s\S]*?right:\s*calc\(var\(--broadcast-overlay-width\)/,
-    'HUD right-edge inset tracks the overlay-width token',
+    /\.hud-bottom-left,[\s\S]*?bottom:\s*calc\(var\(--youtube-south-band\)/,
+    'HUD bottom stays above the south-pole words',
   );
 });
 

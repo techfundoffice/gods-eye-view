@@ -437,11 +437,11 @@ test('Mission Control keeps DATA LAYERS toggles under the mission tiles', () => 
   );
   assert.doesNotMatch(nav, /min\(22rem/);
 
-  const hud = css.slice(
-    css.indexOf('body:has(#first-run-launcher.visible:not(.is-minimized):not([hidden])) .hud-top-left'),
-    css.indexOf('.first-run-window-controls'),
-  );
-  assert.match(hud, new RegExp(`min\\(${widthMatch[1]}rem`));
+  assert.match(css, /--youtube-mc-band:\s*min\(17rem/);
+  const hudStart = css.indexOf('/* Left HUD never shares Mission Control');
+  assert.ok(hudStart >= 0, 'left HUD / Mission Control band rule exists');
+  const hud = css.slice(hudStart, hudStart + 420);
+  assert.match(hud, /var\(--youtube-mc-band\)/);
 
   const list = css.slice(css.indexOf('.first-run-layers-list {'), css.indexOf('.first-run-layers-list button {'));
   assert.doesNotMatch(list, /max-height:\s*8\.5rem/);

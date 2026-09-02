@@ -2,6 +2,8 @@
 
 Updated: September 1, 2026
 
+> **2026-09-01 — YouTube globe is centered.** #cesiumContainer fills the rectangle right of Mission Control and above the south-pole comments/dock/ticker band. HUD corners stay out of those bands so labels do not stack.
+
 > **2026-09-01 — south-pole band, always-on Visual Presets.** LIVE COMMENTS + GEV Agent Replies sit under the globe with no overlay scrollbar. VISUAL PRESETS stay expanded on the command dock even if a stored pin/collapse would hide them.
 
 > **2026-09-01 — LIVE COMMENTS is how the globe is operated.** The broadcast overlay pairs each viewer comment (left) with the GEV agent reply (right) on one row. Composer, CHAT toggle, COMMANDS, and the ticker stay on screen; only that paired thread scrolls. Camera motion still comes from the validated action runner.
