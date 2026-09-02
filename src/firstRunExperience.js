@@ -354,6 +354,9 @@ export function initFirstRunExperience({
   const status = root.querySelector('[data-first-run-status]');
   const buttons = [...root.querySelectorAll('[data-first-run-choice]')];
   const layerButtons = [...root.querySelectorAll('[data-mc-layer]')];
+  const nav = documentRef.getElementById("mission-control-nav");
+  const layers = root.querySelector(".first-run-layers");
+  if (nav && layers && layers.parentElement !== nav) nav.appendChild(layers);
   const maximizeButton = root.querySelector('#first-run-maximize');
   const defaultStatus = status?.textContent || '';
   const previouslyFocused = documentRef.activeElement;

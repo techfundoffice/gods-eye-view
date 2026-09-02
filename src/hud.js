@@ -238,6 +238,13 @@ export class IntelHUD {
       </div>
     `;
     this._el.dataset.variant = this._variant;
+    this._placeClassificationBelowMissionControl();
+  }
+
+  _placeClassificationBelowMissionControl() {
+    const nav = document.getElementById("mission-control-nav");
+    const stamp = this._el.querySelector(".hud-top-left");
+    if (nav && stamp) nav.appendChild(stamp);
   }
 
   /**

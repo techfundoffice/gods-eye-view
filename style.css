@@ -7762,7 +7762,7 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
 
 #command-dock > #location-bar,
 #command-dock > #control-panel,
-#command-dock > #gev-voice-control {
+#command-dock > #gev-voice-control, #first-run-launcher > #gev-voice-control {
   position: relative;
   inset: auto;
   width: auto;
@@ -7784,7 +7784,7 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
   border-left: 1px solid rgba(123, 189, 211, 0.16);
 }
 
-#command-dock > #gev-voice-control {
+#command-dock > #gev-voice-control, #first-run-launcher > #gev-voice-control {
   grid-area: voice;
   z-index: 2;
   align-self: stretch;
@@ -7801,7 +7801,7 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
     0 0 0 1px rgba(0, 212, 255, 0.08) inset;
 }
 
-#command-dock .gev-voice-kicker {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-kicker {
   position: absolute;
   top: 6px;
   right: 14px;
@@ -7816,17 +7816,17 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
   white-space: nowrap;
 }
 
-#command-dock #gev-voice-button {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-button {
   width: 78px;
   height: 42px;
 }
 
-#command-dock .gev-voice-readout {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-readout {
   flex: 1;
   text-align: left;
 }
 
-#command-dock #gev-voice-detail {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-detail {
   max-width: 110px;
 }
 
@@ -8014,7 +8014,7 @@ body.recording-mode #cesium-credits {
     border-left: 0;
   }
 
-  #command-dock > #gev-voice-control {
+  #command-dock > #gev-voice-control, #first-run-launcher > #gev-voice-control {
     margin: -10px 0 0;
   }
 
@@ -8269,7 +8269,7 @@ body.recording-mode #cesium-credits {
   display: none;
 }
 
-#command-dock > #gev-voice-control {
+#command-dock > #gev-voice-control, #first-run-launcher > #gev-voice-control {
   position: relative;
   inset: auto;
   z-index: 3;
@@ -8288,7 +8288,7 @@ body.recording-mode #cesium-credits {
   transform: none;
 }
 
-#command-dock .gev-voice-kicker {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-kicker {
   position: static;
   grid-column: 2 / 4;
   grid-row: 1;
@@ -8299,7 +8299,7 @@ body.recording-mode #cesium-credits {
   text-align: center;
 }
 
-#command-dock #gev-voice-button {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-button {
   grid-column: 1;
   grid-row: 1 / 4;
   display: flex;
@@ -8317,25 +8317,25 @@ body.recording-mode #cesium-credits {
     0 0 1rem rgba(0, 212, 255, 0.12);
 }
 
-#command-dock .gev-mic-orbit {
+#command-dock .gev-mic-, #first-run-launcher .gev-mic-orbit {
   display: grid;
   place-items: center;
   width: 1.7rem;
   height: 1.7rem;
 }
 
-#command-dock .gev-mic-orbit img {
+#command-dock .gev-mic-, #first-run-launcher .gev-mic-orbit img {
   width: 1.55rem;
   height: 1.55rem;
 }
 
-#command-dock .gev-mic-label {
+#command-dock .gev-mic-, #first-run-launcher .gev-mic-label {
   font-size: 0.35rem;
   color: rgba(190, 221, 230, 0.72);
   letter-spacing: 0.02rem;
 }
 
-#command-dock .gev-voice-visualizer {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer {
   grid-column: 2;
   grid-row: 2;
   display: flex;
@@ -8347,7 +8347,7 @@ body.recording-mode #cesium-credits {
   border-bottom: 1px solid rgba(54, 220, 255, 0.34);
 }
 
-#command-dock .gev-voice-visualizer span {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span {
   width: 0.18rem;
   height: 0.55rem;
   background: linear-gradient(to top, #28b9db, #71eaff);
@@ -8355,22 +8355,22 @@ body.recording-mode #cesium-credits {
   transform-origin: bottom;
 }
 
-#command-dock .gev-voice-visualizer span:nth-child(3n) { height: 1.35rem; }
-#command-dock .gev-voice-visualizer span:nth-child(4n) { height: 0.95rem; }
-#command-dock .gev-voice-visualizer span:nth-child(5n) { height: 1.7rem; }
-#command-dock .gev-voice-visualizer span:nth-child(7n) { height: 0.75rem; }
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span:nth-child(3n) { height: 1.35rem; }
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span:nth-child(4n) { height: 0.95rem; }
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span:nth-child(5n) { height: 1.7rem; }
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span:nth-child(7n) { height: 0.75rem; }
 
-#command-dock #gev-voice-control[data-status='listening'] .gev-voice-visualizer span,
-#command-dock #gev-voice-control[data-status='executing'] .gev-voice-visualizer span {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='listening'] .gev-voice-visualizer span,
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='executing'] .gev-voice-visualizer span {
   animation: gev-voice-bar 680ms ease-in-out infinite alternate;
   animation-delay: calc(var(--bar) * -45ms);
 }
 
-#command-dock .gev-voice-readout {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-readout {
   display: contents;
 }
 
-#command-dock #gev-voice-status {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-status {
   grid-column: 3;
   grid-row: 2;
   align-self: start;
@@ -8379,7 +8379,7 @@ body.recording-mode #cesium-credits {
   text-align: right;
 }
 
-#command-dock #gev-voice-detail {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-detail {
   grid-column: 2 / 4;
   grid-row: 3;
   align-self: center;
@@ -8651,7 +8651,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   font-size: 0.68rem;
 }
 
-#command-dock > #gev-voice-control {
+#command-dock > #gev-voice-control, #first-run-launcher > #gev-voice-control {
   grid-template-columns: 3rem minmax(0, 1fr);
   grid-template-rows: 0.8rem 2.25rem 0.85rem;
   gap: 0.12rem 0.28rem;
@@ -8664,7 +8664,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   overflow: visible;
 }
 
-#command-dock .gev-voice-heading {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-heading {
   grid-column: 2;
   grid-row: 1;
   display: flex;
@@ -8674,7 +8674,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   min-width: 0;
 }
 
-#command-dock .gev-voice-kicker {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-kicker {
   position: static;
   padding-right: 0;
   font-size: 0.46rem;
@@ -8682,7 +8682,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   letter-spacing: 0.08rem;
 }
 
-#command-dock #gev-voice-button {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-button {
   grid-column: 1;
   grid-row: 1 / 4;
   align-self: center;
@@ -8694,7 +8694,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   box-shadow: none;
 }
 
-#command-dock .gev-mic-orbit {
+#command-dock .gev-mic-, #first-run-launcher .gev-mic-orbit {
   flex: 0 0 2.45rem;
   width: 2.45rem;
   height: 2.45rem;
@@ -8706,14 +8706,14 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   box-shadow: 0 0 0 0.18rem rgba(0, 212, 255, 0.06), 0 0 0.9rem rgba(0, 212, 255, 0.12);
 }
 
-#command-dock .gev-mic-label {
+#command-dock .gev-mic-, #first-run-launcher .gev-mic-label {
   display: block;
   margin-top: 0.18rem;
   font-size: 0.42rem;
   letter-spacing: 0.035rem;
 }
 
-#command-dock .gev-voice-visualizer {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer {
   grid-column: 2;
   grid-row: 2;
   align-self: stretch;
@@ -8727,15 +8727,15 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   transition: opacity 180ms ease;
 }
 
-#command-dock #gev-voice-control[data-status='connecting'] .gev-voice-visualizer,
-#command-dock #gev-voice-control[data-status='listening'] .gev-voice-visualizer,
-#command-dock #gev-voice-control[data-status='executing'] .gev-voice-visualizer {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='connecting'] .gev-voice-visualizer,
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='listening'] .gev-voice-visualizer,
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='executing'] .gev-voice-visualizer {
   visibility: visible;
   opacity: 1;
   transform: none;
 }
 
-#command-dock #gev-voice-status {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-status {
   position: static;
   width: auto;
   padding-top: 0;
@@ -8744,7 +8744,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   text-align: left;
 }
 
-#command-dock #gev-voice-detail {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-detail {
   grid-column: 2;
   grid-row: 3;
   align-self: start;
@@ -8759,14 +8759,14 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   white-space: nowrap;
 }
 
-#command-dock #gev-voice-control[data-status='connecting'] #gev-voice-detail,
-#command-dock #gev-voice-control[data-status='listening'] #gev-voice-detail,
-#command-dock #gev-voice-control[data-status='executing'] #gev-voice-detail {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='connecting'] #gev-voice-detail,
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='listening'] #gev-voice-detail,
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='executing'] #gev-voice-detail {
   grid-row: 3;
   font-size: 0.43rem;
 }
 
-#command-dock #gev-voice-control[data-status='error'] {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='error'] {
   display: grid;
   align-items: initial;
   width: var(--dock-voice-width);
@@ -8774,11 +8774,11 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   border-radius: 0.4rem;
 }
 
-#command-dock #gev-voice-control[data-status='error'] .gev-voice-readout {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='error'] .gev-voice-readout {
   display: contents;
 }
 
-#command-dock #gev-voice-control[data-status='error'] #gev-voice-detail {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='error'] #gev-voice-detail {
   max-width: none;
   overflow: hidden;
   color: #ffb4bd;
@@ -8788,7 +8788,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   white-space: nowrap;
 }
 
-#command-dock .gev-voice-error-tray {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-error-tray {
   position: absolute;
   bottom: calc(100% + 0.7rem);
   left: 50%;
@@ -8810,14 +8810,14 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   transition: opacity 180ms ease, visibility 180ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-#command-dock #gev-voice-control[data-status='error']:not(.error-dismissed) .gev-voice-error-tray {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='error']:not(.error-dismissed) .gev-voice-error-tray {
   visibility: visible;
   opacity: 1;
   pointer-events: auto;
   transform: translate(-50%, 0) scale(1);
 }
 
-#command-dock .gev-voice-error-header {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-error-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -8829,7 +8829,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   letter-spacing: 0.1rem;
 }
 
-#command-dock .gev-voice-error-dismiss {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-error-dismiss {
   padding: 0.25rem 0.42rem;
   color: rgba(255, 220, 224, 0.72);
   background: rgba(255, 255, 255, 0.04);
@@ -8841,7 +8841,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   cursor: pointer;
 }
 
-#command-dock #gev-voice-error-detail {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-error-detail {
   margin-top: 0.65rem;
   color: rgba(255, 232, 235, 0.92);
   font-family: var(--font-sans);
@@ -8849,7 +8849,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   line-height: 1.45;
 }
 
-#command-dock .gev-voice-error-hint {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-error-hint {
   margin-top: 0.5rem;
   color: rgba(255, 196, 203, 0.58);
   font-family: var(--font-mono);
@@ -8897,7 +8897,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
     max-width: calc(100vw - 1.5rem);
   }
 
-  #command-dock .gev-voice-error-tray {
+  #command-dock .gev-voice-, #first-run-launcher .gev-voice-error-tray {
     width: min(24rem, calc(100vw - 1.5rem));
   }
 }
@@ -9235,36 +9235,36 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 }
 
 /* Five-pixel standby baseline; live microphone analysis sets --audio-level. */
-#command-dock .gev-voice-visualizer span,
-#command-dock .gev-voice-visualizer span:nth-child(3n),
-#command-dock .gev-voice-visualizer span:nth-child(4n),
-#command-dock .gev-voice-visualizer span:nth-child(5n),
-#command-dock .gev-voice-visualizer span:nth-child(7n) {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span,
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span:nth-child(3n),
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span:nth-child(4n),
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span:nth-child(5n),
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-visualizer span:nth-child(7n) {
   height: var(--audio-level, 5px);
   opacity: var(--audio-opacity, 0.56);
   animation: none;
   transition: height 70ms linear, opacity 90ms linear;
 }
 
-#command-dock #gev-voice-control[data-status='listening'] .gev-voice-visualizer span,
-#command-dock #gev-voice-control[data-status='executing'] .gev-voice-visualizer span {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='listening'] .gev-voice-visualizer span,
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-status='executing'] .gev-voice-visualizer span {
   animation: none;
 }
 
-#command-dock #gev-voice-control[data-speaker='user'] :is(#gev-voice-status, #gev-voice-detail) {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-speaker='user'] :is(#gev-voice-status, #gev-voice-detail) {
   color: #ffbf69;
 }
 
-#command-dock #gev-voice-control[data-speaker='user'] .gev-voice-visualizer span {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-speaker='user'] .gev-voice-visualizer span {
   background: linear-gradient(to top, #d98a35, #ffcf8a);
   box-shadow: 0 0 0.35rem rgba(255, 191, 105, 0.32);
 }
 
-#command-dock #gev-voice-control[data-speaker='ai'] :is(#gev-voice-status, #gev-voice-detail) {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-speaker='ai'] :is(#gev-voice-status, #gev-voice-detail) {
   color: var(--accent);
 }
 
-#command-dock #gev-voice-control[data-speaker='ai'] .gev-voice-visualizer span {
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control[data-speaker='ai'] .gev-voice-visualizer span {
   background: linear-gradient(to top, #28b9db, #71eaff);
   box-shadow: 0 0 0.35rem rgba(54, 220, 255, 0.28);
 }
@@ -9327,7 +9327,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 }
 
 /* Keep the microphone neutral at rest; cyan signals hover and live states. */
-#command-dock .gev-mic-orbit {
+#command-dock .gev-mic-, #first-run-launcher .gev-mic-orbit {
   background: rgba(232, 234, 237, 0.04);
   border-color: rgba(232, 234, 237, 0.36);
   box-shadow:
@@ -9336,14 +9336,14 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-#command-dock .gev-mic-orbit img {
+#command-dock .gev-mic-, #first-run-launcher .gev-mic-orbit img {
   filter: grayscale(1) saturate(0) brightness(1.65);
   opacity: 0.68;
   transition: filter var(--transition-fast), opacity var(--transition-fast);
 }
 
-#command-dock #gev-voice-button:hover .gev-mic-orbit,
-#command-dock #gev-voice-control:is(
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-button:hover .gev-mic-orbit,
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control:is(
   [data-status='connecting'],
   [data-status='listening']:not([data-microphone='muted']),
   [data-status='executing']
@@ -9353,8 +9353,8 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   box-shadow: 0 0 0 0.18rem rgba(0, 212, 255, 0.06), 0 0 0.9rem rgba(0, 212, 255, 0.12);
 }
 
-#command-dock #gev-voice-button:hover .gev-mic-orbit img,
-#command-dock #gev-voice-control:is(
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-button:hover .gev-mic-orbit img,
+#command-dock #gev-voice-, #first-run-launcher #gev-voice-control:is(
   [data-status='connecting'],
   [data-status='listening']:not([data-microphone='muted']),
   [data-status='executing']
@@ -9613,7 +9613,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 }
 
 /* The dock heading row is 0.8rem tall; keep the cluster inside it. */
-#command-dock .gev-voice-cost {
+#command-dock .gev-voice-, #first-run-launcher .gev-voice-cost {
   max-height: 0.8rem;
 }
 
@@ -12301,4 +12301,98 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 
 body.webgl-fallback-active #loading-screen {
   display: none !important;
+}
+/* Real voice pod in Left Mission Control. Not a clone. Dock keeps LOCATION / PRESETS. */
+#first-run-launcher > #gev-voice-control {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  inset: auto;
+  z-index: 1;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin-top: auto;
+  transform: none;
+  align-self: stretch;
+  justify-content: center;
+  pointer-events: auto;
+}
+#first-run-launcher.is-minimized > #gev-voice-control { display: none; }
+#gev-voice-control-mc { display: none !important; }
+
+/* No Data Layers scrollbar above the Mission Control mic. */
+#first-run-launcher .first-run-layers-list { overflow-y: auto; scrollbar-width: none; }
+#first-run-launcher .first-run-layers-list::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+
+/* Kill Mission Control scrollbars (the one sticking out of the card). */
+#mission-control-nav, #mission-control-nav *, #first-run-launcher, #first-run-launcher * { scrollbar-width: none !important; }
+#mission-control-nav ::-webkit-scrollbar, #first-run-launcher ::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; background: transparent !important; }
+
+/* TOP SECRET / SUMMARY stamp sits below the Mission Control card, not beside it. */
+#mission-control-nav {
+  overflow: visible;
+  bottom: auto;
+  max-height: calc(100dvh - 5.75rem - var(--youtube-south-band) - 7.25rem);
+}
+#first-run-launcher.visible {
+  max-height: calc(100dvh - 5.75rem - var(--youtube-south-band) - 7.25rem);
+}
+#mission-control-nav > .hud-top-left {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  z-index: 148;
+  margin-top: 0.55rem;
+  max-width: 100%;
+  pointer-events: none;
+}
+#mission-control-nav > .hud-top-left .hud-summary {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+body:has(#first-run-launcher.visible) .hud-left-edge {
+  display: none !important;
+}
+
+/* DATA LAYERS lives below the Mission Control card so the list is readable. */
+#mission-control-nav {
+  overflow: visible;
+  bottom: auto;
+  height: auto;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+}
+#first-run-launcher.visible {
+  max-height: none;
+  overflow: visible;
+  flex: 0 0 auto;
+}
+#mission-control-nav > .first-run-layers {
+  pointer-events: auto;
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.5rem;
+  color: var(--first-run-ink, rgba(54, 220, 255, 0.86));
+  background: rgba(6, 15, 22, 0.76);
+  border: 1px solid rgba(54, 220, 255, 0.22);
+  border-radius: 0.65rem;
+  overflow: visible;
+  flex: 0 0 auto;
+}
+#mission-control-nav > .first-run-layers .first-run-layers-list {
+  overflow: visible;
+  max-height: none;
+  height: auto;
+}
+#first-run-launcher[hidden] ~ .first-run-layers,
+#first-run-launcher:not(.visible) ~ .first-run-layers {
+  display: none;
 }

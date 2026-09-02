@@ -2558,6 +2558,7 @@ function createVoiceControl({ reset = false } = {}) {
     root.remove();
     root = null;
   }
+  document.getElementById("gev-voice-control-mc")?.remove();
   if (!root) {
     root = document.createElement('div');
     root.id = 'gev-voice-control';
@@ -2595,20 +2596,13 @@ function createVoiceControl({ reset = false } = {}) {
         <div class="gev-voice-error-hint">Check microphone permission and network access, then try again.</div>
       </div>
     `;
-    const commandDock = document.getElementById('command-dock');
-    if (commandDock) {
-      const locationBar = document.getElementById('location-bar');
-      const controlPanel = document.getElementById('control-panel');
-      commandDock.appendChild(root);
-      if (locationBar) commandDock.insertBefore(locationBar, root);
-      if (controlPanel) commandDock.appendChild(controlPanel);
-    } else {
-      document.body.appendChild(root);
-    }
+    const host = document.getElementById("first-run-launcher") || document.getElementById("command-dock") || document.body;
+    host.appendChild(root);
     root.querySelector('.gev-voice-error-dismiss')?.addEventListener('click', () => {
       root.classList.add('error-dismissed');
     });
   }
+  const mission = document.getElementById("first-run-launcher"); if (mission && root.parentElement !== mission) mission.appendChild(root);
   return {
     root,
     button: root.querySelector('#gev-voice-button'),
