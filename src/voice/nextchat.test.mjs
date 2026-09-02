@@ -8,6 +8,7 @@ import {
   NEXTCHAT_STORAGE_KEY,
   NEXTCHAT_MAX_ACTIONS,
   NEXTCHAT_MAX_LIVE_COMMENTS,
+  NEXTCHAT_MAX_PAIRED_ROWS,
   ACTION_REPLY_TYPE_STEP,
   applyActionReplyDelta,
   applyAssistantTranscriptDelta,
@@ -231,6 +232,7 @@ test('publishNextChatMessage refuses HTML injection by storing plain text', () =
 test('broadcast overlay bounds comments/actions and renders the injected registry as text', () => {
   assert.equal(NEXTCHAT_MAX_LIVE_COMMENTS, 7);
   assert.equal(NEXTCHAT_MAX_ACTIONS, 3);
+  assert.equal(NEXTCHAT_MAX_PAIRED_ROWS, 3);
 
   class FakeElement {
     constructor(ownerDocument, tagName = 'span') {
@@ -359,9 +361,14 @@ test('homepage chrome keeps the globe, GEV MIC, and NextChat controls', () => {
   assert.match(html, /YOUTUBE LIVE COMMENTS · ALL/);
   assert.match(html, /GEV AGENT REPLIES/);
   assert.match(html, /OPERATE FROM LIVE COMMENTS/);
-  assert.match(css, /\.gev-nextchat-composer \{[\s\S]*?flex-shrink: 0/);
   assert.match(css, /html, body \{[\s\S]*?overflow: hidden/);
-  assert.match(css, /\.gev-nextchat-pairs \{[\s\S]*?overflow: auto/);
+  const pairsStart = css.indexOf('.gev-nextchat-pairs {');
+  assert.ok(pairsStart >= 0, 'paired thread rule exists');
+  const pairsBlock = css.slice(pairsStart, css.indexOf('}', pairsStart) + 1);
+  assert.match(pairsBlock, /overflow:\s*hidden/);
+  assert.doesNotMatch(pairsBlock, /overflow:\s*auto|overflow-y:\s*auto|overflow-x:\s*auto/);
+  assert.match(css, /\/\* south-pole LIVE COMMENTS band \*\//);
+  assert.match(css, /#command-dock #control-panel\.collapsed \.button-grid \{\s*display:\s*flex !important;/);
   assert.match(html, /id="gev-nextchat-composer"/);
   assert.match(html, /<textarea[^>]*id="gev-nextchat-composer"/);
   assert.match(html, /id="gev-nextchat-send"/);
@@ -508,4 +515,36 @@ test('paired rows share one commentId and update the reply cell in place', () =>
   assert.equal(sanitizeAuthorHandle('@verifiedHandle'), '@verifiedHandle');
   const ordered = orderPairedRows(state.pairedRows);
   assert.equal(ordered[0].commentId, 'c2');
+});
+
+
+test('a late /help reply moves that pair above a newer ordinary comment', () => {
+  let state = setLiveBroadcast(createNextchatState(), { videoId: 'vid', generation: 1 });
+  state = upsertLiveCommentRow(state, {
+    commentId: 'help-1',
+    videoId: 'vid',
+    generation: 1,
+    author: 'Helper',
+    text: '/help',
+    replyState: 'interpreting',
+  }, 1000);
+  state = upsertLiveCommentRow(state, {
+    commentId: 'chat-2',
+    videoId: 'vid',
+    generation: 1,
+    author: 'Later',
+    text: 'nice stream',
+    replyState: 'display',
+  }, 2000);
+  assert.equal(orderPairedRows(state.pairedRows)[0].commentId, 'chat-2');
+  state = updateAgentReplyRow(state, {
+    commentId: 'help-1',
+    videoId: 'vid',
+    generation: 1,
+    replyState: 'replied',
+    replyText: PUBLIC_HELP_REPLY,
+  }, 3000);
+  const ordered = orderPairedRows(state.pairedRows);
+  assert.equal(ordered[0].commentId, 'help-1');
+  assert.equal(ordered[1].commentId, 'chat-2');
 });

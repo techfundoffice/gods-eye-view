@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 import {
+  ALWAYS_VISIBLE_DOCK_PANEL_IDS,
   COMMAND_DOCK_PINNABLE_PANEL_IDS,
   pinCommandDockPanel,
   resolveCommandDockPin,
@@ -33,11 +34,14 @@ function pinButtonMarkup(html, panelId) {
 
 test('first-run pin policy pins only when nothing is stored', () => {
   assert.deepEqual([...COMMAND_DOCK_PINNABLE_PANEL_IDS], ['control-panel', 'location-bar']);
+  assert.deepEqual([...ALWAYS_VISIBLE_DOCK_PANEL_IDS], ['control-panel']);
   assert.equal(resolveCommandDockPin(null, null), true, 'empty store is PINNED');
   assert.equal(resolveCommandDockPin('1', '1'), true, 'stored pin wins over collapse');
   assert.equal(resolveCommandDockPin('0', '0'), false, 'stored unpin wins over expand');
   assert.equal(resolveCommandDockPin(null, '1'), false, 'stored collapse is not re-forced open');
   assert.equal(resolveCommandDockPin(null, '0'), false, 'stored expand without a pin is not force-pinned');
+  assert.equal(resolveCommandDockPin('0', '1', 'control-panel'), true, 'Visual Presets stay open over stored hide');
+  assert.equal(resolveCommandDockPin('0', '0', 'location-bar'), false, 'LOCATION still honours stored unpin');
 });
 
 test('markup ships LOCATION and VISUAL PRESETS PINNED and expanded', () => {
@@ -251,6 +255,18 @@ test('unpinning one tray leaves it not forced-open and does not change the other
   assert.equal(storage.read(pinKey('control-panel')), null);
 });
 
+test('stored unpin cannot hide Visual Presets', () => {
+  const tree = makeDockTree();
+  const storage = memoryStorage({
+    [pinKey('control-panel')]: '0',
+    [collapseKey('control-panel')]: '1',
+  });
+  const host = attachHost(tree, storage);
+  host.restoreDefaults(null, true);
+  assert.equal(tree.presets.classList.contains('dock-pinned'), true);
+  assert.equal(tree.presets.classList.contains('collapsed'), false);
+});
+
 test('a stored unpin/collapse still wins over the first-run pin default', () => {
   const tree = makeDockTree();
   const storage = memoryStorage({
@@ -283,12 +299,12 @@ test('a share-link unpinned/collapsed field still wins over the first-run pin de
     setPin: (panelId, pin) => pinCalls.push([panelId, pin]),
     restoreCollapse: () => { throw new Error('share restore must not apply stored collapse'); },
   });
-  assert.deepEqual(pinCalls, [], 'encoded share panel fields skip the first-run default');
+  assert.deepEqual(pinCalls, [['control-panel', true]], 'Visual Presets stay pinned even when share ui hides them');
 
   for (const spec of panelState.specs) {
     const pinned = typeof spec.pinned === 'boolean' ? spec.pinned : !spec.collapsed;
     host.setPin(spec.id, pinned, { restore: true, persist: false });
-    if (!pinned) {
+    if (!pinned && spec.id !== 'control-panel') {
       const panel = spec.id === 'location-bar' ? tree.location : tree.presets;
       panel.classList.toggle('collapsed', spec.collapsed);
     }
@@ -296,9 +312,9 @@ test('a share-link unpinned/collapsed field still wins over the first-run pin de
   assert.equal(tree.location.classList.contains('dock-pinned'), false);
   assert.equal(tree.location.classList.contains('collapsed'), true);
   assert.equal(tree.locationPin.getAttribute('aria-pressed'), 'false');
-  assert.equal(tree.presets.classList.contains('dock-pinned'), false);
-  assert.equal(tree.presets.classList.contains('collapsed'), true);
-  assert.equal(tree.presetsPin.getAttribute('aria-pressed'), 'false');
+  assert.equal(tree.presets.classList.contains('dock-pinned'), true);
+  assert.equal(tree.presets.classList.contains('collapsed'), false);
+  assert.equal(tree.presetsPin.getAttribute('aria-pressed'), 'true');
   assert.equal(storage.read(pinKey('location-bar')), null, 'share restore must not persist over local prefs');
   assert.equal(storage.read(pinKey('control-panel')), null);
 });

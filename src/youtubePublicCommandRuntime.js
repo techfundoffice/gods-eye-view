@@ -71,6 +71,7 @@ function publicRecord(record) {
     commentId: bounded(record?.commentId),
     generation: Number(record?.generation) || 0,
     viewer: bounded(record?.viewer, 80),
+    authorHandle: bounded(record?.authorHandle, 80),
     command: bounded(record?.command, 32),
     mode: bounded(record?.mode, 32),
     state: bounded(record?.state, 32),
@@ -151,9 +152,10 @@ export function createYoutubePublicCommandRuntime({
   async function registerMessage(message, binding) {
     if (!binding?.commandsEnabled || !executor) return { recognized: false, disabled: true };
     return coordinator.register({
-      commentId: message?.id,
+      commentId: message?.id || message?.commentId,
       text: message?.text,
-      author: { displayName: message?.author },
+      author: { displayName: message?.author, handle: message?.authorHandle },
+      authorHandle: message?.authorHandle,
     }, bindingWithExecutor(binding));
   }
 

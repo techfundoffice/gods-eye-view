@@ -1,5 +1,11 @@
 [
   {
+    "id": "openrouter",
+    "label": "OpenRouter",
+    "description": "Set the OpenRouter API key used by YouTube comments and COMMANDS (openrouter/free).",
+    "module": "./openrouter.js"
+  },
+  {
     "id": "google-earth",
     "label": "Google Earth",
     "description": "Show Google Photorealistic 3D Tiles on the globe and report key/tileset status.",

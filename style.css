@@ -8136,9 +8136,10 @@ body.recording-mode #cesium-credits {
 }
 
 #command-dock .button-grid {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.3rem;
-  overflow-x: auto;
+  overflow: hidden;
+  overflow-x: hidden;
   scrollbar-width: none;
 }
 
@@ -11393,9 +11394,9 @@ body.recording-mode .admin-launch {
 
 .gev-nextchat-thread {
   flex: 1;
-  min-height: 160px;
-  max-height: 280px;
-  overflow: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
   padding: 8px 10px;
 }
 
@@ -11729,14 +11730,18 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
    visible around them, not through headings or comment rows. These rules
    follow the legacy NextChat rules as a reversible presentation layer while
    retaining all established DOM ids. */
+/* south-pole LIVE COMMENTS band */
 #gev-nextchat {
-  top: var(--broadcast-overlay-top);
-  right: var(--broadcast-overlay-right);
-  bottom: var(--broadcast-bottom-safe);
-  left: auto;
-  width: var(--broadcast-overlay-width);
-  max-height: calc(100dvh - var(--broadcast-overlay-top) - var(--broadcast-bottom-safe) - 0.75rem);
+  top: auto;
+  right: auto;
+  left: 50%;
+  bottom: calc(4.5rem + 8.25rem);
+  width: min(94vw, 1240px);
+  max-height: 6.75rem;
+  height: 6.75rem;
+  transform: translateX(-50%);
   pointer-events: none;
+  overflow: hidden;
 }
 
 #gev-nextchat-toggle,
@@ -11806,8 +11811,7 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
 .gev-nextchat-pairs {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
-  scrollbar-width: thin;
+  overflow: hidden;
 }
 
 .gev-nextchat-pair {
@@ -12051,12 +12055,15 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   }
 
   #gev-nextchat {
-    top: var(--broadcast-overlay-top);
-    right: var(--broadcast-overlay-right);
-    bottom: var(--broadcast-bottom-safe);
-    left: auto;
-    width: var(--broadcast-overlay-width);
-    max-height: calc(100dvh - var(--broadcast-overlay-top) - var(--broadcast-bottom-safe) - 0.5rem);
+    top: auto;
+    right: auto;
+    left: 50%;
+    bottom: calc(4.5rem + 7.25rem);
+    width: min(94vw, 1240px);
+    max-height: 6.25rem;
+    height: 6.25rem;
+    transform: translateX(-50%);
+    overflow: hidden;
   }
 
   .gev-nextchat-pairs-head,
@@ -12094,4 +12101,13 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   .gev-nextchat-live-lane .gev-nextchat-msg-older {
     opacity: 0.72;
   }
+}
+
+/* Visual Presets stay on the south-pole dock even if a stored collapse fires. */
+#command-dock #control-panel.collapsed .button-grid {
+  display: flex !important;
+}
+#command-dock #control-panel.collapsed .map-source-section,
+#command-dock #control-panel.collapsed .dock-popover-content {
+  display: block !important;
 }

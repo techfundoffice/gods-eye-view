@@ -58,6 +58,7 @@ import { createYoutubeCommentHarnessMiddleware } from './src/youtubeCommentHarne
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
 import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatServer.js';
+import { createYoutubePublicCommandRuntime } from './src/youtubePublicCommandRuntime.js';
 import { createLiveCommentIngestWorker } from './src/youtubeLiveCommentIngest.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
@@ -80,6 +81,7 @@ import { publicApiCatalogProxy } from './src/publicApiProxies.js';
 let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
 let replitAdminAuthSingleton = null;
+let publicCommandRuntimeSingleton = null;
 
 /**
  * One OAuth middleware so ADMIN live-control and `/api/youtube` share sessions.
@@ -109,10 +111,20 @@ function sharedYoutubeOAuth() {
  *
  * @returns {object}
  */
+function sharedPublicCommandRuntime() {
+  if (!publicCommandRuntimeSingleton) {
+    publicCommandRuntimeSingleton = createYoutubePublicCommandRuntime();
+    void publicCommandRuntimeSingleton.rotateExecutor();
+  }
+  return publicCommandRuntimeSingleton;
+}
+
 function sharedLiveSession() {
   if (!liveSessionSingleton) {
     liveSessionSingleton = createLiveSessionController({
-      encoder: createLiveStreamController(),
+      encoder: createLiveStreamController({
+        createExecutorSession: () => sharedPublicCommandRuntime().rotateExecutor(),
+      }),
     });
   }
   return liveSessionSingleton;
@@ -7615,8 +7627,10 @@ export function youtubeProxy({
   const commentIngest = liveCommentIngest || createLiveCommentIngestWorker({
     channelHandle: process.env.YOUTUBE_CHANNEL_HANDLE || 'TechfundOffice',
   });
+  const commandRuntime = sharedPublicCommandRuntime();
   const homepageChatMiddleware = createYoutubeHomepageChatMiddleware({
     ingest: commentIngest,
+    commandRuntime,
   });
   const envStreamKey = String(process.env.YOUTUBE_STREAM_KEY || '').trim();
   if (autoGoLiveEnabled() && envStreamKey) {

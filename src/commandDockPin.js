@@ -1,9 +1,9 @@
 /**
  * First-run pin policy for the command-dock LOCATION and VISUAL PRESETS trays.
  *
- * A fresh visit (nothing stored) pins both trays open. An explicit stored pin
- * wins in both directions. A stored collapse/expand without a pin key means the
- * operator already chose a disclosure, so do not re-force the tray open.
+ * A fresh visit (nothing stored) pins both trays open. VISUAL PRESETS
+ * (`control-panel`) always stay pinned and expanded so the broadcast picture
+ * never hides style tiles / map chips. LOCATION still honours stored unpin.
  */
 
 /** Command-dock trays that can stay open via the pin control. */
@@ -12,14 +12,21 @@ export const COMMAND_DOCK_PINNABLE_PANEL_IDS = Object.freeze([
   'location-bar',
 ]);
 
+/** Trays that must stay expanded on the homepage globe regardless of stored pin. */
+export const ALWAYS_VISIBLE_DOCK_PANEL_IDS = Object.freeze([
+  'control-panel',
+]);
+
 /**
  * Whether a command-dock tray should start PINNED.
  *
  * @param {string|null} storedPin `'1'`, `'0'`, or null if unset/unreadable.
  * @param {string|null} storedCollapse `'1'`, `'0'`, or null if unset/unreadable.
+ * @param {string} [panelId]
  * @returns {boolean}
  */
-export function resolveCommandDockPin(storedPin, storedCollapse) {
+export function resolveCommandDockPin(storedPin, storedCollapse, panelId) {
+  if (ALWAYS_VISIBLE_DOCK_PANEL_IDS.includes(panelId)) return true;
   if (storedPin === '1') return true;
   if (storedPin === '0') return false;
   if (storedCollapse === '1' || storedCollapse === '0') return false;
@@ -54,15 +61,16 @@ export function pinCommandDockPanel({
   savePin,
 } = {}) {
   if (!panelEl || !button) return undefined;
-  const shouldPin = typeof pin === 'boolean'
-    ? pin
-    : !panelEl.classList.contains('dock-pinned');
+  const forceOpen = ALWAYS_VISIBLE_DOCK_PANEL_IDS.includes(panelEl.id);
+  const shouldPin = forceOpen
+    ? true
+    : (typeof pin === 'boolean' ? pin : !panelEl.classList.contains('dock-pinned'));
   panelEl.classList.toggle('dock-pinned', shouldPin);
   button.setAttribute('aria-pressed', String(shouldPin));
   dock?.querySelectorAll?.('.dock-pinned-top').forEach((pinnedPanel) => {
     pinnedPanel.classList.remove('dock-pinned-top');
   });
-  if (shouldPin) {
+  if (shouldPin || forceOpen) {
     panelEl.classList.add('dock-pinned-top');
     setCollapsed(false, {
       explicit: !restore,
@@ -107,17 +115,23 @@ export function restoreCommandDockPinDefaults({
 } = {}) {
   for (const panelId of COMMAND_DOCK_PINNABLE_PANEL_IDS) {
     const shareSpec = shareById?.get?.(panelId);
-    if (shareSpec && (typeof shareSpec.pinned === 'boolean' || typeof shareSpec.collapsed === 'boolean')) {
+    if (
+      !ALWAYS_VISIBLE_DOCK_PANEL_IDS.includes(panelId)
+      && shareSpec
+      && (typeof shareSpec.pinned === 'boolean' || typeof shareSpec.collapsed === 'boolean')
+    ) {
       continue;
     }
     const storedPin = allowStored ? readPin(panelId) : null;
     const storedCollapse = allowStored ? readCollapse(panelId) : null;
-    const shouldPin = resolveCommandDockPin(storedPin, storedCollapse);
+    const shouldPin = resolveCommandDockPin(storedPin, storedCollapse, panelId);
     setPin(panelId, shouldPin, {
       restore: true,
       persist: false,
       syncShare: false,
     });
-    if (!shouldPin) restoreCollapse(panelId, { allowStored });
+    if (!shouldPin && !ALWAYS_VISIBLE_DOCK_PANEL_IDS.includes(panelId)) {
+      restoreCollapse(panelId, { allowStored });
+    }
   }
 }

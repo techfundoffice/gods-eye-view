@@ -4,6 +4,8 @@
  * openrouter/auto (auto can bill).
  */
 
+import { resolveOpenRouterApiKey } from './openrouterAdminSecret.js';
+
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 export const OPENROUTER_FREE_MODEL = 'openrouter/free';
 
@@ -46,7 +48,7 @@ export function openRouterFreeModel() {
 }
 
 export function openRouterApiKey() {
-  return String(process.env.OPENROUTER_API_KEY || '').trim();
+  return resolveOpenRouterApiKey();
 }
 
 export function openRouterHeaders(apiKey = openRouterApiKey()) {

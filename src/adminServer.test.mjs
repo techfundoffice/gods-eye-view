@@ -574,3 +574,56 @@ test('a successful login reports the session it just minted', async () => {
   assert.ok(response.body.expiresAt, 'the console shows when the session lapses');
   assert.match(response.cookies[0], new RegExp(`^${ADMIN_SESSION_COOKIE}=`));
 });
+
+
+test('signed-in operator can save an OpenRouter key and GET never returns it', async () => {
+  const { createOpenRouterAdminSecret } = await import('./openrouterAdminSecret.js');
+  const files = {};
+  const fsImpl = {
+    files,
+    readFileSync(file) {
+      if (!(file in files)) {
+        const error = new Error('ENOENT');
+        error.code = 'ENOENT';
+        throw error;
+      }
+      return files[file];
+    },
+    writeFileSync(file, data) { files[file] = data; },
+    renameSync(from, to) { files[to] = files[from]; delete files[from]; },
+    mkdirSync() {},
+  };
+  const openrouterSecret = createOpenRouterAdminSecret({ file: '/openrouter.json', fsImpl });
+  const store = memoryStore();
+  const auth = createAdminAuth({
+    credential: { hash: hashAdminPassword(PASSWORD), source: 'hash' },
+    store,
+  });
+  const middleware = createAdminMiddleware({
+    store, auth, builder: stubBuilder(), live: stubLive(), openrouterSecret,
+  });
+  const cookie = await signIn(middleware);
+  const saved = await call(middleware, {
+    method: 'POST',
+    url: '/openrouter',
+    headers: WRITE,
+    cookie,
+    body: { apiKey: 'sk-or-v1-abcdefghijklmnopqrstuvwxyz012345' },
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.body.present, true);
+  assert.equal(saved.body.source, 'admin');
+  assert.equal(JSON.stringify(saved.body).includes('sk-or-'), false);
+  const status = await call(middleware, { url: '/openrouter', cookie });
+  assert.equal(status.body.present, true);
+  assert.equal(JSON.stringify(status.body).includes('sk-or-v1-'), false);
+  const csrf = await call(middleware, {
+    method: 'POST',
+    url: '/openrouter',
+    cookie,
+    body: { apiKey: 'sk-or-v1-abcdefghijklmnopqrstuvwxyz012345' },
+  });
+  assert.equal(csrf.status, 403);
+  const locked = await call(middleware, { url: '/openrouter' });
+  assert.equal(locked.status, 401);
+});

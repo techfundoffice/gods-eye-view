@@ -34,6 +34,8 @@ import { createAdminMcpServer } from './adminMcpServer.js';
 import { createPluginBuilder, readPluginManifest } from './adminPluginBuilder.js';
 import { normalizePluginManifest } from './adminPluginRegistry.js';
 import { createAdminStore } from './adminStore.js';
+import { createOpenRouterAdminSecret, resolveOpenRouterApiKey } from './openrouterAdminSecret.js';
+import { postOpenRouterChat } from './openrouterFreeClient.js';
 import { createLiveSessionController } from './liveSession.js';
 import { splitYoutubeIngestPaste } from './liveStream.js';
 import { youtubeLiveOperatorMessage } from './youtubeBroadcast.js';
@@ -179,6 +181,7 @@ export function createAdminMiddleware({
   youtubeAuth = { authorizeRequest: async () => null, proxy: null },
   readManifest = readPluginManifest,
   version = '1.0.0',
+  openrouterSecret = createOpenRouterAdminSecret(),
 } = {}) {
   const mcp = createAdminMcpServer({ builder, version });
 
@@ -643,6 +646,55 @@ export function createAdminMiddleware({
           const body = await readJsonBody(req);
           auth.setMcpEnabled(Boolean(body.enabled));
           sendJson(res, 200, mcpSettings());
+          return;
+        }
+      }
+
+      if (first === 'openrouter') {
+        if (segments.length === 1 && req.method === 'GET') {
+          sendJson(res, 200, openrouterSecret.publicStatus());
+          return;
+        }
+        if (segments.length === 1 && req.method === 'POST') {
+          const body = await readJsonBody(req);
+          try {
+            openrouterSecret.setKey(body.apiKey);
+          } catch (error) {
+            sendJson(res, error.status || 400, {
+              error: { kind: error.kind || 'invalid', message: error.message || 'Invalid OpenRouter key' },
+            });
+            return;
+          }
+          sendJson(res, 200, openrouterSecret.publicStatus());
+          return;
+        }
+        if (segments.length === 2 && second === 'test' && req.method === 'POST') {
+          const apiKey = resolveOpenRouterApiKey({
+            adminKey: openrouterSecret.read().apiKey,
+            envKey: process.env.OPENROUTER_API_KEY,
+          });
+          if (!apiKey) {
+            sendJson(res, 503, {
+              ok: false,
+              status: 503,
+              present: false,
+              error: 'OPENROUTER_API_KEY is not set',
+            });
+            return;
+          }
+          const result = await postOpenRouterChat({
+            apiKey,
+            messages: [{ role: 'user', content: 'Reply with the single word pong.' }],
+            maxTokens: 8,
+          });
+          const err = result.payload?.error;
+          const errorText = typeof err === 'string' ? err : err?.message;
+          sendJson(res, 200, {
+            ok: result.ok,
+            status: result.status,
+            model: result.ok ? (result.model || null) : null,
+            error: result.ok ? null : (errorText || 'OpenRouter test failed'),
+          });
           return;
         }
       }

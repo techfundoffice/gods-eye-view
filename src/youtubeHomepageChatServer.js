@@ -82,10 +82,17 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
   });
   if (!normalized) return null;
   const slash = parsePublicCommand(normalized.text);
+  const authorHandle = boundedText(
+    raw.authorHandle
+    || (raw.author && typeof raw.author === 'object' ? raw.author.handle : '')
+    || (String(raw.authorDetails?.displayName || '').startsWith('@') ? raw.authorDetails.displayName : ''),
+    80,
+  );
   return {
     id: normalized.commentId,
     videoId: normalized.videoId,
     author: normalized.author.displayName,
+    ...(authorHandle ? { authorHandle } : {}),
     text: normalized.text,
     publishedAt: normalized.receivedAt,
     source: 'youtube',

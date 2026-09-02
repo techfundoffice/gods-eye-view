@@ -121,14 +121,16 @@ function continuationMessages(input) {
 }
 
 export function createPublicResponsesInterpreter({
-  apiKey = openRouterApiKey(),
-  model = openRouterFreeModel(),
+  apiKey,
+  model,
   fetchImpl = globalThis.fetch,
   now = Date.now,
   limiter,
 } = {}) {
   return async function interpret(input, { signal } = {}) {
-    if (!apiKey) throw Object.assign(new Error('Public command AI is not configured'), { kind: 'unconfigured' });
+    const resolvedKey = apiKey !== undefined ? apiKey : openRouterApiKey();
+    const resolvedModel = model !== undefined ? model : openRouterFreeModel();
+    if (!resolvedKey) throw Object.assign(new Error('Public command AI is not configured'), { kind: 'unconfigured' });
     const startedAt = input.startedAt ?? now();
     if ((input.remainingTurns ?? 0) <= 0 || now() - startedAt >= PUBLIC_COMMAND_LIMITS.totalMs) {
       throw Object.assign(new Error('Model budget exhausted'), { kind: 'budget' });
@@ -149,8 +151,8 @@ export function createPublicResponsesInterpreter({
           { role: 'user', content: publicUserPayload(input) },
         ];
       const result = await postOpenRouterChat({
-        apiKey,
-        model,
+        apiKey: resolvedKey,
+        model: resolvedModel,
         messages,
         tools,
         maxTokens: 500,

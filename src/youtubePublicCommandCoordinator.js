@@ -23,6 +23,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       id: id(), videoId: bounded(binding?.videoId, 80), commentId: bounded(comment?.commentId, 160),
       generation: Number(binding?.generation), captureExecutorId: bounded(binding?.captureExecutorId, 160),
       viewer: bounded(comment?.author?.displayName, PUBLIC_COMMAND_LIMITS.viewerName),
+      authorHandle: bounded(comment?.author?.handle || comment?.authorHandle, 80),
       comment: bounded(comment?.text, PUBLIC_COMMAND_LIMITS.commentText),
       command: parsed.command, mode: parsed.mode, state: parsed.valid ? 'received' : 'rejected',
       reason: parsed.reason, expiresAt: now() + PUBLIC_COMMAND_LIMITS.totalMs,

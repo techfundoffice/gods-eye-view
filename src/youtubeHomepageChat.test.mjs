@@ -568,3 +568,47 @@ test('YouTube /explore-manually is ingested as a live comment', async () => {
   }]);
   assert.equal(displayed[0].text, '/explore-manually');
 });
+
+test('with commandRuntime, /help becomes a succeeded command with commentId', async () => {
+  const registered = [];
+  const middleware = createYoutubeHomepageChatMiddleware({
+    discoverActive: async () => liveIdentity(),
+    listChat: async () => ({
+      items: [{
+        id: 'chat-help',
+        snippet: { displayMessage: '/help', publishedAt: '2026-09-01T00:00:00.000Z' },
+        authorDetails: { displayName: 'Pat' },
+        authorHandle: '@patHandle',
+      }],
+      nextPageToken: '',
+      pollingIntervalMillis: 5000,
+    }),
+    commandRuntime: {
+      registerMessage: async (item) => { registered.push(item); },
+      statuses: async () => [{
+        id: 'cmd-help',
+        commentId: 'chat-help',
+        command: '/help',
+        state: 'succeeded',
+        answer: PUBLIC_HELP_REPLY,
+        viewer: 'Pat',
+        authorHandle: '@patHandle',
+        videoId: '9ZiwwXr-qU4',
+        generation: 1,
+        updatedAt: 1,
+      }],
+    },
+  });
+  const response = await invoke(middleware, '/feed');
+  assert.equal(response.status, 200);
+  assert.equal(registered[0].id, 'chat-help');
+  assert.equal(registered[0].authorHandle, '@patHandle');
+  assert.equal(response.body.commands[0].commentId, 'chat-help');
+  assert.equal(response.body.commands[0].authorHandle, '@patHandle');
+});
+
+test('vite homepage middleware is constructed with commandRuntime', () => {
+  const src = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
+  assert.match(src, /createYoutubePublicCommandRuntime\s*\(/);
+  assert.match(src, /createYoutubeHomepageChatMiddleware\(\s*\{[\s\S]*commandRuntime/);
+});

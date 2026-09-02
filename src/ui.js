@@ -7756,6 +7756,7 @@ export class StyleManager {
   } = {}) {
     const panelEl = document.getElementById(panelId);
     if (!panelEl) return;
+    if (panelId === "control-panel") collapsed = false;
     if (explicit && !restore) this.shareLinkManager?.claimRestoreLane?.('panel', panelId);
     const nextCollapsed = Boolean(collapsed);
     const wasAutoCollapsed = panelEl.classList.contains('layout-auto-collapsed');
