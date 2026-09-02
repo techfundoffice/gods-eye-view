@@ -42,6 +42,38 @@ test('duplicates, malformed and ordinary comments never invoke AI', async () => 
   assert.equal(calls, 1);
 });
 
+test('safe natural-language view requests can start the execute agent mode', async () => {
+  const ledger = createInMemoryPublicCommandLedger();
+  let received;
+  const coordinator = createYoutubePublicCommandCoordinator({
+    ledger,
+    interpret: async (input) => {
+      received = input;
+      return {
+        ok: true,
+        kind: 'tool-call',
+        call: {
+          responseId: 'response',
+          callId: 'call',
+          name: 'fly_to_location',
+          arguments: { query: 'Paris', viewMode: 'close' },
+        },
+      };
+    },
+  });
+  const result = await coordinator.register({
+    commentId: 'natural-1',
+    text: 'Show me Paris',
+    author: { displayName: 'Viewer' },
+    agentMode: 'execute',
+  }, binding);
+  assert.equal(received.comment, 'Show me Paris');
+  assert.equal(received.mode, 'execute');
+  assert.equal(result.record.command, 'viewer-request');
+  assert.equal(result.record.state, 'awaiting-execution');
+  assert.equal(result.record.validatedTool.name, 'fly_to_location');
+});
+
 test('coordinator revalidates model calls and mode violations become rejected', async () => {
   const ledger = createInMemoryPublicCommandLedger();
   const coordinator = createYoutubePublicCommandCoordinator({
@@ -121,21 +153,35 @@ test('/help succeeds with the shipped reply and never invokes AI', async () => {
   assert.equal(result.record.command, '/help');
 });
 
-test('/live-contacts and /explore-manually queue run_view_preset without AI', async () => {
+test('/live-contacts and /explore-manually start the AI before choosing run_view_preset', async () => {
   const ledger = createInMemoryPublicCommandLedger({ now: () => 100 });
   let calls = 0;
   const coordinator = createYoutubePublicCommandCoordinator({
     ledger, now: () => 100, id: (() => { let n = 0; return () => `view-${++n}`; })(),
-    interpret: async () => { calls += 1; return { ok: true, kind: 'complete', text: 'nope' }; },
+    interpret: async (input) => {
+      calls += 1;
+      return input.toolResult
+        ? { ok: true, kind: 'complete', text: 'Live Contacts is active. What next?' }
+        : {
+          ok: true,
+          kind: 'tool',
+          call: {
+            name: 'run_view_preset',
+            arguments: { preset: input.comment },
+            responseId: `response-${calls}`,
+            callId: `call-${calls}`,
+          },
+        };
+    },
   });
   const contacts = await coordinator.register(comment('view-1', '/live-contacts'), binding);
-  assert.equal(calls, 0);
+  assert.equal(calls, 1);
   assert.equal(contacts.record.state, 'awaiting-execution');
   assert.equal(contacts.record.validatedTool.name, 'run_view_preset');
   assert.equal(contacts.record.validatedTool.arguments.preset, '/live-contacts');
 
   const explore = await coordinator.register(comment('view-2', '/explore-manually'), binding);
-  assert.equal(calls, 0);
+  assert.equal(calls, 2);
   assert.equal(explore.record.state, 'awaiting-execution');
   assert.equal(explore.record.validatedTool.name, 'run_view_preset');
   assert.equal(explore.record.validatedTool.arguments.preset, '/explore-manually');
@@ -145,7 +191,7 @@ test('/live-contacts and /explore-manually queue run_view_preset without AI', as
     captureEpoch: 'epoch',
   });
   const done = await coordinator.acceptToolResult(explore.record.id, binding, { ok: true, choice: 'explore' });
-  assert.equal(calls, 0);
+  assert.equal(calls, 3);
   assert.equal(done.record.state, 'succeeded');
-  assert.equal(done.record.answer, '/explore-manually');
+  assert.equal(done.record.answer, 'Live Contacts is active. What next?');
 });

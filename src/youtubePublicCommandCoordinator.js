@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import {
   PUBLIC_COMMAND_LIMITS,
   PUBLIC_HELP_REPLY,
-  PUBLIC_VIEW_PRESETS,
   parsePublicCommand,
+  toolsForPublicMode,
   validatePublicToolCall,
 } from './youtubePublicCommandPolicy.js';
 
@@ -18,36 +18,31 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
 
   async function register(comment, binding) {
     const parsed = parsePublicCommand(comment?.text);
-    if (!parsed.recognized) return { recognized: false };
+    const overrideMode = bounded(comment?.agentMode, 32);
+    const recognized = parsed.recognized || Boolean(overrideMode);
+    const valid = parsed.recognized
+      ? parsed.valid
+      : Boolean(overrideMode && toolsForPublicMode(overrideMode).length);
+    if (!recognized) return { recognized: false };
     const record = {
       id: id(), videoId: bounded(binding?.videoId, 80), commentId: bounded(comment?.commentId, 160),
       generation: Number(binding?.generation), captureExecutorId: bounded(binding?.captureExecutorId, 160),
       viewer: bounded(comment?.author?.displayName, PUBLIC_COMMAND_LIMITS.viewerName),
       authorHandle: bounded(comment?.author?.handle || comment?.authorHandle, 80),
       comment: bounded(comment?.text, PUBLIC_COMMAND_LIMITS.commentText),
-      command: parsed.command, mode: parsed.mode, state: parsed.valid ? 'received' : 'rejected',
-      reason: parsed.reason, expiresAt: now() + PUBLIC_COMMAND_LIMITS.totalMs,
+      command: parsed.command || 'viewer-request',
+      mode: parsed.mode || overrideMode,
+      state: valid ? 'received' : 'rejected',
+      reason: valid ? '' : (parsed.reason || 'Unknown public command mode'),
+      expiresAt: now() + PUBLIC_COMMAND_LIMITS.totalMs,
     };
     const inserted = await ledger.insert(record);
-    if (!inserted.inserted || !parsed.valid) return { recognized: true, duplicate: !inserted.inserted, record: inserted.record };
+    if (!inserted.inserted || !valid) return { recognized: true, duplicate: !inserted.inserted, record: inserted.record };
     await ledger.compareAndSet(record.id, 'received', { state: 'interpreting' });
     if (parsed.command === '/help') {
       await ledger.compareAndSet(record.id, 'interpreting', {
         state: 'succeeded',
         answer: PUBLIC_HELP_REPLY,
-      });
-      return { recognized: true, record: await ledger.get(record.id) };
-    }
-    if (PUBLIC_VIEW_PRESETS[parsed.command]) {
-      const checked = validatePublicToolCall(parsed.command, 'run_view_preset', { preset: parsed.command });
-      if (!checked.ok) {
-        await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: checked.reason });
-        return { recognized: true, record: await ledger.get(record.id) };
-      }
-      await ledger.compareAndSet(record.id, 'interpreting', {
-        state: 'awaiting-execution',
-        nonce: id(),
-        validatedTool: checked,
       });
       return { recognized: true, record: await ledger.get(record.id) };
     }
@@ -127,20 +122,45 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       });
       return { ok: false, reason: 'stale-or-invalid' };
     }
-    if (PUBLIC_VIEW_PRESETS[record.command]) {
-      const ok = result?.ok !== false;
-      await ledger.compareAndSet(record.id, 'executing', {
-        state: ok ? 'succeeded' : 'failed',
-        nonce: null,
-        executionResult: structuredClone(result),
-        reason: ok ? '' : bounded(result?.error || 'View preset failed', 160),
-        answer: ok ? bounded(record.command, 160) : '',
-      });
-      return { ok, record: await ledger.get(record.id) };
-    }
     await ledger.compareAndSet(record.id, 'executing', { state: 'awaiting-model', nonce: null, executionResult: structuredClone(result) });
     return advance(record.id, binding, { responseId: record.modelResponseId, callId: record.functionCallId, result });
   }
 
-  return { register, advance, acceptToolResult, cancelAfterRestart: ledger.cancelNonterminal };
+  async function acceptViewerToolResult(commandId, binding, nonce, result) {
+    const record = await ledger.get(commandId);
+    if (!record || record.state !== 'executing') return { ok: false, reason: 'state' };
+    if (bounded(nonce, PUBLIC_COMMAND_LIMITS.id) !== bounded(record.nonce, PUBLIC_COMMAND_LIMITS.id)) {
+      return { ok: false, reason: 'nonce' };
+    }
+    const checked = validatePublicToolCall(record.mode, record.validatedTool?.name, record.validatedTool?.arguments);
+    const current = binding?.commandsEnabled === true
+      && record.generation === Number(binding?.generation)
+      && record.videoId === bounded(binding?.videoId, 80)
+      && record.captureExecutorId === bounded(binding?.captureExecutorId, 160);
+    if (!checked.ok || !current) {
+      await ledger.compareAndSet(record.id, 'executing', {
+        state: 'cancelled',
+        reason: checked.ok ? 'Verified live binding changed' : 'Stored tool failed revalidation',
+      });
+      return { ok: false, reason: 'stale-or-invalid' };
+    }
+    await ledger.compareAndSet(record.id, 'executing', {
+      state: 'awaiting-model',
+      nonce: null,
+      executionResult: structuredClone(result),
+    });
+    return advance(record.id, binding, {
+      responseId: record.modelResponseId,
+      callId: record.functionCallId,
+      result,
+    });
+  }
+
+  return {
+    register,
+    advance,
+    acceptToolResult,
+    acceptViewerToolResult,
+    cancelAfterRestart: ledger.cancelNonterminal,
+  };
 }

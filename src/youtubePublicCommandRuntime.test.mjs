@@ -75,6 +75,81 @@ test('executor lease is redeemed only once by compare-and-set', async () => {
   assert.equal((await ledger.list())[0].state, 'executing');
 });
 
+test('visible viewer lease runs the AI tool and continues to a final reply', async () => {
+  const ledger = createInMemoryPublicCommandLedger();
+  const runtime = createYoutubePublicCommandRuntime({
+    ledger,
+    interpret: async (input) => input.toolResult
+      ? { ok: true, kind: 'complete', text: 'Live Contacts is active. What next?' }
+      : {
+        ok: true,
+        kind: 'tool',
+        call: {
+          name: 'run_view_preset',
+          arguments: { preset: '/live-contacts' },
+          responseId: 'response',
+          callId: 'call',
+        },
+      },
+  });
+  await runtime.rotateExecutor();
+  const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
+  await runtime.registerMessage({ id: 'comment', text: '/live-contacts', author: 'viewer' }, binding);
+  const middleware = runtime.middleware({ getBinding: () => binding });
+
+  const lease = await invoke(middleware, {
+    url: '/agent/lease',
+    remoteAddress: '10.0.0.5',
+    host: 'app.example.replit.dev',
+  });
+  assert.equal(lease.statusCode, 200);
+  assert.equal(lease.body.lease.tool.name, 'run_view_preset');
+
+  const result = await invoke(middleware, {
+    method: 'POST',
+    url: '/agent/result',
+    remoteAddress: '10.0.0.5',
+    host: 'app.example.replit.dev',
+    body: {
+      commandId: lease.body.lease.commandId,
+      nonce: lease.body.lease.nonce,
+      result: { ok: true, action: 'run_view_preset', preset: '/live-contacts' },
+    },
+  });
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.record.state, 'succeeded');
+  assert.equal(result.body.record.answer, 'Live Contacts is active. What next?');
+});
+
+test('visible viewer result rejects a stale nonce without changing the lease', async () => {
+  const ledger = createInMemoryPublicCommandLedger();
+  const runtime = createYoutubePublicCommandRuntime({
+    ledger,
+    interpret: async () => ({
+      ok: true,
+      kind: 'tool',
+      call: { name: 'zoom_to_globe', arguments: {}, responseId: 'response', callId: 'call' },
+    }),
+  });
+  await runtime.rotateExecutor();
+  const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
+  await runtime.registerMessage({ id: 'comment', text: '/gods-eye-view', author: 'viewer' }, binding);
+  const middleware = runtime.middleware({ getBinding: () => binding });
+  const lease = await invoke(middleware, { url: '/agent/lease' });
+  const result = await invoke(middleware, {
+    method: 'POST',
+    url: '/agent/result',
+    body: {
+      commandId: lease.body.lease.commandId,
+      nonce: 'wrong',
+      result: { ok: true },
+    },
+  });
+  assert.equal(result.statusCode, 409);
+  assert.equal(result.body.reason, 'nonce');
+  assert.equal((await ledger.list())[0].state, 'executing');
+});
+
 test('executor rejects a result from an old capture epoch', async () => {
   const runtime = createYoutubePublicCommandRuntime({ ledger: createInMemoryPublicCommandLedger() });
   const old = await runtime.rotateExecutor();

@@ -88,6 +88,9 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
     || (String(raw.authorDetails?.displayName || '').startsWith('@') ? raw.authorDetails.displayName : ''),
     80,
   );
+  const inferredActions = commandsEnabled && !slash.recognized
+    ? inferHomepageViewerActions(normalized.text)
+    : [];
   return {
     id: normalized.commentId,
     videoId: normalized.videoId,
@@ -96,7 +99,8 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
     text: normalized.text,
     publishedAt: normalized.receivedAt,
     source: 'youtube',
-    actions: commandsEnabled && !slash.recognized ? inferHomepageViewerActions(normalized.text) : [],
+    ...(inferredActions.length ? { agentMode: 'execute' } : {}),
+    actions: [],
   };
 }
 
@@ -177,7 +181,7 @@ export function createYoutubeHomepageChatMiddleware({
   return async function youtubeHomepageChatMiddleware(req, res) {
     const method = String(req.method || 'GET').toUpperCase();
     const parsed = new URL(String(req.url || '/'), 'http://internal');
-    if (parsed.pathname.startsWith('/executor') && executorMiddleware) {
+    if ((parsed.pathname.startsWith('/executor') || parsed.pathname.startsWith('/agent')) && executorMiddleware) {
       await executorMiddleware(req, res);
       return;
     }

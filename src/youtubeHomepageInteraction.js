@@ -180,6 +180,7 @@ export function createYoutubeHomepageInteraction({
       if (!message.id || seen.has(id)) continue;
       remember(id);
       const actions = Array.isArray(message.actions) ? message.actions : [];
+      const agentRequested = Boolean(message.agentMode);
       nextchat?.publishViewerMessage?.({
         author: safeText(message.author, 80) || 'YouTube viewer',
         authorHandle: safeText(message.authorHandle, 80),
@@ -190,7 +191,7 @@ export function createYoutubeHomepageInteraction({
           videoId: safeText(message.videoId, 80),
           generation,
           receivedAt: safeText(message.publishedAt, 40),
-          actionState: actions.length ? 'interpreting' : 'chat',
+          actionState: actions.length || agentRequested ? 'interpreting' : 'chat',
           actionCount: actions.length,
         },
       });
@@ -201,7 +202,7 @@ export function createYoutubeHomepageInteraction({
         author: safeText(message.author, 80) || 'YouTube viewer',
         authorHandle: safeText(message.authorHandle, 80),
         text: safeText(message.text, 500),
-        replyState: actions.length ? 'interpreting' : 'display',
+        replyState: actions.length || agentRequested ? 'interpreting' : 'display',
         actionCount: actions.length,
       });
       await applyMessageActions(message);
@@ -296,6 +297,52 @@ export function createYoutubeHomepageInteraction({
     }
   }
 
+  async function drainViewerAgent() {
+    if (
+      executorBusy
+      || !commandsEnabled
+      || !actionRunner
+      || globalThis.__GEV_CAPTURE_EXECUTOR__ === true
+    ) return;
+    executorBusy = true;
+    try {
+      const response = await fetchImpl('/api/youtube/homepage-chat/agent/lease', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      });
+      if (!response.ok) return;
+      const payload = await response.json().catch(() => ({}));
+      const lease = payload?.lease;
+      if (!lease?.commandId || Number(lease.generation) !== generation || safeText(lease.videoId, 80) !== videoId) return;
+      const tool = lease.tool || {};
+      let result;
+      try {
+        const output = await actionRunner(tool.name, tool.arguments || {}, {
+          isCurrent: () => !stopped
+            && commandsEnabled
+            && Number(lease.generation) === generation
+            && safeText(lease.videoId, 80) === videoId,
+        });
+        result = output && typeof output === 'object' ? output : { ok: true };
+      } catch (error) {
+        result = { ok: false, error: safeText(error?.message || 'GEV action failed', 160) };
+      }
+      await fetchImpl('/api/youtube/homepage-chat/agent/result', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          commandId: lease.commandId,
+          nonce: lease.nonce,
+          result,
+        }),
+      });
+    } finally {
+      executorBusy = false;
+    }
+  }
+
   async function poll() {
     if (stopped) return;
     let delay = MIN_POLL_MS;
@@ -358,6 +405,7 @@ export function createYoutubeHomepageInteraction({
         setStatus(`YT LIVE · showing every comment from ${safeText(payload.title || videoId, 100)}`, 'live');
         await ingest(payload.items || []);
         publishCommandStatuses(payload.commands || []);
+        await drainViewerAgent();
         await drainCaptureExecutor();
       }
     } catch (error) {

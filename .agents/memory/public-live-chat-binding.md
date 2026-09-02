@@ -5,7 +5,7 @@ description: Security boundary for exposing active YouTube chat to the unauthent
 
 The public homepage chat feed must derive its video identity from the shared server-side live session. Never accept a client-selected video ID, provider continuation bootstrap data, OAuth material, or raw YouTube payloads.
 
-Control ownership stays separate: ADMIN is the manual-operation console. The homepage chatbot reads YouTube comments and routes approved view requests through the God’s Eye View MCP endpoints. Viewer guidance may explain that path, but existing local and ADMIN controls stay available.
+Control ownership stays separate: ADMIN is the manual-operation console. The homepage chatbot reads YouTube comments, sends approved commands through the server-side public AI interpreter, and delivers validated GEV tool calls to the visible page action runner. The private capture executor remains a separate path.
 
 Public slash-command execution requires an exact verified-live binding at lease issue and result acceptance. A stop, unverified fallback, video/generation change, executor rotation, or capture-epoch change must atomically cancel nonterminal work; persisted work is cancelled rather than replayed after restart.
 

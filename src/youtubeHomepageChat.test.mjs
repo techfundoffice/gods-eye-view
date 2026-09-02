@@ -118,11 +118,8 @@ test('homepage feed is tied to the discovered live broadcast and exposes normali
     text: 'Show me Ensenada, Mexico',
     publishedAt: '2026-08-31T22:30:00.000Z',
     source: 'youtube',
-    actions: [{
-      action: 'fly_to_location',
-      args: { query: 'Ensenada, Mexico', viewMode: 'close' },
-      reason: 'Viewer requested a frontend view change',
-    }],
+    agentMode: 'execute',
+    actions: [],
   });
   const serialized = JSON.stringify(response.body);
   assert.doesNotMatch(serialized, /must-not-leak|profileImageUrl|apiKey|streamKey|owner-session|CHAT-LIVE|viewer-oauth|stale-id/);
@@ -568,6 +565,94 @@ test('YouTube /explore-manually is ingested as a live comment', async () => {
     actions: [],
   }]);
   assert.equal(displayed[0].text, '/explore-manually');
+});
+
+test('visible live page executes an AI tool lease and posts its result', async () => {
+  const requests = [];
+  const calls = [];
+  let complete;
+  const done = new Promise((resolve) => { complete = resolve; });
+  const interaction = createYoutubeHomepageInteraction({
+    fetchImpl: async (url, options = {}) => {
+      requests.push({ url, options });
+      if (url.includes('/feed')) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              active: true,
+              status: 'live',
+              videoId: 'vid',
+              generation: 1,
+              commandsEnabled: true,
+              items: [],
+              commands: [{
+                id: 'cmd-1',
+                commentId: 'comment-1',
+                command: '/live-contacts',
+                state: 'awaiting-execution',
+                videoId: 'vid',
+                generation: 1,
+              }],
+            };
+          },
+        };
+      }
+      if (url.includes('/agent/lease')) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              lease: {
+                commandId: 'cmd-1',
+                nonce: 'nonce-1',
+                videoId: 'vid',
+                generation: 1,
+                tool: {
+                  name: 'run_view_preset',
+                  arguments: { preset: '/live-contacts' },
+                },
+              },
+            };
+          },
+        };
+      }
+      if (url.includes('/agent/result')) {
+        complete(JSON.parse(options.body));
+        return { ok: true, async json() { return { ok: true }; } };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+    nextchat: {
+      publishViewerMessage() {},
+      updateAgentReply() {},
+      setHarnessStatus() {},
+    },
+    runner: async (action, args) => {
+      calls.push({ action, args });
+      return { ok: true, action, preset: args.preset };
+    },
+    documentRef: null,
+    clock: {
+      setTimeout() { return 1; },
+      clearTimeout() {},
+    },
+  });
+
+  interaction.start();
+  const result = await done;
+  assert.deepEqual(calls, [{
+    action: 'run_view_preset',
+    args: { preset: '/live-contacts' },
+  }]);
+  assert.deepEqual(result, {
+    commandId: 'cmd-1',
+    nonce: 'nonce-1',
+    result: { ok: true, action: 'run_view_preset', preset: '/live-contacts' },
+  });
+  assert.equal(requests.filter(({ url }) => url.includes('/agent/lease')).length, 1);
+  assert.equal(requests.filter(({ url }) => url.includes('/agent/result')).length, 1);
+  interaction.stop();
 });
 
 test('with commandRuntime, /help becomes a succeeded command with commentId', async () => {

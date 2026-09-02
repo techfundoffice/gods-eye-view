@@ -156,6 +156,7 @@ export function createYoutubePublicCommandRuntime({
       text: message?.text,
       author: { displayName: message?.author, handle: message?.authorHandle },
       authorHandle: message?.authorHandle,
+      agentMode: message?.agentMode,
     }, bindingWithExecutor(binding));
   }
 
@@ -196,11 +197,39 @@ export function createYoutubePublicCommandRuntime({
     };
   }
 
+  async function nextViewerLease(binding = {}) {
+    await reconcileBinding(binding);
+    const target = bindingWithExecutor(binding);
+    if (!target.commandsEnabled) return null;
+    const rows = await ledger.list();
+    const record = rows.find((row) => row.state === 'awaiting-execution'
+      && row.videoId === target.videoId
+      && row.generation === target.generation
+      && row.captureExecutorId === target.captureExecutorId);
+    if (!record) return null;
+    const claimed = await ledger.compareAndSet(record.id, 'awaiting-execution', {
+      state: 'executing',
+      delivery: 'viewer',
+      redeemedAt: now(),
+    });
+    if (!claimed.changed) return null;
+    return {
+      commandId: record.id,
+      commentId: record.commentId,
+      videoId: record.videoId,
+      generation: record.generation,
+      nonce: record.nonce,
+      tool: record.validatedTool,
+    };
+  }
+
   function middleware({ getBinding = () => ({}) } = {}) {
     return async function publicExecutorMiddleware(req, res) {
       const parsed = new URL(String(req.url || '/'), 'http://internal');
-      if (!parsed.pathname.startsWith('/executor')) return false;
-      if (!authorized(req)) {
+      const isExecutorRoute = parsed.pathname.startsWith('/executor');
+      const isViewerRoute = parsed.pathname.startsWith('/agent');
+      if (!isExecutorRoute && !isViewerRoute) return false;
+      if (isExecutorRoute && !authorized(req)) {
         sendJson(res, 403, { error: { kind: 'executor-auth', message: 'Trusted capture executor required.' } });
         return true;
       }
@@ -208,6 +237,11 @@ export function createYoutubePublicCommandRuntime({
       try {
         if (req.method === 'GET' && parsed.pathname === '/executor/lease') {
           const lease = await nextLease(binding);
+          sendJson(res, 200, { lease });
+          return true;
+        }
+        if (req.method === 'GET' && parsed.pathname === '/agent/lease') {
+          const lease = await nextViewerLease(binding);
           sendJson(res, 200, { lease });
           return true;
         }
@@ -231,6 +265,23 @@ export function createYoutubePublicCommandRuntime({
           sendJson(res, accepted.ok ? 200 : 409, accepted);
           return true;
         }
+        if (req.method === 'POST' && parsed.pathname === '/agent/result') {
+          const body = await readJson(req);
+          const target = bindingWithExecutor(binding);
+          if (!target.commandsEnabled) {
+            await reconcileBinding(binding);
+            sendJson(res, 409, { error: { kind: 'not-verified-live', message: 'Verified live session ended.' } });
+            return true;
+          }
+          const accepted = await coordinator.acceptViewerToolResult(
+            bounded(body.commandId),
+            target,
+            body.nonce,
+            body.result && typeof body.result === 'object' ? body.result : { ok: false, error: 'Invalid result' },
+          );
+          sendJson(res, accepted.ok ? 200 : 409, accepted);
+          return true;
+        }
         sendJson(res, 405, { error: { kind: 'method', message: 'Executor route not found.' } });
         return true;
       } catch (error) {
@@ -248,6 +299,8 @@ export function createYoutubePublicCommandRuntime({
     registerMessage,
     statuses,
     reconcileBinding,
+    nextViewerLease,
+    acceptViewerToolResult: coordinator.acceptViewerToolResult,
     middleware,
     cancelAfterRestart: coordinator.cancelAfterRestart,
     isTerminalState: (state) => terminal.has(String(state || '')),
