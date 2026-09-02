@@ -8,6 +8,7 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 ### Added
 
 - The live-news ticker still scrolls **Comment on YouTube chat to choose your view. Live at [stream URL] Now!** and now also scrolls **Download our Google Chrome extension named Cloud Computer AI Agent to control this channel.** The stream URL remains the only ticker link.
+- Every newly ingested live YouTube comment now starts the GEV AI exactly once, including ordinary conversation and `/help`. Duplicate delivery remains deduplicated, and actual program control still requires an allowlisted, validated GEV tool call.
 
 ## [Unreleased] — 2026-09-01
 

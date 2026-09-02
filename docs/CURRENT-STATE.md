@@ -55,6 +55,12 @@ Updated: September 2, 2026
 > cap (20/min, 50/day) are rejected, not billed. GEV MIC remains OpenAI
 > Realtime and is not on this path. HUD five-word summary uses the same
 > free router.
+>
+> **2026-09-02 — every live YouTube comment starts the GEV AI.** Ordinary
+> conversation, `/help`, natural-language requests, and slash commands all enter
+> the same deduplicated AI lifecycle once per comment. The model may answer in
+> prose, but program control still requires a validated allowlisted GEV tool
+> call and the verified live-session executor.
 
 > **2026-09-01 — overlapping homepage chrome is unburied.** The command dock
 > sits above the COMMANDS legend and live-news ticker (`bottom: 4.5rem`).

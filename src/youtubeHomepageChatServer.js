@@ -14,7 +14,6 @@ import {
   normalizeIncomingMessage,
 } from './youtubeCommentHarness.js';
 import { validateViewIntent } from './youtubeViewAgent.js';
-import { parsePublicCommand } from './youtubePublicCommandPolicy.js';
 import { isLoopbackAddress } from './youtubeOAuth.js';
 
 const MAX_CONTINUATION = 4096;
@@ -101,14 +100,13 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
     now,
   });
   if (!normalized) return null;
-  const slash = parsePublicCommand(normalized.text);
   const authorHandle = boundedText(
     raw.authorHandle
     || (raw.author && typeof raw.author === 'object' ? raw.author.handle : '')
     || (String(raw.authorDetails?.displayName || '').startsWith('@') ? raw.authorDetails.displayName : ''),
     80,
   );
-  const agentRequested = commandsEnabled && slash.command !== '/help';
+  const agentRequested = commandsEnabled;
   return {
     id: normalized.commentId,
     videoId: normalized.videoId,

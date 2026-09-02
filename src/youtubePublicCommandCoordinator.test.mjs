@@ -139,15 +139,15 @@ test('generation changes cancel work without late execution', async () => {
   assert.equal((await ledger.get('id')).state, 'cancelled');
 });
 
-test('/help succeeds with the shipped reply and never invokes AI', async () => {
+test('/help invokes AI and preserves the shipped reply', async () => {
   const ledger = createInMemoryPublicCommandLedger({ now: () => 100 });
   let calls = 0;
   const coordinator = createYoutubePublicCommandCoordinator({
     ledger, now: () => 100, id: (() => { let n = 0; return () => `help-${++n}`; })(),
-    interpret: async () => { calls += 1; return { ok: true, kind: 'complete', text: 'nope' }; },
+    interpret: async () => { calls += 1; return { ok: true, kind: 'complete', text: PUBLIC_HELP_REPLY }; },
   });
   const result = await coordinator.register(comment('help-1', '/help'), binding);
-  assert.equal(calls, 0);
+  assert.equal(calls, 1);
   assert.equal(result.record.state, 'succeeded');
   assert.equal(result.record.answer, PUBLIC_HELP_REPLY);
   assert.equal(result.record.command, '/help');

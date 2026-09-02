@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
   PUBLIC_COMMAND_LIMITS,
-  PUBLIC_HELP_REPLY,
   parsePublicCommand,
   toolsForPublicMode,
   validatePublicToolCall,
@@ -66,14 +65,6 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     };
     const inserted = await ledger.insert(record);
     if (!inserted.inserted || !valid) return { recognized: true, duplicate: !inserted.inserted, record: inserted.record };
-    if (parsed.command === '/help') {
-      await ledger.compareAndSet(record.id, 'received', { state: 'interpreting' });
-      await ledger.compareAndSet(record.id, 'interpreting', {
-        state: 'succeeded',
-        answer: PUBLIC_HELP_REPLY,
-      });
-      return { recognized: true, record: await ledger.get(record.id) };
-    }
     if (comment?.deferAgent === true) {
       return { recognized: true, record: await ledger.get(record.id) };
     }

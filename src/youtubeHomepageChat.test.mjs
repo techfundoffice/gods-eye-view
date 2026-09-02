@@ -75,7 +75,7 @@ function liveIdentity(overrides = {}) {
   };
 }
 
-test('homepage feed is tied to the discovered live broadcast and exposes normalized fields only', async () => {
+test('homepage feed starts the AI for every live comment and exposes normalized fields only', async () => {
   const listed = [];
   const middleware = createYoutubeHomepageChatMiddleware({
     discoverActive: async () => liveIdentity({ streamKey: 'must-not-leak', sessionId: 'owner-session' }),
@@ -87,7 +87,7 @@ test('homepage feed is tied to the discovered live broadcast and exposes normali
         items: [{
           id: 'chat-1',
           snippet: {
-            displayMessage: 'Show me Ensenada, Mexico',
+            displayMessage: 'This stream looks great!',
             publishedAt: '2026-08-31T22:30:00.000Z',
           },
           authorDetails: {
@@ -115,11 +115,11 @@ test('homepage feed is tied to the discovered live broadcast and exposes normali
     id: 'chat-1',
     videoId: '9ZiwwXr-qU4',
     author: 'CruiseWatcher',
-    text: 'Show me Ensenada, Mexico',
+    text: 'This stream looks great!',
     publishedAt: '2026-08-31T22:30:00.000Z',
     source: 'youtube',
     agentMode: 'execute',
-    deferAgent: true,
+    deferAgent: false,
     actions: [],
   });
   const serialized = JSON.stringify(response.body);
