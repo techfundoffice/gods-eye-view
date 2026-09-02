@@ -14974,3 +14974,64 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
   white-space: pre-wrap !important;
   overflow: visible !important;
 }
+
+
+/* ═══════════════════════════════════════════════
+   2026-09-02 YouTube chat flush to the extreme right edge.
+   Previous 34rem width pulled the thread across the globe.
+   Match the LIVE CHAT / YOUTUBE · GEV AGENT right-rail frame:
+   sit on right: 0, no leftover gutter, narrow column only.
+   ═══════════════════════════════════════════════ */
+:root {
+  --youtube-chat-rail-width: min(20rem, calc(100vw - var(--youtube-mc-band) - 0.25rem));
+}
+
+#admin-stamp-stack {
+  top: 4.5rem !important;
+  right: 0 !important;
+  left: auto !important;
+  bottom: auto !important;
+  width: var(--youtube-chat-rail-width) !important;
+  max-width: var(--youtube-chat-rail-width) !important;
+  align-items: stretch !important;
+  max-height: calc(100dvh - var(--youtube-south-band, 4rem)) !important;
+  overflow: visible !important;
+}
+
+#admin-stamp-stack #admin-launch,
+#admin-stamp-stack .admin-launch,
+#admin-stamp-stack .hud-top-right,
+#admin-stamp-stack .hud-corner.hud-top-right {
+  align-self: flex-end !important;
+  margin-right: 0 !important;
+  padding-right: max(0.35rem, env(safe-area-inset-right)) !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel,
+#admin-stamp-stack #youtube-comments-panel.panel-collapsible {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: 0 !important;
+  left: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  align-self: stretch !important;
+  max-height: calc(100dvh - var(--youtube-north-band) - var(--youtube-south-band) + 1.5rem) !important;
+}
+
+#admin-stamp-stack .youtube-chat-columns {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: none !important;
+}
+
+#gev-nextchat {
+  left: auto !important;
+  right: 0 !important;
+  width: var(--youtube-chat-rail-width) !important;
+  max-width: var(--youtube-chat-rail-width) !important;
+  transform: none !important;
+}
