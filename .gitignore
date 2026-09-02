@@ -10,3 +10,6 @@ output/
 .DS_Store
 .gstack/
 3d-models/
+
+# Google OAuth client JSON must not be committed
+attached_assets/client_secret*.json
