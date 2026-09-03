@@ -3,6 +3,7 @@ import { createFilePublicCommandLedger } from './youtubePublicCommandLedger.js';
 import { createYoutubePublicCommandCoordinator } from './youtubePublicCommandCoordinator.js';
 import { createPublicResponsesInterpreter } from './youtubePublicResponsesInterpreter.js';
 import { PUBLIC_COMMAND_LIMITS, validatePublicToolCall } from './youtubePublicCommandPolicy.js';
+import { createYoutubeLiveChatPoster } from './hermesYoutubeReply.js';
 
 export const PUBLIC_EXECUTOR_HEADER = 'x-gev-capture-executor';
 export const PUBLIC_EXECUTOR_ROUTE = '/api/youtube/homepage-chat/executor';
@@ -86,9 +87,11 @@ export function createYoutubePublicCommandRuntime({
   ledger = createFilePublicCommandLedger(),
   interpret = createPublicResponsesInterpreter(),
   now = Date.now,
+  youtubePoster = null,
 } = {}) {
   const coordinator = createYoutubePublicCommandCoordinator({ ledger, interpret, now });
   let executor = null;
+  let poster = youtubePoster;
 
   async function rotateExecutor() {
     if (executor) await ledger.cancelNonterminal('Capture executor restarted');

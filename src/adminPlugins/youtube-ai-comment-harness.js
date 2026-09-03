@@ -112,7 +112,7 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
     doc,
     'p',
     'admin-ych-lead',
-    'Reads comments and live chat from our YouTube page into NextChat. Only leading #Task comments can propose a validated globe view.',
+    'Reads YouTube live comments. Hermes (Nous) is the default harness and can operate the globe. OpenRouter remains the explicit fallback.',
   );
 
   const statusEl = el(doc, 'p', 'admin-ych-status', 'DISABLED');
@@ -150,6 +150,21 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
 
   controls.append(enableBtn, stopBtn, sourceSelect, videoSelect);
 
+  const harnessSelect = el(doc, 'select', 'admin-ych-select');
+  harnessSelect.id = 'ych-harness';
+  const hermesOpt = el(doc, 'option', '', 'Hermes (default)');
+  hermesOpt.value = 'hermes';
+  hermesOpt.selected = true;
+  const openrouterOpt = el(doc, 'option', '', 'OpenRouter (fallback)');
+  openrouterOpt.value = 'openrouter';
+  harnessSelect.append(hermesOpt, openrouterOpt);
+  const hermesBtn = el(doc, 'button', 'scene-btn', 'START HERMES');
+  hermesBtn.id = 'ych-hermes-toggle';
+  hermesBtn.type = 'button';
+  const hermesStatus = el(doc, 'p', 'admin-ych-status', 'HERMES · checking');
+  hermesStatus.id = 'ych-hermes-status';
+  controls.append(harnessSelect, hermesBtn);
+
   const counters = el(doc, 'dl', 'admin-ych-counters');
   const received = counterRow(doc, 'ych-received', 'Received');
   const displayed = counterRow(doc, 'ych-displayed', 'Displayed');
@@ -172,7 +187,7 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
 
   root.append(
     title, lead, statusEl, connectionEl, controls, counters,
-    messagesHead, messages, tasksHead, tasks,
+    hermesStatus, messagesHead, messages, tasksHead, tasks,
   );
   if (typeof container.replaceChildren === 'function') container.replaceChildren(root);
   else container.append?.(root);
@@ -218,6 +233,17 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
     failed.value.textContent = String(state.counters.failed);
     paintList(messages, state.recentMessages, 'message');
     paintList(tasks, state.recentTasks, 'task');
+    const hermes = state.hermes || {};
+    if (hermesStatus) {
+      const ready = hermes.ready ? 'READY' : (hermes.running ? 'STARTING' : 'DEGRADED');
+      const active = String(hermes.active || 'openrouter').toUpperCase();
+      const why = hermes.fallbackReason || hermes.lastError || '';
+      hermesStatus.textContent = why
+        ? `HERMES · ${ready} · ${active} · ${why}`
+        : `HERMES · ${ready} · ${active}`;
+    }
+    if (harnessSelect && hermes.preferred) harnessSelect.value = hermes.preferred;
+    if (hermesBtn) hermesBtn.textContent = hermes.running ? 'STOP HERMES' : 'START HERMES';
   }
 
   function onEnable() {
@@ -240,6 +266,39 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
   stopBtn.addEventListener('click', onStop);
   sourceSelect.addEventListener('change', onSource);
   videoSelect.addEventListener('change', onVideo);
+
+  async function hermesRequest(body) {
+    const fetchImpl = context.fetchImpl || globalThis.fetch;
+    if (typeof fetchImpl !== 'function') return null;
+    try {
+      const response = await fetchImpl('/api/youtube-comment-harness/hermes', {
+        method: body ? 'POST' : 'GET',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return await response.json().catch(() => ({}));
+    } catch {
+      return null;
+    }
+  }
+  async function refreshHermes() {
+    const snapshot = await hermesRequest(null);
+    if (snapshot && !snapshot.error) paint({ ...harness.getSnapshot(), hermes: snapshot });
+  }
+  async function onHermesToggle() {
+    const snapshot = await hermesRequest(null);
+    const running = Boolean(snapshot?.running);
+    const next = await hermesRequest({ action: running ? 'stop' : 'start' });
+    if (next) paint({ ...harness.getSnapshot(), hermes: next });
+  }
+  async function onHarnessSelect() {
+    const next = await hermesRequest({ action: 'select', harness: harnessSelect.value });
+    if (next) paint({ ...harness.getSnapshot(), hermes: next });
+  }
+  hermesBtn.addEventListener('click', onHermesToggle);
+  harnessSelect.addEventListener('change', onHarnessSelect);
+  void refreshHermes();
 
   const unsubscribe = harness.subscribe(paint);
   paint();
@@ -285,6 +344,8 @@ export function renderYoutubeCommentHarnessPane(container, context = {}) {
     stopBtn.removeEventListener?.('click', onStop);
     sourceSelect.removeEventListener?.('change', onSource);
     videoSelect.removeEventListener?.('change', onVideo);
+    hermesBtn.removeEventListener?.('click', onHermesToggle);
+    harnessSelect.removeEventListener?.('change', onHarnessSelect);
     unsubscribe?.();
     harness.stop();
     harness.destroy();

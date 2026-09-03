@@ -310,7 +310,7 @@ export function createYoutubeHomepageChatMiddleware({
     const liveChatId = boundedText(identity.liveChatId, 80);
     const generation = Math.max(0, Number(identity.generation) || 0);
     const verifiedLive = identity.active === true && status === 'live' && Boolean(liveChatId);
-    lastBinding = { videoId: verifiedLive ? videoId : '', generation, commandsEnabled: verifiedLive };
+    lastBinding = { videoId: verifiedLive ? videoId : '', generation, commandsEnabled: verifiedLive, liveChatId: verifiedLive ? liveChatId : '' };
 
     if (!verifiedLive) {
       const commands = await commandRuntime?.statuses?.({ ...lastBinding, commandsEnabled: false }) || [];
@@ -338,6 +338,7 @@ export function createYoutubeHomepageChatMiddleware({
         }
       }
       const commands = await commandRuntime?.statuses?.(binding) || [];
+      void Promise.resolve(commandRuntime?.deliverReplies?.(binding)).catch(() => {});
       sendJson(res, 200, publicFeedBody(identity, {
         items,
         nextPageToken: boundedText(result.nextPageToken, MAX_CONTINUATION),

@@ -59,6 +59,7 @@ import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
 import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatServer.js';
 import { createYoutubePublicCommandRuntime } from './src/youtubePublicCommandRuntime.js';
+import { createHermesHarnessController } from './src/hermesHarnessController.js';
 import { createLiveCommentIngestWorker } from './src/youtubeLiveCommentIngest.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
@@ -137,9 +138,20 @@ function sharedAdminAuth() {
   return adminAuthSingleton;
 }
 
+let hermesHarnessSingleton = null;
+function sharedHermesHarness() {
+  if (!hermesHarnessSingleton) {
+    hermesHarnessSingleton = createHermesHarnessController();
+    void hermesHarnessSingleton.loadPreferred().then(() => hermesHarnessSingleton.startHermes());
+  }
+  return hermesHarnessSingleton;
+}
+
 function sharedPublicCommandRuntime() {
   if (!publicCommandRuntimeSingleton) {
-    publicCommandRuntimeSingleton = createYoutubePublicCommandRuntime();
+    publicCommandRuntimeSingleton = createYoutubePublicCommandRuntime({
+      interpret: (input, opts) => sharedHermesHarness().interpret(input, opts),
+    });
     void publicCommandRuntimeSingleton.rotateExecutor();
   }
   return publicCommandRuntimeSingleton;
@@ -7575,6 +7587,7 @@ export function youtubeProxy({
     supportsToolIsolation: supportsVerifiedToolIsolation(harness),
     authorizeAdminRequest,
     authorizeRequest: oauth.authorizeRequest,
+    hermesController: sharedHermesHarness(),
   });
   const liveSession = sharedLiveSession();
   async function goLiveNow({ authorization, req = null, body = {} } = {}) {

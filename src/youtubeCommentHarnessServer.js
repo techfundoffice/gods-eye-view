@@ -109,6 +109,7 @@ export function createYoutubeCommentHarnessMiddleware({
   authorizeAdminRequest = async () => null,
   authorizeRequest = async () => { throw Object.assign(new Error('YouTube sign-in required'), { status: 401 }); },
   interpretTask = createOpenAiCommentInterpreter(),
+  hermesController = null,
 } = {}) {
   const lastRequestBySession = new Map();
   const isolation = () => toolIsolationState(supportsToolIsolation, configured);
@@ -120,6 +121,30 @@ export function createYoutubeCommentHarnessMiddleware({
       return send(res, 401, {
         error: { kind: 'admin-authentication', message: 'Admin sign-in required' },
       });
+    }
+    if (req.method === 'GET' && path === '/hermes') {
+      const snapshot = hermesController?.status?.() || {
+        preferred: 'hermes',
+        active: 'openrouter',
+        ready: false,
+        running: false,
+        fallbackReason: 'Hermes controller is not wired',
+      };
+      return send(res, 200, snapshot);
+    }
+    if (req.method === 'POST' && path === '/hermes') {
+      const body = await readBody(req).catch(() => ({}));
+      const action = String(body?.action || '').trim();
+      if (action === 'select' && hermesController?.select) {
+        return send(res, 200, await hermesController.select(body.harness || 'hermes'));
+      }
+      if (action === 'start' && hermesController?.startHermes) {
+        return send(res, 200, await hermesController.startHermes());
+      }
+      if (action === 'stop' && hermesController?.stopHermes) {
+        return send(res, 200, hermesController.stopHermes('admin-stop'));
+      }
+      return send(res, 400, { error: { kind: 'invalid', message: 'Unknown Hermes action' } });
     }
     if (req.method === 'GET' && (path === '/status' || path === '' || path === '/')) {
       const state = isolation();
