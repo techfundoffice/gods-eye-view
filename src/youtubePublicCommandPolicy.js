@@ -7,7 +7,7 @@ export const PUBLIC_COMMAND_LIMITS = Object.freeze({
   commentText: 500,
   viewerName: 80,
   id: 160,
-  modelTurnMs: 90_000,
+  modelTurnMs: 0,
   totalMs: 86_400_000,
   modelTurns: 10_000,
   toolCalls: 10_000,

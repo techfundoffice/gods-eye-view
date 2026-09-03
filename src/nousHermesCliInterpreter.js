@@ -134,7 +134,8 @@ export function createNousHermesCliInterpreter({
   model = process.env.HERMES_MODEL || 'x-ai/grok-4.6',
   provider = 'openrouter',
   spawnImpl = spawn,
-  timeoutMs = 90_000,
+  timeoutMs = 0,
+  env = process.env,
 } = {}) {
   return async function interpret(input = {}) {
     const command = resolveHermesBin(bin);
@@ -157,7 +158,7 @@ export function createNousHermesCliInterpreter({
       '--max-turns', '8',
       '--run-budget', '60',
     ];
-    const result = await runCommand(spawnImpl, command, args, timeoutMs);
+    const result = await runCommand(spawnImpl, command, args, timeoutMs, env);
     if (!result.ok) {
       return { ok: false, kind: 'invalid', reason: result.reason };
     }
@@ -165,30 +166,32 @@ export function createNousHermesCliInterpreter({
   };
 }
 
-function runCommand(spawnImpl, command, args, timeoutMs) {
+function runCommand(spawnImpl, command, args, timeoutMs, env) {
   return new Promise((resolve) => {
     const child = spawnImpl(command, args, {
       env: {
-        ...process.env,
+        ...env,
         HERMES_ACCEPT_HOOKS: '1',
-        PATH: `${path.dirname(command)}:${process.env.PATH || ''}`,
+        PATH: `${path.dirname(command)}:${env.PATH || process.env.PATH || ''}`,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
     let stderr = '';
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      resolve({ ok: false, reason: 'Hermes CLI timed out' });
-    }, timeoutMs);
+    const timer = Number(timeoutMs) > 0
+      ? setTimeout(() => {
+        child.kill('SIGKILL');
+        resolve({ ok: false, reason: 'Hermes CLI timed out' });
+      }, timeoutMs)
+      : null;
     child.stdout?.on('data', (chunk) => { stdout += String(chunk); });
     child.stderr?.on('data', (chunk) => { stderr += String(chunk); });
     child.on('error', (error) => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       resolve({ ok: false, reason: error.message || 'Hermes CLI failed to start' });
     });
     child.on('close', (code) => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       if (code !== 0 && !stdout.trim()) {
         resolve({ ok: false, reason: (stderr || `Hermes CLI exited ${code}`).slice(0, 160) });
         return;

@@ -140,7 +140,9 @@ export function createPublicResponsesInterpreter({
     const controller = new AbortController();
     const onAbort = () => controller.abort(signal?.reason);
     signal?.addEventListener('abort', onAbort, { once: true });
-    const timer = setTimeout(() => controller.abort(new Error('Model turn timed out')), PUBLIC_COMMAND_LIMITS.modelTurnMs);
+    const timer = PUBLIC_COMMAND_LIMITS.modelTurnMs > 0
+      ? setTimeout(() => controller.abort(new Error('Model turn timed out')), PUBLIC_COMMAND_LIMITS.modelTurnMs)
+      : null;
     try {
       const tools = input.mode === 'execute'
         ? gevOpenRouterTools()
@@ -169,7 +171,7 @@ export function createPublicResponsesInterpreter({
       }
       return parsePublicChatCompletionsOutput(result.payload, input.mode);
     } finally {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
     }
   };

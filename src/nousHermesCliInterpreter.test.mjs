@@ -49,6 +49,32 @@ test('oneshot spawn uses the real hermes chat CLI', async () => {
   assert.match(buildHermesChatPrompt({ comment: 'navigate to tokyo', viewer: '@ada' }), /tokyo/i);
 });
 
+test('Hermes has no default wall-clock timeout and receives the configured provider environment', async () => {
+  let seenOptions;
+  let killed = false;
+  const spawnImpl = (_command, _args, options) => {
+    seenOptions = options;
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => { killed = true; };
+    setTimeout(() => {
+      child.stdout.emit('data', '{"reply":"finished after waiting"}');
+      child.emit('close', 0);
+    }, 20);
+    return child;
+  };
+  const interpret = createNousHermesCliInterpreter({
+    bin: process.execPath,
+    spawnImpl,
+    env: { PATH: process.env.PATH, OPENROUTER_API_KEY: 'test-only' },
+  });
+  const out = await interpret({ comment: 'wait for this', viewer: '@ada' });
+  assert.equal(out.ok, true);
+  assert.equal(killed, false);
+  assert.equal(seenOptions.env.OPENROUTER_API_KEY, 'test-only');
+});
+
 
 test('Hermes can call any GEV capability, not only fly_to_location', () => {
   const prompt = buildHermesChatPrompt({ comment: 'turn on flights', viewer: '@ada' });

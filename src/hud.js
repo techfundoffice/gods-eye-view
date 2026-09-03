@@ -208,15 +208,17 @@ export class IntelHUD {
       <div class="hud-corner hud-bottom-left">
         <div class="hud-bracket">└</div>
         <div class="hud-content">
-          <div id="hud-mgrs">MGRS: ---</div>
+          <div id="hud-mgrs">---</div>
           <div id="hud-latlon">--°--'--"N ---°--'--"W</div>
         </div>
       </div>
 
       <div class="hud-corner hud-bottom-right">
         <div class="hud-content" style="text-align:right">
-          <div id="hud-gsd">GSD: --m  NIIRS: --</div>
-          <div id="hud-alt">ALT: --m   SUN: --° EL</div>
+          <div id="hud-gsd">-- m</div>
+          <div id="hud-niirs">--</div>
+          <div id="hud-alt">-- m</div>
+          <div id="hud-sun">--°</div>
           <div id="hud-ais-vessel" class="hud-ais-vessel">AIS: --</div>
         </div>
         <div class="hud-bracket">┘</div>
@@ -241,6 +243,67 @@ export class IntelHUD {
     this._placeClassificationBelowMissionControl();
   }
 
+
+  _placeMgrsLatlonInLocationBar() {
+    const loc = document.getElementById("location-bar");
+    const mgrs = document.getElementById("hud-mgrs");
+    const latlon = document.getElementById("hud-latlon");
+    if (!loc || !mgrs || !latlon) return;
+    let host = document.getElementById("location-lookat");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "location-lookat";
+      const row = (label, node) => {
+        const wrap = document.createElement("div");
+        wrap.className = "location-lookat-row";
+        const lab = document.createElement("span");
+        lab.className = "location-lookat-label";
+        lab.textContent = label;
+        wrap.append(lab, node);
+        return wrap;
+      };
+      const gsd = document.getElementById("hud-gsd");
+      const niirs = document.getElementById("hud-niirs");
+      const alt = document.getElementById("hud-alt");
+      const sun = document.getElementById("hud-sun");
+      host.append(
+        row("Grid (MGRS)", mgrs),
+        row("Lat, Lon", latlon),
+        row("Ground size (GSD)", gsd),
+        row("Detail (NIIRS)", niirs),
+        row("Altitude", alt),
+        row("Sun elevation", sun),
+      );
+      const inner = loc.querySelector(".location-inner") || loc;
+      const searchWrap = inner.querySelector(".location-search-wrap");
+      if (searchWrap) searchWrap.after(host);
+      else inner.appendChild(host);
+    } else {
+      const rows = host.querySelectorAll(".location-lookat-row");
+      const gsd = document.getElementById("hud-gsd");
+      const niirs = document.getElementById("hud-niirs");
+      const alt = document.getElementById("hud-alt");
+      const sun = document.getElementById("hud-sun");
+      const nodes = [mgrs, latlon, gsd, niirs, alt, sun];
+      nodes.forEach((node, idx) => {
+        if (node && rows[idx] && !rows[idx].contains(node)) rows[idx].appendChild(node);
+      });
+    }
+    const bottom = this._el?.querySelector(".hud-bottom-left")
+      || document.querySelector(".hud-bottom-left");
+    if (bottom) bottom.hidden = true;
+    const bar = this._el?.querySelector(".hud-bottom-bar")
+      || document.querySelector(".hud-bottom-bar");
+    if (bar) bar.hidden = true;
+    const metrics = this._el?.querySelector(".hud-bottom-right .hud-content")
+      || document.querySelector(".hud-bottom-right .hud-content");
+    if (metrics) {
+      for (const child of Array.from(metrics.children)) {
+        if (child.id !== "hud-ais-vessel") child.hidden = true;
+      }
+    }
+  }
+
   _placeClassificationBelowMissionControl() {
     const nav = document.getElementById("mission-control-nav");
     const cluster = document.getElementById("hud-center-cluster");
@@ -253,8 +316,8 @@ export class IntelHUD {
     const bottom = this._el.querySelector(".hud-bottom-left") || document.querySelector(".hud-bottom-left");
     if (nav && launcher && launcher.parentElement === nav) nav.appendChild(launcher);
     if (nav && layers) nav.appendChild(layers);
+    this._placeMgrsLatlonInLocationBar();
     if (cluster) {
-      if (bottom) cluster.appendChild(bottom);
       if (top) cluster.appendChild(top);
       const metrics = (this._el && this._el.querySelector(".hud-bottom-right"))
         || document.querySelector(".hud-bottom-right");
@@ -441,10 +504,10 @@ export class IntelHUD {
       const formatted = this._formatMGRS(mgrsStr);
       mgrsLabel = formatted;
       const el = document.getElementById('hud-mgrs');
-      if (el) el.textContent = `MGRS: ${formatted}`;
+      if (el) el.textContent = formatted;
     } catch {
       const el = document.getElementById('hud-mgrs');
-      if (el) el.textContent = 'MGRS: ---';
+      if (el) el.textContent = '---';
     }
 
     // Lat/Lon DMS
@@ -463,7 +526,9 @@ export class IntelHUD {
     const gsdInches = gsd * 39.37;
     const niirs = Math.max(0, Math.min(9, 10.25 - 3.32 * Math.log10(gsdInches)));
     const gsdEl = document.getElementById('hud-gsd');
-    if (gsdEl) gsdEl.textContent = `GSD: ${gsd.toFixed(2)}m  NIIRS: ${niirs.toFixed(1)}`;
+    if (gsdEl) gsdEl.textContent = `${gsd.toFixed(2)} m`;
+    const niirsEl = document.getElementById('hud-niirs');
+    if (niirsEl) niirsEl.textContent = String(niirs.toFixed(1));
 
     // Altitude — reported as height above MEAN SEA LEVEL. `altM` is the raw
     // ellipsoidal camera height, which reads far below zero wherever the geoid
@@ -474,7 +539,9 @@ export class IntelHUD {
     const geoidN = this._geoidUndulationM(latDeg, lonDeg);
     const altMslM = ellipsoidalToMslDisplayM(altM, geoidN);
     const sunEl = this._estimateSunElevation(latDeg, lonDeg);
-    if (altEl) altEl.textContent = `ALT: ${Math.round(altMslM)}m   SUN: ${sunEl.toFixed(1)}° EL`;
+    if (altEl) altEl.textContent = `${Math.round(altMslM)} m`;
+    const sunReadout = document.getElementById('hud-sun');
+    if (sunReadout) sunReadout.textContent = `${sunEl.toFixed(1)}°`;
 
     // Collection timestamp
     const collEl = document.getElementById('hud-coll');

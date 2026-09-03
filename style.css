@@ -17547,3 +17547,44 @@ body {
   pointer-events: auto !important;
   z-index: 1 !important;
 }
+
+
+/* === GEV_LOCATION_LOOKAT_IN_SEARCH_V1 ===
+   Original MGRS + lat/lon live in the LOCATION card. Stacked, labeled. */
+#left-panel-stack #location-bar #location-lookat {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.35rem !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0.45rem 0 0 !important;
+  box-sizing: border-box !important;
+}
+#left-panel-stack #location-bar .location-lookat-row {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.12rem !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+#left-panel-stack #location-bar .location-lookat-label {
+  font-size: 0.62rem !important;
+  letter-spacing: 0.06em !important;
+  color: rgba(180, 230, 240, 0.72) !important;
+  text-transform: none !important;
+}
+#left-panel-stack #location-bar #hud-mgrs,
+#left-panel-stack #location-bar #hud-latlon,
+#left-panel-stack #location-bar #hud-gsd,
+#left-panel-stack #location-bar #hud-niirs,
+#left-panel-stack #location-bar #hud-alt,
+#left-panel-stack #location-bar #hud-sun {
+  width: 100% !important;
+  min-width: 0 !important;
+  font-size: 0.78rem !important;
+  line-height: 1.25 !important;
+  color: #e8fbff !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
