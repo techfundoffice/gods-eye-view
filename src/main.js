@@ -444,6 +444,14 @@ async function init() {
     if (!googleKeyPresent) {
       loaderStatus.textContent = 'GOOGLE_MAPS_API_KEY not set. Continuing without Google Earth...';
       viewer.scene.globe.show = true;
+    try {
+      const sscc = viewer.scene.screenSpaceCameraController;
+      if (sscc) {
+        sscc.minimumZoomDistance = 550;
+        sscc.maximumZoomDistance = 26000000;
+      }
+    } catch { /* zoom stops are best-effort */ }
+
     } else {
       // Hide Cesium's default globe — Google Photorealistic 3D Tiles provide their own
       // globe at all LODs (street level → orbital). The default globe's 2D imagery

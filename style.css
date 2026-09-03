@@ -16490,3 +16490,560 @@ body {
 #mission-control-nav {
   max-width: var(--left-instrument-rail) !important;
 }
+
+
+/* GSD / ALT / AIS: MOVE with MGRS into top-center cluster, off the chat rail. */
+#hud-center-cluster .hud-bottom-right,
+#hud-center-cluster .hud-corner.hud-bottom-right {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  text-align: left !important;
+  margin: 2px 0 0 !important;
+  padding: 0 !important;
+  pointer-events: none;
+}
+
+#hud-center-cluster #hud-gsd,
+#hud-center-cluster #hud-alt,
+#hud-center-cluster #hud-ais-vessel {
+  color: #7eefff !important;
+  -webkit-text-fill-color: #7eefff !important;
+  font-family: var(--font-mono), ui-monospace, monospace !important;
+  font-size: 11px !important;
+  letter-spacing: 1px !important;
+  text-shadow:
+    -1px -1px 0 #000,
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000 !important;
+}
+
+.hud-bottom-right {
+  right: auto !important;
+}
+
+
+/* ADMIN + REC/ORB: MOVE off the east Youtube Chat rail into #hud-center-cluster. */
+#hud-center-cluster {
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  max-width: min(56rem, calc(100vw - var(--youtube-mc-band, 330px) - var(--youtube-east-band, 16rem) - 1.5rem)) !important;
+}
+
+#hud-center-cluster #admin-launch,
+#hud-center-cluster .admin-launch {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+  pointer-events: auto !important;
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+#hud-center-cluster .hud-top-right,
+#hud-center-cluster .hud-corner.hud-top-right {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  text-align: left !important;
+  margin: 0 !important;
+  padding: 8px 10px;
+  pointer-events: none;
+  flex: 0 0 auto;
+  border: 1px solid rgba(126, 239, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(0, 8, 14, 0.88);
+}
+
+#hud-center-cluster .hud-top-right .hud-bracket {
+  display: none !important;
+}
+
+#hud-center-cluster .hud-rec,
+#hud-center-cluster .hud-orbital,
+#hud-center-cluster #hud-timestamp {
+  color: #7eefff !important;
+  -webkit-text-fill-color: #7eefff !important;
+  font-family: var(--font-mono), ui-monospace, monospace !important;
+  font-size: 11px !important;
+  letter-spacing: 1px !important;
+  text-shadow:
+    -1px -1px 0 #000,
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000 !important;
+  white-space: nowrap;
+}
+
+
+/* ACTIVE STYLE leaves the east rail. MOVE into #title-bar (with the brand).
+   Youtube Chat is the only east-rail occupant and sits flush at the top. */
+#title-bar #style-indicator,
+#title-bar > #style-indicator {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  bottom: auto !important;
+  z-index: auto !important;
+  margin: 0.15rem 0 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  pointer-events: none;
+  max-width: none !important;
+}
+
+#title-bar #style-indicator .indicator-label {
+  letter-spacing: 2px !important;
+  font-size: 9px !important;
+  color: #c8ccd2 !important;
+}
+
+#title-bar #style-indicator .indicator-value {
+  letter-spacing: 3px !important;
+  font-size: 13px !important;
+  margin-top: 1px !important;
+  color: #7eefff !important;
+  -webkit-text-fill-color: #7eefff !important;
+}
+
+#admin-stamp-stack {
+  top: 0 !important;
+  right: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 0 !important;
+  align-items: stretch !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel,
+#admin-stamp-stack #youtube-comments-panel.panel-collapsible {
+  margin: 0 !important;
+  padding: 0 !important;
+  top: 0 !important;
+  align-self: stretch !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-comments-panel-inner,
+#admin-stamp-stack #youtube-comments-panel .panel-header,
+#admin-stamp-stack #youtube-comments-panel .panel-glow {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .panel-glow {
+  display: none !important;
+}
+
+
+/* Youtube Chat: each message is a real stacked row. No shrink-to-zero, no absolute overlay. */
+#admin-stamp-stack #youtube-comments-panel,
+#admin-stamp-stack #youtube-comments-panel .youtube-comments-panel-inner {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: calc(100dvh - 0.5rem) !important;
+  overflow: hidden !important;
+}
+
+#admin-stamp-stack #youtube-comments-list,
+#admin-stamp-stack .youtube-conversation-list,
+#admin-stamp-stack #youtube-agent-replies-list {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  position: relative !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  height: auto !important;
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 4px 0 12px !important;
+}
+
+#admin-stamp-stack #youtube-comments-list > li,
+#admin-stamp-stack .youtube-feed-item,
+#admin-stamp-stack .youtube-comment-thread,
+#admin-stamp-stack .youtube-agent-reply,
+#admin-stamp-stack .youtube-feed-empty {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  float: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  flex-grow: 0 !important;
+  align-items: stretch !important;
+  gap: 3px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin: 0 !important;
+  padding: 0 0 10px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(126, 239, 255, 0.18) !important;
+  box-shadow: none !important;
+}
+
+#admin-stamp-stack .youtube-feed-meta,
+#admin-stamp-stack .youtube-feed-text,
+#admin-stamp-stack .youtube-agent-role,
+#admin-stamp-stack .youtube-agent-state,
+#admin-stamp-stack .youtube-agent-text,
+#admin-stamp-stack .youtube-agent-cta,
+#admin-stamp-stack .youtube-agent-cta-want,
+#admin-stamp-stack .youtube-agent-cta-how,
+#admin-stamp-stack .youtube-agent-cta-chat {
+  display: block !important;
+  position: static !important;
+  inset: auto !important;
+  float: none !important;
+  width: auto !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  line-height: 1.35 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  -webkit-line-clamp: unset !important;
+  line-clamp: unset !important;
+  -webkit-box-orient: unset !important;
+}
+
+/* BAND/BITS/LVL leave the chat rail. */
+#hud-center-cluster .hud-right-edge,
+#hud-center-cluster .hud-edge.hud-right-edge {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  writing-mode: horizontal-tb !important;
+  transform: none !important;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 0.65rem !important;
+  pointer-events: none;
+  margin: 2px 0 0 !important;
+  font-size: 11px !important;
+  color: #7eefff !important;
+  text-shadow:
+    -1px -1px 0 #000,
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000 !important;
+}
+
+
+/* Globe aperture: lift Cesium. North band was 7.25rem (+ sometimes ticker heights)
+   which parked the globe too low for YouTube. Clear title + top-center only. */
+:root {
+  --youtube-north-band: max(
+    4.35rem,
+    calc(env(safe-area-inset-top, 0px) + 3.85rem)
+  );
+  --youtube-dock-lift: 0px;
+  --youtube-south-band: calc(
+    var(--gev-status-band-height, 2rem) +
+    var(--gev-command-row-height, 2.6rem) +
+    env(safe-area-inset-bottom, 0px)
+  );
+}
+
+#cesiumContainer,
+#cesiumContainer.gev-2d-fallback-container {
+  top: var(--youtube-north-band) !important;
+  left: var(--youtube-mc-band, 330px) !important;
+  right: var(--youtube-east-band, var(--youtube-chat-rail-width, 16rem)) !important;
+  bottom: var(--youtube-south-band) !important;
+  height: auto !important;
+}
+
+#world-overlay-root,
+#world-overlay-detection-surface,
+#scope-mask,
+.celestial-ring-overlay {
+  top: var(--youtube-north-band) !important;
+  left: var(--youtube-mc-band, 330px) !important;
+  right: var(--youtube-east-band, var(--youtube-chat-rail-width, 16rem)) !important;
+  bottom: var(--youtube-south-band) !important;
+}
+
+#left-panel-stack {
+  top: var(--youtube-north-band) !important;
+  bottom: var(--youtube-south-band) !important;
+}
+
+#top-center-actions {
+  top: max(0.45rem, env(safe-area-inset-top, 0px)) !important;
+}
+
+#hud-center-cluster {
+  top: calc(var(--youtube-north-band) - 0.15rem) !important;
+}
+
+
+/* ── Fix: globe center streak + compact HUD + chat pad + fill Cesium box ── */
+/* Overlay ROOTS share the Cesium aperture. CHILDREN fill the parent only.
+   Applying left:330px to #world-overlay-detection-surface (a child) double-inset
+   it and left a black band down the middle of the globe. */
+#cesiumContainer,
+#cesiumContainer.gev-2d-fallback-container,
+#world-overlay-root,
+#scope-mask,
+.celestial-ring-overlay {
+  position: absolute !important;
+  inset: auto !important;
+  top: var(--youtube-north-band) !important;
+  left: var(--youtube-mc-band, 330px) !important;
+  right: var(--youtube-east-band, var(--youtube-chat-rail-width, 16rem)) !important;
+  bottom: var(--youtube-south-band) !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+#world-overlay-root #world-overlay-detection-surface,
+#world-overlay-root #world-overlay-canvas,
+#world-overlay-detection-surface,
+#world-overlay-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#cesiumContainer .cesium-widget,
+#cesiumContainer .cesium-widget canvas,
+#cesiumContainer canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
+
+/* HUD stamps stay a short strip under the 3 buttons — never a dark tower. */
+#hud-center-cluster {
+  flex-wrap: nowrap !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  max-height: 7.5rem !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+#hud-center-cluster .hud-top-left {
+  max-width: 18rem !important;
+  max-height: 7.2rem !important;
+  overflow: hidden !important;
+}
+
+/* Youtube Chat: a little left pad so text is not flush on the globe. */
+#admin-stamp-stack {
+  padding-left: 0.7rem !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel,
+#admin-stamp-stack #youtube-comments-list,
+#admin-stamp-stack .youtube-comments-panel-inner {
+  padding-left: 0.55rem !important;
+}
+
+
+/* LIVE Breaking News ticker MOVEd to the very top of the page. */
+:root {
+  --live-news-ticker-height: 2rem;
+  --youtube-north-band: calc(
+    var(--live-news-ticker-height) +
+    max(3.5rem, env(safe-area-inset-top, 0px) + 3.2rem)
+  );
+}
+
+#live-news-ticker,
+.live-news-ticker {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  left: 0 !important;
+  bottom: auto !important;
+  z-index: 1400 !important;
+  padding-top: calc(0.38rem + env(safe-area-inset-top, 0px)) !important;
+  padding-bottom: 0.38rem !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid rgba(255, 92, 92, 0.62) !important;
+  box-shadow: 0 0.35rem 1.2rem rgba(112, 0, 0, 0.24) !important;
+}
+
+#title-bar {
+  top: calc(var(--live-news-ticker-height) + 0.35rem) !important;
+}
+
+#top-center-actions {
+  top: calc(var(--live-news-ticker-height) + 0.4rem) !important;
+}
+
+#admin-stamp-stack {
+  top: var(--live-news-ticker-height) !important;
+}
+
+#hud-center-cluster {
+  top: calc(var(--youtube-north-band) - 0.1rem) !important;
+}
+
+#gev-command-legend {
+  bottom: env(safe-area-inset-bottom, 0px) !important;
+}
+
+#cesiumContainer,
+#cesiumContainer.gev-2d-fallback-container,
+#world-overlay-root,
+#scope-mask,
+.celestial-ring-overlay {
+  top: var(--youtube-north-band) !important;
+}
+
+#left-panel-stack {
+  top: var(--youtube-north-band) !important;
+}
+
+
+/* Commands above LIVE ticker. Logo + mic in the left nav. */
+:root {
+  --broadcast-legend-height: 2rem;
+  --live-news-ticker-height: 2rem;
+  --gev-top-chrome-height: calc(
+    var(--broadcast-legend-height) +
+    var(--live-news-ticker-height)
+  );
+  --youtube-north-band: calc(
+    var(--gev-top-chrome-height) +
+    max(3.35rem, env(safe-area-inset-top, 0px) + 3.05rem)
+  );
+}
+
+#gev-command-legend {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  left: 0 !important;
+  bottom: auto !important;
+  z-index: 1401 !important;
+  height: var(--broadcast-legend-height) !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.28) !important;
+}
+
+#live-news-ticker,
+.live-news-ticker {
+  top: var(--broadcast-legend-height) !important;
+  bottom: auto !important;
+  z-index: 1400 !important;
+}
+
+#title-bar {
+  top: calc(var(--gev-top-chrome-height) + 0.3rem) !important;
+}
+
+#top-center-actions {
+  top: calc(var(--gev-top-chrome-height) + 0.35rem) !important;
+}
+
+#admin-stamp-stack {
+  top: var(--gev-top-chrome-height) !important;
+}
+
+#hud-center-cluster {
+  top: calc(var(--youtube-north-band) - 0.1rem) !important;
+}
+
+#left-panel-stack {
+  top: var(--youtube-north-band) !important;
+}
+
+#cesiumContainer,
+#cesiumContainer.gev-2d-fallback-container,
+#world-overlay-root,
+#scope-mask,
+.celestial-ring-overlay {
+  top: var(--youtube-north-band) !important;
+}
+
+#left-panel-stack > .title-logo,
+#left-panel-stack > .brand-logo {
+  position: relative !important;
+  inset: auto !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 3.4rem !important;
+  margin: 0.15rem 0 0.35rem !important;
+  pointer-events: none;
+  flex: 0 0 auto !important;
+}
+
+#left-panel-stack > .title-logo img,
+#left-panel-stack > .brand-logo img {
+  height: 3.1rem !important;
+  width: auto !important;
+  max-width: 92% !important;
+  filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.45));
+}
+
+#left-panel-stack > #gev-voice-control,
+#gev-voice-control {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 0 0.45rem !important;
+  box-sizing: border-box !important;
+  flex: 0 0 auto !important;
+  z-index: 148 !important;
+}

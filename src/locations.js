@@ -126,10 +126,16 @@ export const CITY_POIS = {
  * and under the fly_to_location rangeM ceiling (20,000 km).
  */
 export const GLOBE_VIEW = Object.freeze({
-  heightM: 18000000,
+  // Pearl: whole Earth as a sphere with margin in the Cesium aperture.
+  heightM: 24000000,
   pitchDeg: -90,
   durationS: 2.8,
 });
+
+/** Scroll-out stop (meters from ellipsoid). Pearl, not a vanishing marble. */
+export const PEARL_MAX_ZOOM_M = 26000000;
+/** Scroll-in stop. City / district, not underground. */
+export const CITY_MIN_ZOOM_M = 550;
 
 /**
  * Fly straight out to the full-earth globe view, keeping the current sub-camera

@@ -256,32 +256,83 @@ export class IntelHUD {
     if (cluster) {
       if (bottom) cluster.appendChild(bottom);
       if (top) cluster.appendChild(top);
+      const metrics = (this._el && this._el.querySelector(".hud-bottom-right"))
+        || document.querySelector(".hud-bottom-right");
+      if (metrics) cluster.appendChild(metrics);
+      const rightEdge = (this._el && this._el.querySelector(".hud-right-edge"))
+        || document.querySelector(".hud-right-edge");
+      if (rightEdge) cluster.appendChild(rightEdge);
     }
     this._placeRecStampUnderAdmin();
   }
 
   /**
-   * MOVE original .hud-top-right (REC / ORB) flush under #admin-launch.
-   * Wrapper is created once; nodes are moved, never cloned.
+   * ADMIN + REC/ORB leave the Youtube Chat rail.
+   * MOVE originals into #hud-center-cluster (with MGRS/GSD).
+   * #admin-stamp-stack stays east-rail owner for Youtube Chat only.
    */
   _placeRecStampUnderAdmin() {
+    const cluster = document.getElementById("hud-center-cluster");
     const launch = document.getElementById("admin-launch");
     const stamp = (this._el && this._el.querySelector(".hud-top-right"))
       || document.querySelector(".hud-top-right");
-    if (!launch || !stamp) return;
+    const chat = document.getElementById("youtube-comments-panel");
+
+    if (cluster) {
+      if (launch && launch.parentElement !== cluster) {
+        cluster.insertBefore(launch, cluster.firstChild);
+      }
+      if (stamp) {
+        if (launch && launch.parentElement === cluster) {
+          if (stamp.parentElement !== cluster || stamp.previousElementSibling !== launch) {
+            launch.insertAdjacentElement("afterend", stamp);
+          }
+        } else if (stamp.parentElement !== cluster) {
+          cluster.insertBefore(stamp, cluster.firstChild);
+        }
+      }
+    }
+
     let stack = document.getElementById("admin-stamp-stack");
     if (!stack) {
       stack = document.createElement("div");
       stack.id = "admin-stamp-stack";
-      launch.parentNode.insertBefore(stack, launch);
+      if (chat && chat.parentNode) chat.parentNode.insertBefore(stack, chat);
+      else document.body.appendChild(stack);
     }
-    if (launch.parentElement !== stack) stack.appendChild(launch);
-    if (stamp.parentElement !== stack || stamp.previousElementSibling !== launch) {
-      stack.appendChild(stamp);
+    if (chat && chat.parentElement !== stack) stack.appendChild(chat);
+
+    const title = document.getElementById("title-bar");
+    const styleInd = document.getElementById("style-indicator");
+    if (title && styleInd && styleInd.parentElement !== title) {
+      title.appendChild(styleInd);
     }
-    const chat = document.getElementById("youtube-comments-panel");
-    if (chat && (chat.parentElement !== stack || chat.previousElementSibling !== stamp)) {
-      stack.appendChild(chat);
+
+    const ticker = document.getElementById("live-news-ticker");
+    const legend = document.getElementById("gev-command-legend");
+    if (ticker && (ticker.parentElement !== document.body || (legend && ticker.previousElementSibling !== legend))) {
+      document.body.insertBefore(ticker, document.body.firstChild);
+    }
+    if (legend) {
+      if (ticker && ticker.parentElement) {
+        ticker.parentElement.insertBefore(legend, ticker);
+      } else if (legend.parentElement !== document.body || document.body.firstChild !== legend) {
+        document.body.insertBefore(legend, document.body.firstChild);
+      }
+    }
+
+    const leftNav = document.getElementById("left-panel-stack");
+    const logo = document.querySelector("#title-bar .title-logo, .brand-logo");
+    if (leftNav && logo && logo.parentElement !== leftNav) {
+      leftNav.insertBefore(logo, leftNav.firstChild);
+    }
+    const voice = document.getElementById("gev-voice-control");
+    if (leftNav && voice) {
+      const afterLogo = (logo && logo.parentElement === leftNav) ? logo.nextSibling : leftNav.firstChild;
+      if (voice.parentElement !== leftNav || (logo && logo.parentElement === leftNav && voice.previousElementSibling !== logo)) {
+        if (afterLogo) leftNav.insertBefore(voice, afterLogo);
+        else leftNav.insertBefore(voice, leftNav.firstChild);
+      }
     }
   }
 
