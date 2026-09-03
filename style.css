@@ -865,11 +865,20 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   text-align: center;
 }
 
+.loader-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
 .loader-logo {
   display: block;
-  width: 128px;
+  flex: 0 0 auto;
+  width: 64px;
   height: auto;
-  margin: 0 auto 24px;
+  margin: 0;
   filter: drop-shadow(0 0 24px rgba(0, 246, 255, 0.42));
   animation: logo-pulse 2s ease-in-out infinite;
 }
@@ -885,7 +894,23 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   font-weight: 600;
   letter-spacing: 6px;
   color: var(--text-primary);
-  margin-bottom: 12px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 540px) {
+  .loader-brand {
+    gap: 9px;
+  }
+
+  .loader-logo {
+    width: 44px;
+  }
+
+  .loader-content h2 {
+    font-size: 13px;
+    letter-spacing: 3px;
+  }
 }
 
 .loader-status {
@@ -17156,4 +17181,114 @@ body {
 @keyframes gev-snug-mic-pulse {
   0%, 100% { box-shadow: 0 0 0 2px rgba(92, 255, 198, 0.22), 0 0 10px rgba(92, 255, 198, 0.28); }
   50% { box-shadow: 0 0 0 4px rgba(92, 255, 198, 0.16), 0 0 18px rgba(92, 255, 198, 0.5); }
+}
+
+
+/* === GEV_LEFT_NAV_PRESETS_STACK_V1 ===
+   LOCATION fits the 330px left column (same width as CONTEXT).
+   Visual Preset chips stack vertically as squares, not 7-across. */
+#left-panel-stack > #location-bar,
+#left-panel-stack > #location-bar.dock-pinned,
+#left-panel-stack > #location-bar.collapsed {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack #location-bar .location-inner,
+#left-panel-stack #location-bar .dock-popover-content,
+#left-panel-stack #location-bar .location-city-row,
+#left-panel-stack #location-bar .location-search-wrap {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#left-panel-stack #location-search {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#left-panel-stack > #control-panel,
+#left-panel-stack > #control-panel.dock-pinned {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack #control-panel-popover,
+#left-panel-stack #control-panel .panel-inner {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  box-sizing: border-box !important;
+}
+
+#left-panel-stack #style-buttons.button-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 0.28rem !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  flex: 0 0 auto !important;
+  grid-template-columns: none !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack #style-buttons .style-btn {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 2.85rem !important;
+  height: 2.85rem !important;
+  min-width: 2.85rem !important;
+  min-height: 2.85rem !important;
+  max-width: 2.85rem !important;
+  max-height: 2.85rem !important;
+  margin: 0 !important;
+  padding: 0.15rem !important;
+  box-sizing: border-box !important;
+}
+
+#left-panel-stack #style-buttons .btn-key {
+  display: none !important;
+}
+
+#left-panel-stack #control-panel .map-source-section,
+#left-panel-stack #control-panel #map-stack-chips,
+#left-panel-stack #control-panel .map-stack-chip-row {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  gap: 0.28rem !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack #control-panel .map-stack-chip {
+  width: 100% !important;
+  min-width: 0 !important;
+  justify-content: flex-start !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
 }
