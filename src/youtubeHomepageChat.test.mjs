@@ -486,6 +486,22 @@ test('visible Youtube conversation renders result first with UTC headers, verifi
   assert.equal(list.children.length, 2, 'all comments keeps receiving ordinary chat');
   assert.equal(progressList.children.length, 1, 'ordinary chat does not displace the active conversation');
 
+  interaction.publishCommandStatuses([{
+    id: 'cmd-ordinary-1',
+    command: '/test',
+    state: 'succeeded',
+    answer: 'Second active reply',
+    viewer: 'Another Viewer',
+    commentId: 'ordinary-1',
+    videoId: '',
+    updatedAt: currentTime,
+  }]);
+  assert.equal(progressList.children.length, 2);
+  const largeCountdowns = progressList.children.flatMap((row) => (
+    row.children[0]?.children?.filter((child) => child.className?.includes('youtube-followup-countdown')) || []
+  ));
+  assert.equal(largeCountdowns.length, 1, 'only one active conversation renders the large countdown');
+
   currentTime += 120_001;
   await interaction.ingest([{
     id: 'ordinary-2',

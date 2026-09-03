@@ -52,13 +52,13 @@ function appendCommentBody(row, comment, documentRef) {
   row.append(meta, body);
 }
 
-function appendConversationReply(row, comment, documentRef, currentTime) {
+function appendConversationReply(row, comment, documentRef, currentTime, { showCountdown = false } = {}) {
   const replyRow = documentRef.createElement('div');
   replyRow.className = 'youtube-agent-reply';
   const state = String(comment.replyState || 'display');
   const processing = ['interpreting', 'pending', 'received', 'awaiting-execution', 'executing', 'awaiting-model'].includes(state);
   const remaining = Number(comment.followUpExpiresAt || 0) - currentTime;
-  if (!processing && remaining > 0) {
+  if (showCountdown && !processing && remaining > 0) {
     const countdown = documentRef.createElement('div');
     countdown.className = `youtube-followup-countdown${remaining <= 30_000 ? ' is-urgent' : ''}`;
     const countdownValue = documentRef.createElement('span');
@@ -294,10 +294,17 @@ export function createYoutubeHomepageInteraction({
       els.progressList.append(empty);
       return;
     }
+    const countdownCommentId = activeConversations.find((comment) => {
+      const state = String(comment.replyState || 'display');
+      const processing = ['interpreting', 'pending', 'received', 'awaiting-execution', 'executing', 'awaiting-model'].includes(state);
+      return !processing && Number(comment.followUpExpiresAt || 0) > currentTime;
+    })?.id;
     for (const comment of activeConversations) {
       const row = documentRef.createElement('li');
       row.className = 'youtube-feed-item youtube-comment-thread youtube-active-conversation';
-      appendConversationReply(row, comment, documentRef, currentTime);
+      appendConversationReply(row, comment, documentRef, currentTime, {
+        showCountdown: comment.id === countdownCommentId,
+      });
       appendCommentBody(row, comment, documentRef);
       els.progressList.append(row);
     }
