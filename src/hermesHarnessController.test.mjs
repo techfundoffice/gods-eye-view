@@ -5,7 +5,7 @@ import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { createHermesHarnessController, HERMES_HARNESS_ID, OPENROUTER_HARNESS_ID } from './hermesHarnessController.js';
 
-test('Hermes is the preferred default; failed preflight uses OpenRouter without saving that default', async () => {
+test('Hermes is the preferred default; failed preflight reports Hermes offline without impersonating it', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hermes-h-'));
   const controller = createHermesHarnessController({
     hermesCommand: '',
@@ -19,12 +19,11 @@ test('Hermes is the preferred default; failed preflight uses OpenRouter without 
   assert.equal(before.preferred, HERMES_HARNESS_ID);
   const started = await controller.startHermes();
   assert.equal(started.ready, false);
-  assert.equal(started.active, OPENROUTER_HARNESS_ID);
+  assert.equal(started.active, HERMES_HARNESS_ID);
   assert.match(started.fallbackReason, /skill missing|OpenRouter|catalog|Hermes/i);
   const saved = JSON.parse(await fs.readFile(path.join(dir, 'settings.json'), 'utf8').catch(() => '{"preferred":"hermes"}'));
   assert.notEqual(saved.preferred, OPENROUTER_HARNESS_ID);
-  const out = await controller.interpret({ comment: 'hi' });
-  assert.equal(out.text, 'fallback');
+  await assert.rejects(() => controller.interpret({ comment: 'hi' }), /Hermes/i);
 });
 
 test('selecting OpenRouter is an explicit operator override that persists', async () => {
@@ -41,38 +40,25 @@ test('selecting OpenRouter is an explicit operator override that persists', asyn
   assert.equal(saved.preferred, OPENROUTER_HARNESS_ID);
 });
 
-test('Hermes starts on Grok and interpret goes through the bridge', async () => {
+test('Hermes starts on Grok only through the real CLI path', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hermes-g-'));
-  const models = [];
+  const calls = [];
+  const fakeCli = path.join(dir, 'hermes');
+  await fs.writeFile(fakeCli, '#!/bin/sh\n', { mode: 0o755 });
   const controller = createHermesHarnessController({
-    hermesCommand: '',
+    hermesCommand: fakeCli,
     settingsPath: path.join(dir, 'settings.json'),
     skillPath: path.join(process.cwd(), 'skills/gods-eye-view/SKILL.md'),
-    postChat: async (input) => {
-      models.push(input.model);
-      return {
-        ok: true,
-        payload: {
-          choices: [{
-            message: {
-              tool_calls: [{
-                id: 'c1',
-                function: { name: 'fly_to_location', arguments: '{"query":"Tokyo","viewMode":"overview"}' },
-              }],
-            },
-          }],
-        },
-      };
-    },
+    openrouterInterpret: async (...args) => { calls.push(args); return { ok: true, kind: 'complete', text: 'fallback' }; },
     openrouterInterpret: async () => ({ ok: true, kind: 'complete', text: 'should not run' }),
   });
   const started = await controller.startHermes();
   assert.equal(started.ready, true);
   assert.equal(started.model, 'x-ai/grok-4.6');
   assert.equal(started.provider, 'x-ai');
-  const out = await controller.interpret({ comment: 'navigate to tokyo', viewer: 'ada' });
-  assert.equal(out.kind, 'tool-call');
-  assert.equal(out.call.name, 'fly_to_location');
-  assert.equal(models[0], 'x-ai/grok-4.6');
+  assert.equal(started.cli, true);
+  assert.equal(started.bin, fakeCli);
+  assert.equal(started.runtimeVersion, '0.21.0');
+  assert.equal(calls.length, 0);
   controller.stopHermes();
 });

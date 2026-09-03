@@ -14,15 +14,19 @@ import {
   compareSkillToViewSafeCatalog,
   viewSafeToolsFrom,
 } from './hermesViewSafeCatalog.js';
-import { createHermesStdioBridge, redactSecrets } from './hermesStdioBridge.js';
+import { redactSecrets } from './hermesStdioBridge.js';
 import {
   HERMES_DEFAULT_SKILL,
-  createHermesCommentInterpreter,
-  createHermesSkillAgent,
 } from './hermesCommentInterpreter.js';
 import { createPublicResponsesInterpreter } from './youtubePublicResponsesInterpreter.js';
-import { createNousHermesCliInterpreter, resolveHermesBin } from './nousHermesCliInterpreter.js';
-import { openRouterApiKey, openRouterFreeModel, postOpenRouterChat } from './openrouterFreeClient.js';
+import {
+  HERMES_RUNTIME_COMMIT,
+  HERMES_RUNTIME_TAG,
+  HERMES_RUNTIME_VERSION,
+  createNousHermesCliInterpreter,
+  resolveHermesBin,
+} from './nousHermesCliInterpreter.js';
+import { openRouterApiKey } from './openrouterFreeClient.js';
 
 export const HERMES_HARNESS_ID = 'hermes';
 export const OPENROUTER_HARNESS_ID = 'openrouter';
@@ -70,13 +74,6 @@ export function createHermesHarnessController({
   settingsPath = defaultSettingsPath(),
   skillPath = defaultSkillPath(),
   now = Date.now,
-  postChat = (input) => postOpenRouterChat({
-    apiKey: openRouterApiKey(),
-    model: input.model || openRouterFreeModel(),
-    messages: input.messages,
-    tools: input.tools,
-    maxTokens: input.maxTokens,
-  }),
   openrouterInterpret = createPublicResponsesInterpreter(),
   hermesCommand = resolveHermesBin(process.env.HERMES_BIN),
   hermesModel = process.env.HERMES_MODEL || HERMES_GROK_MODEL,
@@ -125,8 +122,9 @@ export function createHermesHarnessController({
         reasons.push(`GEV skill missing tools: ${compared.missingFromSkill.join(', ')}`);
       }
     }
-    const hasModel = Boolean(openRouterApiKey() || hermesCommand);
-    if (!hasModel) reasons.push('No Hermes CLI and no OpenRouter key');
+    if (preferred === HERMES_HARNESS_ID && !resolveHermesBin(hermesCommand)) {
+      reasons.push('Hermes CLI is not installed in the persistent workspace; run scripts/install-hermes.sh');
+    }
     return {
       ok: reasons.length === 0,
       reasons,
@@ -140,15 +138,23 @@ export function createHermesHarnessController({
     const check = await preflight();
     if (!check.ok) {
       started = false;
-      active = OPENROUTER_HARNESS_ID;
+      active = preferred;
       fallbackReason = check.reasons.join('; ');
       lastError = fallbackReason;
       return status();
     }
-    const tools = viewSafeToolsFrom();
-    const bin = hermesCommand ? resolveHermesBin(hermesCommand) : '';
+    const bin = resolveHermesBin(hermesCommand);
     if (bin) {
-      hermesInterpret = createNousHermesCliInterpreter({ bin, model });
+      const apiKey = openRouterApiKey();
+      hermesInterpret = createNousHermesCliInterpreter({
+        bin,
+        model,
+        env: {
+          ...process.env,
+          ...(apiKey ? { OPENROUTER_API_KEY: apiKey } : {}),
+          HERMES_HOME: path.join(process.cwd(), '.hermes'),
+        },
+      });
       bridge = {
         start() {},
         stop() {},
@@ -160,25 +166,10 @@ export function createHermesHarnessController({
       lastError = '';
       return status();
     }
-    const handler = createHermesSkillAgent({
-      postChat,
-      model,
-      skillText: skill.text,
-      tools,
-    });
-    bridge = createHermesStdioBridge({
-      command: '',
-      args: [],
-      handler,
-      env: {},
-      now,
-    });
-    bridge.start();
-    hermesInterpret = createHermesCommentInterpreter({ bridge, tools });
-    started = true;
-    active = preferred === HERMES_HARNESS_ID ? HERMES_HARNESS_ID : preferred;
-    fallbackReason = '';
-    lastError = '';
+    started = false;
+    active = preferred;
+    fallbackReason = 'Hermes CLI is unavailable';
+    lastError = fallbackReason;
     return status();
   }
 
@@ -187,7 +178,7 @@ export function createHermesHarnessController({
     started = false;
     hermesInterpret = null;
     if (preferred === HERMES_HARNESS_ID) {
-      active = OPENROUTER_HARNESS_ID;
+      active = HERMES_HARNESS_ID;
       fallbackReason = reason;
     }
     return status();
@@ -212,12 +203,12 @@ export function createHermesHarnessController({
         return await hermesInterpret(input, opts);
       } catch (error) {
         lastError = redactSecrets(error?.message || 'Hermes failed');
-        active = OPENROUTER_HARNESS_ID;
         fallbackReason = lastError;
-        return openrouterInterpret(input, opts);
+        throw Object.assign(new Error(lastError), { kind: 'hermes-unavailable' });
       }
     }
-    return openrouterInterpret(input, opts);
+    if (preferred === OPENROUTER_HARNESS_ID) return openrouterInterpret(input, opts);
+    throw Object.assign(new Error(lastError || 'Hermes CLI is offline'), { kind: 'hermes-unavailable' });
   }
 
   function status() {
@@ -238,6 +229,10 @@ export function createHermesHarnessController({
       model,
       provider: 'x-ai',
       cli: Boolean(resolveHermesBin(hermesCommand)),
+      bin: resolveHermesBin(hermesCommand),
+      runtimeVersion: HERMES_RUNTIME_VERSION,
+      runtimeTag: HERMES_RUNTIME_TAG,
+      runtimeCommit: HERMES_RUNTIME_COMMIT,
     });
   }
 

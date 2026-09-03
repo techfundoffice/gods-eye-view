@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   PUBLIC_COMMAND_LIMITS,
   parsePublicCommand,
@@ -18,24 +18,11 @@ import {
 
 const bounded = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
 
-
-function isCameraTool(tool, result) {
-  const name = String(tool?.name || result?.action || '');
-  return name === 'fly_to_location' || name === 'zoom_to_globe' || name === 'move_camera'
-    || name === 'frame_overhead' || name === 'fly_route';
+function conversationIdFor(record) {
+  const identity = bounded(record?.authorHandle || record?.viewer || 'viewer', 160).toLowerCase();
+  return `gev-youtube-${createHash('sha256').update(identity).digest('hex').slice(0, 20)}`;
 }
 
-function answerFromToolResult(tool, result, { handle, followup = false } = {}) {
-  const query = bounded(result?.label || result?.query || tool?.arguments?.query || tool?.name || 'view', 160);
-  if (result?.ok === false) return bounded(result?.error || 'Action failed', 180);
-  if (!followup && (tool?.name === 'fly_to_location' || result?.action === 'fly_to_location')) {
-    return formatHostAsk({ handle, place: query });
-  }
-  const summary = tool?.name === 'fly_to_location' || result?.action === 'fly_to_location'
-    ? 'Moved'
-    : bounded(result?.message || result?.answer || 'Updated the view', 80);
-  return formatHostFollowupAsk({ handle, place: query, summary });
-}
 
 function inferNavigateTool(comment) {
   const text = bounded(comment, PUBLIC_COMMAND_LIMITS.commentText);
@@ -55,20 +42,6 @@ function inferNavigateTool(comment) {
 export function createYoutubePublicCommandCoordinator({ ledger, interpret, now = Date.now, id = randomUUID } = {}) {
   if (!ledger || typeof interpret !== 'function') throw new TypeError('ledger and interpret are required');
   const host = createHostSession({ now });
-
-  function succeedCamera(record, result) {
-    const identity = hostViewerIdentity({}, record);
-    const place = bounded(result?.label || result?.query || record.validatedTool?.arguments?.query, 80);
-    const followup = host.isOwner(identity);
-    host.open(identity, place || host.current()?.place, record.id);
-    return {
-      state: 'succeeded',
-      nonce: null,
-      executionResult: structuredClone(result),
-      answer: answerFromToolResult(record.validatedTool, result, { handle: identity.handle, followup }),
-      reason: '',
-    };
-  }
 
   async function register(comment, binding) {
     const parsed = parsePublicCommand(comment?.text);
@@ -124,10 +97,6 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       });
       record = await ledger.get(record.id);
     }
-    if (continuation?.result && continuation.result.ok !== false && isCameraTool(record.validatedTool, continuation.result)) {
-      await ledger.compareAndSet(record.id, record.state, succeedCamera(record, continuation.result));
-      return { ok: true, record: await ledger.get(record.id) };
-    }
     if ((record.remainingTurns || 0) <= 0 || (record.remainingTools || 0) <= 0) {
       await ledger.compareAndSet(record.id, record.state, {
         remainingTurns: Math.max(Number(record.remainingTurns) || 0, PUBLIC_COMMAND_LIMITS.modelTurns),
@@ -148,6 +117,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
         videoId: record.videoId, generation: record.generation, startedAt: now(),
         remainingTurns: record.remainingTurns,
         hostSession: host.current(),
+        conversationId: conversationIdFor(record),
         followup: host.isOwner(identity),
         ...(continuation ? {
           previousResponseId: continuation.responseId, callId: continuation.callId,
@@ -204,10 +174,6 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       });
       return { ok: false, reason: 'stale-or-invalid' };
     }
-    if (result && result.ok !== false && isCameraTool(record.validatedTool, result)) {
-      await ledger.compareAndSet(record.id, 'executing', succeedCamera(record, result));
-      return { ok: true, record: await ledger.get(record.id) };
-    }
     await ledger.compareAndSet(record.id, 'executing', { state: 'awaiting-model', nonce: null, executionResult: structuredClone(result) });
     return advance(record.id, binding, { responseId: record.modelResponseId, callId: record.functionCallId, result });
   }
@@ -229,10 +195,6 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
         reason: checked.ok ? 'Verified live binding changed' : 'Stored tool failed revalidation',
       });
       return { ok: false, reason: 'stale-or-invalid' };
-    }
-    if (result && result.ok !== false && isCameraTool(record.validatedTool, result)) {
-      await ledger.compareAndSet(record.id, 'executing', succeedCamera(record, result));
-      return { ok: true, record: await ledger.get(record.id) };
     }
     await ledger.compareAndSet(record.id, 'executing', {
       state: 'awaiting-model',

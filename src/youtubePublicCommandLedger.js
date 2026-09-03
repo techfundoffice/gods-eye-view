@@ -17,7 +17,10 @@ const TRANSITIONS = Object.freeze({
 });
 
 const clone = (value) => value == null ? value : structuredClone(value);
-const keyOf = (record) => `${record.videoId}\u0000${record.commentId}`;
+// YouTube message IDs are globally unique. Keeping videoId in this key caused
+// the same comment to execute again whenever the live resolver replaced a
+// broadcast generation.
+const keyOf = (record) => `${record.commentId}`;
 
 /**
  * Transactional ledger contract:
@@ -59,7 +62,7 @@ export function createInMemoryPublicCommandLedger({ maxRecords = 500, now = Date
       });
     },
     async get(id) { return clone(records.get(id) || null); },
-    async find(videoId, commentId) { return clone(records.get(unique.get(`${videoId}\u0000${commentId}`)) || null); },
+    async find(videoId, commentId) { return clone(records.get(unique.get(`${commentId}`)) || null); },
     async compareAndSet(id, expected, patch) {
       return transaction(() => {
         const record = records.get(id);

@@ -49,7 +49,7 @@ test('natural-language Ensenada earthquake request enables the layer and moves t
       },
       {
         action: 'fly_to_location',
-        args: { query: 'Ensenada, Mexico', viewMode: 'close' },
+        args: { query: 'Ensenada, Mexico', viewMode: 'overview' },
         reason: 'Viewer requested a frontend view change',
       },
     ],
@@ -341,7 +341,7 @@ test('ticker markup is permanent, bottom-fixed, and preserves every existing con
   assert.match(realtime, /root\.id = 'gev-voice-control'/, 'dynamic GEV MIC control must remain present');
 });
 
-test('homepage interaction displays every comment and runs validated actions with cooldowns', async () => {
+test('homepage interaction displays every comment but never executes untrusted feed actions', async () => {
   const displayed = [];
   const statuses = [];
   const calls = [];
@@ -391,9 +391,7 @@ test('homepage interaction displays every comment and runs validated actions wit
   assert.equal(displayed[0].text, 'I want to see the earthquake in Ensenada, Mexico.');
   assert.equal(displayed[0].metadata.actionState, 'interpreting');
   assert.equal(displayed[2].metadata.actionState, 'chat');
-  assert.deepEqual(calls.map((call) => call.action), ['set_layer_visibility', 'fly_to_location']);
-  assert.ok(statuses.some((status) => /showing Ensenada, Mexico for CruiseWatcher/i.test(status)));
-  assert.ok(statuses.some((status) => /cooldown/i.test(status)));
+  assert.deepEqual(calls, []);
 
   currentTime += 9_000;
   await interaction.ingest([{
@@ -403,9 +401,7 @@ test('homepage interaction displays every comment and runs validated actions wit
     text: 'Show me Paris',
     actions: inferHomepageViewerActions('Show me Paris'),
   }]);
-  assert.equal(calls.at(-1).action, 'fly_to_location');
-  assert.equal(calls.at(-1).args.query, 'Paris');
-  assert.equal(calls.at(-1).args.waitForArrival, true);
+  assert.deepEqual(calls, []);
 });
 
 test('visible Youtube conversation renders result first with UTC headers, verified handle, and contextual options', async () => {

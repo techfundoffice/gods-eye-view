@@ -258,3 +258,26 @@ test('video or generation changes cancel old nonterminal records', async () => {
   await runtime.statuses({ commandsEnabled: true, videoId: 'video-b', generation: 2 });
   assert.equal((await ledger.list())[0].state, 'cancelled');
 });
+
+test('same YouTube message id is deduplicated across replacement broadcasts', async () => {
+  const ledger = createInMemoryPublicCommandLedger();
+  let calls = 0;
+  const runtime = createYoutubePublicCommandRuntime({
+    ledger,
+    interpret: async () => {
+      calls += 1;
+      return { ok: true, kind: 'complete', text: 'Handled once.' };
+    },
+  });
+  await runtime.rotateExecutor();
+  await runtime.registerMessage(
+    { id: 'globally-unique-comment', text: 'Show me Hawaii', author: 'viewer', agentMode: 'execute' },
+    { commandsEnabled: true, videoId: 'video-a', generation: 1 },
+  );
+  await runtime.registerMessage(
+    { id: 'globally-unique-comment', text: 'Show me Hawaii', author: 'viewer', agentMode: 'execute' },
+    { commandsEnabled: true, videoId: 'video-b', generation: 2 },
+  );
+  assert.equal(calls, 1);
+  assert.equal((await ledger.list()).length, 1);
+});

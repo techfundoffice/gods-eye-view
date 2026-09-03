@@ -36,14 +36,16 @@ test('oneshot spawn uses the real hermes chat CLI', async () => {
     return child;
   };
   const interpret = createNousHermesCliInterpreter({
-    bin: '/home/runner/.local/bin/hermes',
+    bin: process.execPath,
     spawnImpl,
   });
   const out = await interpret({ comment: 'navigate to tokyo', viewer: '@ada' });
   assert.equal(out.kind, 'tool-call');
-  assert.equal(calls[0].command, '/home/runner/.local/bin/hermes');
+  assert.equal(calls[0].command, process.execPath);
   assert.ok(calls[0].args.includes('chat'));
   assert.ok(calls[0].args.includes('--oneshot'));
+  assert.ok(calls[0].args.includes('--continue'));
+  assert.ok(calls[0].args.includes('--create-if-missing'));
   assert.match(buildHermesChatPrompt({ comment: 'navigate to tokyo', viewer: '@ada' }), /tokyo/i);
 });
 

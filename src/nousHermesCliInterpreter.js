@@ -7,20 +7,24 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { PUBLIC_GEV_TOOL_NAMES, validatePublicToolCall } from './youtubePublicCommandPolicy.js';
 import { isGevFunctionEnabled } from './gevFunctionToggles.js';
 import { GEV_FUNCTION_DOCS } from './gevApi.js';
 
-export const NOUS_HERMES_BIN = '/home/runner/.local/bin/hermes';
+export const HERMES_RUNTIME_VERSION = '0.21.0';
+export const HERMES_RUNTIME_TAG = 'v2026.8.31';
+export const HERMES_RUNTIME_COMMIT = '29112bef099274229cadff79cdff7bf7b99c4b77';
+export const NOUS_HERMES_BIN = path.join(
+  process.cwd(),
+  '.hermes/hermes-agent/venv/bin/hermes',
+);
 export const NOUS_HERMES_SESSION = 'gev-youtube-live';
 
 export function resolveHermesBin(explicit = process.env.HERMES_BIN) {
   const candidates = [
     String(explicit || '').trim(),
     NOUS_HERMES_BIN,
-    path.join(os.homedir(), '.local/bin/hermes'),
   ].filter(Boolean);
   for (const candidate of candidates) {
     try {
@@ -116,6 +120,15 @@ Examples:
 Cities/countries use fly_to_location viewMode overview. Close is only for a named building or street. No markdown. Keep reply under 240 characters.`;
 }
 
+function safeSessionName(value) {
+  const normalized = String(value || NOUS_HERMES_SESSION)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return normalized || NOUS_HERMES_SESSION;
+}
+
 export function createNousHermesCliInterpreter({
   bin = resolveHermesBin(),
   model = process.env.HERMES_MODEL || 'x-ai/grok-4.6',
@@ -129,10 +142,13 @@ export function createNousHermesCliInterpreter({
       return { ok: false, kind: 'invalid', reason: 'Hermes CLI is not installed' };
     }
     const prompt = buildHermesChatPrompt(input);
+    const sessionName = safeSessionName(input.conversationId);
     const args = [
       'chat',
       '-q', prompt,
       '--oneshot',
+      '--continue', sessionName,
+      '--create-if-missing',
       '-Q',
       '--cli',
       '--yolo',

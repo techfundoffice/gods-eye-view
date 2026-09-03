@@ -5,6 +5,18 @@ set -u
 cd "$(dirname "$0")/.."
 PORT="${PORT:-5000}"
 HOST="${HOST:-0.0.0.0}"
+export HERMES_HOME="${HERMES_HOME:-$PWD/.hermes}"
+export HERMES_BIN="${HERMES_BIN:-$HERMES_HOME/hermes-agent/venv/bin/hermes}"
+
+if [[ ! -x "$HERMES_BIN" ]]; then
+  echo "[dev-replit] Persistent Hermes runtime missing; restoring pinned runtime."
+  bash scripts/install-hermes.sh
+fi
+
+if [[ ! -x "$HERMES_BIN" ]]; then
+  echo "[dev-replit] Hermes offline: $HERMES_BIN is not executable." >&2
+  exit 1
+fi
 
 port_up() {
   python3 -c "import socket,sys

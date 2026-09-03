@@ -1,0 +1,9 @@
+{
+  "distribution": "https://github.com/NousResearch/hermes-agent",
+  "tag": "v2026.8.31",
+  "version": "0.21.0",
+  "commit": "29112bef099274229cadff79cdff7bf7b99c4b77",
+  "installer": "https://hermes-agent.nousresearch.com/install.sh",
+  "installerSha256Observed": "5854b15670b51a8daae8f59ddfa917062de9f74be261eb73b4b8d719710f8968",
+  "runtimePath": ".hermes/hermes-agent/venv/bin/hermes"
+}

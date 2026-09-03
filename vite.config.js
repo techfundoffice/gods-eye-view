@@ -7902,6 +7902,8 @@ export default defineConfig(({ mode }) => {
         ignored: [
           '**/.local/**',
           '**/.gev-cache/**',
+          '**/.hermes/**',
+          '**/.cache/**',
         ],
       },
     },

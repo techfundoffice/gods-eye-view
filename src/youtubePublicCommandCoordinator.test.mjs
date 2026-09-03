@@ -109,6 +109,35 @@ test('continuations require an exact verified binding', async () => {
   assert.equal(turn, 2);
 });
 
+test('camera tool results return to Hermes before the terminal reply', async () => {
+  const ledger = createInMemoryPublicCommandLedger();
+  const turns = [];
+  const coordinator = createYoutubePublicCommandCoordinator({
+    ledger,
+    interpret: async (input) => {
+      turns.push(input);
+      return input.toolResult
+        ? { ok: true, kind: 'complete', text: 'Hawaii is now in view.' }
+        : { ok: true, kind: 'tool-call', call: { responseId: 'r', callId: 'c', name: 'fly_to_location', arguments: { query: 'Hawaii', viewMode: 'overview' } } };
+    },
+  });
+  const first = await coordinator.register({
+    ...comment('hawaii-1', 'Navigate to Hawaii'),
+    agentMode: 'execute',
+  }, binding);
+  await ledger.compareAndSet(first.record.id, 'awaiting-execution', {
+    state: 'executing', nonce: null, captureEpoch: 'epoch',
+  });
+  const done = await coordinator.acceptToolResult(first.record.id, binding, {
+    ok: true, action: 'fly_to_location', query: 'Hawaii',
+  });
+  assert.equal(turns.length, 2);
+  assert.equal(turns[1].toolResult.query, 'Hawaii');
+  assert.match(turns[0].conversationId, /^gev-youtube-/);
+  assert.equal(turns[1].conversationId, turns[0].conversationId);
+  assert.equal(done.record.answer, 'Hawaii is now in view.');
+});
+
 test('a stale tool result atomically cancels executing work', async () => {
   const ledger = createInMemoryPublicCommandLedger();
   await ledger.insert({
