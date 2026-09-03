@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 210" role="img" aria-labelledby="wordmark-title wordmark-desc">
+  <title id="wordmark-title">Cloud Computer AI.com</title>
+  <desc id="wordmark-desc">Cloud Computer AI.com wordmark with a cloud and computer monitor symbol.</desc>
+  <defs>
+    <linearGradient id="wm-cloud" x1="18" y1="20" x2="200" y2="175" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#42E3FF"/>
+      <stop offset=".5" stop-color="#0A97FF"/>
+      <stop offset="1" stop-color="#2858E8"/>
+    </linearGradient>
+    <linearGradient id="wm-cloud-text" x1="246" y1="45" x2="530" y2="150" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#41DFFF"/>
+      <stop offset=".5" stop-color="#0C97FF"/>
+      <stop offset="1" stop-color="#3E69FF"/>
+    </linearGradient>
+    <filter id="wm-glow" x="-30%" y="-30%" width="160%" height="170%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g transform="translate(8 7) scale(.75)">
+    <path d="M55 174C28 171 12 150 12 126c0-25 19-47 45-49 8-29 33-48 63-48 25 0 47 13 59 34 31-2 57 22 58 52 14 6 23 19 23 35 0 21-17 38-38 38h-27v-20h27c10 0 18-8 18-18 0-9-7-17-17-18l-10-1 2-10c4-20-12-39-33-39-5 0-9 1-13 3l-10 4-4-10c-7-18-25-30-45-30-24 0-44 17-48 40l-2 9-10-1h-4c-19 0-34 13-34 29 0 15 10 26 25 28l18 2v18H55z" fill="url(#wm-cloud)" filter="url(#wm-glow)"/>
+    <rect x="53" y="91" width="150" height="102" rx="14" fill="#10295A" stroke="#63E6FF" stroke-width="4"/>
+    <rect x="68" y="106" width="120" height="65" rx="5" fill="#DDFBFF"/>
+    <circle cx="128" cy="182" r="4" fill="#fff"/>
+    <path d="M113 193h30l5 18h12c5 0 8 3 8 7s-3 7-8 7H96c-5 0-8-3-8-7s3-7 8-7h12l5-18z" fill="#10295A"/>
+  </g>
+  <g font-family="Inter, Arial, sans-serif">
+    <text x="220" y="91" fill="url(#wm-cloud-text)" font-size="75" font-weight="700" letter-spacing="-2">Cloud</text>
+    <text x="445" y="91" fill="#F2FBFF" font-size="75" font-weight="500" letter-spacing="-3">Computer</text>
+    <path d="M224 148h136M745 148h158" stroke="#169DFF" stroke-width="5" stroke-linecap="round"/>
+    <text x="380" y="174" fill="#34CFFF" font-size="58" font-weight="700">AI</text>
+    <text x="445" y="174" fill="#F2FBFF" font-size="58" font-weight="600">.com</text>
+  </g>
+</svg>

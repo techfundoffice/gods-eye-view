@@ -33,7 +33,6 @@ import {
   paintOnScreenGoogleCredit,
 } from './googleEarth.js';
 import { initAnnotations } from './annotations/index.js';
-import { initLogoGaze } from './logoGaze.js';
 import { initCockpitCloudEffects } from './cockpitCloudEffects.js';
 import { initYouTubePanel } from './youtubeLive.js';
 import { initAdminConsole } from './adminConsole.js';
@@ -58,8 +57,8 @@ import { isTransientCesiumWorkerImportError } from './cesiumWorkerRecovery.js';
 
 /**
  * GPU capability gate — evaluated at module scope, before ANY startup side
- * effect. `initLogoGaze()` installs animation timers and the viewer opens
- * network polls, so both sit behind this verdict: an unsupported browser
+ * effect. The viewer opens network polls, so startup sits behind this verdict:
+ * an unsupported browser
  * reaches the compatibility screen having started no timer, no data layer, and
  * no upstream request.
  * @type {{supported: boolean, reason: string|null, contextType: string|null, limits: object}}
@@ -227,7 +226,6 @@ async function init() {
   }
 
   // Past the gate: decorative animation timers may start.
-  initLogoGaze();
 
   let viewer = null;
   let startupWatchdog = null;

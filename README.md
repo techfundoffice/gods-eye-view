@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌐 Cloud Computer AI.com
+<img src="public/brand-wordmark-dark.svg" alt="Cloud Computer AI.com" width="720">
 
 ### A spy-satellite simulator in your browser — then you realize the sources are public and the data is real.
 

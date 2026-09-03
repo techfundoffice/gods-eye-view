@@ -542,7 +542,7 @@ body.cockpit-mode #cockpit-cloud-effects.active {
 }
 
 .brand-logo {
-  aspect-ratio: 775 / 520;
+  aspect-ratio: 1;
   overflow: visible;
   pointer-events: none;
 }
@@ -552,6 +552,7 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
 #title-bar .title-accent,
