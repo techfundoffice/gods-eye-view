@@ -16076,3 +16076,417 @@ body {
     1rem
   ) !important;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase C (2026-09-03): Youtube Chat NEVER on the globe.
+   Same pattern as --youtube-mc-band on the left: reserve --youtube-east-band
+   on the right, stop #cesiumContainer (+ world overlays) there, and let
+   #admin-stamp-stack own that rail only. This block must win the cascade.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Narrow stamp rail. Shrink further rather than overlap Cesium. */
+  --youtube-chat-rail-width: min(16rem, max(12.5rem, calc(100vw - var(--youtube-mc-band) - 18rem)));
+  --youtube-east-band: var(--youtube-chat-rail-width);
+  --youtube-east-pad: max(0.5rem, env(safe-area-inset-right));
+}
+
+#cesiumContainer,
+#cesiumContainer.gev-2d-fallback-container {
+  right: var(--youtube-east-band) !important;
+}
+
+#world-overlay-root,
+#world-overlay-detection-surface,
+#scope-mask,
+.celestial-ring-overlay {
+  right: var(--youtube-east-band) !important;
+  left: var(--youtube-mc-band) !important;
+  top: var(--youtube-north-band, 7.25rem) !important;
+  bottom: var(--youtube-south-band, 4rem) !important;
+  width: auto !important;
+  height: auto !important;
+  inset: auto !important;
+}
+
+/* Detection + canvas fill their inset parent, not the viewport. */
+#world-overlay-root #world-overlay-detection-surface,
+#world-overlay-root #world-overlay-canvas,
+#world-overlay-detection-surface,
+#world-overlay-canvas {
+  inset: 0 !important;
+  right: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#admin-stamp-stack {
+  position: fixed !important;
+  top: max(4.25rem, calc(var(--youtube-north-band, 7.25rem) - 2.5rem)) !important;
+  right: 0 !important;
+  left: auto !important;
+  bottom: auto !important;
+  width: var(--youtube-east-band) !important;
+  max-width: var(--youtube-east-band) !important;
+  min-width: 0 !important;
+  z-index: 1101 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+  padding: 0 var(--youtube-east-pad) 0 0.55rem !important;
+  margin: 0 !important;
+  max-height: calc(
+    100dvh
+    - var(--youtube-north-band, 7.25rem)
+    - var(--youtube-south-band, 4rem)
+    + 2rem
+  ) !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+}
+
+#admin-stamp-stack #admin-launch,
+#admin-stamp-stack .admin-launch,
+#admin-stamp-stack .hud-top-right,
+#admin-stamp-stack .hud-corner.hud-top-right {
+  position: relative !important;
+  inset: auto !important;
+  align-self: flex-end !important;
+  pointer-events: auto !important;
+  margin: 0 !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel,
+#admin-stamp-stack #youtube-comments-panel.panel-collapsible,
+#admin-stamp-stack #youtube-comments-panel .youtube-comments-panel-inner {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  align-self: stretch !important;
+  pointer-events: auto !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: hidden !important;
+  max-height: calc(
+    100dvh
+    - var(--youtube-north-band, 7.25rem)
+    - var(--youtube-south-band, 4rem)
+    - 3.5rem
+  ) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .panel-glow,
+#admin-stamp-stack #youtube-comments-panel .panel-collapse-btn,
+#admin-stamp-stack #youtube-comments-panel .panel-divider,
+#admin-stamp-stack .youtube-comments-actions,
+#admin-stamp-stack .youtube-comments-actions[hidden] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+
+#admin-stamp-stack .youtube-chat-columns {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: none !important;
+  gap: 0.55rem !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+#admin-stamp-stack .youtube-chat-col {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+#admin-stamp-stack #youtube-comments-list,
+#admin-stamp-stack #youtube-agent-replies-list {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  flex: 1 1 auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 2px 0 0 !important;
+  margin: 0 !important;
+  list-style: none !important;
+}
+
+#admin-stamp-stack .youtube-feed-item,
+#admin-stamp-stack .youtube-comment-thread,
+#admin-stamp-stack .youtube-agent-reply,
+#admin-stamp-stack .youtube-feed-empty {
+  background: transparent !important;
+  border: 0 !important;
+  border-left: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 2px 0 5px !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel,
+#admin-stamp-stack #youtube-comments-panel *,
+#admin-stamp-stack .youtube-chat-col-title,
+#admin-stamp-stack .panel-title,
+#admin-stamp-stack .youtube-comments-count,
+#admin-stamp-stack #youtube-comments-video,
+#admin-stamp-stack #youtube-comments-status,
+#admin-stamp-stack .youtube-feed-meta,
+#admin-stamp-stack .youtube-feed-text,
+#admin-stamp-stack .youtube-agent-state,
+#admin-stamp-stack .youtube-agent-text,
+#admin-stamp-stack .youtube-agent-cta,
+#admin-stamp-stack .youtube-agent-cta-want,
+#admin-stamp-stack .youtube-agent-cta-how,
+#admin-stamp-stack .youtube-agent-cta-chat,
+#admin-stamp-stack .youtube-feed-empty {
+  text-shadow:
+    -1px -1px 0 #000,
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000,
+     0 0 8px rgba(0, 0, 0, 0.95),
+     0 2px 5px rgba(0, 0, 0, 0.9) !important;
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+}
+
+#admin-stamp-stack .panel-title,
+#admin-stamp-stack .youtube-chat-col-title,
+#admin-stamp-stack #youtube-comments-video,
+#admin-stamp-stack #youtube-comments-status,
+#admin-stamp-stack .youtube-comments-count,
+#admin-stamp-stack .youtube-feed-meta,
+#admin-stamp-stack .youtube-agent-cta-want {
+  color: #ffe566 !important;
+  -webkit-text-fill-color: #ffe566 !important;
+  opacity: 1 !important;
+}
+
+#admin-stamp-stack .youtube-feed-text,
+#admin-stamp-stack .youtube-agent-cta-how {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+#admin-stamp-stack .youtube-agent-state,
+#admin-stamp-stack .youtube-agent-state-replied,
+#admin-stamp-stack .youtube-agent-state-succeeded {
+  color: #7cff9a !important;
+  -webkit-text-fill-color: #7cff9a !important;
+}
+
+#admin-stamp-stack .youtube-agent-text {
+  color: #fff4d6 !important;
+  -webkit-text-fill-color: #fff4d6 !important;
+}
+
+#admin-stamp-stack .youtube-agent-cta-chat {
+  color: #7ef0ff !important;
+  -webkit-text-fill-color: #7ef0ff !important;
+}
+
+#admin-stamp-stack .youtube-agent-cta {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  margin-top: 3px !important;
+  max-width: 100% !important;
+}
+
+/* Hidden NextChat must not steal the east band visually. */
+#gev-nextchat,
+#gev-nextchat-toggle,
+#gev-nextchat-panel {
+  display: none !important;
+  width: 0 !important;
+  max-width: 0 !important;
+  pointer-events: none !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   H3/L2 (2026-09-03): restore upstream vertical CARD COLUMN on the LEFT.
+   Geometry from bilawalsidhu/gods-eye-view #right-context-rail (330px column,
+   176px collapsed chips, flex-direction column, gap 8px) mirrored to
+   #left-panel-stack. Phase C east chat rail is unchanged.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --youtube-mc-band: 330px;
+  --left-instrument-rail: 330px;
+  --left-collapsed-width: 176px;
+  --context-hud-dock-height: 0px;
+  --display-cctv-dock-height: 0px;
+  --gev-command-row-height: 2.6rem;
+}
+
+#cesiumContainer,
+#cesiumContainer.gev-2d-fallback-container {
+  left: var(--youtube-mc-band) !important;
+  right: var(--youtube-east-band, var(--youtube-chat-rail-width, 16rem)) !important;
+  bottom: calc(
+    var(--gev-status-band-height, 2rem) +
+    var(--gev-command-row-height, 2.6rem) +
+    env(safe-area-inset-bottom, 0px)
+  ) !important;
+}
+
+#world-overlay-root,
+#scope-mask,
+.celestial-ring-overlay {
+  left: var(--youtube-mc-band) !important;
+  right: var(--youtube-east-band, var(--youtube-chat-rail-width, 16rem)) !important;
+}
+
+#left-panel-stack {
+  position: fixed !important;
+  left: 0 !important;
+  right: auto !important;
+  top: var(--youtube-north-band, 7.25rem) !important;
+  bottom: calc(
+    var(--gev-status-band-height, 2rem) +
+    var(--gev-command-row-height, 2.6rem) +
+    env(safe-area-inset-bottom, 0px)
+  ) !important;
+  width: var(--left-instrument-rail) !important;
+  max-width: var(--left-instrument-rail) !important;
+  height: auto !important;
+  max-height: none !important;
+  z-index: 147 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  padding: 0 8px 8px 8px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  pointer-events: auto !important;
+  box-sizing: border-box !important;
+}
+
+#left-panel-stack > [data-panel-id],
+#left-panel-stack > #control-panel,
+#left-panel-stack > #location-bar,
+#left-panel-stack > #pp-toggles,
+#left-panel-stack > #cctv-panel,
+#left-panel-stack > #global-context-panel,
+#left-panel-stack > #radio-panel {
+  position: relative !important;
+  inset: auto !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  pointer-events: auto !important;
+}
+
+#left-panel-stack #pp-toggles,
+#left-panel-stack #pp-toggles:not(.collapsed) {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+#left-panel-stack #pp-toggles .pp-toggle-btn,
+#left-panel-stack #pp-toggles .pp-header-row,
+#left-panel-stack #pp-toggles .pp-toggle-group {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+#left-panel-stack #pp-toggles .pp-toggle-btn {
+  min-height: 34px !important;
+}
+
+#left-panel-stack #radio-panel,
+#left-panel-stack .radio-panel-inner {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+
+#left-panel-stack .radio-directory-row,
+#left-panel-stack .radio-transport,
+#left-panel-stack .radio-volume-row,
+#left-panel-stack #radio-tuner {
+  display: flex !important;
+  visibility: visible !important;
+  position: sticky;
+}
+
+#left-panel-stack .radio-transport {
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 2 !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  background: rgba(2, 15, 20, 0.92) !important;
+}
+
+#context-hud-dock,
+#display-cctv-dock,
+#right-context-rail[hidden],
+#right-context-rail:not(:has([data-panel-id])) {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+#bottom-control-deck {
+  left: var(--youtube-mc-band) !important;
+  right: var(--youtube-east-band, 16rem) !important;
+  max-height: calc(var(--gev-command-row-height, 2.6rem) + var(--gev-status-band-height, 2rem) + 0.5rem) !important;
+  overflow: visible !important;
+}
+
+#command-dock {
+  height: var(--gev-command-row-height, 2.6rem) !important;
+  min-height: var(--gev-command-row-height, 2.6rem) !important;
+  max-height: var(--gev-command-row-height, 2.6rem) !important;
+}
+
+#first-run-launcher,
+#mission-control-nav {
+  max-width: var(--left-instrument-rail) !important;
+}

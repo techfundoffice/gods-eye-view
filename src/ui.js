@@ -2209,7 +2209,7 @@ export class StyleManager {
     this._leftStackHudTransitionHandler = null;
     this._leftStackCollapsedHeights = new Map();
     this._leftStackPreferredPanelId = null;
-    this._rightPanelStack = document.getElementById('right-context-rail');
+    this._rightPanelStack = document.getElementById('left-panel-stack') || document.getElementById('right-context-rail');
     this._rightStackLayoutFrame = null;
     this._rightStackReconsiderAutoCollapse = false;
     this._rightStackResizeObserver = null;
@@ -6830,27 +6830,20 @@ export class StyleManager {
    */
   _initRightPanelAdaptiveLayout() {
     const contextDock = document.getElementById('context-hud-dock');
-    const contextPanel = document.getElementById('global-context-panel');
     const displayDock = document.getElementById('display-cctv-dock');
     const commandDock = document.getElementById('command-dock');
     const leftStack = document.getElementById('left-panel-stack');
+    this._rightPanelStack = leftStack || this._rightPanelStack;
     let bottomDeck = document.getElementById('bottom-control-deck');
     if (!bottomDeck) {
       bottomDeck = document.createElement('section');
       bottomDeck.id = 'bottom-control-deck';
-      bottomDeck.setAttribute('aria-label', 'God’s Eye View controls');
+      bottomDeck.setAttribute('aria-label', "God's Eye View controls");
       document.body.appendChild(bottomDeck);
     }
-    // Move the real control nodes into one canonical desktop deck without
-    // cloning IDs or maintaining a second fold/mobile control arrangement.
-    for (const node of [leftStack, commandDock, contextDock, displayDock]) {
-      if (node && node.parentElement !== bottomDeck) bottomDeck.appendChild(node);
-    }
-    if (contextDock && contextPanel && contextPanel.parentElement !== contextDock) {
-      contextDock.appendChild(contextPanel);
-    }
+    // H3/L2: south deck keeps Commands only. Left stack is the instrument column.
+    if (commandDock && commandDock.parentElement !== bottomDeck) bottomDeck.appendChild(commandDock);
     const stack = this._rightPanelStack;
-    const dock = displayDock;
     const resetFloating = (panel) => {
       if (!panel) return;
       panel.style.removeProperty('top');
@@ -6861,17 +6854,39 @@ export class StyleManager {
       panel.style.removeProperty('max-height');
       panel.classList.remove('panel-draggable', 'panel-dragging', 'layout-auto-collapsed');
     };
-    if (dock && this._ppToggles) {
-      resetFloating(this._ppToggles);
-      this._ppToggles.querySelector('.pp-header-row')?.removeAttribute('title');
-      dock.appendChild(this._ppToggles);
-    }
-    if (this._cctvPanel) {
-      resetFloating(this._cctvPanel);
-      dock?.appendChild(this._cctvPanel);
-      this._syncPanelCollapseButton(this._cctvPanel);
-    }
+    const locationBar = document.getElementById('location-bar');
+    const controlPanel = document.getElementById('control-panel');
     const globalContextPanel = document.getElementById('global-context-panel');
+    if (stack) {
+      if (locationBar) {
+        resetFloating(locationBar);
+        stack.appendChild(locationBar);
+      }
+      if (controlPanel) {
+        resetFloating(controlPanel);
+        stack.appendChild(controlPanel);
+      }
+      if (globalContextPanel) {
+        resetFloating(globalContextPanel);
+        stack.appendChild(globalContextPanel);
+      }
+      if (this._ppToggles) {
+        resetFloating(this._ppToggles);
+        this._ppToggles.querySelector('.pp-header-row')?.removeAttribute('title');
+        stack.appendChild(this._ppToggles);
+      }
+      if (this._cctvPanel) {
+        resetFloating(this._cctvPanel);
+        stack.appendChild(this._cctvPanel);
+        this._syncPanelCollapseButton(this._cctvPanel);
+      }
+    }
+    contextDock?.setAttribute('hidden', '');
+    displayDock?.setAttribute('hidden', '');
+    const rightRail = document.getElementById('right-context-rail');
+    if (rightRail && !rightRail.querySelector('[data-panel-id]')) {
+      rightRail.setAttribute('hidden', '');
+    }
     if (this._sliderPanel) {
       this._sliderPanel.style.removeProperty('top');
       this._sliderPanel.style.removeProperty('right');
@@ -6968,10 +6983,9 @@ export class StyleManager {
     const hasExpandedPanel = panels.some((panel) => (
       !panel.classList.contains('collapsed') && (!isMobile || panel.id !== 'pp-toggles')
     ));
-    const exclusive = shouldHideCollapsedRightPanels({
-      hudVariant: this.hud.getVariant(),
-      hasExpandedPanel,
-    });
+    // H3/L2 sight-first: never hide sibling instrument cards for YouTube control.
+    const exclusive = false;
+    void shouldHideCollapsedRightPanels;
     stack.classList.toggle('layout-exclusive', exclusive);
     for (const panel of panels) {
       if (exclusive && panel.classList.contains('collapsed')) panel.setAttribute('aria-hidden', 'true');
