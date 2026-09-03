@@ -121,11 +121,8 @@ export function createNousHermesCliInterpreter({
       '--yolo',
       '--provider', provider,
       '-m', model,
-      '--skills', 'gods-eye-view',
-      '--max-turns', '4',
-      '--run-budget', '40',
-      '--continue', NOUS_HERMES_SESSION,
-      '--create-if-missing',
+      '--max-turns', '2',
+      '--run-budget', '30',
     ];
     const result = await runCommand(spawnImpl, command, args, timeoutMs);
     if (!result.ok) {
