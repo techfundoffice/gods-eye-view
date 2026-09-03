@@ -14633,27 +14633,6 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
   letter-spacing: 1px !important;
 }
 
-/* Restore the complete interactive control layout. A temporary broadcast-only
-   instrument-strip experiment reserved more than 30rem at the bottom and moved
-   Radio/Context/Display/CCTV outside the adaptive rail, pushing the controls
-   off a 720p viewport. StyleManager now reparents the original nodes back into
-   the rail; these empty staging docks must reserve no screen space. */
-:root {
-  --context-hud-dock-height: 0px;
-  --display-cctv-dock-height: 0px;
-}
-
-#context-hud-dock:empty,
-#display-cctv-dock:empty {
-  display: none !important;
-  min-height: 0 !important;
-  height: 0 !important;
-}
-
-#command-dock {
-  bottom: 4.5rem !important;
-}
-
 #admin-stamp-stack #youtube-comments-panel.panel-collapsible,
 #admin-stamp-stack #youtube-comments-panel.panel-collapsible .youtube-comments-panel-inner {
   background: transparent !important;
