@@ -65,6 +65,18 @@ import { isTransientCesiumWorkerImportError } from './cesiumWorkerRecovery.js';
  */
 const webglCapability = probeWebGLCapability();
 
+async function retryWebGLCapability(initial, {
+  attempts = 4,
+  delayMs = 250,
+} = {}) {
+  let result = initial;
+  for (let attempt = 0; !result.supported && attempt < attempts; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    result = probeWebGLCapability();
+  }
+  return result;
+}
+
 /**
  * Extract a human-readable error message from any thrown value.
  * Handles Error objects, strings, and plain objects with message/error fields.
@@ -193,18 +205,21 @@ const extensionBridge = initGevExtensionBridge({ nextchat });
 async function init() {
   const loadingScreen = document.getElementById('loading-screen');
   const loaderStatus = loadingScreen.querySelector('.loader-status');
+  const activeWebglCapability = webglCapability.supported
+    ? webglCapability
+    : await retryWebGLCapability(webglCapability);
 
-  if (!webglCapability.supported) {
-    reportGpuIncompatibility('probe', webglCapability.reason, webglCapability.limits);
+  if (!activeWebglCapability.supported) {
+    reportGpuIncompatibility('probe', activeWebglCapability.reason, activeWebglCapability.limits);
     initWebGLFallback({
       loadingScreen,
       loaderStatus,
-      reason: webglCapability.reason,
+      reason: activeWebglCapability.reason,
     });
     showWebGLCompatibilityState({
       loadingScreen,
       loaderStatus,
-      reason: webglCapability.reason,
+      reason: activeWebglCapability.reason,
     });
     loadingScreen.classList.add('hidden');
     return;

@@ -369,7 +369,7 @@ test('the capability gate runs before Cesium viewer construction', () => {
   assert.ok(viewerIndex > probeIndex, 'the capability probe must precede Cesium viewer construction');
   assert.match(
     main.slice(probeIndex, viewerIndex),
-    /if \(!webglCapability\.supported\)[\s\S]*?showWebGLCompatibilityState[\s\S]*?return;/,
+    /retryWebGLCapability\(webglCapability\)[\s\S]*?if \(!activeWebglCapability\.supported\)[\s\S]*?showWebGLCompatibilityState[\s\S]*?return;/,
   );
 });
 
@@ -381,7 +381,10 @@ test('the capability gate runs before any startup timer or data layer', () => {
   const probeIndex = statementIndex(/^\s*const webglCapability = probeWebGLCapability\(\);/m);
   assert.ok(probeIndex >= 0, 'the probe must be a module-scope statement');
 
-  const gateIndex = statementIndex(/^\s*if \(!webglCapability\.supported\) \{/m);
+  const retryIndex = statementIndex(/^\s*const activeWebglCapability = webglCapability\.supported/m);
+  assert.ok(retryIndex > probeIndex, 'transient failures must be retried after the module-scope probe');
+
+  const gateIndex = statementIndex(/^\s*if \(!activeWebglCapability\.supported\) \{/m);
   assert.ok(gateIndex > probeIndex, 'the gate must follow the probe');
 
   // initLogoGaze installs animation timers; the data manager opens network
