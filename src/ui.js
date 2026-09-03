@@ -2615,6 +2615,11 @@ export class StyleManager {
     // from deterministic markup defaults instead of recipient-local panel
     // preferences. Encoded panel fields are applied after all panels exist.
     this._initialShareState = this.shareLinkManager.parseInitialHash();
+    this._initialRestoreSource = this._initialShareState ? 'share' : null;
+    if (!this._initialShareState) {
+      this._initialShareState = this.shareLinkManager.parseLocalSnapshot();
+      if (this._initialShareState) this._initialRestoreSource = 'local';
+    }
 
     this._detectionBtn = document.getElementById('detection-toggle');
     this._models3dBtn = document.getElementById('models3d-toggle');
@@ -2689,11 +2694,12 @@ export class StyleManager {
           layers: [],
         });
       }, 12_000);
-      this._hasShareState = true;
+      this._hasShareState = this._initialRestoreSource === 'share';
+      this._hasRestoredState = true;
       // Reserve camera authority now; the delayed mesh-friendly flight may
       // run only if no newer user, voice, or tracking navigation has won.
       this._initialShareNavigationGeneration = this._beginDeferredNavigation(
-        'shared view',
+        this._initialRestoreSource === 'share' ? 'shared view' : 'saved view',
         { cancelPendingSelection: false },
       );
       this._initialShareRestoreTimeout = setTimeout(() => {
@@ -10320,7 +10326,12 @@ export class StyleManager {
     return !!this._hasShareState;
   }
 
-  /** Terminal result for the complete initial share restoration. */
+  /** Whether startup is restoring either an explicit share or a local snapshot. */
+  get hasRestoredState() {
+    return !!this._hasRestoredState;
+  }
+
+  /** Terminal result for the complete initial state restoration. */
   get initialRestorePromise() {
     return this._initialShareRestorePromise || Promise.resolve({ status: 'not-requested' });
   }

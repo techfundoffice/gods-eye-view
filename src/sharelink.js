@@ -16,6 +16,8 @@ import { decodeLayerStateParams, encodeLayerStateParams } from './data/layerStat
 
 const DEBOUNCE_MS = 500;
 const LEGACY_BLOOM_FALLBACK = 50;
+export const LOCAL_VIEW_SNAPSHOT_KEY = 'gev:view-snapshot:v1';
+const LOCAL_VIEW_SNAPSHOT_VERSION = 1;
 
 // Style name mapping: internal → URL-friendly
 const STYLE_TO_URL = {
@@ -154,15 +156,50 @@ export class ShareLinkManager {
   parseInitialHash() {
     const hash = window.location.hash.slice(1);
     if (!hash) return null;
+    return this._parseStateParams(new URLSearchParams(hash), { reserveRestore: true });
+  }
 
-    const params = new URLSearchParams(hash);
+  /**
+   * Restore the most recently settled local view. The stored payload uses the
+   * same state codec as a share link, but never claims or mutates the URL.
+   */
+  parseLocalSnapshot(storage) {
+    let raw = null;
+    try {
+      const store = storage === undefined ? globalThis.localStorage : storage;
+      raw = store?.getItem?.(LOCAL_VIEW_SNAPSHOT_KEY) ?? null;
+    } catch {
+      return null;
+    }
+    if (!raw) return null;
+    try {
+      const payload = JSON.parse(raw);
+      if (
+        payload?.version !== LOCAL_VIEW_SNAPSHOT_VERSION
+        || typeof payload.params !== 'string'
+        || payload.params.length > 20_000
+      ) return null;
+      return this._parseStateParams(new URLSearchParams(payload.params), { reserveRestore: true });
+    } catch {
+      return null;
+    }
+  }
+
+  _parseStateParams(params, { reserveRestore = false } = {}) {
     const lat = parseFloat(params.get('lat'));
     const lon = parseFloat(params.get('lon'));
 
     // Coordinates drive Cartesian conversion, so reject non-finite URL values
     // before marking a share restoration as pending. `parseFloat('Infinity')`
     // is not NaN and would otherwise reach Cesium asynchronously at startup.
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    if (
+      !Number.isFinite(lat)
+      || !Number.isFinite(lon)
+      || lat < -90
+      || lat > 90
+      || lon < -180
+      || lon > 180
+    ) return null;
 
     const parseOr = (value, fallback) => {
       const num = parseFloat(value);
@@ -176,10 +213,12 @@ export class ShareLinkManager {
     );
     const style = URL_TO_STYLE[params.get('style')] || 'normal';
     const decodedLayerState = decodeLayerStateParams(params);
+    const alt = parseOr(params.get('alt'), 800);
+    if (alt < 1 || alt > 1_000_000_000) return null;
     const state = {
       lat,
       lon,
-      alt: parseOr(params.get('alt'), 800),
+      alt,
       heading: parseOr(params.get('heading'), 0),
       pitch: parseOr(params.get('pitch'), -35),
       roll: parseOr(params.get('roll'), 0),
@@ -239,7 +278,7 @@ export class ShareLinkManager {
     };
 
     // Hold URL writes until the complete incoming state has been restored.
-    this._initialRestorePending = true;
+    if (reserveRestore) this._initialRestorePending = true;
     return state;
   }
 
@@ -467,7 +506,14 @@ export class ShareLinkManager {
     if (this._destroyed || this._initialRestorePending) return;
     const params = this._buildHashParams();
     if (!params) return;
-    history.replaceState(null, '', `#${params.toString()}`);
+    try {
+      globalThis.localStorage?.setItem?.(LOCAL_VIEW_SNAPSHOT_KEY, JSON.stringify({
+        version: LOCAL_VIEW_SNAPSHOT_VERSION,
+        params: params.toString(),
+      }));
+    } catch {
+      // Storage can be unavailable in private/locked-down browser contexts.
+    }
   }
 
   /** Build a deterministic snapshot without mutating history. */

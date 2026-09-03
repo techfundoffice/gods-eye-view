@@ -9955,7 +9955,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   height: auto;
   max-height: none;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: visible;
 }
 
 .first-run-layers-list button {

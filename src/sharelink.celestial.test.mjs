@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { ShareLinkManager, decodeShareCreatedAtMs } from './sharelink.js';
+import {
+  LOCAL_VIEW_SNAPSHOT_KEY,
+  ShareLinkManager,
+  decodeShareCreatedAtMs,
+} from './sharelink.js';
 import { createDefaultLayerState } from './data/layerState.js';
 
 const uiSource = fs.readFileSync(new URL('./ui.js', import.meta.url), 'utf8');
@@ -23,6 +27,11 @@ function assertClaimsBefore(block, mutation, label) {
 }
 
 function makeManager(hash = '') {
+  const stored = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => stored.get(key) ?? null,
+    setItem: (key, value) => stored.set(key, value),
+  };
   globalThis.window = { location: { hash, href: `http://localhost/${hash}` } };
   globalThis.history = {
     replaceState(_state, _title, nextHash) {
@@ -39,6 +48,11 @@ function makeManager(hash = '') {
     },
   };
   return new ShareLinkManager(viewer);
+}
+
+function savedSnapshotParams() {
+  const payload = JSON.parse(globalThis.localStorage.getItem(LOCAL_VIEW_SNAPSHOT_KEY));
+  return new URLSearchParams(payload.params);
 }
 
 function installClipboard(writeText) {
@@ -74,12 +88,12 @@ test('share-link serialization emits the current celestial state', () => {
   manager.onToggleChange(false, false, { celestialRingEnabled: false });
   clearTimeout(manager._debounceTimer);
   manager._updateHash();
-  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('cr'), '0');
+  assert.equal(savedSnapshotParams().get('cr'), '0');
 
   manager.onToggleChange(false, false, { celestialRingEnabled: true });
   clearTimeout(manager._debounceTimer);
   manager._updateHash();
-  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('cr'), '1');
+  assert.equal(savedSnapshotParams().get('cr'), '1');
 });
 
 test('generated links are v2 and include deterministic layers, options, style params, and panels', () => {
@@ -99,7 +113,7 @@ test('generated links are v2 and include deterministic layers, options, style pa
   manager.onStyleChange('thermal');
   clearTimeout(manager._debounceTimer);
   manager._updateHash();
-  const params = new URLSearchParams(window.location.hash.slice(1));
+  const params = savedSnapshotParams();
   assert.equal(params.get('v'), '2');
   assert.equal(params.get('l'), 'c.r');
   assert.equal(params.get('sp'), 's.82_b.37_m.100_p.260_a.100');
@@ -181,10 +195,40 @@ test('incoming state suppresses premature hash replacement until restoration', (
   assert.equal(window.location.hash, '#v=2&lat=10&lon=20&l=e&style=nvg');
 });
 
+test('local snapshots round-trip through the share codec without claiming the URL', () => {
+  const writer = makeManager();
+  writer.onToggleChange(false, false, { mapStack: 'osm' });
+  clearTimeout(writer._debounceTimer);
+  writer._updateHash();
+  const stored = globalThis.localStorage;
+  const reader = makeManager();
+  globalThis.localStorage = stored;
+  const restored = reader.parseLocalSnapshot();
+  assert.equal(restored.mapStack, 'osm');
+  assert.equal(restored.lat, 0);
+  assert.equal(window.location.hash, '');
+  assert.equal(reader._initialRestorePending, true);
+});
+
+test('malformed, wrong-version, and out-of-range local snapshots fail closed', () => {
+  const manager = makeManager();
+  for (const raw of [
+    '{',
+    JSON.stringify({ version: 2, params: 'lat=10&lon=20' }),
+    JSON.stringify({ version: 1, params: 'lat=91&lon=20' }),
+    JSON.stringify({ version: 1, params: 'lat=10&lon=181' }),
+    JSON.stringify({ version: 1, params: 'lat=10&lon=20&alt=-1' }),
+  ]) {
+    globalThis.localStorage.setItem(LOCAL_VIEW_SNAPSHOT_KEY, raw);
+    assert.equal(manager.parseLocalSnapshot(), null, raw);
+    assert.equal(manager._initialRestorePending, false, raw);
+  }
+});
+
 test('a shared view reserves its own camera without cancelling its saved Follow', () => {
   assert.match(
     uiSource,
-    /_beginDeferredNavigation\(\s*'shared view',\s*\{ cancelPendingSelection: false \},\s*\)/,
+    /_beginDeferredNavigation\(\s*this\._initialRestoreSource === 'share' \? 'shared view' : 'saved view',\s*\{ cancelPendingSelection: false \},\s*\)/,
   );
   const deferred = sourceBlock(
     "  _beginDeferredNavigation(noun = 'location', { cancelPendingSelection = true } = {}) {",
@@ -261,7 +305,7 @@ test('allocation strategy defaults to Elastic and round-trips Weighted', () => {
   manager.onToggleChange(false, false, { detectionAllocation: 'WEIGHTED' });
   clearTimeout(manager._debounceTimer);
   manager._updateHash();
-  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('da'), 'weighted');
+  assert.equal(savedSnapshotParams().get('da'), 'weighted');
 });
 
 test('keyhole fade controls default and round-trip as normalized percentages', () => {
@@ -280,7 +324,7 @@ test('keyhole fade controls default and round-trip as normalized percentages', (
   });
   clearTimeout(manager._debounceTimer);
   manager._updateHash();
-  const params = new URLSearchParams(window.location.hash.slice(1));
+  const params = savedSnapshotParams();
   assert.equal(params.get('kf'), '22');
   assert.equal(params.get('ko'), '30');
 });
@@ -316,18 +360,18 @@ test('serialization writes only in-band sce values, and omits an adaptive one', 
   manager.onToggleChange(false, false, { scopeTerminusPct: 0 });
   clearTimeout(manager._debounceTimer);
   manager._updateHash();
-  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('sce'), '94',
+  assert.equal(savedSnapshotParams().get('sce'), '94',
     'an out-of-band value must be floored on write, not round-tripped');
 
   manager.onToggleChange(false, false, { scopeTerminusPct: 500 });
   clearTimeout(manager._debounceTimer);
   manager._updateHash();
-  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('sce'), '100');
+  assert.equal(savedSnapshotParams().get('sce'), '100');
 
   manager.onToggleChange(false, false, { scopeTerminusPct: null });
   clearTimeout(manager._debounceTimer);
   manager._updateHash();
-  assert.equal(new URLSearchParams(window.location.hash.slice(1)).has('sce'), false,
+  assert.equal(savedSnapshotParams().has('sce'), false,
     'adaptive stays ABSENT so a shared link never freezes the ramp');
 });
 

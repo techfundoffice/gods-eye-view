@@ -525,12 +525,14 @@ async function init() {
     const weatherEffects = null;
     const cockpitCloudEffects = initCockpitCloudEffects(viewer);
 
-    // If no share link state, open Google Photorealistic 3D above Los Angeles.
-    if (!styleManager.hasShareState) {
+    // Startup precedence: explicit share, then local reload snapshot, then LA.
+    if (!styleManager.hasRestoredState) {
       loaderStatus.textContent = 'Opening Google 3D above Los Angeles, CA...';
       flyToLosAngeles(viewer);
     } else {
-      loaderStatus.textContent = 'Restoring shared view...';
+      loaderStatus.textContent = styleManager.hasShareState
+        ? 'Restoring shared view...'
+        : 'Restoring your last view...';
     }
 
     // Initialize data layer manager
@@ -601,7 +603,11 @@ async function init() {
         // dataManager is passed explicitly: the globe missions enable bundled
         // keyless layers through it, and reaching for styleManager._dataManager
         // would make a private field part of this feature's contract.
-        initFirstRunExperience({ styleManager, dataManager });
+        initFirstRunExperience({
+          styleManager,
+          dataManager,
+          hasRestoredState: styleManager.hasRestoredState,
+        });
       };
       loadingScreen.addEventListener('transitionend', revealFirstRun, { once: true });
       setTimeout(revealFirstRun, 900);

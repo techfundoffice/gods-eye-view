@@ -63,7 +63,7 @@ export function environmentalLabel(choice = ENVIRONMENTAL_LABEL_CHOICE) {
  *                         Space Missions tabs do it. The globe missions open no
  *                         panel at all — nothing there needs explaining, and a
  *                         panel-collapse write is a pref nobody chose.
- *   TOUCHED, SESSION      the camera. Never persisted by anything.
+ *   TOUCHED, DURABLE      the camera, as part of the whole-view reload snapshot.
  *   NOT TOUCHED           detection mode + density. The reasonable-defaults
  *                         landing owns the DENSE/75 start, and Contacts owns
  *                         detection through contactsDetectionPolicy while it is
@@ -218,12 +218,15 @@ function removeStored(kind, injected, key) {
  */
 export function shouldShowFirstRun({
   location = globalThis.location,
+  hasRestoredState = false,
 } = {}) {
   const params = new URLSearchParams(location?.search || '');
   // Reserved for capture/automation surfaces that cannot interact with a modal.
   if (params.get('welcome') === '0') return false;
-  // Every interactive visit chooses a view, including restored/share URLs and
-  // reloads carrying legacy suppression state.
+  // Explicit replay remains available even when a shared/saved view restored.
+  if (params.get('welcome') === '1') return true;
+  // Never cover a successfully decoded shared or local view at startup.
+  if (hasRestoredState) return false;
   return true;
 }
 
@@ -323,6 +326,7 @@ export function exclusiveSurfaceActive(documentRef = globalThis.document) {
  * @param {Storage} [input.storage]
  * @param {Storage} [input.sessionStorageRef]
  * @param {Location} [input.location]
+ * @param {boolean} [input.hasRestoredState]
  * @returns {null|{dismiss: Function}}
  */
 export function initFirstRunExperience({
@@ -332,6 +336,7 @@ export function initFirstRunExperience({
   storage,
   sessionStorageRef,
   location = globalThis.location,
+  hasRestoredState = styleManager?.hasRestoredState === true,
 } = {}) {
   const root = documentRef?.getElementById?.('first-run-launcher');
   if (!root || root.dataset.initialized === 'true') return null;
@@ -341,6 +346,7 @@ export function initFirstRunExperience({
     storage,
     sessionStorageRef,
     location,
+    hasRestoredState,
   })) {
     root.remove();
     return null;

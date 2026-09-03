@@ -87,7 +87,7 @@ test('legacy suppression storage no longer hides the chooser', () => {
   }), true);
 });
 
-test('welcome=0 is the only explicit bypass; share and stored state still choose a view', () => {
+test('welcome overrides restored-state suppression', () => {
   const suppressed = memoryStorage(FIRST_RUN_STORAGE_KEY, 'suppressed');
   const dismissed = memoryStorage(FIRST_RUN_SESSION_KEY, 'dismissed');
   // ?welcome=1 replays past the checkbox AND past a session dismissal.
@@ -96,14 +96,14 @@ test('welcome=0 is the only explicit bypass; share and stored state still choose
   }), true);
   // ?welcome=0 suppresses a session that would otherwise see it.
   assert.equal(shouldShowFirstRun({ ...fresh(), location: { search: '?welcome=0' } }), false);
-  // Restored/share links are still interactive visits and must choose a view.
+  // An explicit replay wins over restored-state suppression.
   assert.equal(shouldShowFirstRun({
-    hasShareState: true, ...fresh(), location: { search: '?welcome=1' },
+    hasRestoredState: true, ...fresh(), location: { search: '?welcome=1' },
   }), true);
 });
 
-test('a share link still sees the launcher so every user chooses the view', () => {
-  assert.equal(shouldShowFirstRun({ hasShareState: true, ...fresh() }), true);
+test('shared and local restored views are not covered by Mission Control', () => {
+  assert.equal(shouldShowFirstRun({ hasRestoredState: true, ...fresh() }), false);
 });
 
 test('privacy-restricted storage fails open and every write stays best-effort', () => {
@@ -574,7 +574,7 @@ test('no mission writes a preference the visitor did not choose by picking it', 
 test('the decision table is written down where the next editor will read it', () => {
   const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
   assert.match(module, /MISSION → APP STATE, AND WHAT IT IS ALLOWED TO PERSIST/);
-  for (const row of ['TOUCHED, DURABLE', 'TOUCHED, SESSION', 'NOT TOUCHED']) {
+  for (const row of ['TOUCHED, DURABLE', 'NOT TOUCHED']) {
     assert.ok(module.includes(row), `decision table is missing its "${row}" rows`);
   }
   assert.match(module, /SHOW POLICY/);
@@ -625,7 +625,10 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   const startup = main.slice(main.indexOf('void Promise.all(['), main.indexOf('// Expose for debugging'));
   assert.match(startup, /styleManager\.initialRestorePromise/);
   assert.ok(startup.indexOf("loadingScreen.classList.add('hidden')") < startup.indexOf('initFirstRunExperience'));
-  assert.match(startup, /initFirstRunExperience\(\{ styleManager, dataManager \}\)/);
+  assert.match(
+    startup,
+    /initFirstRunExperience\(\{[\s\S]*styleManager,[\s\S]*dataManager,[\s\S]*hasRestoredState: styleManager\.hasRestoredState/,
+  );
 
   assert.match(css, /body\.ui-clean-view #first-run-launcher/);
   assert.match(css, /body\.recording-mode #first-run-launcher/);
