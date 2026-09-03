@@ -2283,12 +2283,16 @@ async function flyToRequestedLocation(viewer, args, {
     return afterArrival(response, response.label);
   }
 
+  const queryEarly = String(args.query || '').trim();
   const latitude = Number(args.latitude);
   const longitude = Number(args.longitude);
-  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+  // Prefer a place name so cities geocode to a map-scale overview.
+  // Raw lat/lon at 250 m is a white ellipsoid — not a viewable city.
+  if (!queryEarly && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    const visibleRangeM = rangeM || (args.viewMode === 'close' ? 4500 : 28000);
     const result = immediate(() => flyToLandmark(viewer, latitude, longitude, {
-      range: rangeM || 250,
-      pitch: -35,
+      range: visibleRangeM,
+      pitch: -45,
       heading: 0,
       buildingHeight: 0,
       duration: 2.2,
@@ -2302,8 +2306,8 @@ async function flyToRequestedLocation(viewer, args, {
       latitude,
       longitude,
       label: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-      rangeM: Math.round(rangeM || 250),
-      navigationMode: rangeM ? 'explicit-range' : 'close-coordinate',
+      rangeM: Math.round(visibleRangeM),
+      navigationMode: rangeM ? 'explicit-range' : (args.viewMode === 'close' ? 'neighborhood' : 'city-overview'),
     };
     return afterArrival(response, response.label);
   }

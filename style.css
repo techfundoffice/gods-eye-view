@@ -13665,6 +13665,19 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
   -webkit-text-fill-color: #f5fdff !important;
 }
 
+#youtube-comments-panel .youtube-comment-thread > .youtube-feed-text {
+  color: #d7fbff !important;
+  -webkit-text-fill-color: #d7fbff !important;
+}
+
+#youtube-comments-panel .youtube-agent-reply,
+#youtube-comments-panel .youtube-agent-reply .youtube-feed-text,
+#youtube-comments-panel .youtube-agent-text,
+#youtube-comments-panel .youtube-agent-role {
+  color: #ffd24a !important;
+  -webkit-text-fill-color: #ffd24a !important;
+}
+
 #youtube-comments-panel .youtube-comments-list {
   max-height: min(42vh, 360px);
   overflow: auto;

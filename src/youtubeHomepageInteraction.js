@@ -216,9 +216,10 @@ export function createYoutubeHomepageInteraction({
       const tb = Date.parse(b.publishedAt) || 0;
       return ta - tb;
     });
-    const visibleComments = chronological.length <= MAX_VISIBLE_COMMENTS
+    const recentComments = chronological.length <= MAX_VISIBLE_COMMENTS
       ? chronological
       : chronological.slice(-MAX_VISIBLE_COMMENTS);
+    const visibleComments = [...recentComments].reverse();
     const visibleActions = chronological.filter((item) => {
       const state = String(item.replyState || 'display');
       return Boolean(item.replyText) || state !== 'display';
