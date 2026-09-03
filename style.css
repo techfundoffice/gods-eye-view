@@ -17694,3 +17694,52 @@ body {
 #hud-center-cluster .hud-bracket {
   display: none !important;
 }
+
+
+/* === GEV_CCTV_FULL_HEIGHT_NO_SCROLL_V1 ===
+   CCTV in the left column is fully expanded. No inner scrollbar. */
+#left-panel-stack > #cctv-panel,
+#left-panel-stack > #cctv-panel.collapsed,
+#left-panel-stack > #cctv-panel.panel-collapsible {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 22rem !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+#left-panel-stack > #cctv-panel .cctv-panel-inner,
+#left-panel-stack > #cctv-panel .panel-inner {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  height: auto !important;
+}
+#left-panel-stack #cctv-frame-wrap {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-height: 14rem !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+#left-panel-stack #cctv-frame {
+  width: 100% !important;
+  height: 14rem !important;
+  min-height: 14rem !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+#left-panel-stack > #cctv-panel .cctv-controls,
+#left-panel-stack > #cctv-panel .cctv-panel-inner > * {
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+}
