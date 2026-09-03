@@ -244,6 +244,24 @@ export class IntelHUD {
   }
 
 
+
+  _placeAdminAboveCesiumCredits() {
+    const credits = document.getElementById("cesium-credits");
+    const launch = document.getElementById("admin-launch");
+    if (!credits || !launch) return;
+    let wrap = document.getElementById("gev-admin-credits");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "gev-admin-credits";
+      credits.parentElement.insertBefore(wrap, credits);
+      wrap.appendChild(launch);
+      wrap.appendChild(credits);
+    } else {
+      if (launch.parentElement !== wrap) wrap.insertBefore(launch, wrap.firstChild);
+      if (credits.parentElement !== wrap) wrap.appendChild(credits);
+    }
+  }
+
   _placeMgrsLatlonInLocationBar() {
     const loc = document.getElementById("location-bar");
     const mgrs = document.getElementById("hud-mgrs");
@@ -344,6 +362,7 @@ export class IntelHUD {
     if (nav && launcher && launcher.parentElement === nav) nav.appendChild(launcher);
     if (nav && layers) nav.appendChild(layers);
     this._placeMgrsLatlonInLocationBar();
+    this._placeAdminAboveCesiumCredits();
     if (cluster) {
       const metrics = (this._el && this._el.querySelector(".hud-bottom-right"))
         || document.querySelector(".hud-bottom-right");
@@ -367,11 +386,6 @@ export class IntelHUD {
       || document.querySelector(".hud-top-right");
     const chat = document.getElementById("youtube-comments-panel");
 
-    if (cluster) {
-      if (launch && launch.parentElement !== cluster) {
-        cluster.insertBefore(launch, cluster.firstChild);
-      }
-    }
     if (stamp) stamp.hidden = true;
 
     let stack = document.getElementById("admin-stamp-stack");

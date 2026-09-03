@@ -17588,3 +17588,66 @@ body {
   white-space: normal !important;
   overflow-wrap: anywhere !important;
 }
+
+
+/* === GEV_ADMIN_IN_LOCATION_V1 ===
+   Original #admin-launch lives in the LOCATION card. */
+#left-panel-stack #location-bar #admin-launch,
+#location-lookat #admin-launch {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  pointer-events: auto !important;
+  z-index: auto !important;
+}
+#hud-center-cluster > #admin-launch {
+  display: none !important;
+}
+
+
+/* === GEV_ADMIN_ABOVE_CESIUM_CREDITS_V1 ===
+   Original ADMIN sits immediately above Cesium ion / Data attribution. */
+#gev-admin-credits {
+  position: fixed !important;
+  left: 36px !important;
+  bottom: 36px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 0.35rem !important;
+  z-index: 92 !important;
+  pointer-events: auto !important;
+}
+#gev-admin-credits > #cesium-credits {
+  position: relative !important;
+  inset: auto !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+}
+#gev-admin-credits > #admin-launch {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  width: auto !important;
+  margin: 0 !important;
+  z-index: auto !important;
+}
+#left-panel-stack #location-bar #admin-launch,
+#location-lookat #admin-launch,
+#hud-center-cluster > #admin-launch {
+  /* leftover hosts must not keep a copy */
+}
