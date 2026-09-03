@@ -330,9 +330,9 @@ export class IntelHUD {
       leftNav.insertBefore(logo, leftNav.firstChild);
     }
     const voice = document.getElementById("gev-voice-control");
-    const cluster = document.getElementById("top-center-actions");
-    if (cluster && voice && voice.parentElement !== cluster) {
-      cluster.appendChild(voice);
+    const actionsCluster = document.getElementById("top-center-actions");
+    if (actionsCluster && voice && voice.parentElement !== actionsCluster) {
+      actionsCluster.appendChild(voice);
     }
   }
 
