@@ -27,8 +27,8 @@ Plugin: **Youtube AI Comment Harness**
 ## Profile and skill
 
 - Profile name: `gev-youtube`
-- Skill: `skills/gods-eye-view/SKILL.md` (versioned with this repo)
-- Startup copies/checks the skill and compares documented capabilities to the live GEV MCP catalog
+- Skill: `skills/gods-eye-view/SKILL.md` (version `1.1.0`, versioned with this repo)
+- Startup reads that file and compares every backticked GEV tool name to the live view-safe catalog (`gevMcpToolDefinitions` / MCP `tools/list`). Missing names fail preflight. ADMIN MCP tools (`list_admin_plugins`, plugin builder) stay out of the YouTube path.
 
 ## Preflight
 

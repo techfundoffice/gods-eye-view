@@ -13,7 +13,7 @@ import { gevMcpToolDefinitions } from './gevApi.js';
 
 export const HERMES_PROFILE_NAME = 'gev-youtube';
 export const HERMES_SKILL_ID = 'gods-eye-view';
-export const HERMES_SKILL_VERSION = '1.0.0';
+export const HERMES_SKILL_VERSION = '1.1.0';
 
 export const EXCLUDED_CAPABILITIES = Object.freeze([
   'admin',
@@ -70,6 +70,44 @@ export function viewSafeToolsFrom(definitions) {
     ? definitions
     : gevMcpToolDefinitions();
   return list.filter((tool) => isViewSafeTool(tool?.name));
+}
+
+/**
+ * Backticked GEV tool names documented in the YouTube operator skill.
+ * Admin MCP tools must not appear as usable.
+ *
+ * @param {string} skillText
+ * @returns {string[]}
+ */
+export function documentedViewSafeToolsFromSkill(skillText) {
+  const names = new Set();
+  const text = String(skillText || '');
+  for (const match of text.matchAll(/`([a-z][a-z0-9_]{2,})`/g)) {
+    const name = match[1];
+    if (PUBLIC_GEV_TOOL_NAMES.includes(name)) names.add(name);
+  }
+  return [...names];
+}
+
+/**
+ * @param {string} skillText
+ * @param {object[]} [definitions]
+ * @returns {{ok: boolean, missingFromSkill: string[], extraInSkill: string[], adminNamed: string[]}}
+ */
+export function compareSkillToViewSafeCatalog(skillText, definitions) {
+  const live = new Set(viewSafeToolsFrom(definitions).map((tool) => tool.name));
+  const documented = new Set(documentedViewSafeToolsFromSkill(skillText));
+  const missingFromSkill = [...live].filter((name) => !documented.has(name)).sort();
+  const extraInSkill = [...documented].filter((name) => !live.has(name)).sort();
+  const adminNamed = [...new Set(
+    [...String(skillText || '').matchAll(/`([a-z][a-z0-9_]{2,})`/g)].map((m) => m[1]),
+  )].filter((name) => classifyToolCapability(name) === 'admin');
+  return {
+    ok: missingFromSkill.length === 0 && extraInSkill.length === 0,
+    missingFromSkill,
+    extraInSkill,
+    adminNamed,
+  };
 }
 
 /**

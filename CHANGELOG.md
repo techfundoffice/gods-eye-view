@@ -3,6 +3,17 @@
 This changelog records public product changes. For the authoritative description
 of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md).
 
+## [Unreleased] — 2026-09-03
+
+### Changed
+
+- The YouTube Hermes operator skill (`skills/gods-eye-view/SKILL.md`) now
+  lists every view-safe GEV function the live MCP catalog can run from chat
+  (camera, layers, display, tracking, read, presets, CCTV, radio). Hermes
+  preflight compares that list to MCP `tools/list` and fails if a public
+  tool is missing. ADMIN MCP plugin-builder tools stay out of the comment
+  path; API keys still come from ADMIN → MCP Server.
+
 ## [Unreleased] — 2026-09-02
 
 ### Added

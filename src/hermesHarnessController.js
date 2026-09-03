@@ -11,6 +11,7 @@ import {
   HERMES_PROFILE_NAME,
   HERMES_SKILL_ID,
   HERMES_SKILL_VERSION,
+  compareSkillToViewSafeCatalog,
   viewSafeToolsFrom,
 } from './hermesViewSafeCatalog.js';
 import { createHermesStdioBridge, redactSecrets } from './hermesStdioBridge.js';
@@ -118,6 +119,12 @@ export function createHermesHarnessController({
     const reasons = [];
     if (!skill.ok) reasons.push(`GEV skill missing (${skill.reason || 'unreadable'})`);
     if (!tools.length) reasons.push('View-safe GEV catalog is empty');
+    if (skill.ok) {
+      const compared = compareSkillToViewSafeCatalog(skill.text, tools);
+      if (compared.missingFromSkill.length) {
+        reasons.push(`GEV skill missing tools: ${compared.missingFromSkill.join(', ')}`);
+      }
+    }
     const hasModel = Boolean(openRouterApiKey() || hermesCommand);
     if (!hasModel) reasons.push('No Hermes CLI and no OpenRouter key');
     return {

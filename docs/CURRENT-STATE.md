@@ -1,6 +1,16 @@
 # God's Eye View Current State
 
-Updated: September 2, 2026
+Updated: September 3, 2026
+
+> **2026-09-03 — YouTube Hermes skill lists every view-safe GEV tool.**
+> `skills/gods-eye-view/SKILL.md` (`1.1.0`) is the comment-operator brief for
+> profile `gev-youtube`. It documents the full public GEV catalog (camera,
+> layers, display, tracking, read, presets, CCTV, radio) that ADMIN **MCP
+> Server** / `POST /api/gev/<name>` also expose when an operator enables MCP
+> and mints an API key. Hermes preflight fails if the skill omits a live
+> view-safe name. ADMIN plugin-builder MCP tools stay forbidden on viewer
+> comments. The operator still enables MCP and mints keys in ADMIN; chat
+> never sees those keys.
 
 > **2026-09-02 — globe executes chat; prompts slow down.** Stale `FFMPEG_PATH` made preflight report ffmpeg=false and killed capture. Resolver now falls back to PATH. Navigate prose completions are forced into `fly_to_location` so the capture/viewer executor actually moves Earth. Follow-up CTAs wait 75s; camera cooldowns are 45s global / 90s per viewer. Agent copy must not ask the next question after a fly.
 
