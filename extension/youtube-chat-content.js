@@ -9,7 +9,7 @@
   function ensureBadge() {
     if (badge || !document.body) return;
     badge = document.createElement('div');
-    badge.textContent = 'GEV BRIDGE · STANDBY';
+    badge.textContent = 'CLOUD COMPUTER AI.COM BRIDGE · STANDBY';
     Object.assign(badge.style, {
       position: 'fixed',
       right: '16px',
@@ -30,7 +30,7 @@
   function setBadge(text, active) {
     ensureBadge();
     if (!badge) return;
-    badge.textContent = `GEV BRIDGE · ${text}`;
+    badge.textContent = `CLOUD COMPUTER AI.COM BRIDGE · ${text}`;
     badge.style.color = active ? '#9dffbf' : '#82eaff';
   }
 

@@ -180,7 +180,7 @@ function reportGpuIncompatibility(stage, reason, limits) {
 }
 
 /**
- * GOD'S EYE VIEW — Main Entry Point
+ * CLOUD COMPUTER AI.COM — Main Entry Point
  * Initializes CesiumJS with Google Photorealistic 3D Tiles,
  * style system, intelligence HUD, location presets, and share links.
  */
@@ -676,7 +676,7 @@ async function init() {
     clearStartupWatchdog();
 
   } catch (error) {
-    console.error("God's Eye View initialization failed:", error);
+    console.error('Cloud Computer AI.com initialization failed:', error);
     const startupError = describeError(error);
     window.__gevStartupError = startupError;
     // Never leave the whole application trapped behind the splash screen.

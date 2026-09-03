@@ -87,7 +87,7 @@ export async function discoverPublicChannelLive({
   if (configured) {
     return {
       videoId: configured,
-      title: parsed.title || "God's Eye View LIVE",
+      title: parsed.title || 'Cloud Computer AI.com LIVE',
       watchUrl: `https://www.youtube.com/watch?v=${configured}`,
       isLive: true,
       status: 'live',

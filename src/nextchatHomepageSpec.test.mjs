@@ -45,7 +45,7 @@ test('the shipped spec records constraints a later implementer must not violate'
   assert.match(spec, /[Nn]o TypeScript/);
   assert.match(spec, /[Ss]ecrets stay server-side/);
   assert.match(spec, /[Kk]eyless installs degrade honestly/);
-  assert.match(spec, /GEV MIC stays/);
+  assert.match(spec, /Cloud Computer AI.com MIC stays/);
   assert.match(spec, /home page remains the globe/);
   assert.match(spec, /chat-only app/);
 });

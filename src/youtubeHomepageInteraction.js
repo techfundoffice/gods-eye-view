@@ -204,7 +204,7 @@ export function createYoutubeHomepageInteraction({
         const state = String(comment.replyState || 'display');
         const replyWho = documentRef.createElement('span');
         replyWho.className = 'youtube-agent-role';
-        replyWho.textContent = `GEV REPLY${formatUtcTime(comment.replyAt) ? ` · ${formatUtcTime(comment.replyAt)}` : ''}`;
+        replyWho.textContent = `CLOUD COMPUTER AI.COM REPLY${formatUtcTime(comment.replyAt) ? ` · ${formatUtcTime(comment.replyAt)}` : ''}`;
         const label = documentRef.createElement('span');
         label.className = `youtube-agent-state youtube-agent-state-${state}`;
         const stateLabel = state === 'interpreting' || state === 'pending'

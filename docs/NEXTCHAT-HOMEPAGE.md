@@ -1,4 +1,4 @@
-# NextChat UX on the God's Eye View home page
+# NextChat UX on the Cloud Computer AI.com home page
 
 Software specification for **grok CLI**. This is implementer instruction, not a
 product pitch. The overlay is now in the runtime (`#gev-nextchat`,
@@ -7,7 +7,7 @@ what shipped.
 
 ## Goal
 
-Put a recognizably **NextChat** chat surface on the God's Eye View **home page**
+Put a recognizably **NextChat** chat surface on the Cloud Computer AI.com **home page**
 so an operator can type to the program, see a conversation, and have that typed
 turn actually drive the globe. The home page remains the globe. The chat is
 chrome on that globe, hooked into the shipped voice/tool path — not a mock
@@ -16,7 +16,7 @@ transcript and not a second product.
 ## Problem
 
 The home page (`index.html`) is the Cesium globe plus operator chrome. Talk to
-the program today by clicking **GEV MIC** (`#gev-voice-button` inside
+the program today by clicking **Cloud Computer AI.com MIC** (`#gev-voice-button` inside
 `#gev-voice-control`, injected into `#command-dock` by
 `createVoiceControl` in `src/voice/gevRealtime.js`). That starts an OpenAI
 Realtime WebRTC session. Tool schemas live in the `const GEV_REALTIME_TOOLS = [`
@@ -55,7 +55,7 @@ Required surface, all visible on the home page without leaving the globe:
    no-op. Enter sends; Shift+Enter inserts a newline. Space must type a space:
    `shouldHandlePushToTalkKeyDown` in `src/voice/gevRealtime.js` already ignores
    `input, textarea, select, [contenteditable], [role="textbox"]`. Use one of
-   those so GEV MIC hold-Space push-to-talk does not fire while composing.
+   those so Cloud Computer AI.com MIC hold-Space push-to-talk does not fire while composing.
 5. **Streaming or incremental replies.** Assistant text must appear as it
    arrives (token/delta streaming, or another incremental append of the live
    transcript). Do not wait for `response.done` to paint the first word. A
@@ -66,7 +66,7 @@ delete, pin, markdown in assistant bubbles, a collapse control for the panel.
 Do not take optional polish as a reason to add a framework.
 
 Layout: an overlay or docked panel on the home page that does **not** replace
-`#cesiumContainer`. The globe stays the page. Keep **GEV MIC** in `#command-dock`.
+`#cesiumContainer`. The globe stays the page. Keep **Cloud Computer AI.com MIC** in `#command-dock`.
 Styles go in `style.css` only (no component CSS, no CSS-in-JS). Hide or yield
 with the existing exclusive surfaces (`cockpit-mode`, `scene-playback-mode`,
 `recording-mode`, `ui-clean-view`) rather than inventing a fifth exclusive class.
@@ -82,7 +82,7 @@ through the same path a spoken command uses.
 
 **Send path (required):**
 
-1. If the Realtime session is not connected, start it the same way GEV MIC does
+1. If the Realtime session is not connected, start it the same way Cloud Computer AI.com MIC does
    (`GevRealtimeController.start` / `window.__gevVoiceCommands.start`). Do not
    invent a parallel HTTP chat completions (or Responses) endpoint that bypasses
    tools.
@@ -116,7 +116,7 @@ split, generate, or import it; unit tests sha256-pin that source text) and
 
 **Connection and keys:**
 
-Without `OPENAI_API_KEY`, `/api/realtime/token` returns 503 and GEV MIC already
+Without `OPENAI_API_KEY`, `/api/realtime/token` returns 503 and Cloud Computer AI.com MIC already
 surfaces that. Chat must degrade the same way: the composer can exist, send
 must not fake a reply, and the thread/status must say the voice path is
 unavailable. Do not mint or ship `OPENAI_API_KEY` to the browser. The browser
@@ -142,7 +142,7 @@ A later implementer must not violate these:
 - **Home page remains the globe.** This is not a chat-only app and not a new
   top-level route that hides `#cesiumContainer`. NextChat UX is overlay chrome
   on the existing home page.
-- **GEV MIC stays.** Do not replace, hide-as-deleted, or remove the OpenAI
+- **Cloud Computer AI.com MIC stays.** Do not replace, hide-as-deleted, or remove the OpenAI
   Realtime voice control in `#command-dock`. Voice and typed chat share one
   program hookup.
 - **Secrets stay server-side.** No `VITE_` prefix on private keys. No
@@ -170,7 +170,7 @@ A later implementer must not violate these:
 - Vendoring or embedding ChatGPTNextWeb/NextChat (React/Next.js/TypeScript).
 - Full NextChat feature parity: masks/prompt templates, i18n, PWA, artifacts,
   plugin marketplace, multi-provider model picker, desktop/iOS, WebDAV sync.
-- Replacing or removing GEV MIC / OpenAI Realtime voice.
+- Replacing or removing Cloud Computer AI.com MIC / OpenAI Realtime voice.
 - Adding new `GEV_REALTIME_TOOLS` entries, first-run tiles, or ADMIN
   plugin-builder changes.
 - A second LLM backend, MCP-over-chat, or ADMIN-console chat on the home page.
@@ -186,7 +186,7 @@ A later implementer must not violate these:
    calls `window.__gevVoiceCommands.sendTextCommand`. Prove the stub is the
    live controller, not a fake.
 2. On send, start the Realtime session if idle; surface 503/unconnected the
-   same way GEV MIC does.
+   same way Cloud Computer AI.com MIC does.
 3. Stream assistant transcript deltas from `handleRealtimeEvent` into the
    active thread.
 4. Persist sessions locally. New chat does not replay old messages into
@@ -202,7 +202,7 @@ A later implementer must not violate these:
 
 | Path | Why |
 |------|-----|
-| `index.html` | Optional mount node on the home page chrome; `#command-dock` / GEV MIC stay |
+| `index.html` | Optional mount node on the home page chrome; `#command-dock` / Cloud Computer AI.com MIC stay |
 | `style.css` | Panel, session list, thread, composer |
 | `src/voice/nextchat.js` (new) or equivalent | Session store, thread render, composer |
 | `src/voice/gevRealtime.js` | `sendTextCommand` send path; transcript deltas out of `handleRealtimeEvent` |
@@ -222,7 +222,7 @@ next to it is strictly required; prefer leaving that array byte-identical.
 - Assistant text streams or otherwise appears incrementally in the
   user/assistant thread.
 - Session list lists threads; new chat starts a fresh one.
-- GEV MIC is still in the command dock and still starts Realtime voice.
+- Cloud Computer AI.com MIC is still in the command dock and still starts Realtime voice.
 - Keyless / no `OPENAI_API_KEY`: no fake replies; honest unavailable state.
 - `npm test` green; `npm run build` green. `test:track` still green if you
   touched tracking. Visual qa only with `tilesSettled: true` on a real GPU.

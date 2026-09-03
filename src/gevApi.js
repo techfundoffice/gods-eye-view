@@ -59,7 +59,7 @@ export function gevFunctionPath(name) {
  */
 export function gevFunctionDescription(name) {
   return GEV_FUNCTION_DOCS[name]
-    || `God's Eye View action: ${String(name || '').replaceAll('_', ' ')}.`;
+    || `Cloud Computer AI.com action: ${String(name || '').replaceAll('_', ' ')}.`;
 }
 
 /**
@@ -158,7 +158,7 @@ export function gevApiDocumentation({
     : '';
   const mcpConfig = gevMcpClientConfig({ origin: base, endpoint: mcpEndpoint });
   return {
-    title: "God's Eye View API",
+    title: 'Cloud Computer AI.com API',
     prefix: GEV_API_PREFIX,
     auth: 'Bearer ADMIN API key (minted in ADMIN → MCP Server). Same key for REST and MCP.',
     execution: 'Calls run on the live capture globe — the same globe YouTube viewers see.',

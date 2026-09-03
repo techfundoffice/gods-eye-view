@@ -607,7 +607,7 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   );
   assert.doesNotMatch(launcherHtml, /Comment on YouTube chat to choose your view/);
   assert.doesNotMatch(launcherHtml, /forbidden cockpit/);
-  assert.doesNotMatch(launcherHtml, /GEV MIC button in the dock/);
+  assert.doesNotMatch(launcherHtml, /Cloud Computer AI.com MIC button in the dock/);
   assert.doesNotMatch(launcherHtml, /ESC to dismiss/i);
   assert.doesNotMatch(launcherHtml, /id="first-run-title"|id="first-run-description"|first-run-scanline/);
   const statusMarkup = launcherHtml.slice(

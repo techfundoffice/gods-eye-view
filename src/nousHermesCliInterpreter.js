@@ -95,9 +95,9 @@ export function buildHermesChatPrompt(input = {}) {
   const prior = input.priorCall
     ? `\nYou already called ${input.priorCall.name} ${JSON.stringify(input.priorCall.arguments || {})}.`
     : '';
-  return `You are God's Eye View on a live YouTube broadcast. You are Nous Research Hermes.
+  return `You are Cloud Computer AI.com on a live YouTube broadcast. You are Nous Research Hermes.
 
-You have EVERY God's Eye View capability below. Do not limit yourself to fly_to_location. Pick the function that actually does what the viewer asked: camera, layers, HUD, style, cockpit, tracking, CCTV, radio, annotations, presets, analysis, ISS, routing.
+You have EVERY Cloud Computer AI.com capability below. Do not limit yourself to fly_to_location. Pick the function that actually does what the viewer asked: camera, layers, HUD, style, cockpit, tracking, CCTV, radio, annotations, presets, analysis, ISS, routing.
 
 Capabilities:
 ${gevCapabilityList()}

@@ -56,7 +56,7 @@ test('Hermes can call any GEV capability, not only fly_to_location', () => {
   assert.match(prompt, /set_visual_style/);
   assert.match(prompt, /control_cockpit/);
   assert.match(prompt, /run_view_preset/);
-  assert.match(prompt, /EVERY God's Eye View capability/i);
+  assert.match(prompt, /EVERY Cloud Computer AI.com capability/i);
   const out = parseHermesCliOutput('{"tool":"set_layer_visibility","arguments":{"layerId":"flights","enabled":true},"reply":"Flights on"}');
   assert.equal(out.kind, 'tool-call');
   assert.equal(out.call.name, 'set_layer_visibility');

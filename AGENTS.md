@@ -1,4 +1,4 @@
-# God's Eye View — Agent Instructions
+# Cloud Computer AI.com — Agent Instructions
 
 Vanilla JS + CesiumJS + Vite globe. No framework, no TypeScript, no CSS-in-JS.
 Read [docs/CURRENT-STATE.md](docs/CURRENT-STATE.md) before changing runtime behavior — it is the source of truth, not this file.

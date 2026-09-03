@@ -1,4 +1,4 @@
-# Running God's Eye View on Replit
+# Running Cloud Computer AI.com on Replit
 
 ## Development
 

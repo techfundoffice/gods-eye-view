@@ -122,7 +122,7 @@ export function catalogToolsToOpenRouter(catalogTools) {
     type: 'function',
     function: {
       name: tool.name,
-      description: tool.description || `Public God's Eye View action: ${tool.name}`,
+      description: tool.description || `Public Cloud Computer AI.com action: ${tool.name}`,
       parameters: tool.parameters || { type: 'object', properties: {} },
     },
   }));

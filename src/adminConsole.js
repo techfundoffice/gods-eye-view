@@ -65,8 +65,8 @@ export const ADMIN_MENU_ITEMS = Object.freeze([
   },
   {
     id: 'gev-api',
-    label: 'GEV API',
-    description: 'Document and enable every GEV function, YouTube owner, Hermes, MCP, and API keys.',
+    label: 'Cloud Computer AI.com API',
+    description: 'Document and enable every Cloud Computer AI.com function, YouTube owner, Hermes, MCP, and API keys.',
   },
   {
     id: 'hermes-admin',
@@ -1093,7 +1093,7 @@ export class AdminConsoleController {
       this.state.message = '';
     } catch (error) {
       this.state.gevApiLoaded = true;
-      this.state.message = error?.message || 'Unable to load GEV API docs.';
+      this.state.message = error?.message || 'Unable to load Cloud Computer AI.com API docs.';
     }
     this._render();
   }
@@ -1105,7 +1105,7 @@ export class AdminConsoleController {
       await this._loadGevApi();
       this.state.message = `${name} ${enabled ? 'enabled' : 'disabled'} for YouTube chat`;
     } catch (error) {
-      this.state.message = error?.message || 'Unable to update GEV function';
+      this.state.message = error?.message || 'Unable to update Cloud Computer AI.com function';
     }
     this._render();
   }
@@ -1886,7 +1886,7 @@ export class AdminConsoleController {
       const cfg = docs?.mcp?.config || docs?.openrouter?.mcp;
       mcp.textContent = cfg
         ? JSON.stringify(cfg, null, 2)
-        : 'Enable MCP Server and mint an API key. tools/list is the live GEV catalog for OpenRouter / Gemini.';
+        : 'Enable MCP Server and mint an API key. tools/list is the live Cloud Computer AI.com catalog for OpenRouter / Gemini.';
     }
     if (!list) return;
     list.replaceChildren();

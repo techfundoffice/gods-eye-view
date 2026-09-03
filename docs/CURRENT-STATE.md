@@ -1,4 +1,4 @@
-# God's Eye View Current State
+# Cloud Computer AI.com Current State
 
 Updated: September 3, 2026
 
@@ -29,7 +29,7 @@ Updated: September 3, 2026
 
 
 > **2026-09-02 — YouTube public frame is top-down.** Title + quote
-> (`GODS EYE VIEW` / `NO PLACE LEFT BEHIND`) live in `--youtube-north-band`
+> (`CLOUD COMPUTER AI.COM` / `NO PLACE LEFT BEHIND`) live in `--youtube-north-band`
 > (7.25rem). `#cesiumContainer` and `#mission-control-nav` start under that
 > header and stop at a compact south strip (ticker + COMMANDS + command dock).
 > CONTEXT and DISPLAY/CCTV docks are removed from the public 720p frame so
@@ -62,7 +62,7 @@ Updated: September 3, 2026
 > `src/youtubePublicResponsesInterpreter.js` via OpenRouter chat completions
 > (`OPENROUTER_API_KEY`, model `openrouter/free`). The existing public tool
 > allowlist and action runner are unchanged. Extra turns past the free-pool
-> cap (20/min, 50/day) are rejected, not billed. GEV MIC remains OpenAI
+> cap (20/min, 50/day) are rejected, not billed. Cloud Computer AI.com MIC remains OpenAI
 > Realtime and is not on this path. HUD five-word summary uses the same
 > free router.
 >
@@ -82,7 +82,7 @@ Updated: September 3, 2026
 
 > **2026-09-01 — Mission Control is left-rail chrome, not a marketing overlay.**
 > The chooser no longer carries “Comment on YouTube chat to choose your view.”,
-> the forbidden-cockpit pitch, or the GEV MIC tip. It sits at `z-index: 147`
+> the forbidden-cockpit pitch, or the Cloud Computer AI.com MIC tip. It sits at `z-index: 147`
 > with the other controls, sizes to the header plus tiles, and keeps a reserved
 > fill so Cesium HUD cannot show through type or buttons. Globe clicks around
 > the panel still pass through; choosing a view leaves the chooser open; there is no minimize control or restore chip. The chooser opens **expanded** (`is-maximized`) by default and
@@ -148,7 +148,7 @@ Updated: September 3, 2026
 > tokens stay server-side.
 
 > **2026-08-30 — LOCATION finder suggests places as you type.** Typing in
-> `#location-search` (bottom command-dock LOCATION bar, next to GEV MIC and
+> `#location-search` (bottom command-dock LOCATION bar, next to Cloud Computer AI.com MIC and
 > Visual Presets) shows matching places without waiting for Enter. A query
 > like `Disneyland` lists geographically distinct rows with a distinguishing
 > address (Anaheim, Florida, France, Japan, …) from Places Autocomplete (New)
@@ -196,7 +196,7 @@ Updated: September 3, 2026
 > **2026-08-30 — NextChat overlay on the globe home page.** `#gev-nextchat` is
 > chrome on `index.html` (session list, **New chat**, user/assistant thread,
 > `textarea` composer + Send). The page remains the globe (`#cesiumContainer`).
-> **GEV MIC** stays in `#command-dock`. Typed send calls the live
+> **Cloud Computer AI.com MIC** stays in `#command-dock`. Typed send calls the live
 > `GevRealtimeController.sendTextCommand` (`src/voice/nextchat.js`
 > `submitNextchatSend`) so tools still run through `GEV_REALTIME_TOOLS` /
 > `gevActions`. Empty/whitespace send is a no-op. If Realtime is idle, send
@@ -2423,12 +2423,12 @@ silently demoting every later lookup for the session.
 
 ### Voice Control (June 2026)
 
-`GEV MIC` button (bottom UI) starts an OpenAI Realtime session over WebRTC.
+`Cloud Computer AI.com MIC` button (bottom UI) starts an OpenAI Realtime session over WebRTC.
 The homepage **CHAT** overlay (`#gev-nextchat`) types into the same session
 through `sendTextCommand` — see the 2026-08-30 NextChat delta at the top of
 this file.
 
-`GEV MIC` token flow:
+`Cloud Computer AI.com MIC` token flow:
 
 - **Token flow**: browser fetches a short-lived client secret from `/api/realtime/token`; the Vite middleware holds `OPENAI_API_KEY` and posts the full session config (instructions, tool schemas, VAD, truncation) to `api.openai.com/v1/realtime/client_secrets`. SDP exchange goes directly to `api.openai.com/v1/realtime/calls` with the ephemeral token.
 - **Session defaults** (env-tunable): model `gpt-realtime-2` (or `gpt-realtime-2.1-mini` when the MINI tier is selected — see the model-tier entry below), voice `marin`, reasoning effort `low`, semantic VAD with low eagerness, no response interruption, context window truncated to ~3,000 post-instruction tokens with 0.5 retention ratio — the conversational window stays short because map state is fetched live per turn.
@@ -2597,7 +2597,7 @@ this file.
 - Panel POSITION keys are versioned `v8` (`godsEyeView.v8.panelPos.<id>`); collapsed-state keys remain `v6`. The one-time position reset clears stale DISPLAY placements that could overlap the Context rail.
 - Map Source lives in the bottom Visual Presets tray. The left accordion contains no MAP STACK panel, and the `k` panel token that addressed it is gone from the share registry, so legacy `ui=k...` state takes the ordinary unknown-token skip.
 - A dock popover (Visual Presets, Location) auto-dismisses on mouse-away unless pinned. Focus inside the tray defers that dismissal only when the browser reports `:focus-visible` — keyboard focus and typed-into fields hold the tray open; a mouse-clicked tile does not, because Chromium focuses a `<button>` on press.
-- GEV MIC control is a glass capsule (var(--glass-bg), blur(24px) saturate(1.4), 999px radius; panel radius in error state).
+- Cloud Computer AI.com MIC control is a glass capsule (var(--glass-bg), blur(24px) saturate(1.4), 999px radius; panel radius in error state).
 - The desktop right rail (`#right-context-rail`) owns `DISPLAY`, `CCTV`, its active parameter controls, and `GLOBAL CONTEXT` as one fixed responsive stack in that order. Its compact buttons use the same 176 px width as the left accordion and one consistent 50 px height, share the left stack's 52 px edge inset and measured top baseline across HUD variants, then constrain themselves against visible HUD/chrome rectangles and the remaining vertical corridor. `DISPLAY` is no longer draggable and legacy saved coordinates are ignored.
 - The right rail is labeled **DISPLAY** (formerly "MOVE") and groups, in order, HUD, DETECT, Bloom, Sharpen, 3D, Clean-UI (HUD + DETECT promoted to the top). Its expanded controls retain the same compact 176 px width as the right-side tabs instead of growing to the wider Context detail-card width. It starts expanded on first run and respects the user's later `v6` collapse choice. Collapses/expands with directional chevrons (`◀` collapsed, `▶` expanded).
 - Display and Context use matching 330 px expanded widths and matching compact tab dimensions. The parameter panel is part of Display's expanded content. DISPLAY may remain open beside one contextual panel; CCTV and Context are mutually exclusive. In Tactical HUD, expanding CCTV or Context hides the other contextual launcher while DISPLAY remains independently available. The most recently opened right-rail panel owns the constrained lane even when it appears later in DOM order; passive restoration and automatic disclosure do not replace that explicit owner. Minimal and other HUD layouts retain the collapsed launchers; when their active panel exceeds the measured corridor, the rail reserves sibling heights and gaps and scrolls the active panel internally.

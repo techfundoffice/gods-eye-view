@@ -30,8 +30,8 @@
     const selected = Number(state.targetTabId);
     const label = selected ? target.querySelector(`option[value="${selected}"]`)?.textContent : '';
     status.textContent = state.enabled
-      ? `${state.paused ? 'PAUSED' : 'ACTIVE'} · ${label || 'select a GEV tab'}`
-      : (label ? `STANDBY · ${label}` : 'STANDBY · choose a GEV tab');
+      ? `${state.paused ? 'PAUSED' : 'ACTIVE'} · ${label || 'select a Cloud Computer AI.com tab'}`
+      : (label ? `STANDBY · ${label}` : 'STANDBY · choose a Cloud Computer AI.com tab');
   }
 
   async function loadTabs() {
@@ -39,13 +39,13 @@
     const allowed = tabs.filter((tab) => isGevUrl(tab.url));
     target.replaceChildren();
     if (!allowed.length) {
-      target.add(new Option('No allowed GEV tab found', ''));
+      target.add(new Option('No allowed Cloud Computer AI.com tab found', ''));
       target.disabled = true;
       return;
     }
     target.disabled = false;
     for (const tab of allowed) {
-      const option = new Option(`${tab.title || 'GEV'} · ${new URL(tab.url).hostname}`, String(tab.id));
+      const option = new Option(`${tab.title || 'Cloud Computer AI.com'} · ${new URL(tab.url).hostname}`, String(tab.id));
       target.add(option);
     }
     if (state?.targetTabId && allowed.some((tab) => tab.id === state.targetTabId)) target.value = String(state.targetTabId);

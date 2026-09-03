@@ -93,7 +93,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === 'GEV_POPUP_SET_TARGET') {
       const tab = await chrome.tabs.get(Number(message.tabId)).catch(() => null);
       if (!tab || !isGevUrl(tab.url)) {
-        sendResponse({ ok: false, error: 'Select an allowed GEV tab.' });
+        sendResponse({ ok: false, error: 'Select an allowed Cloud Computer AI.com tab.' });
         return;
       }
       sendResponse({ ok: true, state: await setState({ targetTabId: tab.id }) });

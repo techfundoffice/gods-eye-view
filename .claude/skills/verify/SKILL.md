@@ -1,9 +1,9 @@
 ---
 name: verify
-description: Build, launch, and drive God's Eye View in a real browser to observe a change working. Use when verifying UI or server-middleware changes at runtime rather than through tests.
+description: Build, launch, and drive Cloud Computer AI.com in a real browser to observe a change working. Use when verifying UI or server-middleware changes at runtime rather than through tests.
 ---
 
-# Verifying God's Eye View at runtime
+# Verifying Cloud Computer AI.com at runtime
 
 The app is a Vite dev server: the UI is `index.html` + `src/`, and every server
 API (`/api/admin`, `/api/youtube`, the data proxies) is Vite middleware defined

@@ -200,7 +200,7 @@ test('unlocked pane ships Studio QR, readiness including ODBC, and start/stop', 
 
 test('shared live video identity is taken from the redacted broadcast', () => {
   const shared = sharedLiveVideoFromSession({
-    broadcast: { id: 'CVSB4QJhVTU', title: "God's Eye View", watchUrl: 'https://www.youtube.com/watch?v=CVSB4QJhVTU' },
+    broadcast: { id: 'CVSB4QJhVTU', title: 'Cloud Computer AI.com', watchUrl: 'https://www.youtube.com/watch?v=CVSB4QJhVTU' },
   });
   assert.equal(shared.id, 'CVSB4QJhVTU');
   assert.equal(sharedLiveVideoFromSession({}), null);

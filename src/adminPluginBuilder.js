@@ -86,7 +86,7 @@ export function normalizePluginName(name) {
 export function buildPluginPrompt({ display, slug, instructions = '' }) {
   const brief = String(instructions || '').trim();
   return [
-    `You are extending God's Eye View from its own ADMIN console. Build a new admin menu plugin named "${display}".`,
+    `You are extending Cloud Computer AI.com from its own ADMIN console. Build a new admin menu plugin named "${display}".`,
     '',
     'Requirements:',
     `1. Create the plugin module at ${ADMIN_PLUGIN_DIR}/${slug}.js. It must export a default object`,

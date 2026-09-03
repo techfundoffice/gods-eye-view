@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════
-   GOD'S EYE VIEW — Dark Sci-Fi UI
+   CLOUD COMPUTER AI.COM — Dark Sci-Fi UI
    Apple meets Blade Runner
    ═══════════════════════════════════════════════ */
 
@@ -50,7 +50,7 @@ html, body {
 /* YouTube-visible globe: layout is TOP-DOWN. Title + quote occupy a north
    band first; Earth fills the rectangle under that header and above a compact
    south strip. Do not pin the public frame from the bottom-up — 720p YouTube
-   viewers must see GODS EYE VIEW / NO PLACE LEFT BEHIND before docks. */
+   viewers must see CLOUD COMPUTER AI.COM / NO PLACE LEFT BEHIND before docks. */
 :root {
   --youtube-mc-band: min(17rem, calc(100vw - 5rem));
   --youtube-north-band: 7.25rem;

@@ -83,7 +83,7 @@ export function createHermesCommentInterpreter({
 }
 
 /**
- * In-process Hermes-style agent: OpenRouter + GEV skill + view-safe tools.
+ * In-process Hermes-style agent: OpenRouter + Cloud Computer AI.com skill + view-safe tools.
  * Used as the JSONL handler when the Hermes CLI is not installed.
  *
  * @param {object} options
@@ -177,7 +177,7 @@ export function createHermesSkillAgent({
   };
 }
 
-export const HERMES_DEFAULT_SKILL = `You are God's Eye View on a live YouTube broadcast. Viewers type ordinary chat. You operate the visible globe through view-safe GEV functions only.
+export const HERMES_DEFAULT_SKILL = `You are Cloud Computer AI.com on a live YouTube broadcast. Viewers type ordinary chat. You operate the visible globe through view-safe GEV functions only.
 
 Inspect the current view, then act. Cities and countries use fly_to_location with viewMode overview so the place is visible (map-scale, not a 250 m white globe). Close is only for a named building or street. You may chain camera, layers, presets, search, track, overlay, and display tools until the requested scene is real.
 

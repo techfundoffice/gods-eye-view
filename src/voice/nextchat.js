@@ -1107,7 +1107,7 @@ export function renderPairedRows(containerEl, rows, { now = Date.now(), onNeedsA
     const replyWho = doc.createElement('span');
     replyWho.className = 'gev-nextchat-role';
     const replyTime = formatUtcTime(row.replyAt);
-    replyWho.textContent = `GEV REPLY${replyTime ? ` · ${replyTime}` : ''}`;
+    replyWho.textContent = `CLOUD COMPUTER AI.COM REPLY${replyTime ? ` · ${replyTime}` : ''}`;
     const replyStatus = doc.createElement('span');
     replyStatus.className = 'gev-nextchat-status-label';
     replyStatus.textContent = row.replyState || 'display';
@@ -1263,7 +1263,7 @@ export function initNextchat({
         : state.harnessStatus
           ? state.harnessStatus
           : attachedVoice
-            ? 'Live globe agent — typed sends use GEV MIC tools'
+            ? 'Live globe agent — typed sends use Cloud Computer AI.com MIC tools'
             : 'Voice path unavailable until the globe agent starts';
       statusEl.hidden = false;
     }

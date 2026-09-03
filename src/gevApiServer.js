@@ -67,7 +67,7 @@ export function createGevApiMiddleware({
   origin = '',
 } = {}) {
   if (!auth || typeof auth.verifyApiKey !== 'function') {
-    throw new TypeError('GEV API requires admin API-key verification');
+    throw new TypeError('Cloud Computer AI.com API requires admin API-key verification');
   }
 
   function authorize(req, res) {
@@ -133,7 +133,7 @@ export function createGevApiMiddleware({
     }
 
     sendJson(res, method === 'GET' || method === 'HEAD' ? 404 : 405, {
-      error: { kind: 'not-found', message: 'GEV API route not found' },
+      error: { kind: 'not-found', message: 'Cloud Computer AI.com API route not found' },
     });
   };
 }

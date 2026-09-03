@@ -1,7 +1,7 @@
 /**
  * @module cctv
  *
- * CCTV camera data layer for God's Eye View.
+ * CCTV camera data layer for Cloud Computer AI.com.
  *
  * Architecture:
  * - Camera catalog: built from seed definitions (CAMERA_SEEDS) merged with live

@@ -155,7 +155,7 @@ resolve_opensky_credentials() {
 
 resolve_opensky_credentials
 
-echo "Starting God's Eye View with CCTV source pack..."
+echo "Starting Cloud Computer AI.com with CCTV source pack..."
 echo "URL: http://localhost:${PORT}/"
 echo "Google Maps key source: ${GOOGLE_MAPS_API_KEY_SOURCE}"
 if [[ -f "${CCTV_SOURCES_FILE}" ]]; then

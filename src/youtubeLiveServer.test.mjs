@@ -253,7 +253,7 @@ test('go-now is loopback-only and uses the in-process writable session', async (
     goNow: async ({ authorization, body }) => {
       calls += 1;
       assert.equal(authorization.sessionId, 'yt-1');
-      assert.equal(body.title, "God's Eye View LIVE");
+      assert.equal(body.title, 'Cloud Computer AI.com LIVE');
       return {
         broadcast: { id: 'b1', watchUrl: 'https://www.youtube.com/watch?v=b1' },
         live: { status: 'encoding' },
@@ -264,7 +264,7 @@ test('go-now is loopback-only and uses the in-process writable session', async (
   const remote = await invoke(middleware, {
     method: 'POST',
     url: '/go-now',
-    body: { title: "God's Eye View LIVE" },
+    body: { title: 'Cloud Computer AI.com LIVE' },
     headers: {},
   });
   // invoke() defaults socket to 127.0.0.1 — override via a custom call

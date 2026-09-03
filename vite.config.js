@@ -1,5 +1,5 @@
 /**
- * Vite configuration for God's Eye View — a cinematic geospatial app.
+ * Vite configuration for Cloud Computer AI.com — a cinematic geospatial app.
  *
  * Registers the dev-server proxy middlewares that bypass CORS and add
  * caching/auth for upstream APIs:
@@ -5124,7 +5124,7 @@ function openAiRealtimeProxy() {
             {
               role: 'system',
               content: [
-                "Write one concise intelligence-HUD summary for God's Eye View.",
+                'Write one concise intelligence-HUD summary for Cloud Computer AI.com.',
                 'Use only the supplied place, street, nearby-place, and enabled-layer text labels.',
                 'Prefer the clearest named place and include a relevant enabled layer only when useful.',
                 'Do not infer from coordinates or invent a place.',
@@ -5248,7 +5248,7 @@ function openAiRealtimeProxy() {
             output: { voice },
           },
           instructions: [
-            "You are GEV Voice Control, a concise voice controller for a Cesium geospatial app called God's Eye View.",
+            'You are Cloud Computer AI.com Voice Control, a concise voice controller for a Cesium geospatial app called Cloud Computer AI.com.',
             'Have a natural spoken conversation with the user while the mic session is active.',
             'Do not require a wake phrase. Treat direct commands like "zoom into London" or "open datacenters" as GEV control requests.',
             'Only control the app by calling the provided tools. Never invent tool names or arguments.',
@@ -5756,7 +5756,7 @@ const GEV_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'fly_to_location',
-    description: "Fly the God's Eye View camera to a known city, geocoded country/region/city/landmark, or explicit WGS84 coordinate. Countries/cities frame the whole place; landmarks/buildings use close framing.",
+    description: 'Fly the Cloud Computer AI.com camera to a known city, geocoded country/region/city/landmark, or explicit WGS84 coordinate. Countries/cities frame the whole place; landmarks/buildings use close framing.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -5853,7 +5853,7 @@ const GEV_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'set_layer_visibility',
-    description: "Enable or disable one registered God's Eye View data layer.",
+    description: 'Enable or disable one registered Cloud Computer AI.com data layer.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -5993,7 +5993,7 @@ const GEV_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'set_visual_style',
-    description: "Set the active God's Eye View visual filter/style.",
+    description: 'Set the active Cloud Computer AI.com visual filter/style.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -7594,7 +7594,7 @@ export function youtubeProxy({
   const liveSession = sharedLiveSession();
   async function goLiveNow({ authorization, req = null, body = {} } = {}) {
     liveSession.bindAuth(authorization, oauth.proxy);
-    const title = String(body?.title || "God's Eye View LIVE").trim() || "God's Eye View LIVE";
+    const title = String(body?.title || 'Cloud Computer AI.com LIVE').trim() || 'Cloud Computer AI.com LIVE';
     const privacyStatus = String(body?.privacyStatus || 'public').trim() || 'public';
     const preferId = String(body?.broadcastId || process.env.YOUTUBE_BROADCAST_ID || '').trim();
     let provisioned = null;

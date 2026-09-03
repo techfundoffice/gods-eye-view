@@ -419,7 +419,7 @@ test('createEmptySession starts with no messages to replay', () => {
   assert.equal(session.title, 'New chat');
 });
 
-test('homepage chrome keeps the globe, GEV MIC, and NextChat controls', () => {
+test('homepage chrome keeps the globe, Cloud Computer AI.com MIC, and NextChat controls', () => {
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   const nextchat = readFileSync(new URL('./nextchat.js', import.meta.url), 'utf8');
   const realtime = readFileSync(new URL('./gevRealtime.js', import.meta.url), 'utf8');
@@ -639,7 +639,7 @@ test('paired row renderer stacks GEV reply and contextual follow-up above verifi
   const pair = container.children[0];
   const agent = pair.children[0];
   const viewer = pair.children[1];
-  assert.equal(agent.children[0].children[0].textContent, 'GEV REPLY · 12:34 UTC');
+  assert.equal(agent.children[0].children[0].textContent, 'CLOUD COMPUTER AI.COM REPLY · 12:34 UTC');
   assert.equal(agent.children[0].children[1].textContent, 'replied');
   assert.match(agent.children[0].children[2].textContent, /Ensenada harbor/);
   assert.equal(agent.children[0].children[3].textContent, 'YOU HAVE 1 MINUTE TO ASK: ALTITUDE · CAMERA ANGLE');

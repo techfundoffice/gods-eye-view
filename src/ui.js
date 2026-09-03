@@ -512,7 +512,7 @@ const SHARPEN_SHADER = /* glsl */ `
 `;
 
 /**
- * Central UI orchestrator for the God's Eye View application.
+ * Central UI orchestrator for the Cloud Computer AI.com application.
  *
  * Responsibilities:
  * - CesiumJS PostProcessStage pipeline: registers per-style GLSL stages
@@ -6838,7 +6838,7 @@ export class StyleManager {
     if (!bottomDeck) {
       bottomDeck = document.createElement('section');
       bottomDeck.id = 'bottom-control-deck';
-      bottomDeck.setAttribute('aria-label', "God's Eye View controls");
+      bottomDeck.setAttribute('aria-label', 'Cloud Computer AI.com controls');
       document.body.appendChild(bottomDeck);
     }
     // H3/L2: south deck keeps Commands only. Left stack is the instrument column.

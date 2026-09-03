@@ -128,7 +128,7 @@ export function isHermesYoutubeAdmin(comment = {}, config, owner = {}) {
 export function buildHermesAdminPrompt(input = {}) {
   const viewer = String(input.viewer || input.authorHandle || 'admin').trim();
   const comment = String(input.comment || '').trim();
-  return `You are Nous Research Hermes Agent CLI running at the root of the God's Eye View repository.
+  return `You are Nous Research Hermes Agent CLI running at the root of the Cloud Computer AI.com repository.
 
 The YouTube account owner (${DEFAULT_HERMES_YOUTUBE_ADMIN_EMAIL} / @${DEFAULT_HERMES_YOUTUBE_ADMIN_HANDLE}) sent this live-chat command as ${viewer}:
 ${JSON.stringify(comment)}
@@ -157,7 +157,7 @@ export function createHermesAdminCliInterpreter({
     const comment = String(input.comment || '');
     if (isGoLiveComment(comment) && typeof goLive === 'function') {
       try {
-        const result = await goLive({ title: "God's Eye View LIVE" });
+        const result = await goLive({ title: 'Cloud Computer AI.com LIVE' });
         const status = result?.live?.status || result?.status || 'started';
         const url = result?.broadcast?.watchUrl || result?.watchUrl || '';
         return {
@@ -193,7 +193,7 @@ export function createHermesAdminCliInterpreter({
     const action = extractAdminAction(result.stdout);
     if (action === 'go_live' && typeof goLive === 'function') {
       try {
-        const live = await goLive({ title: "God's Eye View LIVE" });
+        const live = await goLive({ title: 'Cloud Computer AI.com LIVE' });
         return {
           ok: true,
           kind: 'complete',

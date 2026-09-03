@@ -24,9 +24,9 @@ DEFAULT_WATCH = 'https://www.youtube.com/watch?v=CVSB4QJhVTU'
 DEFAULT_BROADCAST_ID = 'CVSB4QJhVTU'
 YOUTUBE_API = 'https://www.googleapis.com/youtube/v3'
 BODY = json.dumps({
-    'title': "God's Eye View LIVE",
+    'title': "Cloud Computer AI.com LIVE",
     'privacyStatus': 'public',
-    'description': "Live from God's Eye View",
+    'description': "Live from Cloud Computer AI.com",
 }).encode()
 ACTIVE_STATUSES = (
     'starting',
@@ -314,13 +314,13 @@ def try_replit_connector():
                 break
     if chosen is None:
         stream = youtube_api(token, 'liveStreams', {'part': 'snippet,cdn,status'}, method='POST', body={
-            'snippet': {'title': "God's Eye View LIVE ingest"},
+            'snippet': {'title': "Cloud Computer AI.com LIVE ingest"},
             'cdn': {'frameRate': 'variable', 'ingestionType': 'rtmp', 'resolution': 'variable'},
         })
         created = youtube_api(token, 'liveBroadcasts', {'part': 'snippet,status,contentDetails'}, method='POST', body={
             'snippet': {
-                'title': "God's Eye View LIVE",
-                'description': "Live from God's Eye View",
+                'title': "Cloud Computer AI.com LIVE",
+                'description': "Live from Cloud Computer AI.com",
                 'scheduledStartTime': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() + 15)),
             },
             'status': {'privacyStatus': 'public', 'selfDeclaredMadeForKids': False},
@@ -345,7 +345,7 @@ def try_replit_connector():
             stream = (streams.get('items') or [None])[0] or {}
         else:
             stream = youtube_api(token, 'liveStreams', {'part': 'snippet,cdn,status'}, method='POST', body={
-                'snippet': {'title': "God's Eye View LIVE ingest"},
+                'snippet': {'title': "Cloud Computer AI.com LIVE ingest"},
                 'cdn': {'frameRate': 'variable', 'ingestionType': 'rtmp', 'resolution': 'variable'},
             })
             stream_id = str(stream.get('id') or '')

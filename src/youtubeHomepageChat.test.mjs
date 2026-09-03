@@ -261,7 +261,7 @@ test('permanent news ticker uses only the active broadcast watch URL and falls b
           ? {
             active: true,
             videoId: 'CVSB4QJhVTU',
-            title: 'Gods Eye View Live',
+            title: 'Cloud Computer AI.com Live',
             watchUrl: 'https://www.youtube.com/watch?v=CVSB4QJhVTU',
             items: [],
             pollingIntervalMillis: 5_000,
@@ -338,7 +338,7 @@ test('ticker markup is permanent, bottom-fixed, and preserves every existing con
   ]) {
     assert.match(html, new RegExp(`id="${id}"`), `${id} must remain present`);
   }
-  assert.match(realtime, /root\.id = 'gev-voice-control'/, 'dynamic GEV MIC control must remain present');
+  assert.match(realtime, /root\.id = 'gev-voice-control'/, 'dynamic Cloud Computer AI.com MIC control must remain present');
 });
 
 test('homepage interaction displays every comment but never executes untrusted feed actions', async () => {
@@ -456,7 +456,7 @@ test('visible Youtube conversation renders result first with UTC headers, verifi
 
   const exchange = list.children[0];
   assert.equal(exchange.children[0].className, 'youtube-agent-reply');
-  assert.equal(exchange.children[0].children[0].textContent, 'GEV REPLY · 14:01 UTC');
+  assert.equal(exchange.children[0].children[0].textContent, 'CLOUD COMPUTER AI.COM REPLY · 14:01 UTC');
   assert.match(exchange.children[0].children[2].textContent, /I NAVIGATED TO ENSENADA, MEXICO · STREET VIEW/);
   assert.match(exchange.children[0].children[3].textContent, /YOU HAVE 1 MINUTE TO ASK: ALTITUDE/);
   assert.equal(exchange.children[1].textContent, '@viewerhandle · 14:00 UTC');

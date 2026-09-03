@@ -140,7 +140,7 @@ export const PUBLIC_GEV_TOOL_CATALOG = deepFreeze(Object.fromEntries(
   Object.entries(SCHEMAS).map(([name, parameters]) => [name, {
     type: 'function',
     name,
-    description: `Public God's Eye View action: ${name.replaceAll('_', ' ')}`,
+    description: `Public Cloud Computer AI.com action: ${name.replaceAll('_', ' ')}`,
     parameters,
   }]),
 ));
@@ -167,7 +167,7 @@ export const PUBLIC_COMMAND_REGISTRY = deepFreeze({
   '/space-missions': { command: '/space-missions', mode: 'space-missions', description: 'Space missions', requiresText: false, enabled: true, tools: ['run_view_preset'] },
   '/environmental': { command: '/environmental', mode: 'environmental', description: 'Environmental view', requiresText: false, enabled: true, tools: ['run_view_preset'] },
   '/explore-manually': { command: '/explore-manually', mode: 'explore-manually', description: 'Explore manually', requiresText: false, enabled: true, tools: ['run_view_preset'] },
-  '/x': { command: '/x', mode: 'execute', description: 'Execute or operate GEV', requiresText: true, enabled: true, tools: PUBLIC_GEV_TOOL_NAMES },
+  '/x': { command: '/x', mode: 'execute', description: 'Execute or operate Cloud Computer AI.com', requiresText: true, enabled: true, tools: PUBLIC_GEV_TOOL_NAMES },
   '/y': { command: '/y', mode: 'analyze', description: 'Analyze or answer from GEV data', requiresText: true, enabled: true, tools: Y_TOOLS },
   '/z': { command: '/z', mode: 'navigate', description: 'Move or frame the camera', requiresText: true, enabled: true, tools: Z_TOOLS },
   '/gods-eye-view': { command: '/gods-eye-view', mode: 'whole-globe', description: 'Frame the whole globe', requiresText: false, enabled: true, tools: ['zoom_to_globe'] },

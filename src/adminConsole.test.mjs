@@ -60,7 +60,7 @@ test('the dashboard menu includes the gated Composio control plane', () => {
   );
   assert.deepEqual(
     ADMIN_MENU_ITEMS.map((item) => item.label),
-    ['Create Plugin', 'MCP Server', 'Go Live', 'OpenRouter', 'GEV API', 'Hermes Admin'],
+    ['Create Plugin', 'MCP Server', 'Go Live', 'OpenRouter', 'Cloud Computer AI.com API', 'Hermes Admin'],
   );
   for (const item of ADMIN_MENU_ITEMS) {
     assert.ok(item.id && item.description, `${item.label} has an id and a description`);
@@ -770,7 +770,7 @@ function makeLiveAdminTree() {
   const menu = mini('nav', { id: 'admin-menu', className: 'admin-menu' }, [coreGroup, pluginsGroup]);
   const nav = mini('aside', { id: 'admin-nav', className: 'admin-nav' }, [
     mini('div', { className: 'admin-nav-brand' }, [
-      mini('strong', { text: "GOD'S EYE VIEW" }),
+      mini('strong', { text: 'CLOUD COMPUTER AI.COM' }),
     ]),
     menu,
   ]);

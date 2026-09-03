@@ -33,7 +33,7 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 - South-pole homepage band: LIVE COMMENTS + GEV Agent Replies sit under the globe with no overlay scrollbar; VISUAL PRESETS stay expanded on the command dock.
 - Homepage LIVE COMMENTS is a chronological single-column conversation: each YouTube comment shows its author, full text, and timestamp, followed directly by the GEV agent reply or status/reason. Exchanges remain keyed by commentId, while the composer, CHAT toggle, and COMMANDS bar stay visible and only the thread scrolls.
 - Public YouTube globe commands and the HUD five-word summary use OpenRouter's
-  Free Models Router (`openrouter/free`) instead of OpenAI. GEV MIC / Realtime
+  Free Models Router (`openrouter/free`) instead of OpenAI. Cloud Computer AI.com MIC / Realtime
   is unchanged and still skipped. Free-pool rate limits reject extra public
   commands rather than falling through to a paid model.
 - Mission Control no longer tucks or closes when a view tile is chosen. The minimize control and restore chip are gone; the card stays open.
@@ -42,7 +42,7 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
   telemetry sits inboard of comments, and left HUD yields to Mission Control
   while the chooser is open. Dock pin buttons stay inside their trays.
 - First-run Mission Control is left-rail chrome: no YouTube-chat heading, no
-  forbidden-cockpit pitch, no GEV MIC tip, and no “ESC to dismiss.” View tiles
+  forbidden-cockpit pitch, no Cloud Computer AI.com MIC tip, and no “ESC to dismiss.” View tiles
   sit under the header on a reserved fill so globe HUD cannot show through
   them. Clicks around the panel still reach the globe. The window opens
   expanded by default and stays content-sized (compact tiles, no tall empty
@@ -110,10 +110,10 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 - Added a NextChat-style chat overlay on the globe home page: session list,
   new chat, user/assistant thread, and a text composer with send. Typed
-  messages use the existing GEV MIC Realtime path (`sendTextCommand` → tools
+  messages use the existing Cloud Computer AI.com MIC Realtime path (`sendTextCommand` → tools
   in `gevActions`). Assistant replies stream from live transcript deltas.
   Without a connected voice session or `OPENAI_API_KEY`, send does not fake a
-  reply. GEV MIC remains in the command dock. Spec:
+  reply. Cloud Computer AI.com MIC remains in the command dock. Spec:
   [`docs/NEXTCHAT-HOMEPAGE.md`](docs/NEXTCHAT-HOMEPAGE.md).
 
 ### Fixed

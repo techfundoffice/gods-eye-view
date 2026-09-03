@@ -168,7 +168,7 @@ export function renderYoutubeGoLivePane(container, context = {}) {
   const titleInput = el(doc, 'input', '');
   titleInput.id = 'ygl-title';
   titleInput.type = 'text';
-  titleInput.placeholder = "God's Eye View — live";
+    titleInput.placeholder = 'Cloud Computer AI.com — live';
   const privacy = el(doc, 'select', '');
   privacy.id = 'ygl-privacy';
   for (const [value, label] of [['unlisted', 'Unlisted'], ['private', 'Private'], ['public', 'Public']]) {
