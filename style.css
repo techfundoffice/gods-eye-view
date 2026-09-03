@@ -4747,44 +4747,32 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
     0 8px 32px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(255, 255, 255, 0.03) inset,
     0 1px 0 rgba(255, 255, 255, 0.06) inset;
-  max-height: min(620px, calc(100vh - var(--left-stack-top) - var(--left-stack-gap) - 36px));
+  /* No max-height here: the panel sizes to its content (see .data-toggle-list)
+     so every layer row is reachable without an internal scrollbar. */
+  max-height: none;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
+/* Every registered layer must be reachable without a mouse-wheel scroll:
+   the list takes its own natural height instead of being boxed into a
+   scrollable rail. Rows are kept compact (see .data-toggle-row below) so
+   the resulting height stays reasonable even with 30+ layers. */
 .data-toggle-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   flex: 1 1 auto;
   min-height: 0;
-  max-height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 212, 255, 0.5) rgba(255, 255, 255, 0.04);
-  scrollbar-gutter: stable;
-}
-
-.data-toggle-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.data-toggle-list::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 999px;
-}
-
-.data-toggle-list::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(0, 212, 255, 0.65), rgba(0, 212, 255, 0.2));
-  border-radius: 999px;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
 }
 
 .data-toggle-row {
-  padding: 8px 10px 6px;
-  border-radius: 8px;
+  padding: 3px 8px 2px;
+  border-radius: 6px;
   transition: background var(--transition-fast);
 }
 
@@ -6134,10 +6122,10 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 .data-toggle-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
-  padding: 3px 0;
+  padding: 1px 0;
   color: inherit;
   font: inherit;
   text-align: left;
@@ -6163,38 +6151,42 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 }
 
 .data-icon {
-  font-size: 16px;
+  font-size: 13px;
   line-height: 1;
 }
 
 .data-name {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--text-primary);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .data-toggle-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  flex: 0 0 auto;
 }
 
 .data-count {
   font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.5px;
+  font-size: 9.5px;
+  letter-spacing: 0.3px;
   color: var(--text-secondary);
-  min-width: 30px;
+  min-width: 22px;
   text-align: right;
 }
 
 .data-toggle-btn {
-  padding: 3px 10px;
+  padding: 1px 7px;
   font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 1.5px;
+  font-size: 8px;
+  letter-spacing: 1px;
   color: var(--text-dim);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -6202,7 +6194,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   cursor: pointer;
   transition: all var(--transition-fast);
   outline: none;
-  min-width: 38px;
+  min-width: 30px;
   text-align: center;
 }
 
@@ -6211,8 +6203,8 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 .data-toggle-btn.feed-stale,
 .data-toggle-btn.feed-fallback,
 .data-toggle-btn.feed-unavailable {
-  min-width: 82px;
-  letter-spacing: 0.8px;
+  min-width: 62px;
+  letter-spacing: 0.6px;
 }
 
 .data-toggle-btn:hover {
@@ -6249,13 +6241,24 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   box-shadow: 0 0 10px rgba(255, 60, 60, 0.12);
 }
 
+/* Hidden by default to keep every row single-line -- with 30+ registered
+   layers, a permanently-visible second line is what forced the list to
+   scroll. The text (count/status) is still in the DOM for tests and for
+   the native title tooltip; reveal it on hover/focus instead of eating
+   vertical space for every row all the time. */
 .data-toggle-meta {
+  display: none;
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.5px;
   color: var(--text-dim);
-  padding-left: 26px;
-  margin-top: 2px;
+  padding-left: 22px;
+  margin-top: 1px;
+}
+
+.data-toggle-row:hover .data-toggle-meta,
+.data-toggle-row:focus-within .data-toggle-meta {
+  display: block;
 }
 
 /* Optional per-layer sub-controls: mode chips plus a color legend. Aligned
@@ -12414,7 +12417,10 @@ body:has(#first-run-launcher.visible) .hud-left-edge {
 
 #mission-control-nav > #data-panel.mission-control-data-panel .data-panel-inner {
   width: 100%;
-  max-height: min(42dvh, 34rem);
+  /* No cap: #mission-control-nav is already `overflow: visible` with no
+     max-height of its own, so every layer row renders in full instead of
+     being boxed into an internal scrollbar. */
+  max-height: none;
   padding: 0.45rem 0.5rem;
   color: var(--first-run-ink, rgba(54, 220, 255, 0.86));
   background: rgba(6, 15, 22, 0.76);
