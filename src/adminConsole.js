@@ -66,7 +66,7 @@ export const ADMIN_MENU_ITEMS = Object.freeze([
   {
     id: 'gev-api',
     label: 'GEV API',
-    description: 'REST + MCP documentation for every GEV function.',
+    description: 'Document and enable every GEV function, YouTube owner, Hermes, MCP, and API keys.',
   },
   {
     id: 'hermes-admin',
@@ -397,6 +397,9 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     saveOpenrouterKey: (apiKey) => request('/openrouter', { method: 'POST', body: { apiKey } }),
     testOpenrouter: () => request('/openrouter/test', { method: 'POST' }),
     gevDocs: () => request('/gev'),
+    setGevFunction: (name, enabled) => request('/gev-functions', { method: 'POST', body: { name, enabled } }),
+    hermesYoutubeAdmin: () => request('/hermes-youtube-admin'),
+    saveHermesYoutubeAdmin: (body) => request('/hermes-youtube-admin', { method: 'POST', body }),
     youtubeStatus: () => youtubeRequest('/status'),
     youtubeConnectUrl: () => '/api/youtube/auth/start?go=1',
     youtubeSignout: () => youtubeRequest('/signout', { method: 'POST' }),
@@ -580,6 +583,10 @@ export class AdminConsoleController {
     this._el('admin-mcp-keys')?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-revoke-key]');
       if (button) void this._revokeKey(button.dataset.revokeKey);
+    });
+    this._el('admin-gev-api-list')?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-gev-fn]');
+      if (button) void this._toggleGevFunction(button.dataset.gevFn, button.dataset.enabled !== 'true');
     });
 
     globalThis.document?.addEventListener('keydown', (event) => this._onDocumentKeydown(event));
@@ -821,7 +828,11 @@ export class AdminConsoleController {
     if (view === 'live-stream') void this._loadLive();
     if (view === 'openrouter') void this._loadOpenrouter();
     if (view === 'gev-api') void this._loadGevApi();
-    if (view === 'hermes-admin') void this._loadHermesYoutubeAdmin();
+    if (view === 'hermes-admin') {
+      void this._loadHermesYoutubeAdmin();
+      if (!this.state.gevApiLoaded) void this._loadGevApi();
+      else void this.client.youtubeStatus().then((yt) => { this.state.gevYoutubeAccount = yt?.account || null; this._render(); }).catch(() => {});
+    }
     else this._stopLivePolling();
     const plugin = this.state.menuPlugins.find((entry) => entry.id === view);
     if (plugin) this._mountPluginView(plugin);
@@ -1073,12 +1084,28 @@ export class AdminConsoleController {
   async _loadGevApi() {
     try {
       const docs = await this.client.gevDocs();
+      let youtube = null;
+      try { youtube = await this.client.youtubeStatus(); } catch { youtube = null; }
       this.state.gevApi = docs;
+      this.state.gevYoutubeAccount = youtube?.account || null;
+      this.state.gevYoutubeAuth = youtube || null;
       this.state.gevApiLoaded = true;
       this.state.message = '';
     } catch (error) {
       this.state.gevApiLoaded = true;
       this.state.message = error?.message || 'Unable to load GEV API docs.';
+    }
+    this._render();
+  }
+
+  async _toggleGevFunction(name, enabled) {
+    if (!this._requireUnlocked() || !name) return;
+    try {
+      await this.client.setGevFunction(name, enabled);
+      await this._loadGevApi();
+      this.state.message = `${name} ${enabled ? 'enabled' : 'disabled'} for YouTube chat`;
+    } catch (error) {
+      this.state.message = error?.message || 'Unable to update GEV function';
     }
     this._render();
   }
@@ -1171,6 +1198,20 @@ export class AdminConsoleController {
       status.textContent = this.state.hermesYoutubeAdminLoaded
         ? `YouTube operator · ${(cfg.emails || []).join(', ') || 'unset'} · @${(cfg.handles || ['TechfundOffice'])[0]}`
         : 'Hermes admin settings have not loaded yet.';
+    }
+    const account = this._el('admin-hermes-youtube-account');
+    if (account) {
+      const connected = this.state.gevYoutubeAccount || {};
+      account.textContent = connected.email || connected.name
+        ? `Connected YouTube account · ${connected.name || ''} ${connected.email || ''}`.trim()
+        : 'Connected YouTube account · not signed in on Go Live';
+    }
+    const cli = this._el('admin-hermes-cli-status');
+    if (cli) {
+      const hermes = this.state.gevApi?.control?.hermes || {};
+      cli.textContent = hermes.bin
+        ? `Hermes CLI · ${hermes.bin} · ${hermes.ready ? 'ready' : (hermes.active || 'starting')} · ${hermes.model || ''}`
+        : (this.state.gevApiLoaded ? 'Hermes CLI · not installed' : 'Hermes CLI · loading…');
     }
   }
 
@@ -1816,11 +1857,29 @@ export class AdminConsoleController {
     const list = this._el('admin-gev-api-list');
     const curl = this._el('admin-gev-api-curl');
     const mcp = this._el('admin-gev-api-mcp');
+    const owner = this._el('admin-gev-owner');
+    const hermes = this._el('admin-gev-hermes');
     const docs = this.state.gevApi;
+    const control = docs?.control || {};
+    const youtubeOwner = control.youtubeOwner || this.state.hermesYoutubeAdmin || {};
+    const account = this.state.gevYoutubeAccount || {};
+    const hermesStatus = control.hermes || {};
     if (status) {
+      const on = (docs?.functions || []).filter((fn) => fn.enabled !== false).length;
       status.textContent = this.state.gevApiLoaded
-        ? (docs ? `${(docs.functions || []).length} functions · API key required` : (this.state.message || 'Unavailable'))
+        ? (docs ? `${on}/${(docs.functions || []).length} functions enabled for YouTube chat · API key required for REST/MCP` : (this.state.message || 'Unavailable'))
         : 'LOADING';
+    }
+    if (owner) {
+      const connected = account.email || account.name || 'not connected';
+      const emails = (youtubeOwner.emails || []).join(', ') || 'unset';
+      const handles = (youtubeOwner.handles || []).map((h) => `@${String(h).replace(/^@/, '')}`).join(', ') || 'unset';
+      owner.textContent = `YouTube owner · connected: ${connected} · Hermes admin emails: ${emails} · handles: ${handles}`;
+    }
+    if (hermes) {
+      hermes.textContent = this.state.gevApiLoaded
+        ? `Hermes · ${hermesStatus.cli ? 'CLI installed' : 'CLI missing'} · ${hermesStatus.bin || 'no bin'} · model ${hermesStatus.model || control.openrouter?.model || 'unset'} · harness ${hermesStatus.active || hermesStatus.preferred || 'hermes'} · MCP ${control.mcpEnabled ? 'on' : 'off'}`
+        : 'Hermes status loading…';
     }
     if (curl) curl.textContent = docs?.curl || '';
     if (mcp) {
@@ -1833,16 +1892,21 @@ export class AdminConsoleController {
     list.replaceChildren();
     for (const fn of docs?.functions || []) {
       const row = document.createElement('li');
-      row.className = 'admin-key-row';
+      row.className = 'admin-key-row admin-gev-fn';
       const name = document.createElement('code');
-      name.textContent = `${fn.method} ${fn.path}`;
-      const desc = document.createElement('span');
-      desc.className = 'admin-key-used';
-      const keys = Object.keys(fn.parameters?.properties || {});
-      desc.textContent = keys.length
-        ? `${fn.description || fn.name} · ${keys.join(', ')}`
-        : (fn.description || fn.name);
-      row.append(name, desc);
+      name.textContent = fn.name;
+      const path = document.createElement('span');
+      path.className = 'admin-key-used';
+      const keys = fn.parameterKeys || Object.keys(fn.parameters?.properties || {});
+      path.textContent = `${fn.method} ${fn.path} · ${fn.description || ''} · args: ${keys.join(', ') || 'none'}`;
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'scene-btn';
+      toggle.dataset.gevFn = fn.name;
+      toggle.dataset.enabled = fn.enabled === false ? 'false' : 'true';
+      toggle.textContent = fn.enabled === false ? 'ENABLE' : 'DISABLE';
+      toggle.setAttribute('aria-pressed', String(fn.enabled !== false));
+      row.append(name, path, toggle);
       list.append(row);
     }
   }

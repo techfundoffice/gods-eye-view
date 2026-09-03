@@ -5,6 +5,7 @@ import {
   toolsForPublicMode,
   validatePublicToolCall,
 } from './youtubePublicCommandPolicy.js';
+import { isGevFunctionEnabled } from './gevFunctionToggles.js';
 import {
   HOST_FOLLOWUP_SECONDS,
   atHandle,
@@ -172,7 +173,9 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       await ledger.compareAndSet(record.id, 'interpreting', { state: 'succeeded', answer: bounded(output.text, 1000), remainingTurns: turns });
     } else {
       const checked = validatePublicToolCall(record.mode, output.call?.name, output.call?.arguments);
-      if (!checked.ok) {
+      if (checked.ok && !isGevFunctionEnabled(checked.name)) {
+        await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: `${checked.name} is disabled in ADMIN`, remainingTurns: turns });
+      } else if (!checked.ok) {
         await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: checked.reason || 'Invalid tool call', remainingTurns: turns });
       } else {
         await ledger.compareAndSet(record.id, 'interpreting', {

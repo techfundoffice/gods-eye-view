@@ -32,6 +32,8 @@ import {
 } from './adminAuth.js';
 import { createAdminMcpServer } from './adminMcpServer.js';
 import { gevApiDocumentation } from './gevApi.js';
+import { getGevFunctionToggles, setGevFunctionEnabled, setGevFunctionToggles } from './gevFunctionToggles.js';
+import { resolveHermesBin } from './nousHermesCliInterpreter.js';
 import { createPluginBuilder, readPluginManifest } from './adminPluginBuilder.js';
 import { normalizePluginManifest } from './adminPluginRegistry.js';
 import { createAdminStore } from './adminStore.js';
@@ -186,6 +188,7 @@ export function createAdminMiddleware({
   openrouterSecret = createOpenRouterAdminSecret(),
   commandRuntime = null,
   getGevBinding = () => ({}),
+  getHermesStatus = () => ({}),
 } = {}) {
   const mcp = createAdminMcpServer({
     builder,
@@ -483,7 +486,46 @@ export function createAdminMiddleware({
         const host = String(req.headers?.host || '').trim();
         const proto = String(req.headers?.['x-forwarded-proto'] || 'https').split(',')[0].trim() || 'https';
         const origin = host ? `${proto}://${host}` : '';
-        sendJson(res, 200, gevApiDocumentation({ origin }));
+        const docs = gevApiDocumentation({ origin });
+        const hermes = typeof getHermesStatus === 'function' ? (getHermesStatus() || {}) : {};
+        sendJson(res, 200, {
+          ...docs,
+          functions: (docs.functions || []).map((fn) => ({
+            ...fn,
+            enabled: getGevFunctionToggles()[fn.name] !== false,
+          })),
+          control: {
+            youtubeOwner: normalizeHermesYoutubeAdmin(auth.hermesYoutubeAdmin?.() || null),
+            hermes: {
+              ...hermes,
+              bin: resolveHermesBin(),
+              cli: Boolean(resolveHermesBin()),
+            },
+            mcpEnabled: Boolean(auth.mcpEnabled?.()),
+            openrouter: openrouterSecret.publicStatus?.() || {},
+          },
+        });
+        return;
+      }
+
+      if (first === 'gev-functions') {
+        if (req.method === 'GET') {
+          sendJson(res, 200, { functions: getGevFunctionToggles() });
+          return;
+        }
+        if (req.method === 'POST') {
+          const body = await readJsonBody(req).catch(() => ({}));
+          const result = setGevFunctionEnabled(String(body.name || ''), body.enabled !== false);
+          if (!result.ok) {
+            sendJson(res, 400, { error: { kind: 'invalid', message: result.reason } });
+            return;
+          }
+          auth.setGevFunctionToggles?.(result.toggles);
+          setGevFunctionToggles(result.toggles);
+          sendJson(res, 200, result);
+          return;
+        }
+        sendJson(res, 405, { error: { kind: 'method', message: 'Use GET or POST' } });
         return;
       }
 

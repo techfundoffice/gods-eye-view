@@ -901,11 +901,21 @@
         <div class="admin-pane admin-pane-gev-api" data-admin-pane="gev-api" hidden>
           <p class="admin-mcp-help">
             Every GEV function is available as <code>POST /api/gev/<name></code> with the same
-            ADMIN API keys as MCP. OpenRouter (Gemini or any future model) and YouTube live chat
-            use this catalog. Actions run on the live capture globe.
+            ADMIN API keys as MCP. YouTube live chat goes to Hermes, which may call any function
+            still enabled below. Actions run on the live capture globe.
           </p>
           <p id="admin-gev-api-status" class="admin-live-summary" role="status" aria-live="polite">LOADING</p>
-          <span class="admin-mcp-label">ENDPOINTS</span>
+          <p id="admin-gev-owner" class="admin-live-summary">YouTube owner · loading</p>
+          <p id="admin-gev-hermes" class="admin-live-summary">Hermes · loading</p>
+          <span class="admin-mcp-label">WHAT ADMINS ADMINISTER</span>
+          <ul class="admin-gev-admin-docs">
+            <li>YouTube account owner — Go Live OAuth connection (name/email) and Hermes Admin allowlist (emails, handles, channel IDs).</li>
+            <li>Hermes CLI — installed binary, active harness, and OpenRouter model/key used to interpret live chat.</li>
+            <li>GEV functions — enable or disable each globe capability for YouTube viewers.</li>
+            <li>MCP + API keys — REST <code>/api/gev</code> and JSON-RPC <code>/api/admin/mcp</code> for external models.</li>
+            <li>Go Live — broadcast, ingest URL/key, capture URL, encoder.</li>
+          </ul>
+          <span class="admin-mcp-label">GEV FUNCTIONS</span>
           <ul id="admin-gev-api-list" class="admin-mcp-keys"></ul>
           <span class="admin-mcp-label">EXAMPLE</span>
           <pre id="admin-gev-api-curl" class="admin-mcp-snippet"></pre>
@@ -920,6 +930,14 @@
             globe controls. Default operator:
             <code>techfundoffice@gmail.com</code> / <code>@TechfundOffice</code>.
           </p>
+          <p id="admin-hermes-youtube-account" class="admin-live-summary">Connected YouTube account · loading</p>
+          <p id="admin-hermes-cli-status" class="admin-live-summary">Hermes CLI · loading</p>
+          <span class="admin-mcp-label">OPERATOR VS VIEWER</span>
+          <ul class="admin-gev-admin-docs">
+            <li>Connected YouTube account (Go Live) is the channel that owns the broadcast and live chat write path.</li>
+            <li>Hermes Admin emails/handles/channel IDs are who may drive the Hermes CLI from chat.</li>
+            <li>Everyone else in YouTube chat can only use enabled GEV globe functions.</li>
+          </ul>
           <form id="admin-hermes-admin-form" class="admin-live-form" autocomplete="off">
             <label class="admin-field" for="admin-hermes-admin-emails">
               <span>ADMIN EMAILS</span>

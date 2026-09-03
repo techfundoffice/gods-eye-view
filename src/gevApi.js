@@ -8,6 +8,7 @@ import {
   PUBLIC_GEV_TOOL_CATALOG,
   PUBLIC_GEV_TOOL_NAMES,
 } from './youtubePublicCommandPolicy.js';
+import { getGevFunctionToggles } from './gevFunctionToggles.js';
 
 export const GEV_API_PREFIX = '/api/gev';
 
@@ -67,14 +68,19 @@ export function gevFunctionDescription(name) {
  * @returns {object[]}
  */
 export function listGevFunctions() {
+  const enabled = getGevFunctionToggles();
   return PUBLIC_GEV_TOOL_NAMES.map((name) => {
     const entry = PUBLIC_GEV_TOOL_CATALOG[name];
+    const parameters = entry?.parameters || { type: 'object', additionalProperties: false, properties: {} };
     return {
       name,
       method: 'POST',
       path: gevFunctionPath(name),
       description: gevFunctionDescription(name),
-      parameters: entry?.parameters || { type: 'object', additionalProperties: false, properties: {} },
+      parameters,
+      parameterKeys: Object.keys(parameters.properties || {}),
+      enabled: enabled[name] !== false,
+      youtubeChat: enabled[name] !== false,
     };
   });
 }
@@ -166,10 +172,18 @@ export function gevApiDocumentation({
       note: 'Enable MCP Server in ADMIN, mint an API key, then paste this config into any MCP client (Claude, Cursor, OpenRouter MCP). tools/list is the live GEV catalog.',
     },
     openrouter: {
-      model: 'ADMIN → OpenRouter (Gemini 3.8 Flash by default; any future model uses this same hook).',
+      model: 'ADMIN → OpenRouter. YouTube comments use this model through Hermes CLI or the OpenRouter fallback.',
       tools: functions.length,
-      youtubeChat: 'YouTube live comments are sent to that model with these same functions. The model calls them; the capture globe executes them.',
+      youtubeChat: 'YouTube live comments go to Hermes. Hermes may call any enabled GEV function; the capture globe executes it.',
       mcp: mcpConfig,
+    },
+    admin: {
+      youtubeOwner: 'ADMIN → Hermes Admin: emails, YouTube handles, and channel IDs that own Hermes / go-live.',
+      youtubeAccount: 'ADMIN → Go Live: connected Google/YouTube OAuth account for the live channel.',
+      functions: 'Each function below can be enabled or disabled for YouTube chat. Disabled tools are rejected.',
+      hermes: 'ADMIN → Youtube AI Comment Harness: Hermes vs OpenRouter. ADMIN → OpenRouter: model and key.',
+      mcp: 'ADMIN → MCP Server: API keys for REST /api/gev and JSON-RPC /api/admin/mcp.',
+      live: 'ADMIN → Go Live: broadcast, ingest, capture URL.',
     },
   };
 }

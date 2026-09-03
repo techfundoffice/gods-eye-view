@@ -11124,6 +11124,11 @@ body.recording-mode .admin-launch {
 }
 
 .admin-key-row .scene-btn { flex: 0 0 auto; min-width: 0; }
+.admin-gev-fn { align-items: flex-start; }
+.admin-gev-fn code { min-width: 12rem; }
+.admin-gev-admin-docs { margin: 0 0 1rem; padding-left: 1.2rem; color: var(--muted, #bbb); line-height: 1.45; }
+.admin-gev-admin-docs li { margin: 0.35rem 0; }
+.admin-gev-admin-docs code { color: var(--accent); }
 
 .admin-mcp-snippet {
   margin: 0;

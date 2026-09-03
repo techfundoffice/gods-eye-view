@@ -14,13 +14,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { normalizeHermesYoutubeAdmin } from './hermesYoutubeAdmin.js';
+import { normalizeGevFunctionToggles, setGevFunctionToggles } from './gevFunctionToggles.js';
 
 /** Default on-disk location, relative to the repository root. */
 export const ADMIN_STATE_FILE = '.gev-cache/admin-state.json';
 
 /** Shape returned when nothing has been persisted yet. */
 export function emptyAdminState() {
-  return { version: 1, apiKeys: [], mcpEnabled: false, plugins: [], hermesYoutubeAdmin: normalizeHermesYoutubeAdmin(null) };
+  return { version: 1, apiKeys: [], mcpEnabled: false, plugins: [], hermesYoutubeAdmin: normalizeHermesYoutubeAdmin(null), gevFunctionToggles: normalizeGevFunctionToggles(null) };
 }
 
 /**
@@ -40,6 +41,7 @@ export function normalizeAdminState(raw) {
     mcpEnabled: Boolean(raw.mcpEnabled),
     plugins: Array.isArray(raw.plugins) ? raw.plugins.filter((entry) => entry && typeof entry === 'object') : [],
     hermesYoutubeAdmin: normalizeHermesYoutubeAdmin(raw.hermesYoutubeAdmin),
+    gevFunctionToggles: normalizeGevFunctionToggles(raw.gevFunctionToggles),
   };
 }
 
@@ -64,11 +66,13 @@ export function createAdminStore({ file = ADMIN_STATE_FILE, fsImpl = fs } = {}) 
       // console must still start, with no keys trusted.
       cache = emptyAdminState();
     }
+    setGevFunctionToggles(cache.gevFunctionToggles);
     return cache;
   }
 
   function write(state) {
     cache = normalizeAdminState(state);
+    setGevFunctionToggles(cache.gevFunctionToggles);
     const serialized = `${JSON.stringify(cache, null, 2)}\n`;
     try {
       fsImpl.mkdirSync(path.dirname(resolved), { recursive: true });

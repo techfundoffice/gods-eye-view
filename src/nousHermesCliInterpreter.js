@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { PUBLIC_GEV_TOOL_NAMES, validatePublicToolCall } from './youtubePublicCommandPolicy.js';
+import { isGevFunctionEnabled } from './gevFunctionToggles.js';
 import { GEV_FUNCTION_DOCS } from './gevApi.js';
 
 export const NOUS_HERMES_BIN = '/home/runner/.local/bin/hermes';
@@ -75,7 +76,7 @@ function extractJson(raw) {
 }
 
 export function gevCapabilityList() {
-  return PUBLIC_GEV_TOOL_NAMES.map((name) => `- ${name}: ${GEV_FUNCTION_DOCS[name] || name}`).join('\n');
+  return PUBLIC_GEV_TOOL_NAMES.filter((name) => isGevFunctionEnabled(name)).map((name) => `- ${name}: ${GEV_FUNCTION_DOCS[name] || name}`).join('\n');
 }
 
 export function buildHermesChatPrompt(input = {}) {

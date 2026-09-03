@@ -56,11 +56,11 @@ function fakeFetch(responses = []) {
 test('the dashboard menu includes the gated Composio control plane', () => {
   assert.deepEqual(
     ADMIN_MENU_ITEMS.map((item) => item.id),
-    ['create-plugin', 'mcp-server', 'live-stream', 'openrouter', 'gev-api'],
+    ['create-plugin', 'mcp-server', 'live-stream', 'openrouter', 'gev-api', 'hermes-admin'],
   );
   assert.deepEqual(
     ADMIN_MENU_ITEMS.map((item) => item.label),
-    ['Create Plugin', 'MCP Server', 'Go Live', 'OpenRouter', 'GEV API'],
+    ['Create Plugin', 'MCP Server', 'Go Live', 'OpenRouter', 'GEV API', 'Hermes Admin'],
   );
   for (const item of ADMIN_MENU_ITEMS) {
     assert.ok(item.id && item.description, `${item.label} has an id and a description`);
@@ -74,6 +74,10 @@ test('the dashboard menu includes the gated Composio control plane', () => {
   assert.match(dashboard[0], /id="admin-gev-api-list"/);
   assert.match(dashboard[0], /id="admin-gev-api-curl"/);
   assert.match(dashboard[0], /id="admin-gev-api-mcp"/);
+  assert.match(dashboard[0], /id="admin-gev-owner"/);
+  assert.match(dashboard[0], /id="admin-gev-hermes"/);
+  assert.match(dashboard[0], /id="admin-hermes-youtube-account"/);
+  assert.match(dashboard[0], /WHAT ADMINS ADMINISTER/);
   assert.match(dashboard[0], /data-admin-view="openrouter"/);
   assert.match(dashboard[0], /data-admin-view="create-plugin"/);
   assert.match(dashboard[0], /data-admin-view="mcp-server"/);

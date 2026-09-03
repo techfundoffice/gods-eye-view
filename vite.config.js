@@ -7771,6 +7771,7 @@ function adminConsoleApi() {
     auth: sharedAdminAuth(),
     store: sharedAdminStore(),
     commandRuntime: sharedPublicCommandRuntime(),
+    getHermesStatus: () => sharedHermesHarness().status(),
     getGevBinding: () => {
       const snap = sharedLiveCommentIngest().snapshot() || {};
       const live = snap.active === true && snap.status === 'live' && Boolean(snap.videoId);
