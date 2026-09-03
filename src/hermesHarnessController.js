@@ -20,6 +20,7 @@ import {
   createHermesSkillAgent,
 } from './hermesCommentInterpreter.js';
 import { createPublicResponsesInterpreter } from './youtubePublicResponsesInterpreter.js';
+import { createNousHermesCliInterpreter, resolveHermesBin } from './nousHermesCliInterpreter.js';
 import { openRouterApiKey, openRouterFreeModel, postOpenRouterChat } from './openrouterFreeClient.js';
 
 export const HERMES_HARNESS_ID = 'hermes';
@@ -76,7 +77,7 @@ export function createHermesHarnessController({
     maxTokens: input.maxTokens,
   }),
   openrouterInterpret = createPublicResponsesInterpreter(),
-  hermesCommand = process.env.HERMES_BIN || '',
+  hermesCommand = resolveHermesBin(process.env.HERMES_BIN),
   hermesModel = process.env.HERMES_MODEL || HERMES_GROK_MODEL,
 } = {}) {
   let preferred = HERMES_HARNESS_ID;
@@ -138,6 +139,20 @@ export function createHermesHarnessController({
       return status();
     }
     const tools = viewSafeToolsFrom();
+    const bin = resolveHermesBin(hermesCommand);
+    if (bin) {
+      hermesInterpret = createNousHermesCliInterpreter({ bin, model });
+      bridge = {
+        start() {},
+        stop() {},
+        status() { return { running: true, pendingTurns: 0, lastError: '', command: bin }; },
+      };
+      started = true;
+      active = preferred === HERMES_HARNESS_ID ? HERMES_HARNESS_ID : preferred;
+      fallbackReason = '';
+      lastError = '';
+      return status();
+    }
     const handler = createHermesSkillAgent({
       postChat,
       model,
@@ -145,9 +160,9 @@ export function createHermesHarnessController({
       tools,
     });
     bridge = createHermesStdioBridge({
-      command: hermesCommand,
-      args: hermesCommand ? ['-p', HERMES_PROFILE_NAME] : [],
-      handler: hermesCommand ? null : handler,
+      command: '',
+      args: [],
+      handler,
       env: {},
       now,
     });
@@ -215,6 +230,7 @@ export function createHermesHarnessController({
       toolCount: viewSafeToolsFrom().length,
       model,
       provider: 'x-ai',
+      cli: Boolean(resolveHermesBin(hermesCommand)),
     });
   }
 

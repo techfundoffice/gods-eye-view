@@ -8,11 +8,11 @@ import { createHermesHarnessController, HERMES_HARNESS_ID, OPENROUTER_HARNESS_ID
 test('Hermes is the preferred default; failed preflight uses OpenRouter without saving that default', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hermes-h-'));
   const controller = createHermesHarnessController({
+    hermesCommand: '',
     settingsPath: path.join(dir, 'settings.json'),
     skillPath: path.join(dir, 'missing-skill.md'),
     postChat: async () => ({ ok: false, payload: { error: 'nope' } }),
     openrouterInterpret: async () => ({ ok: true, kind: 'complete', text: 'fallback' }),
-    hermesCommand: '',
   });
   await controller.loadPreferred();
   const before = controller.status();
@@ -30,6 +30,7 @@ test('Hermes is the preferred default; failed preflight uses OpenRouter without 
 test('selecting OpenRouter is an explicit operator override that persists', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hermes-h-'));
   const controller = createHermesHarnessController({
+    hermesCommand: '',
     settingsPath: path.join(dir, 'settings.json'),
     skillPath: path.join(dir, 'missing-skill.md'),
     openrouterInterpret: async () => ({ ok: true, kind: 'complete', text: 'or' }),
@@ -44,6 +45,7 @@ test('Hermes starts on Grok and interpret goes through the bridge', async () => 
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hermes-g-'));
   const models = [];
   const controller = createHermesHarnessController({
+    hermesCommand: '',
     settingsPath: path.join(dir, 'settings.json'),
     skillPath: path.join(process.cwd(), 'skills/gods-eye-view/SKILL.md'),
     postChat: async (input) => {
