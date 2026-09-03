@@ -17685,3 +17685,12 @@ body {
 #hud-center-cluster .hud-right-edge {
   margin: 0.25rem !important;
 }
+
+
+/* === GEV_HIDE_HUD_CORNER_BRACKETS_V1 ===
+   Empty ┌ └ ┐ ┘ leftovers after HUD fields MOVEd into LOCATION. */
+.hud-bracket,
+#intel-hud .hud-bracket,
+#hud-center-cluster .hud-bracket {
+  display: none !important;
+}
