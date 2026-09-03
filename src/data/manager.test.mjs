@@ -2861,6 +2861,28 @@ test('clicking a layer name toggles the layer just like the ON/OFF control', asy
   }
 });
 
+test('clicking non-button row content toggles the real manager state', async () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: makeControlElement };
+  const mgr = new DataLayerManager({});
+  const layer = makeRowControlLayer();
+  mgr.register(layer.module);
+  const container = makeControlElement();
+
+  try {
+    mgr.buildTogglePanel(container);
+    const row = container.querySelector('[data-layer-id="satellites"]');
+    const meta = row.querySelector('.data-toggle-meta');
+    row.listeners.click({ target: meta });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(mgr.isEnabled('satellites'), true);
+  } finally {
+    await mgr.destroyAll();
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  }
+});
+
 test('a layer that declares row controls renders its chips and color legend', async () => {
   const originalDocument = globalThis.document;
   globalThis.document = { createElement: makeControlElement };

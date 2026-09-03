@@ -398,35 +398,25 @@ test('the menu is the four owner-ordered missions', () => {
     'the infrastructure mission must be gone, not dormant');
 });
 
-test('Mission Control keeps DATA LAYERS toggles under the mission tiles', () => {
+test('Mission Control uses the one manager-owned DATA LAYERS panel', () => {
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
   const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
-  const layerState = fs.readFileSync(new URL('./data/layerState.js', import.meta.url), 'utf8');
   const launcherHtml = html.slice(
     html.indexOf('id="first-run-launcher"'),
     html.indexOf('</aside>', html.indexOf('id="first-run-launcher"')),
   );
 
   assert.match(launcherHtml, /class="first-run-kicker">MISSION CONTROL</);
-  assert.match(launcherHtml, /class="first-run-layers-kicker">DATA LAYERS</);
-  const layerOrder = [...launcherHtml.matchAll(/data-mc-layer="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(layerOrder, FIRST_RUN_DATA_LAYERS.map((entry) => entry.id));
+  assert.doesNotMatch(launcherHtml, /data-mc-layer|first-run-layers/,
+    'the hand-maintained duplicate list must not exist');
+  assert.equal((html.match(/\sid="data-panel"/g) || []).length, 1);
+  assert.equal((html.match(/\sid="data-toggles"/g) || []).length, 1);
   assert.equal((html.match(/data-first-run-choice=/g) || []).length, 4);
 
-  for (const entry of FIRST_RUN_DATA_LAYERS) {
-    if (entry.layerId) {
-      assert.match(layerState, new RegExp(`id: '${entry.layerId}'`), `${entry.layerId} must already be a shipped layer`);
-    }
-    if (entry.stackId) {
-      assert.equal(entry.stackId, 'photoreal');
-    }
-  }
-
-  const toggle = module.slice(module.indexOf('const onLayerToggle = async'), module.indexOf('for (const button of buttons)'));
-  assert.match(toggle, /setEnabled\(entry\.layerId, next, \{ origin: 'user' \}\)/);
-  assert.match(toggle, /setMapStack\?\.\(next \? entry\.stackId : 'osm'\)/);
-  assert.doesNotMatch(toggle, /flyToGlobe|setContextMode|setWindowState\('minimized'/);
+  assert.match(module, /canonicalDataPanel\.classList\.add\('mission-control-data-panel'\)/);
+  assert.match(module, /nav\.appendChild\(canonicalDataPanel\)/);
+  assert.doesNotMatch(module, /querySelectorAll\('\[data-mc-layer\]'\)|onLayerToggle/);
 
   const nav = css.slice(css.indexOf('#mission-control-nav {'), css.indexOf('#first-run-launcher {'));
   assert.match(nav, /width:\s*var\(--youtube-mc-band\)/);
@@ -439,10 +429,8 @@ test('Mission Control keeps DATA LAYERS toggles under the mission tiles', () => 
   const hud = css.slice(hudStart, hudStart + 420);
   assert.match(hud, /var\(--youtube-mc-band\)/);
 
-  const list = css.slice(css.indexOf('.first-run-layers-list {'), css.indexOf('.first-run-layers-list button {'));
-  assert.doesNotMatch(list, /max-height:\s*8\.5rem/);
-  assert.match(list, /overflow-y:\s*auto/, 'DATA LAYERS scrolls inside Mission Control instead of covering comments');
-  assert.match(list, /max-height:\s*none/);
+  assert.match(css, /#mission-control-nav > #data-panel\.mission-control-data-panel/);
+  assert.match(css, /#mission-control-nav > #data-panel\.mission-control-data-panel \.data-toggle-row/);
 });
 
 test('a successful choice stays visible until the visitor explicitly dismisses it', () => {

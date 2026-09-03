@@ -353,9 +353,7 @@ export function initFirstRunExperience({
 
   const status = root.querySelector('[data-first-run-status]');
   const buttons = [...root.querySelectorAll('[data-first-run-choice]')];
-  const layerButtons = [...root.querySelectorAll('[data-mc-layer]')];
   const nav = documentRef.getElementById("mission-control-nav");
-  const legacyLayers = root.querySelector(".first-run-layers");
   const canonicalDataPanel = documentRef.getElementById('data-panel');
   const canonicalDataPanelParent = canonicalDataPanel?.parentElement || null;
   const canonicalDataPanelNext = canonicalDataPanel?.nextSibling || null;
@@ -363,7 +361,6 @@ export function initFirstRunExperience({
   // Mission Control. It looked like the real panel but had a separate click
   // path and visibly swapped with #data-panel after startup. Remove that clone
   // and put the one DataLayerManager-owned panel in its place.
-  legacyLayers?.remove();
   if (nav && canonicalDataPanel) {
     canonicalDataPanel.classList.add('mission-control-data-panel');
     canonicalDataPanel.classList.remove('collapsed');
@@ -384,7 +381,6 @@ export function initFirstRunExperience({
   const previouslyFocused = documentRef.activeElement;
   let busy = false;
   let closing = false;
-  let unsubscribeLayers = null;
 
   const setWindowState = (state, { focusRestore = false } = {}) => {
     // Minimized/chip chrome is gone. Ignore tuck requests so no leftover
@@ -456,7 +452,6 @@ export function initFirstRunExperience({
     documentRef.removeEventListener('keydown', onKeyDown, true);
     globalThis.removeEventListener?.('resize', onViewportResize);
     surfaceObserver?.disconnect();
-    unsubscribeLayers?.();
     if (canonicalDataPanel && canonicalDataPanelParent) {
       canonicalDataPanel.classList.remove('mission-control-data-panel');
       if (canonicalDataPanelNext?.parentElement === canonicalDataPanelParent) {
@@ -595,68 +590,7 @@ export function initFirstRunExperience({
     }
   }
 
-  const layerById = new Map(FIRST_RUN_DATA_LAYERS.map((entry) => [entry.id, entry]));
-
-  const paintLayerButton = (button, pressed) => {
-    button.setAttribute('aria-pressed', String(pressed));
-    const check = button.querySelector('.first-run-layer-check');
-    if (check) check.textContent = pressed ? 'check_box' : 'check_box_outline_blank';
-  };
-
-  const layerIsOn = (entry) => {
-    if (entry.stackId) {
-      return styleManager.mapStackController?.getActiveId?.() === entry.stackId;
-    }
-    return Boolean(dataManager?.isEnabled?.(entry.layerId));
-  };
-
-  const syncLayerButtons = () => {
-    for (const button of layerButtons) {
-      const entry = layerById.get(button.dataset.mcLayer);
-      if (!entry) continue;
-      paintLayerButton(button, layerIsOn(entry));
-    }
-  };
-
-  const onLayerToggle = async (event) => {
-    if (closing) return;
-    event.preventDefault?.();
-    event.stopPropagation?.();
-    const entry = layerById.get(event.currentTarget?.dataset?.mcLayer);
-    if (!entry) return;
-    const button = event.currentTarget;
-    const next = !layerIsOn(entry);
-    button.dataset.state = 'switching';
-    button.setAttribute('aria-busy', 'true');
-    paintLayerButton(button, next);
-    try {
-      if (entry.stackId) {
-        await styleManager.setMapStack?.(next ? entry.stackId : 'osm');
-      } else if (entry.layerId) {
-        await dataManager.setEnabled(entry.layerId, next, { origin: 'user' });
-      }
-    } catch (error) {
-      console.warn('[First run] Data layer toggle failed:', error);
-      if (status) {
-        status.dataset.sticky = 'true';
-        status.textContent = `${entry.id} could not be changed. ${error?.message || 'Retry.'}`;
-      }
-    } finally {
-      delete button.dataset.state;
-      button.setAttribute('aria-busy', 'false');
-    }
-    syncLayerButtons();
-  };
-
   for (const button of buttons) button.addEventListener('click', onChoice);
-  // Capture phase makes these controls immune to the app-wide HUD/map click
-  // routers, which otherwise may consume the event before this compact rail
-  // sees it after the layer block is reparented into Mission Control.
-  for (const button of layerButtons) button.addEventListener('click', onLayerToggle, true);
-  syncLayerButtons();
-  unsubscribeLayers = dataManager?.subscribe?.(() => {
-    if (!closing) syncLayerButtons();
-  }) || null;
   maximizeButton?.addEventListener('click', () => {
     if (!closing) setWindowState(root.classList.contains('is-maximized') ? 'normal' : 'maximized');
   });

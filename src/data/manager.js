@@ -2062,6 +2062,10 @@ export class DataLayerManager {
       left.setAttribute('aria-label', `Toggle ${layer.name}`);
       left.addEventListener('click', () => void requestToggle(left));
       toggle.addEventListener('click', () => void requestToggle(toggle));
+      row.addEventListener('click', (event) => {
+        if (event.target?.closest?.('button')) return;
+        void requestToggle(row);
+      });
 
       right.appendChild(count);
       right.appendChild(toggle);
@@ -2209,6 +2213,10 @@ export class DataLayerManager {
       if (meta) {
         meta.textContent = this._buildMetaText(layer);
       }
+      const left = row.querySelector('.data-toggle-left');
+      if (left) left.disabled = (
+        layer.lifecycleState === 'enabling' || layer.lifecycleState === 'disabling'
+      );
 
       this._syncRowControls(row.querySelector('.data-toggle-controls'), layer);
     }
@@ -2274,6 +2282,8 @@ export class DataLayerManager {
       ? layer.lifecycleState
       : (uncertain ? 'uncertain' : feedState);
     button.disabled = transitioning;
+    button.setAttribute('aria-pressed', String(layer.enabled));
+    button.setAttribute('aria-busy', String(transitioning));
     button.textContent = transitioning
       ? layer.lifecycleState.toUpperCase()
       : (uncertain ? 'UNCERTAIN' : (layer.enabled ? FEED_STATE_LABELS[feedState] : 'OFF'));
