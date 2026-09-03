@@ -230,9 +230,9 @@ export class IntelHUD {
       </div>
 
       <div class="hud-edge hud-right-edge">
-        <div>BAND: PAN</div>
-        <div>BITS: 11</div>
-        <div>LVL: 1A</div>
+        <div id="hud-band">PAN</div>
+        <div id="hud-bits">11</div>
+        <div id="hud-lvl">1A</div>
       </div>
 
       <div class="hud-bottom-bar">
@@ -303,6 +303,12 @@ export class IntelHUD {
         row("Mode", mode),
         row("Recorded", rec),
         row("Orbit / pass", orbital),
+        row("Collection (COLL)", document.getElementById("hud-coll")),
+        row("Off-nadir (ONA)", document.getElementById("hud-ona")),
+        row("Ships (AIS)", document.getElementById("hud-ais-vessel")),
+        row("Band", document.getElementById("hud-band")),
+        row("Bits", document.getElementById("hud-bits")),
+        row("Level", document.getElementById("hud-lvl")),
       );
       const inner = loc.querySelector(".location-inner") || loc;
       const searchWrap = inner.querySelector(".location-search-wrap");
@@ -320,7 +326,13 @@ export class IntelHUD {
       const mode = document.getElementById("hud-mode");
       const rec = document.getElementById("hud-rec");
       const orbital = document.getElementById("hud-orbital");
-      const nodes = [mgrs, latlon, gsd, niirs, alt, sun, summary, classification, system, mode, rec, orbital];
+      const coll = document.getElementById("hud-coll");
+      const ona = document.getElementById("hud-ona");
+      const ais = document.getElementById("hud-ais-vessel");
+      const band = document.getElementById("hud-band");
+      const bits = document.getElementById("hud-bits");
+      const lvl = document.getElementById("hud-lvl");
+      const nodes = [mgrs, latlon, gsd, niirs, alt, sun, summary, classification, system, mode, rec, orbital, coll, ona, ais, band, bits, lvl];
       nodes.forEach((node, idx) => {
         if (node && rows[idx] && !rows[idx].contains(node)) rows[idx].appendChild(node);
       });
@@ -333,11 +345,11 @@ export class IntelHUD {
     if (bar) bar.hidden = true;
     const metrics = this._el?.querySelector(".hud-bottom-right .hud-content")
       || document.querySelector(".hud-bottom-right .hud-content");
-    if (metrics) {
-      for (const child of Array.from(metrics.children)) {
-        if (child.id !== "hud-ais-vessel") child.hidden = true;
-      }
-    }
+    if (metrics) metrics.hidden = true;
+    const leftEdge = this._el?.querySelector(".hud-left-edge") || document.querySelector(".hud-left-edge");
+    const rightEdge = this._el?.querySelector(".hud-right-edge") || document.querySelector(".hud-right-edge");
+    if (leftEdge) leftEdge.hidden = true;
+    if (rightEdge) rightEdge.hidden = true;
     const topLeft = this._el?.querySelector(".hud-top-left") || document.querySelector(".hud-top-left");
     const topRight = this._el?.querySelector(".hud-top-right") || document.querySelector(".hud-top-right");
     if (topLeft) topLeft.hidden = true;

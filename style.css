@@ -17651,3 +17651,37 @@ body {
 #hud-center-cluster > #admin-launch {
   /* leftover hosts must not keep a copy */
 }
+
+
+/* === GEV_ADMIN_ABOVE_CESIUM_CREDITS_PAD_V1 === */
+#gev-admin-credits {
+  padding: 0.55rem 0.65rem 0.45rem !important;
+  gap: 0.5rem !important;
+}
+#gev-admin-credits > #admin-launch {
+  padding: 0.4rem 0.7rem !important;
+  margin: 0 0 0.15rem !important;
+}
+
+
+/* === GEV_PAD_AIS_BAND_STAMP_V1 ===
+   Remaining globe stamp: AIS + BAND/BITS/LVL needs air around the text. */
+#hud-center-cluster .hud-bottom-right,
+.hud-bottom-right:not([hidden]) {
+  padding: 0.45rem 0.65rem !important;
+  box-sizing: border-box !important;
+}
+#hud-center-cluster .hud-right-edge,
+.hud-right-edge:not([hidden]) {
+  padding: 0.45rem 0.65rem !important;
+  gap: 0.85rem !important;
+  box-sizing: border-box !important;
+}
+#hud-ais-vessel {
+  padding: 0.15rem 0.2rem 0.15rem 0 !important;
+  line-height: 1.35 !important;
+}
+#hud-center-cluster .hud-bottom-right,
+#hud-center-cluster .hud-right-edge {
+  margin: 0.25rem !important;
+}
