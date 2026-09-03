@@ -187,8 +187,8 @@ export class IntelHUD {
       <div class="hud-corner hud-top-left">
         <div class="hud-bracket">┌</div>
         <div class="hud-content">
-          <div class="hud-classification">TOP SECRET // SI-TK // NOFORN</div>
-          <div class="hud-system">${this._missionId}  ${this._sensorId}</div>
+          <div class="hud-classification" id="hud-classification">TOP SECRET // SI-TK // NOFORN</div>
+          <div class="hud-system" id="hud-system">${this._missionId}  ${this._sensorId}</div>
           <div class="hud-mode" id="hud-mode">NORMAL</div>
           <div class="hud-summary-wrap">
             <div class="hud-summary-label">SUMMARY</div>
@@ -199,8 +199,8 @@ export class IntelHUD {
 
       <div class="hud-corner hud-top-right">
         <div class="hud-content" style="text-align:right">
-          <div class="hud-rec"><span id="hud-rec-dot">●</span> REC  <span id="hud-timestamp">2026-01-01 00:00:00Z</span></div>
-          <div class="hud-orbital">ORB: ${this._orbitNum}  PASS: DESC-${this._passNum}</div>
+          <div class="hud-rec" id="hud-rec"><span id="hud-rec-dot">●</span> REC  <span id="hud-timestamp">2026-01-01 00:00:00Z</span></div>
+          <div class="hud-orbital" id="hud-orbital">ORB: ${this._orbitNum}  PASS: DESC-${this._passNum}</div>
         </div>
         <div class="hud-bracket">┐</div>
       </div>
@@ -266,6 +266,12 @@ export class IntelHUD {
       const niirs = document.getElementById("hud-niirs");
       const alt = document.getElementById("hud-alt");
       const sun = document.getElementById("hud-sun");
+      const summary = document.getElementById("hud-summary");
+      const classification = document.getElementById("hud-classification");
+      const system = document.getElementById("hud-system");
+      const mode = document.getElementById("hud-mode");
+      const rec = document.getElementById("hud-rec");
+      const orbital = document.getElementById("hud-orbital");
       host.append(
         row("Grid (MGRS)", mgrs),
         row("Lat, Lon", latlon),
@@ -273,6 +279,12 @@ export class IntelHUD {
         row("Detail (NIIRS)", niirs),
         row("Altitude", alt),
         row("Sun elevation", sun),
+        row("Place", summary),
+        row("Classification", classification),
+        row("Mission", system),
+        row("Mode", mode),
+        row("Recorded", rec),
+        row("Orbit / pass", orbital),
       );
       const inner = loc.querySelector(".location-inner") || loc;
       const searchWrap = inner.querySelector(".location-search-wrap");
@@ -284,7 +296,13 @@ export class IntelHUD {
       const niirs = document.getElementById("hud-niirs");
       const alt = document.getElementById("hud-alt");
       const sun = document.getElementById("hud-sun");
-      const nodes = [mgrs, latlon, gsd, niirs, alt, sun];
+      const summary = document.getElementById("hud-summary");
+      const classification = document.getElementById("hud-classification");
+      const system = document.getElementById("hud-system");
+      const mode = document.getElementById("hud-mode");
+      const rec = document.getElementById("hud-rec");
+      const orbital = document.getElementById("hud-orbital");
+      const nodes = [mgrs, latlon, gsd, niirs, alt, sun, summary, classification, system, mode, rec, orbital];
       nodes.forEach((node, idx) => {
         if (node && rows[idx] && !rows[idx].contains(node)) rows[idx].appendChild(node);
       });
@@ -302,6 +320,15 @@ export class IntelHUD {
         if (child.id !== "hud-ais-vessel") child.hidden = true;
       }
     }
+    const topLeft = this._el?.querySelector(".hud-top-left") || document.querySelector(".hud-top-left");
+    const topRight = this._el?.querySelector(".hud-top-right") || document.querySelector(".hud-top-right");
+    if (topLeft) topLeft.hidden = true;
+    if (topRight) topRight.hidden = true;
+    const topBar = this._el?.querySelector(".hud-top-bar") || document.querySelector(".hud-top-bar");
+    if (topBar) topBar.hidden = true;
+    const summaryLabel = this._el?.querySelector(".hud-summary-label")
+      || document.querySelector(".hud-summary-label");
+    if (summaryLabel) summaryLabel.hidden = true;
   }
 
   _placeClassificationBelowMissionControl() {
@@ -318,7 +345,6 @@ export class IntelHUD {
     if (nav && layers) nav.appendChild(layers);
     this._placeMgrsLatlonInLocationBar();
     if (cluster) {
-      if (top) cluster.appendChild(top);
       const metrics = (this._el && this._el.querySelector(".hud-bottom-right"))
         || document.querySelector(".hud-bottom-right");
       if (metrics) cluster.appendChild(metrics);
@@ -345,16 +371,8 @@ export class IntelHUD {
       if (launch && launch.parentElement !== cluster) {
         cluster.insertBefore(launch, cluster.firstChild);
       }
-      if (stamp) {
-        if (launch && launch.parentElement === cluster) {
-          if (stamp.parentElement !== cluster || stamp.previousElementSibling !== launch) {
-            launch.insertAdjacentElement("afterend", stamp);
-          }
-        } else if (stamp.parentElement !== cluster) {
-          cluster.insertBefore(stamp, cluster.firstChild);
-        }
-      }
     }
+    if (stamp) stamp.hidden = true;
 
     let stack = document.getElementById("admin-stamp-stack");
     if (!stack) {
