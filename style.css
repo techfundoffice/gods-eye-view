@@ -12395,6 +12395,27 @@ body:has(#first-run-launcher.visible) .hud-left-edge {
   flex: 0 0 auto;
   pointer-events: auto;
 }
+
+#mission-control-nav > #data-panel.mission-control-data-panel {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+
+#mission-control-nav > #data-panel.mission-control-data-panel .data-panel-inner {
+  width: 100%;
+  max-height: min(42dvh, 34rem);
+}
 #first-run-launcher.visible {
   max-height: none;
   overflow: visible;

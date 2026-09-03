@@ -355,14 +355,25 @@ export function initFirstRunExperience({
   const buttons = [...root.querySelectorAll('[data-first-run-choice]')];
   const layerButtons = [...root.querySelectorAll('[data-mc-layer]')];
   const nav = documentRef.getElementById("mission-control-nav");
-  const layers = root.querySelector(".first-run-layers");
-  if (nav && layers && layers.parentElement !== nav) nav.appendChild(layers);
+  const legacyLayers = root.querySelector(".first-run-layers");
+  const canonicalDataPanel = documentRef.getElementById('data-panel');
+  const canonicalDataPanelParent = canonicalDataPanel?.parentElement || null;
+  const canonicalDataPanelNext = canonicalDataPanel?.nextSibling || null;
+  // There used to be a second, hand-maintained DATA LAYERS checklist inside
+  // Mission Control. It looked like the real panel but had a separate click
+  // path and visibly swapped with #data-panel after startup. Remove that clone
+  // and put the one DataLayerManager-owned panel in its place.
+  legacyLayers?.remove();
+  if (nav && canonicalDataPanel) {
+    canonicalDataPanel.classList.add('mission-control-data-panel');
+    canonicalDataPanel.classList.remove('collapsed');
+    nav.appendChild(canonicalDataPanel);
+  }
   if (nav) {
     const cluster = documentRef.getElementById("hud-center-cluster");
     const top = (cluster && cluster.querySelector(".hud-top-left")) || nav.querySelector(":scope > .hud-top-left") || documentRef.querySelector("#intel-hud .hud-top-left") || documentRef.querySelector(".hud-top-left");
     const bottom = (cluster && cluster.querySelector(".hud-bottom-left")) || nav.querySelector(":scope > .hud-bottom-left") || documentRef.querySelector("#intel-hud .hud-bottom-left") || documentRef.querySelector(".hud-bottom-left");
     if (root.parentElement === nav) nav.appendChild(root);
-    if (layers) nav.appendChild(layers);
     if (cluster) {
       if (bottom) cluster.appendChild(bottom);
       if (top) cluster.appendChild(top);
@@ -446,6 +457,14 @@ export function initFirstRunExperience({
     globalThis.removeEventListener?.('resize', onViewportResize);
     surfaceObserver?.disconnect();
     unsubscribeLayers?.();
+    if (canonicalDataPanel && canonicalDataPanelParent) {
+      canonicalDataPanel.classList.remove('mission-control-data-panel');
+      if (canonicalDataPanelNext?.parentElement === canonicalDataPanelParent) {
+        canonicalDataPanelParent.insertBefore(canonicalDataPanel, canonicalDataPanelNext);
+      } else {
+        canonicalDataPanelParent.appendChild(canonicalDataPanel);
+      }
+    }
     const remove = () => root.remove();
     root.addEventListener('transitionend', remove, { once: true });
     // `transitionend` never fires under prefers-reduced-motion (no transition),
