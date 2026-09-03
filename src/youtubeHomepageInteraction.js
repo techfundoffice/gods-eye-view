@@ -17,6 +17,11 @@ const MAX_PANEL_COMMENTS = 100;
 export const MAX_VISIBLE_COMMENTS = 14;
 export const MAX_VISIBLE_ACTIONS = 14;
 
+export function formatFollowUpCountdown(remainingMs) {
+  const seconds = Math.max(0, Math.ceil(Number(remainingMs || 0) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
 function appendAgentCta(replyRow, comment, documentRef, currentTime) {
   const state = String(comment?.replyState || '');
   if (state !== 'succeeded' && state !== 'replied' && state !== 'validated') return;
@@ -24,9 +29,73 @@ function appendAgentCta(replyRow, comment, documentRef, currentTime) {
   cta.className = 'youtube-agent-cta';
   const remaining = Number(comment.followUpExpiresAt || 0) - currentTime;
   cta.textContent = remaining > 0
-    ? `YOU HAVE 1 MINUTE TO ASK: ${(comment.followUpOptions || []).join(' · ')}`
+    ? `REPLY TO ASK: ${(comment.followUpOptions || []).join(' · ')}`
     : 'FOLLOW-UP WINDOW EXPIRED';
+  if (remaining > 0 && remaining <= 30_000) cta.classList?.add?.('youtube-agent-cta-urgent');
   replyRow.append(cta);
+}
+
+function isConversationActive(comment, currentTime) {
+  const state = String(comment?.replyState || 'display');
+  if (['pending', 'interpreting', 'received', 'awaiting-execution', 'executing', 'awaiting-model'].includes(state)) return true;
+  return ['succeeded', 'replied', 'validated'].includes(state)
+    && Number(comment?.followUpExpiresAt || 0) > currentTime;
+}
+
+function appendCommentBody(row, comment, documentRef) {
+  const meta = documentRef.createElement('span');
+  meta.className = 'youtube-feed-meta';
+  meta.textContent = `${comment.authorHandle || comment.author}${formatUtcTime(comment.publishedAt) ? ` · ${formatUtcTime(comment.publishedAt)}` : ''}`;
+  const body = documentRef.createElement('span');
+  body.className = 'youtube-feed-text';
+  body.textContent = comment.text;
+  row.append(meta, body);
+}
+
+function appendConversationReply(row, comment, documentRef, currentTime) {
+  const replyRow = documentRef.createElement('div');
+  replyRow.className = 'youtube-agent-reply';
+  const state = String(comment.replyState || 'display');
+  const processing = ['interpreting', 'pending', 'received', 'awaiting-execution', 'executing', 'awaiting-model'].includes(state);
+  const remaining = Number(comment.followUpExpiresAt || 0) - currentTime;
+  if (!processing && remaining > 0) {
+    const countdown = documentRef.createElement('div');
+    countdown.className = `youtube-followup-countdown${remaining <= 30_000 ? ' is-urgent' : ''}`;
+    const countdownValue = documentRef.createElement('span');
+    countdownValue.className = 'youtube-followup-countdown-value';
+    countdownValue.textContent = formatFollowUpCountdown(remaining);
+    const countdownLabel = documentRef.createElement('span');
+    countdownLabel.className = 'youtube-followup-countdown-label';
+    countdownLabel.textContent = 'TIME LEFT TO REPLY';
+    countdown.append(countdownValue, countdownLabel);
+    replyRow.append(countdown);
+  }
+  const turn = documentRef.createElement('span');
+  turn.className = `youtube-conversation-turn ${processing ? 'is-agent-turn' : 'is-viewer-turn'}`;
+  turn.textContent = processing
+    ? "CLOUD COMPUTER AI.COM'S TURN"
+    : `${comment.authorHandle || comment.author || 'VIEWER'}'S TURN`;
+  const replyWho = documentRef.createElement('span');
+  replyWho.className = 'youtube-agent-role';
+  replyWho.textContent = `CLOUD COMPUTER AI.COM REPLY${formatUtcTime(comment.replyAt) ? ` · ${formatUtcTime(comment.replyAt)}` : ''}`;
+  const label = documentRef.createElement('span');
+  label.className = `youtube-agent-state youtube-agent-state-${state}`;
+  const stateLabel = processing
+    ? 'INTERPRETING'
+    : state === 'replied' ? 'REPLIED'
+    : state === 'failed' ? 'FAILED'
+    : state === 'rejected' ? 'REJECTED'
+    : state === 'display' ? ''
+    : state.toUpperCase();
+  label.textContent = stateLabel;
+  const replyBody = documentRef.createElement('span');
+  replyBody.className = 'youtube-feed-text youtube-agent-text';
+  replyBody.textContent = comment.replyText || (processing ? 'Interpreting request...' : '');
+  replyRow.append(turn, replyWho);
+  if (stateLabel) replyRow.append(label);
+  replyRow.append(replyBody);
+  appendAgentCta(replyRow, comment, documentRef, currentTime);
+  row.append(replyRow);
 }
 
 
@@ -124,6 +193,9 @@ export function createYoutubeHomepageInteraction({
     return {
       root,
       list: root.querySelector('#youtube-comments-list'),
+      progressList: root.querySelector('#youtube-progress-list'),
+      progressStatus: root.querySelector('#youtube-progress-status'),
+      progressCount: root.querySelector('#youtube-progress-count'),
       status: root.querySelector('#youtube-comments-status'),
       subject: root.querySelector('#youtube-comments-video'),
       count: root.querySelector('#youtube-comments-count'),
@@ -141,6 +213,8 @@ export function createYoutubeHomepageInteraction({
       if (els.subject) els.subject.textContent = 'NO VIDEO SELECTED';
       if (els.status) els.status.textContent = 'CONNECT YOUTUBE TO LOAD COMMENTS';
       if (els.count) els.count.textContent = '0';
+      if (els.progressCount) els.progressCount.textContent = '0';
+      if (els.progressStatus) els.progressStatus.textContent = 'NO CONVERSATIONS IN PROGRESS';
       if (els.refresh) els.refresh.disabled = true;
       if (els.more) els.more.disabled = true;
       if (els.list) {
@@ -150,6 +224,7 @@ export function createYoutubeHomepageInteraction({
         empty.textContent = 'CONNECT YOUTUBE TO LOAD COMMENTS';
         els.list.append(empty);
       }
+      els.progressList?.replaceChildren?.();
       return;
     }
     els.root.dataset.liveHomepage = '1';
@@ -170,6 +245,15 @@ export function createYoutubeHomepageInteraction({
       empty.className = 'youtube-feed-empty';
       empty.textContent = 'YT LIVE · waiting for comments';
       els.list.append(empty);
+      if (els.progressCount) els.progressCount.textContent = '0';
+      if (els.progressStatus) els.progressStatus.textContent = 'NO CONVERSATIONS IN PROGRESS';
+      if (els.progressList) {
+        els.progressList.replaceChildren();
+        const progressEmpty = documentRef.createElement('li');
+        progressEmpty.className = 'youtube-feed-empty youtube-progress-empty';
+        progressEmpty.textContent = 'WAITING FOR A VIEWER REQUEST';
+        els.progressList.append(progressEmpty);
+      }
       return;
     }
     const chronological = [...liveComments].sort((a, b) => {
@@ -177,56 +261,45 @@ export function createYoutubeHomepageInteraction({
       const tb = Date.parse(b.publishedAt) || 0;
       return ta - tb;
     });
-    const recentComments = chronological.length <= MAX_VISIBLE_COMMENTS
-      ? chronological
-      : chronological.slice(-MAX_VISIBLE_COMMENTS);
-    const visibleComments = [...recentComments].reverse();
-    const visibleActions = chronological.filter((item) => {
-      const state = String(item.replyState || 'display');
-      return Boolean(item.replyText) || state !== 'display';
-    });
-    const actionWindow = visibleActions.length <= MAX_VISIBLE_ACTIONS
-      ? visibleActions
-      : visibleActions.slice(-MAX_VISIBLE_ACTIONS);
-    const actionIds = new Set(actionWindow.map((item) => item.id));
+    const visibleComments = [...chronological].reverse();
     for (const comment of visibleComments) {
       const row = documentRef.createElement('li');
       row.className = 'youtube-feed-item youtube-comment-thread';
-      const meta = documentRef.createElement('span');
-      meta.className = 'youtube-feed-meta';
-      meta.textContent = `${comment.authorHandle || comment.author}${formatUtcTime(comment.publishedAt) ? ` · ${formatUtcTime(comment.publishedAt)}` : ''}`;
-      const body = documentRef.createElement('span');
-      body.className = 'youtube-feed-text';
-      body.textContent = comment.text;
-      if (actionIds.has(comment.id)) {
-        const replyRow = documentRef.createElement('div');
-        replyRow.className = 'youtube-agent-reply';
-        const state = String(comment.replyState || 'display');
-        const replyWho = documentRef.createElement('span');
-        replyWho.className = 'youtube-agent-role';
-        replyWho.textContent = `CLOUD COMPUTER AI.COM REPLY${formatUtcTime(comment.replyAt) ? ` · ${formatUtcTime(comment.replyAt)}` : ''}`;
-        const label = documentRef.createElement('span');
-        label.className = `youtube-agent-state youtube-agent-state-${state}`;
-        const stateLabel = state === 'interpreting' || state === 'pending'
-          ? 'INTERPRETING'
-          : state === 'replied' ? 'REPLIED'
-          : state === 'failed' ? 'FAILED'
-          : state === 'rejected' ? 'REJECTED'
-          : state === 'display' ? ''
-          : state.toUpperCase();
-        label.textContent = stateLabel;
-        const replyBody = documentRef.createElement('span');
-        replyBody.className = 'youtube-feed-text youtube-agent-text';
-        replyBody.textContent = comment.replyText
-          || (state === 'interpreting' || state === 'pending' ? 'Interpreting request...' : '');
-        replyRow.append(replyWho);
-        if (stateLabel) replyRow.append(label);
-        replyRow.append(replyBody);
-        appendAgentCta(replyRow, comment, documentRef, now());
-        row.append(replyRow);
-      }
-      row.append(meta, body);
+      appendCommentBody(row, comment, documentRef);
       els.list.append(row);
+    }
+    if (!els.progressList) return;
+    els.progressList.replaceChildren();
+    const currentTime = now();
+    const activeConversations = chronological
+      .filter((comment) => isConversationActive(comment, currentTime))
+      .sort((a, b) => {
+        const aProcessing = ['pending', 'interpreting', 'received', 'awaiting-execution', 'executing', 'awaiting-model'].includes(String(a.replyState));
+        const bProcessing = ['pending', 'interpreting', 'received', 'awaiting-execution', 'executing', 'awaiting-model'].includes(String(b.replyState));
+        if (aProcessing !== bProcessing) return aProcessing ? -1 : 1;
+        return (Number(a.followUpExpiresAt || 0) || Date.parse(a.publishedAt) || 0)
+          - (Number(b.followUpExpiresAt || 0) || Date.parse(b.publishedAt) || 0);
+      })
+      .slice(0, MAX_VISIBLE_ACTIONS);
+    if (els.progressCount) els.progressCount.textContent = String(activeConversations.length);
+    if (els.progressStatus) {
+      els.progressStatus.textContent = activeConversations.length
+        ? `${activeConversations.length} ACTIVE CONVERSATION${activeConversations.length === 1 ? '' : 'S'}`
+        : 'NO CONVERSATIONS IN PROGRESS';
+    }
+    if (!activeConversations.length) {
+      const empty = documentRef.createElement('li');
+      empty.className = 'youtube-feed-empty youtube-progress-empty';
+      empty.textContent = 'WAITING FOR A VIEWER REQUEST';
+      els.progressList.append(empty);
+      return;
+    }
+    for (const comment of activeConversations) {
+      const row = documentRef.createElement('li');
+      row.className = 'youtube-feed-item youtube-comment-thread youtube-active-conversation';
+      appendConversationReply(row, comment, documentRef, currentTime);
+      appendCommentBody(row, comment, documentRef);
+      els.progressList.append(row);
     }
   }
 
@@ -413,6 +486,7 @@ export function createYoutubeHomepageInteraction({
       while (liveComments.length > MAX_PANEL_COMMENTS) liveComments.pop();
       await applyMessageActions(message);
     }
+    renderLiveCommentsPanel({ active: true, title: broadcastTitle, videoId });
   }
 
   function publishCommandStatuses(commands) {
@@ -627,11 +701,6 @@ export function createYoutubeHomepageInteraction({
           'live',
         );
         await ingest(payload.items || []);
-        renderLiveCommentsPanel({
-          active: true,
-          title: broadcastTitle,
-          videoId,
-        });
         publishCommandStatuses(payload.commands || []);
         await drainViewerAgent();
         await drainCaptureExecutor();

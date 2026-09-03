@@ -14,7 +14,7 @@ export const NEXTCHAT_MAX_LIVE_COMMENTS = 7;
 export const NEXTCHAT_MAX_ACTIONS = 3;
 export const NEXTCHAT_MAX_PAIRED_ROWS = 3;
 export const NEXTCHAT_COMMENT_FULL_OPACITY_MS = 12000;
-export const FOLLOW_UP_WINDOW_MS = 60_000;
+export const FOLLOW_UP_WINDOW_MS = 120_000;
 export const INTERPRETING_REPLY_TEXT = 'Interpreting request…';
 /** HUD-matching typewriter for GEV ACTIONS replies. */
 export const ACTION_REPLY_TYPE_STEP = 2;

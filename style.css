@@ -16914,6 +16914,146 @@ body {
   padding-left: 0.55rem !important;
 }
 
+/* Stable two-lane Youtube Chat: active exchanges above, complete feed below. */
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
+  display: grid !important;
+  grid-template-rows: minmax(13rem, 2fr) minmax(16rem, 3fr) !important;
+  gap: 0.55rem !important;
+  flex: 1 1 auto !important;
+  min-height: 30rem !important;
+  max-height: calc(100dvh - 7.5rem) !important;
+  overflow: hidden !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-card {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0.45rem 0.5rem !important;
+  border: 1px solid rgba(126, 240, 255, 0.24) !important;
+  border-radius: 0.45rem !important;
+  background: rgba(2, 12, 20, 0.76) !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-progress-card {
+  border-color: rgba(255, 210, 74, 0.3) !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-card-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex: 0 0 auto !important;
+  gap: 0.5rem !important;
+  padding-bottom: 0.3rem !important;
+  border-bottom: 1px solid rgba(126, 240, 255, 0.15) !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-card > .youtube-comments-status {
+  flex: 0 0 auto !important;
+  padding: 0.3rem 0 !important;
+  font-size: 9px !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-card > .youtube-comments-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  scrollbar-gutter: stable !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-conversation-turn {
+  display: block !important;
+  font: 800 10px/1.3 var(--font-mono) !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-followup-countdown {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  align-self: stretch !important;
+  gap: 0 !important;
+  margin: 0 0 0.35rem !important;
+  padding: 0.45rem 0.35rem !important;
+  border: 1px solid rgba(126, 240, 255, 0.4) !important;
+  border-radius: 0.35rem !important;
+  background: rgba(0, 31, 44, 0.78) !important;
+  box-shadow: inset 0 0 1.25rem rgba(0, 212, 255, 0.08) !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-followup-countdown-value {
+  color: #f5fdff !important;
+  -webkit-text-fill-color: #f5fdff !important;
+  font: 800 clamp(26px, 3vw, 38px)/0.95 var(--font-mono) !important;
+  letter-spacing: 0.08em !important;
+  text-shadow: 0 0 12px rgba(126, 240, 255, 0.62) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-followup-countdown-label {
+  margin-top: 0.3rem !important;
+  color: #7ef0ff !important;
+  -webkit-text-fill-color: #7ef0ff !important;
+  font: 800 8px/1 var(--font-mono) !important;
+  letter-spacing: 0.18em !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-followup-countdown.is-urgent {
+  border-color: rgba(255, 210, 74, 0.72) !important;
+  background: rgba(48, 30, 0, 0.78) !important;
+  animation: youtube-countdown-urgent 1s ease-in-out infinite alternate;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-followup-countdown.is-urgent .youtube-followup-countdown-value,
+#admin-stamp-stack #youtube-comments-panel .youtube-followup-countdown.is-urgent .youtube-followup-countdown-label {
+  color: #ffd24a !important;
+  -webkit-text-fill-color: #ffd24a !important;
+}
+
+@keyframes youtube-countdown-urgent {
+  from { box-shadow: inset 0 0 1rem rgba(255, 210, 74, 0.08), 0 0 0 rgba(255, 210, 74, 0); }
+  to { box-shadow: inset 0 0 1.4rem rgba(255, 210, 74, 0.16), 0 0 0.65rem rgba(255, 210, 74, 0.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #admin-stamp-stack #youtube-comments-panel .youtube-followup-countdown.is-urgent {
+    animation: none;
+  }
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-conversation-turn.is-agent-turn {
+  color: #ffd24a !important;
+  -webkit-text-fill-color: #ffd24a !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-conversation-turn.is-viewer-turn {
+  color: #9ff7d3 !important;
+  -webkit-text-fill-color: #9ff7d3 !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-agent-cta-urgent {
+  color: #ffd24a !important;
+  -webkit-text-fill-color: #ffd24a !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-progress-empty {
+  justify-content: center !important;
+  min-height: 5rem !important;
+  color: rgba(126, 240, 255, 0.62) !important;
+  text-align: center !important;
+}
+
+@media (max-height: 720px) {
+  #admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
+    grid-template-rows: minmax(10rem, 2fr) minmax(12rem, 3fr) !important;
+    min-height: 23rem !important;
+  }
+}
+
 
 /* LIVE Breaking News ticker MOVEd to the very top of the page. */
 :root {
@@ -17741,5 +17881,274 @@ body {
 #left-panel-stack > #cctv-panel .cctv-controls,
 #left-panel-stack > #cctv-panel .cctv-panel-inner > * {
   flex: 0 0 auto !important;
+  overflow: visible !important;
+}
+
+
+/* === GEV_EXPAND_ALL_LEFT_V1 ===
+   Sight-first: every left-nav instrument is full natural height.
+   Original Radio (ENABLE, STATION TAG, tuner, PREV/PLAY/NEXT/STOP,
+   volume, RADIO BROWSER) stays visible. No inner card scroll. */
+#left-panel-stack {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+#left-panel-stack > [data-panel-id],
+#left-panel-stack > #control-panel,
+#left-panel-stack > #location-bar,
+#left-panel-stack > #pp-toggles,
+#left-panel-stack > #cctv-panel,
+#left-panel-stack > #global-context-panel,
+#left-panel-stack > #radio-panel,
+#left-panel-stack > #data-panel {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack > [data-panel-id].collapsed,
+#left-panel-stack > #global-context-panel.collapsed,
+#left-panel-stack > #radio-panel.collapsed,
+#left-panel-stack > #cctv-panel.collapsed,
+#left-panel-stack > #pp-toggles.collapsed,
+#left-panel-stack > #data-panel.collapsed {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack #global-context-panel,
+#left-panel-stack #global-context-panel .global-context-panel-inner,
+#left-panel-stack #military-awareness-panel,
+#left-panel-stack .context-mode-view,
+#left-panel-stack .context-mode-view[hidden],
+#left-panel-stack #context-flights-view,
+#left-panel-stack #context-missions-view {
+  display: flex !important;
+  flex-direction: column !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack #radio-panel,
+#left-panel-stack #radio-panel.collapsed,
+#left-panel-stack #global-context-panel.collapsed #radio-panel,
+#left-panel-stack .radio-panel-inner,
+#left-panel-stack #radio-panel.collapsed .radio-panel-inner {
+  display: flex !important;
+  flex-direction: column !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  width: 100% !important;
+}
+
+#left-panel-stack #radio-panel .radio-panel-inner > *,
+#left-panel-stack #radio-panel.collapsed .radio-panel-inner > :not(.panel-header),
+#left-panel-stack .radio-directory-row,
+#left-panel-stack #radio-station-card,
+#left-panel-stack #radio-tuner,
+#left-panel-stack #radio-tuner[hidden],
+#left-panel-stack .radio-transport,
+#left-panel-stack .radio-volume-row,
+#left-panel-stack #radio-playback-state,
+#left-panel-stack .radio-links,
+#left-panel-stack .radio-privacy {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack .radio-transport {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+#left-panel-stack .radio-volume-row {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+#left-panel-stack #radio-enable-btn,
+#left-panel-stack #radio-filter,
+#left-panel-stack .radio-transport button {
+  min-height: 32px !important;
+}
+
+#left-panel-stack .contact-roster,
+#left-panel-stack .contact-roster-list,
+#left-panel-stack #contact-roster-list,
+#left-panel-stack .space-mission-roster,
+#left-panel-stack .space-mission-roster-list,
+#left-panel-stack #space-mission-roster-list,
+#left-panel-stack .data-toggle-list,
+#left-panel-stack #data-toggles,
+#left-panel-stack #pp-toggles .pp-toggle-group,
+#left-panel-stack #param-slider-panel,
+#left-panel-stack #param-slider-panel.active,
+#left-panel-stack #cctv-panel .cctv-panel-inner,
+#left-panel-stack #cctv-panel .cctv-controls,
+#left-panel-stack #location-bar,
+#left-panel-stack #control-panel {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack .context-radio-mini {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  display: none !important;
+}
+
+#left-panel-stack .context-radio-toggle,
+#left-panel-stack #context-radio-toggle-btn,
+#left-panel-stack #context-radio-mini-close-btn,
+#left-panel-stack #context-radio-details-btn {
+  display: none !important;
+}
+
+
+/* === GEV_EXPAND_ALL_LEFT_V2 ===
+   Kill leftover max-height / inner scroll on left-nav lists.
+   Cards grow to natural height; only #left-panel-stack itself scrolls. */
+#left-panel-stack > [data-panel-id],
+#left-panel-stack > #location-bar,
+#left-panel-stack > #control-panel,
+#left-panel-stack > #cctv-panel,
+#left-panel-stack > #global-context-panel {
+  --right-panel-allocated-height: unset !important;
+  height: auto !important;
+  max-height: none !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack #location-bar,
+#left-panel-stack #youtube-panel .youtube-panel-inner,
+#left-panel-stack #scene-panel .scene-panel-inner,
+#left-panel-stack #cctv-panel,
+#left-panel-stack #cctv-panel .cctv-panel-inner,
+#left-panel-stack #data-panel,
+#left-panel-stack #data-panel .data-panel-inner {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack #youtube-feed-list,
+#left-panel-stack #scene-shot-list,
+#left-panel-stack .scene-shot-list,
+#left-panel-stack .youtube-feed-list,
+#left-panel-stack .contact-roster-list,
+#left-panel-stack #contact-roster-list,
+#left-panel-stack .space-mission-roster-list,
+#left-panel-stack #space-mission-roster-list,
+#left-panel-stack #data-toggles,
+#left-panel-stack .data-toggle-list {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack.layout-focus > [data-panel-id]:not(.collapsed),
+#left-panel-stack.layout-focus > #cctv-panel:not(.collapsed),
+#left-panel-stack.layout-focus > #global-context-panel:not(.collapsed),
+#left-panel-stack.layout-focus > #pp-toggles:not(.collapsed) {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+
+/* === GEV_EXPAND_SCENES_V3 ===
+   SCENES shot list full natural height. Kill the 160px cap. */
+#left-panel-stack #scene-panel #scene-shot-list,
+#left-panel-stack #scene-panel .scene-shot-list,
+#left-panel-stack #scene-shot-list.scene-shot-list,
+body #left-panel-stack #scene-shot-list {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  overflow-y: visible !important;
+  margin-bottom: 8px !important;
+}
+
+#left-panel-stack #scene-panel,
+#left-panel-stack #scene-panel .scene-panel-inner,
+#left-panel-stack #scene-panel .scene-controls {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+
+/* === GEV_YOUTUBE_SETTINGS_IN_ADMIN_V1 ===
+   Original #youtube-panel lives in ADMIN → YouTube Settings.
+   Never leave a left-nav clone. */
+#left-panel-stack > #youtube-panel {
+  display: none !important;
+}
+
+#admin-console .admin-pane[data-admin-pane="youtube-settings"] {
+  display: block;
+  width: 100%;
+  max-width: 42rem;
+  padding: 0.75rem 1rem 1.25rem;
+  box-sizing: border-box;
+}
+
+#admin-console .admin-pane[data-admin-pane="youtube-settings"][hidden] {
+  display: none !important;
+}
+
+#admin-console #youtube-panel,
+#admin-console #youtube-panel.panel-collapsible {
+  position: relative !important;
+  inset: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  pointer-events: auto !important;
+  z-index: auto !important;
+}
+
+#admin-console #youtube-panel .youtube-panel-inner {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#admin-console #youtube-panel .panel-collapse-btn {
+  display: none !important;
+}
+
+#admin-console #youtube-feed-list {
+  max-height: none !important;
   overflow: visible !important;
 }

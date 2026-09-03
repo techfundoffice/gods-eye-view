@@ -11,6 +11,7 @@ import {
   MEMORY_POLL_IDLE_MS,
   MEMORY_POLL_LIVE_MS,
   createYoutubeHomepageInteraction,
+  formatFollowUpCountdown,
   memoryPollDelay,
 } from './youtubeHomepageInteraction.js';
 import { PUBLIC_HELP_REPLY } from './youtubePublicCommandPolicy.js';
@@ -420,15 +421,20 @@ test('visible Youtube conversation renders result first with UTC headers, verifi
     querySelector(selector) { return this.refs?.[selector] || null; }
   }
   const list = new Element('ol');
+  const progressList = new Element('ol');
   const root = new Element('section');
   root.refs = {
     '#youtube-comments-list': list,
+    '#youtube-progress-list': progressList,
+    '#youtube-progress-status': new Element(),
+    '#youtube-progress-count': new Element(),
     '#youtube-comments-status': new Element(),
     '#youtube-comments-video': new Element(),
     '#youtube-comments-count': new Element(),
     '#youtube-comments-refresh': new Element('button'),
     '#youtube-comments-more': new Element('button'),
   };
+  let currentTime = Date.parse('2026-09-02T14:01:00.000Z');
   const interaction = createYoutubeHomepageInteraction({
     nextchat: { publishViewerMessage() {}, upsertLiveComment() {}, updateAgentReply() {}, setHarnessStatus() {} },
     runner: async (action, args) => ({
@@ -437,7 +443,7 @@ test('visible Youtube conversation renders result first with UTC headers, verifi
       viewMode: args.viewMode,
       action,
     }),
-    now: () => Date.parse('2026-09-02T14:01:00.000Z'),
+    now: () => currentTime,
     documentRef: {
       createElement: (tagName) => new Element(tagName),
       getElementById: (id) => id === 'youtube-comments-panel' ? root : null,
@@ -454,13 +460,51 @@ test('visible Youtube conversation renders result first with UTC headers, verifi
     actions: [{ action: 'fly_to_location', args: { query: 'Ensenada, Mexico', viewMode: 'street' } }],
   }]);
 
-  const exchange = list.children[0];
+  assert.equal(list.children[0].children[0].textContent, '@viewerhandle · 14:00 UTC');
+  assert.equal(list.children[0].children[1].textContent, 'Navigate to Ensenada, Mexico');
+  const exchange = progressList.children[0];
   assert.equal(exchange.children[0].className, 'youtube-agent-reply');
-  assert.equal(exchange.children[0].children[0].textContent, 'CLOUD COMPUTER AI.COM REPLY · 14:01 UTC');
-  assert.match(exchange.children[0].children[2].textContent, /I NAVIGATED TO ENSENADA, MEXICO · STREET VIEW/);
-  assert.match(exchange.children[0].children[3].textContent, /YOU HAVE 1 MINUTE TO ASK: ALTITUDE/);
+  assert.equal(exchange.children[0].children[0].className, 'youtube-followup-countdown');
+  assert.equal(exchange.children[0].children[0].children[0].textContent, '2:00');
+  assert.equal(exchange.children[0].children[0].children[1].textContent, 'TIME LEFT TO REPLY');
+  assert.equal(exchange.children[0].children[1].textContent, "@viewerhandle'S TURN");
+  assert.equal(exchange.children[0].children[2].textContent, 'CLOUD COMPUTER AI.COM REPLY · 14:01 UTC');
+  assert.match(exchange.children[0].children[4].textContent, /I NAVIGATED TO ENSENADA, MEXICO · STREET VIEW/);
+  assert.match(exchange.children[0].children[5].textContent, /REPLY TO ASK: ALTITUDE/);
   assert.equal(exchange.children[1].textContent, '@viewerhandle · 14:00 UTC');
   assert.equal(exchange.children[2].textContent, 'Navigate to Ensenada, Mexico');
+
+  await interaction.ingest([{
+    id: 'ordinary-1',
+    videoId: '',
+    author: 'Another Viewer',
+    authorHandle: '@another',
+    text: 'This should keep the general chat moving',
+    publishedAt: '2026-09-02T14:01:30.000Z',
+    actions: [],
+  }]);
+  assert.equal(list.children.length, 2, 'all comments keeps receiving ordinary chat');
+  assert.equal(progressList.children.length, 1, 'ordinary chat does not displace the active conversation');
+
+  currentTime += 120_001;
+  await interaction.ingest([{
+    id: 'ordinary-2',
+    videoId: '',
+    author: 'Third Viewer',
+    authorHandle: '@third',
+    text: 'The feed continues after another viewer expires',
+    publishedAt: '2026-09-02T14:03:01.000Z',
+    actions: [],
+  }]);
+  assert.equal(list.children.length, 3);
+  assert.equal(progressList.children.length, 1);
+  assert.equal(progressList.children[0].textContent, 'WAITING FOR A VIEWER REQUEST');
+});
+
+test('follow-up countdown displays the complete remaining two-minute window', () => {
+  assert.equal(formatFollowUpCountdown(120_000), '2:00');
+  assert.equal(formatFollowUpCountdown(30_001), '0:31');
+  assert.equal(formatFollowUpCountdown(0), '0:00');
 });
 
 test('an actionable comment received before globe startup is queued and runs when the runner attaches', async () => {

@@ -7130,12 +7130,21 @@ export class StyleManager {
     // above deliberately skips) — churn that reads as a genuine panel move to
     // the world-overlay host's occluder observer and defeats parked-idle
     // render savings. Only a real allocation change may touch the attribute.
+    if (stack.id === 'left-panel-stack') {
+      // GEV_EXPAND_ALL_LEFT_V1: never clip CONTEXT/Radio/CCTV to a stack budget.
+      for (const panel of panels) {
+        panel.style.removeProperty('--right-panel-allocated-height');
+        panel.style.removeProperty('max-height');
+        panel.style.removeProperty('height');
+      }
+    } else {
     expandedPanels.forEach((panel, index) => {
       const next = `${expandedHeights[index].toFixed(1)}px`;
       if (panel.style.getPropertyValue('--right-panel-allocated-height') !== next) {
         panel.style.setProperty('--right-panel-allocated-height', next);
       }
     });
+    }
     for (const panel of panels) {
       if (expandedPanels.includes(panel)) continue;
       panel.style.removeProperty('--right-panel-allocated-height');

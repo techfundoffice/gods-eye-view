@@ -59,6 +59,11 @@ export const ADMIN_MENU_ITEMS = Object.freeze([
     description: 'Capture the globe with headless Chromium and push it to YouTube over RTMP.',
   },
   {
+    id: 'youtube-settings',
+    label: 'YouTube Settings',
+    description: 'Sign in, pick channel / broadcast, chat poll, and agent view.',
+  },
+  {
     id: 'openrouter',
     label: 'OpenRouter',
     description: 'API key and model for YouTube comment actions.',
