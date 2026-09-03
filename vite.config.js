@@ -7693,6 +7693,38 @@ export function youtubeProxy({
     getOwnerCall,
   });
   const envStreamKey = String(process.env.YOUTUBE_STREAM_KEY || '').trim();
+  let autoGoLiveRetryTimer = null;
+  const scheduleAutoGoLiveTransition = (delayMs = 0) => {
+    if (autoGoLiveRetryTimer) clearTimeout(autoGoLiveRetryTimer);
+    autoGoLiveRetryTimer = setTimeout(() => {
+      autoGoLiveRetryTimer = null;
+      void (async () => {
+        try {
+          const authorization = await oauth.findWritableAuthorization();
+          if (!authorization?.canWrite) return;
+          const result = await goLiveNow({ authorization });
+          await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+            status: result.live?.status || 'posted',
+            watchUrl: result.broadcast?.watchUrl || '',
+            liveStatus: result.live?.status || '',
+            source: 'authenticated-auto-transition',
+            at: new Date().toISOString(),
+          })}\n`);
+        } catch (error) {
+          await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
+            status: 'error',
+            error: { kind: error?.kind || 'invalid', message: error?.message || 'automatic go-live transition failed' },
+            source: 'authenticated-auto-transition',
+            at: new Date().toISOString(),
+          })}\n`);
+          if (error?.kind === 'quota' || error?.status === 403) {
+            scheduleAutoGoLiveTransition(30 * 60 * 1000);
+          }
+        }
+      })();
+    }, Math.max(0, delayMs));
+    autoGoLiveRetryTimer.unref?.();
+  };
   if (autoGoLiveEnabled() && envStreamKey) {
     const ingestUrl = String(process.env.YOUTUBE_INGEST_URL || 'rtmps://a.rtmp.youtube.com/live2').trim();
     const watchUrl = envWatchUrl();
@@ -7705,6 +7737,7 @@ export function youtubeProxy({
         source: 'env-stream-key',
         at: new Date().toISOString(),
       })}\n`);
+      scheduleAutoGoLiveTransition(5_000);
     }).catch(async (error) => {
       await fsp.writeFile('/tmp/gev-go-now-result.json', `${JSON.stringify({
         status: 'error',
