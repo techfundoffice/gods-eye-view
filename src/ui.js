@@ -9154,7 +9154,7 @@ export class StyleManager {
 
     // Update style indicator
     const displayNames = { surveillance: 'NVG', thermal: 'FLIR', retro: 'CRT' };
-    this._styleIndicator.textContent = displayNames[styleName] || styleName.toUpperCase();
+    this._styleIndicator.textContent = displayNames[styleName] || (styleName.charAt(0).toUpperCase() + styleName.slice(1).toLowerCase());
     this._updateStyleMiniStatus(styleName);
 
     // Update parameter sliders

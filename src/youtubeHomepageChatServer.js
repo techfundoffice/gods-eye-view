@@ -133,6 +133,7 @@ function publicFeedBody(identity, extras = {}) {
   return {
     active: verifiedLive,
     status: verifiedLive ? 'live' : status,
+    channelHandle: boundedText(identity.channelHandle, 80),
     videoId: verifiedLive || status === 'connecting' ? boundedText(identity.videoId, 80) : '',
     title: verifiedLive || status === 'connecting' ? boundedText(identity.title, 120) : '',
     watchUrl: verifiedLive || status === 'connecting' ? boundedText(identity.watchUrl, 240) : '',

@@ -2596,19 +2596,17 @@ function createVoiceControl({ reset = false } = {}) {
         <div class="gev-voice-error-hint">Check microphone permission and network access, then try again.</div>
       </div>
     `;
-    const host = document.getElementById("left-panel-stack")
-      || document.getElementById("first-run-launcher")
+    const host = document.getElementById("top-center-actions")
+      || document.getElementById("left-panel-stack")
       || document.body;
-    if (host.firstChild) host.insertBefore(root, host.firstChild);
-    else host.appendChild(root);
+    host.appendChild(root);
     root.querySelector('.gev-voice-error-dismiss')?.addEventListener('click', () => {
       root.classList.add('error-dismissed');
     });
   }
-  const leftNav = document.getElementById("left-panel-stack")
-    || document.getElementById("first-run-launcher");
-  if (leftNav && root.parentElement !== leftNav) {
-    leftNav.insertBefore(root, leftNav.firstChild);
+  const cluster = document.getElementById("top-center-actions");
+  if (cluster && root.parentElement !== cluster) {
+    cluster.appendChild(root);
   }
   return {
     root,

@@ -113,6 +113,7 @@ export function createLiveCommentIngestWorker({
   clock = globalThis,
   discoveryTtlMs = LIVE_DISCOVERY_TTL_MS,
 } = {}) {
+  const normalizedChannelHandle = String(channelHandle || '').trim().replace(/^@/, '');
   let stopped = true;
   let timer = null;
   let continuation = '';
@@ -159,6 +160,7 @@ export function createLiveCommentIngestWorker({
     return {
       active: live,
       status,
+      channelHandle: normalizedChannelHandle ? `@${normalizedChannelHandle}` : '',
       videoId: live || status === 'connecting' ? videoId : '',
       title: live || status === 'connecting' ? title : '',
       watchUrl: live || status === 'connecting' ? watchUrl : '',
@@ -179,7 +181,7 @@ export function createLiveCommentIngestWorker({
     if (!stale && videoId) {
       return { videoId, title, watchUrl, isLive: true, status: 'live' };
     }
-    const live = await discoverLive({ channelHandle });
+    const live = await discoverLive({ channelHandle: normalizedChannelHandle });
     discoveredAt = now();
     return live;
   }

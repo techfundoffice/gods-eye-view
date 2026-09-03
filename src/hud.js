@@ -302,10 +302,13 @@ export class IntelHUD {
     }
     if (chat && chat.parentElement !== stack) stack.appendChild(chat);
 
-    const title = document.getElementById("title-bar");
     const styleInd = document.getElementById("style-indicator");
-    if (title && styleInd && styleInd.parentElement !== title) {
-      title.appendChild(styleInd);
+    const presetsHost = document.getElementById("control-panel-popover")
+      || document.getElementById("control-panel");
+    if (styleInd && presetsHost && styleInd.parentElement !== presetsHost) {
+      const pin = presetsHost.querySelector(":scope > .dock-pin-btn");
+      if (pin) pin.insertAdjacentElement("afterend", styleInd);
+      else presetsHost.insertBefore(styleInd, presetsHost.firstChild);
     }
 
     const ticker = document.getElementById("live-news-ticker");
@@ -327,12 +330,9 @@ export class IntelHUD {
       leftNav.insertBefore(logo, leftNav.firstChild);
     }
     const voice = document.getElementById("gev-voice-control");
-    if (leftNav && voice) {
-      const afterLogo = (logo && logo.parentElement === leftNav) ? logo.nextSibling : leftNav.firstChild;
-      if (voice.parentElement !== leftNav || (logo && logo.parentElement === leftNav && voice.previousElementSibling !== logo)) {
-        if (afterLogo) leftNav.insertBefore(voice, afterLogo);
-        else leftNav.insertBefore(voice, leftNav.firstChild);
-      }
+    const cluster = document.getElementById("top-center-actions");
+    if (cluster && voice && voice.parentElement !== cluster) {
+      cluster.appendChild(voice);
     }
   }
 

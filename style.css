@@ -50,7 +50,7 @@ html, body {
 /* YouTube-visible globe: layout is TOP-DOWN. Title + quote occupy a north
    band first; Earth fills the rectangle under that header and above a compact
    south strip. Do not pin the public frame from the bottom-up — 720p YouTube
-   viewers must see CLOUD COMPUTER AI.COM / NO PLACE LEFT BEHIND before docks. */
+   viewers must see CLOUD COMPUTER AI.COM / You're not watching this your flying it before docks. */
 :root {
   --youtube-mc-band: min(17rem, calc(100vw - 5rem));
   --youtube-north-band: 7.25rem;
@@ -17347,5 +17347,152 @@ body {
 }
 
 #left-panel-stack #control-panel .dock-pin-btn {
+  display: none !important;
+}
+
+
+/* === GEV_HIDE_LEFT_NAV_LOGO_V1 ===
+   Hide the cloud/monitor brand mark in the left column. */
+#left-panel-stack > .title-logo,
+#left-panel-stack > .brand-logo,
+#left-panel-stack .title-logo,
+#left-panel-stack .brand-logo {
+  display: none !important;
+}
+
+
+/* === GEV_STYLE_INDICATOR_IN_PRESETS_V1 ===
+   ACTIVE STYLE readout lives in Visual Presets, not the title bar. */
+#control-panel #style-indicator,
+#left-panel-stack #control-panel #style-indicator {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  margin: 0 0 0.3rem !important;
+  padding: 0.1rem 0.15rem 0.25rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 0.05rem !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  z-index: auto !important;
+  pointer-events: none !important;
+}
+#control-panel #style-indicator .indicator-label {
+  font-size: 0.58rem !important;
+  letter-spacing: 0.08em !important;
+}
+#control-panel #style-indicator .indicator-value,
+#control-panel #style-indicator #active-style-name {
+  font-size: 0.85rem !important;
+}
+#title-bar > #style-indicator {
+  display: none !important;
+}
+
+
+/* === GEV_HIDE_WASHED_PRESETS_HEADER_V1 ===
+   The white blur is the VISUAL PRESETS collapse header at unreadable contrast.
+   ACTIVE STYLE is the section title now; keep the panel expanded. */
+#left-panel-stack > #control-panel > .panel-inner > #control-panel-toggle,
+#left-panel-stack #control-panel #control-panel-toggle.panel-header {
+  display: none !important;
+}
+#left-panel-stack #control-panel .panel-glow {
+  display: none !important;
+}
+
+
+/* === GEV_ACTIVE_STYLE_ONE_ROW_V1 === */
+#control-panel #style-indicator,
+#left-panel-stack #control-panel #style-indicator {
+  flex-direction: row !important;
+  align-items: baseline !important;
+  gap: 0.35rem !important;
+  white-space: nowrap !important;
+}
+#control-panel #style-indicator .indicator-label {
+  font-size: 0.72rem !important;
+  letter-spacing: 0.04em !important;
+  text-transform: none !important;
+}
+#control-panel #style-indicator .indicator-value,
+#control-panel #style-indicator #active-style-name {
+  font-size: 0.72rem !important;
+  text-transform: none !important;
+}
+
+
+/* === GEV_MIC_IN_TOP_CENTER_ACTIONS_V1 ===
+   Original mic MOVEs into #top-center-actions with clear/share/globe. */
+#top-center-actions > #gev-voice-control,
+#top-center-actions > #gev-voice-control[data-status],
+#top-center-actions > #gev-voice-control[data-status='error'],
+#top-center-actions > #gev-voice-control[data-status='listening'] {
+  position: relative !important;
+  inset: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+}
+#top-center-actions > #gev-voice-control .gev-voice-heading,
+#top-center-actions > #gev-voice-control .gev-voice-visualizer,
+#top-center-actions > #gev-voice-control .gev-voice-readout,
+#top-center-actions > #gev-voice-control .gev-voice-help-tray,
+#top-center-actions > #gev-voice-control .gev-voice-error-tray,
+#top-center-actions > #gev-voice-control .gev-mic-label {
+  display: none !important;
+}
+#top-center-actions > #gev-voice-control #gev-voice-button {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #fff !important;
+}
+#top-center-actions > #gev-voice-control .gev-mic-orbit,
+#top-center-actions > #gev-voice-control .gev-mic-orbit img {
+  width: 18px !important;
+  height: 18px !important;
+  filter: brightness(0) invert(1);
+}
+#top-center-actions > #gev-voice-control[data-status='listening'] #gev-voice-button,
+#top-center-actions > #gev-voice-control[data-status='executing'] #gev-voice-button {
+  border-color: #7af0ff !important;
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.45) !important;
+}
+#top-center-actions > #gev-voice-control[data-status='error'] #gev-voice-button {
+  border-color: #ff6b7d !important;
+}
+#left-panel-stack > #gev-voice-control {
   display: none !important;
 }

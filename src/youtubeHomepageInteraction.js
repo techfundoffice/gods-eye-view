@@ -617,11 +617,15 @@ export function createYoutubeHomepageInteraction({
         videoId = nextVideoId;
         generation = nextGeneration;
         broadcastTitle = safeText(payload.title, 100);
+        const channelHandle = safeText(payload.channelHandle, 80);
         nextchat?.setLiveBroadcast?.({ videoId, generation });
         commandsEnabled = payload.commandsEnabled === true;
         continuation = safeText(payload.nextPageToken, 4096) || continuation;
         setTickerUrl(payload.watchUrl, true);
-        setStatus(`YT LIVE · showing every comment from ${safeText(payload.title || videoId, 100)}`, 'live');
+        setStatus(
+          `YT LIVE · ${channelHandle ? `${channelHandle} · ` : ''}showing every comment from ${safeText(payload.title || videoId, 100)}`,
+          'live',
+        );
         await ingest(payload.items || []);
         renderLiveCommentsPanel({
           active: true,

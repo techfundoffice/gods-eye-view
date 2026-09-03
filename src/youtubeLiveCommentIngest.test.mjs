@@ -73,6 +73,7 @@ test('ingest worker fills a buffer from InnerTube and homepage feed reads memory
   worker.start();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(worker.snapshot().active, true);
+  assert.equal(worker.snapshot().channelHandle, '@TechfundOffice');
   assert.equal(worker.snapshot().videoId, '9ZiwwXr-qU4');
   assert.equal(worker.snapshot().items[0].authorDetails.displayName, 'cloudcomputerai');
 
