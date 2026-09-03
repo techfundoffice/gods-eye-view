@@ -265,12 +265,25 @@ export class IntelHUD {
       if (top) cluster.appendChild(top);
     }
     this._placeRecStampUnderAdmin();
+    this._placeCommandDockInLeftStack();
   }
 
   /**
    * MOVE original .hud-top-right (REC / ORB) flush under #admin-launch.
    * Wrapper is created once; nodes are moved, never cloned.
    */
+
+  /**
+   * Keep LOCATION / PRESETS in the same left column as Data Layers so the
+   * page can grow instead of overlaying those panels.
+   */
+  _placeCommandDockInLeftStack() {
+    const stack = document.getElementById("left-panel-stack");
+    const dock = document.getElementById("command-dock");
+    if (!stack || !dock) return;
+    if (dock.parentElement !== stack) stack.appendChild(dock);
+  }
+
   _placeRecStampUnderAdmin() {
     const launch = document.getElementById("admin-launch");
     const stamp = (this._el && this._el.querySelector(".hud-top-right"))

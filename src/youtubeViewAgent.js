@@ -52,10 +52,10 @@ export function validateViewIntent(value) {
     const query = boundedText(args.query, 160);
     const latitude = Number(args.latitude);
     const longitude = Number(args.longitude);
-    if (query) safeArgs = { query, viewMode: 'close' };
+    if (query) safeArgs = { query, viewMode: 'overview' };
     else if (Number.isFinite(latitude) && latitude >= -90 && latitude <= 90
       && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180) {
-      safeArgs = { latitude, longitude, viewMode: 'close' };
+      safeArgs = { latitude, longitude, viewMode: 'overview' };
     } else return { ok: false, reason: 'Location request is missing a valid place or coordinates' };
   } else if (action === 'set_layer_visibility') {
     const layerId = boundedText(args.layerId, 80);

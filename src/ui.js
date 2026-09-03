@@ -6853,11 +6853,18 @@ export class StyleManager {
         this._ppToggles.querySelector('.pp-header-row')?.removeAttribute('title');
         dock.appendChild(this._ppToggles);
       }
-      if (this._cctvPanel) {
-        resetFloating(this._cctvPanel);
+    }
+    if (this._cctvPanel) {
+      resetFloating(this._cctvPanel);
+      const leftStack = document.getElementById('left-panel-stack');
+      const dataPanel = document.getElementById('data-panel');
+      if (leftStack) {
+        if (dataPanel && dataPanel.parentElement === leftStack) dataPanel.after(this._cctvPanel);
+        else leftStack.appendChild(this._cctvPanel);
+      } else if (dock) {
         dock.appendChild(this._cctvPanel);
-        this._syncPanelCollapseButton(this._cctvPanel);
       }
+      this._syncPanelCollapseButton(this._cctvPanel);
     }
     const globalContextPanel = document.getElementById('global-context-panel');
     if (this._sliderPanel) {

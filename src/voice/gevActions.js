@@ -2340,9 +2340,10 @@ async function flyToRequestedLocation(viewer, args, {
     const destination = await searchAndFlyTo(viewer, query, {
       ...(rangeM ? { range: rangeM } : {}),
       forceClose: args.viewMode === 'close',
+      skipViewBias: args.viewMode !== 'close',
       // 'overview' frames the geocode viewport even for precise-place results —
       // previously dropped here, so "overview of Zilker Park" flew to a rooftop.
-      viewMode: args.viewMode || null,
+      viewMode: args.viewMode || 'overview',
       duration: 2.2,
       ...arrivalHooks,
       beforeFly: managedDeferred ? () => reassertDeferred(generation) : null,

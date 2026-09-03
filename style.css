@@ -15045,3 +15045,275 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
   max-width: var(--youtube-chat-rail-width) !important;
   transform: none !important;
 }
+
+
+/* ═══════════════════════════════════════════════
+   2026-09-02 left column: one vertical stack, no overlays.
+   Mission Control / Data Layers / CCTV / YouTube / Scenes sit in
+   #left-panel-stack. LOCATION + VISUAL PRESETS sit under them in
+   #command-dock. Same left edge, same width, above/below only.
+   ═══════════════════════════════════════════════ */
+:root {
+  --left-col-x: max(0.65rem, env(safe-area-inset-left));
+  --left-col-w: var(--youtube-mc-band);
+  --left-dock-h: min(38vh, 20rem);
+}
+
+#mission-control-nav {
+  left: var(--left-col-x) !important;
+  width: var(--left-col-w) !important;
+  top: var(--youtube-north-band) !important;
+  bottom: auto !important;
+  height: auto !important;
+  max-height: calc(100dvh - var(--youtube-north-band) - var(--youtube-south-band) - var(--left-dock-h)) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.45rem !important;
+  overflow: hidden !important;
+}
+
+#mission-control-nav:not(:has(#first-run-launcher.visible)) {
+  height: 0 !important;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+#first-run-launcher,
+#first-run-launcher.visible {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  overflow: auto !important;
+}
+
+#left-panel-stack {
+  position: fixed !important;
+  left: var(--left-col-x) !important;
+  right: auto !important;
+  width: var(--left-col-w) !important;
+  max-width: var(--left-col-w) !important;
+  top: var(--youtube-north-band) !important;
+  bottom: calc(var(--youtube-south-band) + var(--left-dock-h)) !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 0.45rem !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  pointer-events: none !important;
+  z-index: 146 !important;
+}
+
+#left-panel-stack > #data-panel,
+#left-panel-stack > #cctv-panel,
+#left-panel-stack > #youtube-panel,
+#left-panel-stack > #scene-panel,
+#left-panel-stack > #global-context-panel {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  flex: 0 0 auto !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+
+#left-panel-stack.layout-focus > [data-panel-id].collapsed,
+#left-panel-stack.layout-tail > [data-panel-id].collapsed {
+  display: flex !important;
+}
+
+#command-dock {
+  position: fixed !important;
+  left: var(--left-col-x) !important;
+  right: auto !important;
+  width: var(--left-col-w) !important;
+  max-width: var(--left-col-w) !important;
+  bottom: var(--youtube-south-band) !important;
+  top: auto !important;
+  transform: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-end !important;
+  gap: 0.4rem !important;
+  height: auto !important;
+  max-height: var(--left-dock-h) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  z-index: 146 !important;
+  padding: 0.3rem !important;
+}
+
+#command-dock > #location-bar,
+#command-dock > #control-panel,
+#command-dock > #gev-voice-control,
+#first-run-launcher > #location-bar,
+#first-run-launcher > #gev-voice-control {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  height: auto !important;
+  transform: none !important;
+  grid-area: auto !important;
+}
+
+#command-dock .dock-popover-content,
+#command-dock #control-panel-popover,
+#command-dock #location-bar .dock-popover-content {
+  position: relative !important;
+  inset: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#command-dock #style-buttons.button-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+}
+
+.hud-top-left,
+.hud-bottom-left,
+.hud-left-edge {
+  left: calc(var(--left-col-x) + var(--left-col-w) + 0.5rem) !important;
+}
+
+
+/* ═══════════════════════════════════════════════
+   2026-09-02 ticker + COMMANDS to the north.
+   The page grows instead of clipping the left column.
+   Ticker was the south edge; it is now the north edge.
+   COMMANDS sits directly under it. Title / globe / left
+   stack start below both strips. South band collapses.
+   ═══════════════════════════════════════════════ */
+:root {
+  --youtube-south-band: 0.35rem;
+  --youtube-north-band: calc(
+    var(--live-news-ticker-height, 2rem) +
+    var(--broadcast-legend-height, 2rem) +
+    7.25rem
+  );
+}
+
+html, body {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.live-news-ticker {
+  top: 0 !important;
+  bottom: auto !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid rgba(255, 92, 92, 0.62) !important;
+  box-shadow: 0 0.35rem 1.2rem rgba(112, 0, 0, 0.24) !important;
+  padding-top: calc(0.38rem + env(safe-area-inset-top)) !important;
+  padding-bottom: 0.38rem !important;
+}
+
+#gev-command-legend {
+  top: calc(var(--live-news-ticker-height, 2rem) + env(safe-area-inset-top)) !important;
+  bottom: auto !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.2) !important;
+}
+
+#title-bar {
+  top: calc(var(--live-news-ticker-height, 2rem) + var(--broadcast-legend-height, 2rem) + 0.2rem) !important;
+}
+
+#style-indicator,
+#admin-stamp-stack,
+#top-center-actions {
+  top: calc(var(--live-news-ticker-height, 2rem) + var(--broadcast-legend-height, 2rem) + 0.35rem) !important;
+}
+
+#cesiumContainer {
+  top: var(--youtube-north-band) !important;
+  bottom: 0 !important;
+}
+
+#admin-console {
+  inset: calc(var(--live-news-ticker-height, 2rem) + var(--broadcast-legend-height, 2rem)) 0 0 0 !important;
+}
+
+#left-panel-stack,
+#left-panel-stack *,
+#command-dock,
+#mission-control-nav,
+#first-run-launcher {
+  scrollbar-width: none !important;
+}
+
+#left-panel-stack *::-webkit-scrollbar,
+#command-dock::-webkit-scrollbar,
+#mission-control-nav::-webkit-scrollbar,
+#first-run-launcher::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+#left-panel-stack {
+  position: absolute !important;
+  top: var(--youtube-north-band) !important;
+  bottom: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#left-panel-stack > #data-panel,
+#left-panel-stack > #cctv-panel,
+#left-panel-stack > #youtube-panel,
+#left-panel-stack > #scene-panel,
+#left-panel-stack > #command-dock {
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+#command-dock {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  height: auto !important;
+  transform: none !important;
+  overflow: visible !important;
+  margin-top: 0.45rem !important;
+}
+
+#mission-control-nav {
+  top: var(--youtube-north-band) !important;
+  bottom: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}

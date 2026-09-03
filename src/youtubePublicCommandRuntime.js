@@ -193,6 +193,7 @@ export function createYoutubePublicCommandRuntime({
 
   async function statuses(binding = {}) {
     await reconcileBinding(binding);
+    coordinator.tick?.();
     const target = bindingWithExecutor(binding);
     const rows = await ledger.list();
     return rows
@@ -215,7 +216,8 @@ export function createYoutubePublicCommandRuntime({
       const received = rows.find((row) => row.state === 'received'
         && row.videoId === target.videoId
         && row.generation === target.generation
-        && row.captureExecutorId === target.captureExecutorId);
+        && row.captureExecutorId === target.captureExecutorId
+        && !(Number(row.holdUntil) > Date.now()));
       if (received) {
         const claimed = await ledger.compareAndSet(received.id, 'received', {
           state: 'interpreting',

@@ -438,7 +438,10 @@ export async function searchAndFlyTo(viewer, query, options = {}) {
 
   // Frame the geocode viewport for area-like modes — and for an EXPLICIT overview ask
   // ("give me an overview of X"), which previously fell through to building range.
-  if (!requestedRange && !options.forceClose
+  const closeLandmarkOnly = options.forceClose === true && !shouldFrameGeocodeViewport(navigationMode);
+  // Close is for buildings/streets. Cities still frame their viewport so
+  // "navigate to Los Angeles" is a city-scale satellite view, not a 250 m white ball.
+  if (!requestedRange && !closeLandmarkOnly
       && (shouldFrameGeocodeViewport(navigationMode) || explicitOverview)) {
     // Natural regions (mountain ranges, deserts, seas) geocode as area-overview with
     // enormous viewports — fitting the whole box flies the camera to space (owner field

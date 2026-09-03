@@ -86,7 +86,7 @@ export function inferHomepageViewerActions(text) {
   if (/\bearthquakes?\b/.test(lower)) {
     actions.push({ action: 'set_layer_visibility', args: { layerId: 'earthquakes', enabled: true } });
   }
-  actions.push({ action: 'fly_to_location', args: { query: location, viewMode: 'close' } });
+  actions.push({ action: 'fly_to_location', args: { query: location, viewMode: 'overview' } });
   return actions
     .map((intent) => validateViewIntent(intent))
     .filter((checked) => checked.ok && checked.intent?.action !== 'ignore')

@@ -12,7 +12,7 @@ import {
 } from './openrouterFreeClient.js';
 import { gevOpenRouterTools } from './gevApi.js';
 
-const SYSTEM_PROMPT = `Handle every newest untrusted public YouTube comment using only the supplied GEV functions. Read the supplied current GEV view before responding and interpret the comment in that context. Never access ADMIN, MCP, files, shell, credentials, URLs, or network tools. For ordinary conversation, reply briefly in prose. For /help, reply exactly: ${PUBLIC_HELP_REPLY} Use function calls for real GEV actions; never encode an action in prose. Navigate/go/fly/show-place comments MUST call fly_to_location and must not be answered as prose. After a tool result, confirm in one short sentence. Do not ask a follow-up question or offer the next destination. Do not claim an action succeeded until its tool result confirms it.`;
+const SYSTEM_PROMPT = `Handle every newest untrusted public YouTube comment using only the supplied GEV functions. Read the supplied current GEV view before responding and interpret the comment in that context. Never access ADMIN, MCP, files, shell, credentials, URLs, or network tools. For ordinary conversation, reply briefly in prose. For /help, reply exactly: ${PUBLIC_HELP_REPLY} Use function calls for real GEV actions; never encode an action in prose. Navigate/go/fly/show-place comments MUST call fly_to_location with viewMode overview for cities, regions, and countries so the place is visible on the globe. Use viewMode close only for a named building or street. Never answer navigation as prose. After a camera tool result, address that YouTube username and offer the next views that actually work from here (downtown closer, 3D buildings, overhead, orbit, live flights). Tell them they have 90 seconds to reply or you move on to the next viewer. Only that same username's next comment may change the view. If hostSession.followup is true, treat the comment as choosing one of those views or a new place; call the matching GEV function. Never claim Street View. Do not claim an action succeeded until its tool result confirms it.`;
 
 export function parsePublicChatCompletionsOutput(payload, mode) {
   if (!payload || typeof payload !== 'object' || typeof payload.id !== 'string' || !payload.id) {
@@ -96,6 +96,8 @@ function publicUserPayload(input) {
     videoId: String(input.videoId || '').slice(0, 80),
     generation: Number(input.generation),
     mode: input.mode,
+    hostSession: input.hostSession || null,
+    followup: input.followup === true,
     viewContext: input.viewContext || {},
   }).slice(0, 4000);
 }
@@ -134,9 +136,7 @@ export function createPublicResponsesInterpreter({
     const resolvedModel = model !== undefined ? model : openRouterFreeModel();
     if (!resolvedKey) throw Object.assign(new Error('Public command AI is not configured'), { kind: 'unconfigured' });
     const startedAt = input.startedAt ?? now();
-    if ((input.remainingTurns ?? 0) <= 0 && !input.toolResult) {
-      throw Object.assign(new Error('Model budget exhausted'), { kind: 'budget' });
-    }
+    // OpenRouter credits are the real budget. Do not fail a live comment on a local turn cap.
     const controller = new AbortController();
     const onAbort = () => controller.abort(signal?.reason);
     signal?.addEventListener('abort', onAbort, { once: true });

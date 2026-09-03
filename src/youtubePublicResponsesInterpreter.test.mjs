@@ -122,14 +122,18 @@ test('continuations replay the outstanding call as chat tool results and resend 
   assert.equal(request.messages.at(-2).tool_calls[0].function.name, 'get_current_view_state');
 });
 
-test('budget exhaustion fails before provider access', async () => {
+test('a zero local turn count still reaches OpenRouter', async () => {
   let called = false;
   const interpret = createPublicResponsesInterpreter({
     apiKey: 'secret', now: () => 25_000,
-    fetchImpl: async () => { called = true; },
+    fetchImpl: async () => {
+      called = true;
+      return chat({ id: 'r', choices: [{ message: { content: 'ok' } }] });
+    },
   });
-  await assert.rejects(interpret({ mode: 'analyze', remainingTurns: 0, startedAt: 0 }), /budget/i);
-  assert.equal(called, false);
+  const out = await interpret({ mode: 'analyze', remainingTurns: 0, startedAt: 0 });
+  assert.equal(called, true);
+  assert.equal(out.ok, true);
 });
 
 test('public interpreter never posts to api.openai.com', () => {

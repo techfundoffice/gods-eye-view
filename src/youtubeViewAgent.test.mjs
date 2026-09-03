@@ -27,7 +27,7 @@ test('view intents accept only bounded frontend actions', () => {
     ok: true,
     intent: {
       action: 'fly_to_location',
-      args: { query: 'Ensenada', viewMode: 'close' },
+      args: { query: 'Ensenada', viewMode: 'overview' },
       reason: 'Requested by viewer',
     },
   });
