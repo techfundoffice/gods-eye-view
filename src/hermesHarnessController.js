@@ -24,6 +24,12 @@ import { openRouterApiKey, openRouterFreeModel, postOpenRouterChat } from './ope
 
 export const HERMES_HARNESS_ID = 'hermes';
 export const OPENROUTER_HARNESS_ID = 'openrouter';
+export const HERMES_GROK_MODEL = 'x-ai/grok-4.6';
+export const HERMES_GROK_MODELS = Object.freeze([
+  'x-ai/grok-4.6',
+  'x-ai/grok-4.3',
+  'x-ai/grok-4',
+]);
 
 function defaultSettingsPath() {
   return path.join(process.cwd(), '.local/hermes-harness.json');
@@ -71,8 +77,10 @@ export function createHermesHarnessController({
   }),
   openrouterInterpret = createPublicResponsesInterpreter(),
   hermesCommand = process.env.HERMES_BIN || '',
+  hermesModel = process.env.HERMES_MODEL || HERMES_GROK_MODEL,
 } = {}) {
   let preferred = HERMES_HARNESS_ID;
+  let model = hermesModel;
   let active = OPENROUTER_HARNESS_ID;
   let fallbackReason = '';
   let lastError = '';
@@ -87,6 +95,7 @@ export function createHermesHarnessController({
       if (raw?.preferred === OPENROUTER_HARNESS_ID || raw?.preferred === HERMES_HARNESS_ID) {
         preferred = raw.preferred;
       }
+      if (typeof raw?.model === 'string' && raw.model.startsWith('x-ai/')) model = raw.model;
     } catch { /* first run defaults to Hermes */ }
   }
 
@@ -97,6 +106,7 @@ export function createHermesHarnessController({
       skillId: HERMES_SKILL_ID,
       skillVersion: HERMES_SKILL_VERSION,
       profile: HERMES_PROFILE_NAME,
+      model,
       updatedAt: now(),
     }, null, 2)}\n`);
   }
@@ -130,7 +140,7 @@ export function createHermesHarnessController({
     const tools = viewSafeToolsFrom();
     const handler = createHermesSkillAgent({
       postChat,
-      model: openRouterFreeModel(),
+      model,
       skillText: skill.text,
       tools,
     });
@@ -203,6 +213,8 @@ export function createHermesHarnessController({
       lastError: redactSecrets(lastError || health.lastError),
       pendingTurns: health.pendingTurns || 0,
       toolCount: viewSafeToolsFrom().length,
+      model,
+      provider: 'x-ai',
     });
   }
 

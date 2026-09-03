@@ -14,6 +14,7 @@ export const NEXTCHAT_MAX_LIVE_COMMENTS = 7;
 export const NEXTCHAT_MAX_ACTIONS = 3;
 export const NEXTCHAT_MAX_PAIRED_ROWS = 3;
 export const NEXTCHAT_COMMENT_FULL_OPACITY_MS = 12000;
+export const FOLLOW_UP_WINDOW_MS = 60_000;
 export const INTERPRETING_REPLY_TEXT = 'Interpreting request…';
 /** HUD-matching typewriter for GEV ACTIONS replies. */
 export const ACTION_REPLY_TYPE_STEP = 2;
@@ -97,6 +98,25 @@ export function displayCommentAuthor({ authorHandle, authorDisplay, author } = {
     || 'Viewer';
 }
 
+export function formatUtcTime(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')} UTC`;
+}
+
+export function contextualFollowUps({ actions = [], actionResult = null, replyText = '' } = {}) {
+  const names = (Array.isArray(actions) ? actions : [])
+    .map((item) => String(item?.action || item || '').toLowerCase());
+  const blob = `${names.join(' ')} ${JSON.stringify(actionResult || {})} ${replyText}`.toLowerCase();
+  if (/layer|earthquake|flight|ship|satellite|contact|overlay/.test(blob)) {
+    return ['DENSITY', 'FILTERING', 'LABELS', 'RELATED LAYERS'];
+  }
+  if (/fly_to|location|camera|zoom|orbit|street|3d|cockpit|navigate|showing/.test(blob)) {
+    return ['ALTITUDE', 'CAMERA ANGLE', 'STREET / 3D VIEW', 'NEARBY CONTACTS'];
+  }
+  return ['CAMERA ANGLE', 'OVERLAYS', 'NEARBY CONTACTS'];
+}
+
 export function formatAddressedReply(identity, text) {
   const who = displayCommentAuthor(identity);
   const body = String(text || '')
@@ -135,10 +155,10 @@ function matchesLiveBroadcast(state, videoId, generation) {
 
 export function orderPairedRows(rows, { limit = NEXTCHAT_MAX_PAIRED_ROWS } = {}) {
   const list = Array.isArray(rows) ? rows.slice() : [];
-  list.sort((a, b) => Number(a.createdAt ?? a.updatedAt ?? 0) - Number(b.createdAt ?? b.updatedAt ?? 0));
+  list.sort((a, b) => Number(b.createdAt ?? b.updatedAt ?? 0) - Number(a.createdAt ?? a.updatedAt ?? 0));
   const cap = Number.isFinite(limit) ? Math.max(0, limit) : list.length;
   if (cap === 0) return [];
-  return cap >= list.length ? list : list.slice(-cap);
+  return cap >= list.length ? list : list.slice(0, cap);
 }
 
 /**
@@ -210,6 +230,9 @@ export function upsertLiveCommentRow(state, payload, now = Date.now()) {
       : replyState,
     replyText: existing?.replyText || defaultReplyText(replyState),
     receivedAt,
+    replyAt: existing?.replyAt || (replyState !== 'display' ? new Date(now).toISOString() : ''),
+    followUpOptions: existing?.followUpOptions || [],
+    followUpExpiresAt: existing?.followUpExpiresAt || 0,
     createdAt: existing?.createdAt
       ?? (Number.isFinite(parsedReceivedAt) ? parsedReceivedAt : now),
     updatedAt: now,
@@ -250,6 +273,21 @@ export function updateAgentReplyRow(state, payload, now = Date.now()) {
     ...existing,
     replyState,
     replyText: String(replyText || '').slice(0, 1200),
+    replyAt: String(payload?.replyAt || payload?.completedAt || new Date(now).toISOString()).slice(0, 40),
+    actionResult: payload?.actionResult ?? existing.actionResult ?? null,
+    actions: Array.isArray(payload?.actions) ? payload.actions.slice(0, 20) : (existing.actions || []),
+    followUpOptions: replyState === 'replied'
+      ? contextualFollowUps({
+        actions: payload?.actions || existing.actions,
+        actionResult: payload?.actionResult ?? existing.actionResult,
+        replyText,
+      })
+      : [],
+    followUpExpiresAt: replyState === 'replied'
+      ? (existing.replyState === 'replied' && existing.followUpExpiresAt
+        ? existing.followUpExpiresAt
+        : now + FOLLOW_UP_WINDOW_MS)
+      : 0,
     updatedAt: now,
   };
   const pairedRows = [row, ...(state.pairedRows || []).filter((item) => item.key !== key)];
@@ -1055,19 +1093,12 @@ export function renderPairedRows(containerEl, rows, { now = Date.now(), onNeedsA
     live.className = 'gev-nextchat-live-lane gev-nextchat-pair-cell';
     const liveWho = doc.createElement('span');
     liveWho.className = 'gev-nextchat-role';
-    liveWho.textContent = displayCommentAuthor(row);
+    const viewerTime = formatUtcTime(commentTimestamp);
+    liveWho.textContent = `${displayCommentAuthor(row)}${viewerTime ? ` · ${viewerTime}` : ''}`;
     const liveBody = doc.createElement('div');
     liveBody.className = 'gev-nextchat-text';
     liveBody.textContent = row.commentText || '';
     live.append(liveWho, liveBody);
-    if (commentTimestamp && Number.isFinite(commentTime)) {
-      const timestamp = doc.createElement('time');
-      timestamp.className = 'gev-nextchat-timestamp';
-      timestamp.dateTime = commentTimestamp;
-      timestamp.textContent = formatViewerTimestamp(commentTimestamp);
-      live.appendChild(timestamp);
-    }
-
     const reply = doc.createElement('div');
     reply.className = 'gev-nextchat-action-lane gev-nextchat-pair-cell';
     const replyMsg = doc.createElement('div');
@@ -1075,7 +1106,8 @@ export function renderPairedRows(containerEl, rows, { now = Date.now(), onNeedsA
     replyMsg.dataset.actionState = row.replyState || 'display';
     const replyWho = doc.createElement('span');
     replyWho.className = 'gev-nextchat-role';
-    replyWho.textContent = 'GEV';
+    const replyTime = formatUtcTime(row.replyAt);
+    replyWho.textContent = `GEV REPLY${replyTime ? ` · ${replyTime}` : ''}`;
     const replyStatus = doc.createElement('span');
     replyStatus.className = 'gev-nextchat-status-label';
     replyStatus.textContent = row.replyState || 'display';
@@ -1083,9 +1115,19 @@ export function renderPairedRows(containerEl, rows, { now = Date.now(), onNeedsA
     replyBody.className = 'gev-nextchat-text';
     replyBody.textContent = row.replyText || defaultReplyText(row.replyState);
     replyMsg.append(replyWho, replyStatus, replyBody);
+    if (row.replyState === 'replied' && row.followUpExpiresAt) {
+      const followUp = doc.createElement('div');
+      followUp.className = 'gev-nextchat-follow-up';
+      const remaining = Number(row.followUpExpiresAt) - now;
+      followUp.textContent = remaining > 0
+        ? `YOU HAVE 1 MINUTE TO ASK: ${(row.followUpOptions || []).join(' · ')}`
+        : 'FOLLOW-UP WINDOW EXPIRED';
+      replyMsg.appendChild(followUp);
+      if (remaining > 0 && typeof onNeedsAgeRefresh === 'function') onNeedsAgeRefresh(remaining);
+    }
     reply.appendChild(replyMsg);
 
-    pair.append(live, reply);
+    pair.append(reply, live);
     containerEl.appendChild(pair);
   }
   containerEl.scrollTop = 0;

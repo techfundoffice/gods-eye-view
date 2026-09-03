@@ -11966,6 +11966,16 @@ body:has(#loading-screen.compatibility-error:not(.hidden)) .admin-console {
   white-space: pre-wrap;
 }
 
+.gev-nextchat-follow-up {
+  margin-top: 0.35rem;
+  color: #9ff7d3;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.045em;
+}
+
 .gev-nextchat-msg {
   position: relative;
   margin: 0 0 0.38rem;
@@ -13779,13 +13789,37 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
 }
 
 .youtube-agent-reply {
-  margin-top: 0.25rem;
-  padding-top: 0.3rem;
-  border-top: 1px solid rgba(0, 212, 255, 0.14);
+  margin-bottom: 0.35rem;
+  padding: 0.4rem 0.45rem;
+  border: 1px solid rgba(0, 212, 255, 0.22);
+  border-radius: 0.45rem;
+  background: rgba(0, 16, 25, 0.72);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+}
+
+.youtube-agent-cta {
+  color: #9ff7d3 !important;
+  -webkit-text-fill-color: #9ff7d3 !important;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .youtube-conversation-list > .youtube-comment-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.35rem;
+  }
+
+  .youtube-agent-reply {
+    padding: 0.32rem 0.38rem;
+  }
 }
 
 .youtube-agent-state {
@@ -15329,4 +15363,126 @@ html, body {
   bottom: auto !important;
   max-height: none !important;
   overflow: visible !important;
+}
+
+/* Narrow screens use one readable vertical rail. Nothing in the status/chat
+   stack is allowed to float over a sibling; the rail itself scrolls instead
+   of clipping long exchanges. */
+@media (max-width: 800px) {
+  :root {
+    --mobile-north-stack: calc(
+      var(--live-news-ticker-height, 2rem) +
+      var(--broadcast-legend-height, 2rem) +
+      5.75rem
+    );
+  }
+
+  #title-bar {
+    top: calc(var(--live-news-ticker-height, 2rem) + var(--broadcast-legend-height, 2rem) + 0.55rem) !important;
+    left: 0.75rem !important;
+    max-width: calc(100vw - 1.5rem) !important;
+  }
+
+  #title-bar h1 {
+    gap: 0.45rem !important;
+    font-size: clamp(0.9rem, 4.6vw, 1.15rem) !important;
+    letter-spacing: 0.19em !important;
+    white-space: nowrap;
+  }
+
+  #title-bar .title-logo {
+    width: 2rem !important;
+  }
+
+  #style-indicator {
+    top: calc(var(--mobile-north-stack) - 1.65rem) !important;
+    right: 0.75rem !important;
+    max-width: 8rem;
+  }
+
+  #admin-stamp-stack {
+    position: absolute !important;
+    inset: var(--mobile-north-stack) 0.5rem auto auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.55rem !important;
+    width: min(24rem, calc(100vw - 1rem)) !important;
+    max-width: calc(100vw - 1rem) !important;
+    max-height: calc(100dvh - var(--mobile-north-stack) - 0.75rem) !important;
+    padding: 0.6rem !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    background: rgba(2, 8, 13, 0.96) !important;
+    border: 1px solid rgba(126, 240, 255, 0.28);
+    border-radius: 0.65rem;
+    box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.62);
+    scrollbar-width: thin !important;
+  }
+
+  #admin-stamp-stack > *,
+  #admin-stamp-stack .hud-top-right,
+  #admin-stamp-stack .hud-corner.hud-top-right,
+  #admin-stamp-stack #admin-launch,
+  #admin-stamp-stack .admin-launch {
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  #admin-stamp-stack .hud-top-right,
+  #admin-stamp-stack .hud-corner.hud-top-right {
+    order: 1;
+    display: block !important;
+    min-height: 0 !important;
+  }
+
+  #admin-stamp-stack #admin-launch,
+  #admin-stamp-stack .admin-launch {
+    order: 2;
+    width: max-content !important;
+    align-self: flex-end;
+  }
+
+  #admin-stamp-stack #youtube-comments-panel,
+  #admin-stamp-stack #youtube-comments-panel.panel-collapsible {
+    order: 3;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  #admin-stamp-stack #youtube-comments-panel .youtube-comments-panel-inner,
+  #admin-stamp-stack #youtube-comments-list {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  #admin-stamp-stack .youtube-comment-thread,
+  #admin-stamp-stack .youtube-agent-reply {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #admin-stamp-stack .youtube-feed-meta,
+  #admin-stamp-stack .youtube-feed-text,
+  #admin-stamp-stack .youtube-agent-text,
+  #admin-stamp-stack .youtube-agent-cta {
+    max-width: 100% !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+    white-space: pre-wrap !important;
+  }
 }

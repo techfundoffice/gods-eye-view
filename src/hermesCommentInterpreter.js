@@ -145,7 +145,9 @@ export function createHermesSkillAgent({
       maxTokens: 700,
     });
     if (!result?.ok) {
-      return { type: 'error', turnId, message: result?.payload?.error || 'Hermes model request failed' };
+      const err = result?.payload?.error;
+      const fail = typeof err === 'string' ? err : (err?.message || 'Hermes model request failed');
+      return { type: 'error', turnId, message: fail };
     }
     const message = result.payload?.choices?.[0]?.message;
     const toolCall = message?.tool_calls?.[0];

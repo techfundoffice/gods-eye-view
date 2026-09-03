@@ -408,6 +408,65 @@ test('homepage interaction displays every comment and runs validated actions wit
   assert.equal(calls.at(-1).args.waitForArrival, true);
 });
 
+test('visible Youtube conversation renders result first with UTC headers, verified handle, and contextual options', async () => {
+  class Element {
+    constructor(tagName = 'div') {
+      this.tagName = tagName;
+      this.children = [];
+      this.dataset = {};
+      this.textContent = '';
+      this.className = '';
+      this.disabled = false;
+    }
+    append(...children) { this.children.push(...children); }
+    appendChild(child) { this.children.push(child); }
+    replaceChildren(...children) { this.children = children; }
+    querySelector(selector) { return this.refs?.[selector] || null; }
+  }
+  const list = new Element('ol');
+  const root = new Element('section');
+  root.refs = {
+    '#youtube-comments-list': list,
+    '#youtube-comments-status': new Element(),
+    '#youtube-comments-video': new Element(),
+    '#youtube-comments-count': new Element(),
+    '#youtube-comments-refresh': new Element('button'),
+    '#youtube-comments-more': new Element('button'),
+  };
+  const interaction = createYoutubeHomepageInteraction({
+    nextchat: { publishViewerMessage() {}, upsertLiveComment() {}, updateAgentReply() {}, setHarnessStatus() {} },
+    runner: async (action, args) => ({
+      ok: true,
+      destination: args.query,
+      viewMode: args.viewMode,
+      action,
+    }),
+    now: () => Date.parse('2026-09-02T14:01:00.000Z'),
+    documentRef: {
+      createElement: (tagName) => new Element(tagName),
+      getElementById: (id) => id === 'youtube-comments-panel' ? root : null,
+    },
+  });
+
+  await interaction.ingest([{
+    id: 'ens-1',
+    videoId: '',
+    author: 'Viewer Name',
+    authorHandle: '@viewerhandle',
+    text: 'Navigate to Ensenada, Mexico',
+    publishedAt: '2026-09-02T14:00:00.000Z',
+    actions: [{ action: 'fly_to_location', args: { query: 'Ensenada, Mexico', viewMode: 'street' } }],
+  }]);
+
+  const exchange = list.children[0];
+  assert.equal(exchange.children[0].className, 'youtube-agent-reply');
+  assert.equal(exchange.children[0].children[0].textContent, 'GEV REPLY · 14:01 UTC');
+  assert.match(exchange.children[0].children[2].textContent, /I NAVIGATED TO ENSENADA, MEXICO · STREET VIEW/);
+  assert.match(exchange.children[0].children[3].textContent, /YOU HAVE 1 MINUTE TO ASK: ALTITUDE/);
+  assert.equal(exchange.children[1].textContent, '@viewerhandle · 14:00 UTC');
+  assert.equal(exchange.children[2].textContent, 'Navigate to Ensenada, Mexico');
+});
+
 test('an actionable comment received before globe startup is queued and runs when the runner attaches', async () => {
   const calls = [];
   let resolveCall;

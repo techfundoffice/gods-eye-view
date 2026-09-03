@@ -230,14 +230,24 @@ export function createYoutubeHomepageChatMiddleware({
         author: { displayName: boundedText(body.author, 80) || 'GEV Verify' },
       };
       if (ingest && typeof ingest.inject === 'function') ingest.inject(raw);
+      let liveChatId = boundedText(body.liveChatId || snap.liveChatId, 80);
+      if (liveChatId === 'innertube') liveChatId = '';
+      if (!liveChatId && ownerDiscovery) {
+        try {
+          const identity = await ownerDiscovery.get();
+          liveChatId = boundedText(identity?.liveChatId, 80);
+        } catch { /* inject still runs the globe */ }
+      }
       lastBinding = {
         videoId,
         generation: Math.max(0, Number(snap.generation) || 0),
         commandsEnabled: true,
+        liveChatId,
       };
       const item = publicMessage(raw, videoId, now, { commandsEnabled: true });
       const registered = item ? await commandRuntime?.registerMessage?.(item, lastBinding) : { recognized: false };
       const commands = await commandRuntime?.statuses?.(lastBinding) || [];
+      void Promise.resolve(commandRuntime?.deliverReplies?.(lastBinding)).catch(() => {});
       sendJson(res, 200, { ok: true, item, registered, commands: commands.slice(-5) });
       return;
     }
@@ -257,10 +267,19 @@ export function createYoutubeHomepageChatMiddleware({
     if (ingest && typeof ingest.snapshot === 'function' && typeof discoverActive !== 'function') {
       const snap = ingest.snapshot() || {};
       const live = snap.active === true && snap.status === 'live' && Boolean(snap.videoId);
+      let liveChatId = boundedText(snap.liveChatId, 80);
+      if (liveChatId === 'innertube') liveChatId = '';
+      if (live && !liveChatId && ownerDiscovery) {
+        try {
+          const identity = await ownerDiscovery.get();
+          liveChatId = boundedText(identity?.liveChatId, 80);
+        } catch { /* comments still register */ }
+      }
       lastBinding = {
         videoId: live ? boundedText(snap.videoId, 80) : '',
         generation: Math.max(0, Number(snap.generation) || 0),
         commandsEnabled: live,
+        liveChatId,
       };
       const commands = await commandRuntime?.statuses?.(lastBinding) || [];
       const items = live
@@ -271,6 +290,7 @@ export function createYoutubeHomepageChatMiddleware({
           void Promise.resolve(commandRuntime?.registerMessage?.(item, lastBinding)).catch(() => {});
         }
       }
+      void Promise.resolve(commandRuntime?.deliverReplies?.(lastBinding)).catch(() => {});
       sendJson(res, 200, publicFeedBody(snap, {
         items,
         pollingIntervalMillis: Math.max(500, Math.min(30_000, Number(snap.pollingIntervalMillis) || (live ? 800 : 5_000))),

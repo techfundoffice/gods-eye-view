@@ -60,6 +60,7 @@ import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChat
 import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatServer.js';
 import { createYoutubePublicCommandRuntime } from './src/youtubePublicCommandRuntime.js';
 import { createHermesHarnessController } from './src/hermesHarnessController.js';
+import { createYoutubeLiveChatPoster } from './src/hermesYoutubeReply.js';
 import { createLiveCommentIngestWorker } from './src/youtubeLiveCommentIngest.js';
 import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
@@ -71,6 +72,7 @@ import { createReplitAdminAuth } from './src/replitAdminAuth.js';
 import {
   createOwnerLiveDiscovery,
   createYoutubeApiCaller,
+  youtubeCall,
   listCompatibleBroadcasts,
   listYoutubeLiveChatMessages,
   pickReusableBroadcast,
@@ -7665,9 +7667,30 @@ export function youtubeProxy({
   });
   const commentIngest = liveCommentIngest || sharedLiveCommentIngest();
   const commandRuntime = sharedPublicCommandRuntime();
+  async function getOwnerCall() {
+    const authorization = await oauth.findWritableAuthorization();
+    if (!authorization) return null;
+    return createYoutubeApiCaller(oauth.proxy, authorization);
+  }
+  commandRuntime.setYoutubePoster?.(createYoutubeLiveChatPoster({
+    call: async (_method, params, body) => {
+      const authorization = await oauth.findWritableAuthorization();
+      if (!authorization) {
+        const error = new Error('YouTube write is not authorized');
+        error.status = 401;
+        throw error;
+      }
+      return youtubeCall(createYoutubeApiCaller(oauth.proxy, authorization), 'liveChatMessages', {
+        method: 'POST',
+        params,
+        body,
+      });
+    },
+  }));
   const homepageChatMiddleware = createYoutubeHomepageChatMiddleware({
     ingest: commentIngest,
     commandRuntime,
+    getOwnerCall,
   });
   const envStreamKey = String(process.env.YOUTUBE_STREAM_KEY || '').trim();
   if (autoGoLiveEnabled() && envStreamKey) {

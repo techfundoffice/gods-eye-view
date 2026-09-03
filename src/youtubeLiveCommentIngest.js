@@ -82,6 +82,18 @@ export async function discoverPublicChannelLive({
   const html = await response.text();
   const parsed = parseChannelLivePage(html);
   if (parsed.isLive) return { ...parsed, status: 'live', html };
+  const configured = normalizeVideoId(process.env.YOUTUBE_BROADCAST_ID || '')
+    || normalizeVideoId(String(process.env.YOUTUBE_WATCH_URL || '').match(WATCH_ID_RE)?.[1] || '');
+  if (configured) {
+    return {
+      videoId: configured,
+      title: parsed.title || "God's Eye View LIVE",
+      watchUrl: `https://www.youtube.com/watch?v=${configured}`,
+      isLive: true,
+      status: 'live',
+      html,
+    };
+  }
   if (parsed.videoId) return { ...parsed, isLive: false, status: 'offline', html };
   return { videoId: '', title: '', watchUrl: '', isLive: false, status: 'offline', html: '' };
 }
@@ -210,10 +222,20 @@ export function createLiveCommentIngestWorker({
     } catch (caught) {
       const kind = String(caught?.kind || 'upstream');
       if (kind === 'ended' || kind === 'no-chat') {
-        status = 'ended';
-        error = { kind, message: String(caught.message || 'This live broadcast has ended.') };
-        clearStream();
-        discoveredAt = 0;
+        const configured = normalizeVideoId(process.env.YOUTUBE_BROADCAST_ID || '')
+          || normalizeVideoId(String(process.env.YOUTUBE_WATCH_URL || '').match(WATCH_ID_RE)?.[1] || '');
+        if (configured && (configured === videoId || !videoId)) {
+          videoId = videoId || configured;
+          watchUrl = watchUrl || `https://www.youtube.com/watch?v=${videoId}`;
+          status = 'live';
+          error = { kind, message: String(caught.message || 'Live chat page not ready yet.') };
+          updatedAt = now();
+        } else {
+          status = 'ended';
+          error = { kind, message: String(caught.message || 'This live broadcast has ended.') };
+          clearStream();
+          discoveredAt = 0;
+        }
       } else {
         status = 'unavailable';
         error = { kind, message: String(caught.message || 'YouTube live chat unavailable.') };

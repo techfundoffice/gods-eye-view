@@ -7082,7 +7082,7 @@ export class StyleManager {
       )),
       availableHeight: expandedAvailableHeight,
     });
-    const autoCollapseIndices = this.hud.visible ? panelStackAutoCollapseIndices({
+    let autoCollapseIndices = this.hud.visible ? panelStackAutoCollapseIndices({
       naturalHeights: expandedPanels.map((panel) => Math.max(
         panel.getBoundingClientRect().height,
         panel.scrollHeight || 0,
@@ -7446,7 +7446,7 @@ export class StyleManager {
       naturalHeights: naturalExpandedHeights,
       availableHeight: expandedAvailableHeight,
     });
-    const autoCollapseIndices = this.hud.visible ? panelStackAutoCollapseIndices({
+    let autoCollapseIndices = this.hud.visible ? panelStackAutoCollapseIndices({
       naturalHeights: naturalExpandedHeights,
       allocatedHeights: allocatedExpandedHeights,
       collapseLaterPanels: shouldFocus && this.hud.getVariant() === 'tactical',

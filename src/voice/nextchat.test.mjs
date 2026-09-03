@@ -10,6 +10,7 @@ import {
   NEXTCHAT_MAX_LIVE_COMMENTS,
   NEXTCHAT_MAX_PAIRED_ROWS,
   ACTION_REPLY_TYPE_STEP,
+  FOLLOW_UP_WINDOW_MS,
   applyActionReplyDelta,
   applyAssistantTranscriptDelta,
   createEmptySession,
@@ -585,16 +586,16 @@ test('paired rows share one commentId and update the reply cell in place', () =>
     author: 'Ordinary',
     text: 'love the stream',
   }, 4000);
-  assert.equal(state.pairedRows[1].commentText, 'love the stream');
-  assert.equal(state.pairedRows[1].replyState, 'display');
+  assert.equal(state.pairedRows[0].commentText, 'love the stream');
+  assert.equal(state.pairedRows[0].replyState, 'display');
   assert.equal(sanitizeAuthorHandle(''), '');
   assert.equal(sanitizeAuthorHandle('Cool Name'), '');
   assert.equal(sanitizeAuthorHandle('@verifiedHandle'), '@verifiedHandle');
   const ordered = orderPairedRows(state.pairedRows);
-  assert.deepEqual(ordered.map((row) => row.commentId), ['c1', 'c2']);
+  assert.deepEqual(ordered.map((row) => row.commentId), ['c2', 'c1']);
 });
 
-test('paired row renderer stacks the viewer timestamp above the GEV status and reply', () => {
+test('paired row renderer stacks GEV reply and contextual follow-up above verified viewer attribution', () => {
   class RenderElement {
     constructor(documentRef, tagName) {
       this.ownerDocument = documentRef;
@@ -624,23 +625,43 @@ test('paired row renderer stacks the viewer timestamp above the GEV status and r
   renderPairedRows(container, [{
     commentId: 'c1',
     authorDisplay: 'Viewer One',
+    authorHandle: '@viewerone',
     commentText: 'show the harbor',
     receivedAt: '2026-09-02T12:34:00.000Z',
     createdAt: Date.parse('2026-09-02T12:34:00.000Z'),
-    replyState: 'rejected',
-    replyText: 'Rejected: the request was not specific enough.',
+    replyState: 'replied',
+    replyText: 'Showing Ensenada harbor in street view.',
+    replyAt: '2026-09-02T12:34:30.000Z',
+    followUpOptions: ['ALTITUDE', 'CAMERA ANGLE'],
+    followUpExpiresAt: Date.parse('2026-09-02T12:35:30.000Z'),
   }], { now: Date.parse('2026-09-02T12:35:00.000Z') });
 
   const pair = container.children[0];
-  const viewer = pair.children[0];
-  const agent = pair.children[1];
-  assert.equal(viewer.children[0].textContent, 'Viewer One');
+  const agent = pair.children[0];
+  const viewer = pair.children[1];
+  assert.equal(agent.children[0].children[0].textContent, 'GEV REPLY · 12:34 UTC');
+  assert.equal(agent.children[0].children[1].textContent, 'replied');
+  assert.match(agent.children[0].children[2].textContent, /Ensenada harbor/);
+  assert.equal(agent.children[0].children[3].textContent, 'YOU HAVE 1 MINUTE TO ASK: ALTITUDE · CAMERA ANGLE');
+  assert.equal(viewer.children[0].textContent, '@viewerone · 12:34 UTC');
   assert.equal(viewer.children[1].textContent, 'show the harbor');
-  assert.equal(viewer.children[2].tagName, 'time');
-  assert.equal(viewer.children[2].dateTime, '2026-09-02T12:34:00.000Z');
-  assert.equal(agent.children[0].children[0].textContent, 'GEV');
-  assert.equal(agent.children[0].children[1].textContent, 'rejected');
-  assert.match(agent.children[0].children[2].textContent, /not specific enough/);
+});
+
+test('successful reply starts one stable one-minute follow-up window and expires without changing order', () => {
+  let state = setLiveBroadcast(createNextchatState(), { videoId: 'vid', generation: 1 });
+  state = upsertLiveCommentRow(state, {
+    commentId: 'c1', videoId: 'vid', generation: 1, text: 'show Paris', receivedAt: '2026-09-02T12:00:00Z',
+  }, 1000);
+  state = updateAgentReplyRow(state, {
+    commentId: 'c1', videoId: 'vid', generation: 1, replyState: 'replied',
+    replyText: 'Showing Paris', actions: [{ action: 'fly_to_location' }],
+  }, 2000);
+  assert.equal(state.pairedRows[0].followUpExpiresAt, 2000 + FOLLOW_UP_WINDOW_MS);
+  assert.ok(state.pairedRows[0].followUpOptions.includes('ALTITUDE'));
+  state = updateAgentReplyRow(state, {
+    commentId: 'c1', videoId: 'vid', generation: 1, replyState: 'replied', replyText: 'Showing Paris in 3D',
+  }, 3000);
+  assert.equal(state.pairedRows[0].followUpExpiresAt, 2000 + FOLLOW_UP_WINDOW_MS);
 });
 
 
@@ -662,7 +683,7 @@ test('a late /help reply does not disturb chronological comment order', () => {
     text: 'nice stream',
     replyState: 'display',
   }, 2000);
-  assert.equal(orderPairedRows(state.pairedRows)[0].commentId, 'help-1');
+  assert.equal(orderPairedRows(state.pairedRows)[0].commentId, 'chat-2');
   state = updateAgentReplyRow(state, {
     commentId: 'help-1',
     videoId: 'vid',
@@ -671,6 +692,6 @@ test('a late /help reply does not disturb chronological comment order', () => {
     replyText: PUBLIC_HELP_REPLY,
   }, 3000);
   const ordered = orderPairedRows(state.pairedRows);
-  assert.equal(ordered[0].commentId, 'help-1');
-  assert.equal(ordered[1].commentId, 'chat-2');
+  assert.equal(ordered[0].commentId, 'chat-2');
+  assert.equal(ordered[1].commentId, 'help-1');
 });

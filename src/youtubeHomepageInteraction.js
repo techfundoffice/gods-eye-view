@@ -1,4 +1,5 @@
 import { PUBLIC_HELP_REPLY } from './youtubePublicCommandPolicy.js';
+import { contextualFollowUps, formatUtcTime, FOLLOW_UP_WINDOW_MS } from './voice/nextchat.js';
 
 /** Browser wait for local /feed memory. Not the YouTube InnerTube interval. */
 export const MEMORY_POLL_LIVE_MS = 800;
@@ -16,77 +17,15 @@ const MAX_PANEL_COMMENTS = 100;
 export const MAX_VISIBLE_COMMENTS = 14;
 export const MAX_VISIBLE_ACTIONS = 14;
 
-/** Chat-able next beats the GEV agent can pitch after a succeeded action. */
-const YT_NEXT_BEATS = [
-  { id: 'radio', want: 'turn on the radio', chat: 'enable radio' },
-  { id: 'radio-news', want: 'tune a local news station', chat: 'play news radio' },
-  { id: 'radio-music', want: 'play music radio', chat: 'play music radio' },
-  { id: 'nvg', want: 'switch to night vision', chat: 'NVG' },
-  { id: 'flir', want: 'switch to thermal FLIR', chat: 'FLIR' },
-  { id: 'crt', want: 'switch to CRT', chat: 'CRT' },
-  { id: 'noir', want: 'switch to noir', chat: 'noir' },
-  { id: 'anime', want: 'switch to anime', chat: 'anime' },
-  { id: 'snow', want: 'switch to snow', chat: 'snow' },
-  { id: 'cctv', want: 'turn on nearby CCTV', chat: 'enable CCTV' },
-  { id: 'detect', want: 'turn on detection overlay', chat: 'enable detection' },
-  { id: 'flights', want: 'show live flights', chat: 'show flights' },
-  { id: 'military', want: 'show military flights', chat: 'show military flights' },
-  { id: 'ships', want: 'show live ships', chat: 'show ships' },
-  { id: 'earthquakes', want: 'show earthquakes', chat: 'show earthquakes' },
-  { id: 'satellites', want: 'show satellites', chat: 'show satellites' },
-  { id: 'iss', want: 'show the next ISS pass', chat: 'next ISS pass' },
-  { id: 'cockpit', want: 'enter cockpit view', chat: 'enter cockpit' },
-  { id: 'zoom-in', want: 'zoom in closer', chat: 'zoom in' },
-  { id: 'zoom-globe', want: 'zoom out to the whole globe', chat: 'zoom to globe' },
-  { id: 'orbit', want: 'orbit the camera', chat: 'orbit left' },
-  { id: 'contacts', want: 'open live contacts', chat: 'show contacts' },
-  { id: 'missions', want: 'open space missions', chat: 'show space missions' },
-  { id: 'aircraft', want: 'select the nearest aircraft', chat: 'select nearest aircraft' },
-  { id: 'photoreal', want: 'switch to Google 3D', chat: 'Google 3D' },
-  { id: 'bloom', want: 'turn on bloom', chat: 'enable bloom' },
-];
-let ytNextBeatCursor = 0;
-let lastYoutubeCtaAt = 0;
-const YOUTUBE_CTA_GAP_MS = 75_000;
-
-function pickYoutubeNextBeat(comment) {
-  const blob = `${comment?.text || ''} ${comment?.replyText || ''} ${comment?.replyState || ''}`.toLowerCase();
-  const skip = new Set();
-  if (/\bradio\b/.test(blob)) {
-    skip.add('radio'); skip.add('radio-news'); skip.add('radio-music');
-  }
-  if (/\b(nvg|night vision|surveillance)\b/.test(blob)) skip.add('nvg');
-  if (/\b(flir|thermal)\b/.test(blob)) skip.add('flir');
-  if (/\bcctv\b/.test(blob)) skip.add('cctv');
-  if (/\bdetect/.test(blob)) skip.add('detect');
-  if (/\bflight/.test(blob)) skip.add('flights');
-  if (/\bcockpit\b/.test(blob)) skip.add('cockpit');
-  const pool = YT_NEXT_BEATS.filter((beat) => !skip.has(beat.id));
-  const list = pool.length ? pool : YT_NEXT_BEATS;
-  const beat = list[ytNextBeatCursor % list.length];
-  ytNextBeatCursor += 1;
-  return beat;
-}
-
-function appendAgentCta(replyRow, comment, documentRef) {
+function appendAgentCta(replyRow, comment, documentRef, currentTime) {
   const state = String(comment?.replyState || '');
   if (state !== 'succeeded' && state !== 'replied' && state !== 'validated') return;
-  const nowCta = Date.now();
-  if (nowCta - lastYoutubeCtaAt < YOUTUBE_CTA_GAP_MS) return;
-  lastYoutubeCtaAt = nowCta;
-  const beat = pickYoutubeNextBeat(comment);
   const cta = documentRef.createElement('span');
   cta.className = 'youtube-agent-cta';
-  const want = documentRef.createElement('span');
-  want.className = 'youtube-agent-cta-want';
-  want.textContent = `DO YOU WANT TO ${beat.want}?`;
-  const how = documentRef.createElement('span');
-  how.className = 'youtube-agent-cta-how';
-  how.textContent = 'If so, chat this on YouTube:';
-  const phrase = documentRef.createElement('span');
-  phrase.className = 'youtube-agent-cta-chat';
-  phrase.textContent = beat.chat;
-  cta.append(want, how, phrase);
+  const remaining = Number(comment.followUpExpiresAt || 0) - currentTime;
+  cta.textContent = remaining > 0
+    ? `YOU HAVE 1 MINUTE TO ASK: ${(comment.followUpOptions || []).join(' · ')}`
+    : 'FOLLOW-UP WINDOW EXPIRED';
   replyRow.append(cta);
 }
 
@@ -126,6 +65,28 @@ function safeStreamUrl(value) {
   } catch {
     return '';
   }
+}
+
+function summarizeActionResults(actions, actionResults) {
+  const completed = Array.isArray(actionResults) ? actionResults : [];
+  const navigation = completed.findLast?.((item) => item.action === 'fly_to_location');
+  const destination = navigation?.result?.destination
+    || navigation?.result?.label
+    || navigation?.args?.query;
+  const mode = navigation?.result?.viewMode
+    || navigation?.result?.mode
+    || navigation?.args?.viewMode;
+  const layers = completed
+    .filter((item) => item.action === 'set_layer_visibility' && item.args?.enabled !== false)
+    .map((item) => item.result?.label || item.args?.layerId)
+    .filter(Boolean);
+  if (destination) {
+    return `I NAVIGATED TO ${safeText(destination, 100).toUpperCase()}${mode ? ` · ${safeText(mode, 32).toUpperCase()} VIEW` : ''}${layers.length ? ` · ${layers.join(', ').toUpperCase()} ON` : ''}`;
+  }
+  if (layers.length) return `I ENABLED ${layers.join(', ').toUpperCase()}`;
+  const last = completed.at(-1);
+  const outcome = last?.result?.message || last?.result?.label || last?.action || actions?.at?.(-1)?.action;
+  return outcome ? `I UPDATED THE VIEW · ${safeText(outcome, 120).toUpperCase()}` : 'I UPDATED THE VIEW';
 }
 
 export function createYoutubeHomepageInteraction({
@@ -233,21 +194,17 @@ export function createYoutubeHomepageInteraction({
       row.className = 'youtube-feed-item youtube-comment-thread';
       const meta = documentRef.createElement('span');
       meta.className = 'youtube-feed-meta';
-      meta.textContent = comment.publishedAt
-        ? `${comment.author} · ${comment.publishedAt}`
-        : comment.author;
+      meta.textContent = `${comment.authorHandle || comment.author}${formatUtcTime(comment.publishedAt) ? ` · ${formatUtcTime(comment.publishedAt)}` : ''}`;
       const body = documentRef.createElement('span');
       body.className = 'youtube-feed-text';
       body.textContent = comment.text;
-      row.append(meta, body);
-
       if (actionIds.has(comment.id)) {
         const replyRow = documentRef.createElement('div');
         replyRow.className = 'youtube-agent-reply';
         const state = String(comment.replyState || 'display');
         const replyWho = documentRef.createElement('span');
         replyWho.className = 'youtube-agent-role';
-        replyWho.textContent = 'GEV';
+        replyWho.textContent = `GEV REPLY${formatUtcTime(comment.replyAt) ? ` · ${formatUtcTime(comment.replyAt)}` : ''}`;
         const label = documentRef.createElement('span');
         label.className = `youtube-agent-state youtube-agent-state-${state}`;
         const stateLabel = state === 'interpreting' || state === 'pending'
@@ -265,9 +222,10 @@ export function createYoutubeHomepageInteraction({
         replyRow.append(replyWho);
         if (stateLabel) replyRow.append(label);
         replyRow.append(replyBody);
-        appendAgentCta(replyRow, comment, documentRef);
+        appendAgentCta(replyRow, comment, documentRef, now());
         row.append(replyRow);
       }
+      row.append(meta, body);
       els.list.append(row);
     }
   }
@@ -283,6 +241,13 @@ export function createYoutubeHomepageInteraction({
       row.replyText = safeText(payload.replyText, 240);
     } else if (row.replyState === 'interpreting' || row.replyState === 'pending') {
       row.replyText = row.replyText || 'Interpreting request...';
+    }
+    row.replyAt = safeText(payload?.replyAt || new Date(now()).toISOString(), 40);
+    row.actions = Array.isArray(payload?.actions) ? payload.actions : (row.actions || []);
+    row.actionResult = payload?.actionResult ?? row.actionResult;
+    if (row.replyState === 'replied' || row.replyState === 'succeeded' || row.replyState === 'validated') {
+      row.followUpOptions = contextualFollowUps(row);
+      row.followUpExpiresAt ||= now() + FOLLOW_UP_WINDOW_MS;
     }
     renderLiveCommentsPanel({ active: true, title: broadcastTitle, videoId });
   }
@@ -354,6 +319,7 @@ export function createYoutubeHomepageInteraction({
     viewerLastActionAt.set(viewer, current);
     setStatus(`YT LIVE · applying ${viewer}'s view request`, 'live');
     dismissFirstRunLauncher();
+    const actionResults = [];
     for (const intent of actions) {
       try {
         const args = intent.action === 'fly_to_location'
@@ -362,6 +328,7 @@ export function createYoutubeHomepageInteraction({
         const result = await actionRunner(intent.action, args, {
           isCurrent: () => !stopped && message.videoId === videoId,
         });
+        actionResults.push({ action: intent.action, args, result });
         if (result?.ok === false) {
           setStatus(`YT LIVE · request rejected: ${safeText(result.error || result.reason || 'view unavailable', 100)}`, 'live');
           notifyAgentReply({
@@ -394,7 +361,11 @@ export function createYoutubeHomepageInteraction({
       videoId: safeText(message.videoId, 80),
       generation,
       replyState: 'replied',
-      replyText: `showing ${safeText(destination, 100)}`,
+      replyText: summarizeActionResults(actions, actionResults),
+      actions,
+      actionResult: actionResults,
+      replyAt: new Date(now()).toISOString(),
+      address: false,
     });
   }
 
@@ -433,8 +404,11 @@ export function createYoutubeHomepageInteraction({
       liveComments.unshift({
         id: safeText(message.id, 160),
         author: safeText(message.author, 80) || 'YouTube viewer',
+        authorHandle: safeText(message.authorHandle, 80),
         text: safeText(message.text, 500),
         publishedAt: safeText(message.publishedAt, 40),
+        replyState: actions.length || agentRequested ? 'interpreting' : 'display',
+        replyAt: actions.length || agentRequested ? new Date(now()).toISOString() : '',
       });
       while (liveComments.length > MAX_PANEL_COMMENTS) liveComments.pop();
       await applyMessageActions(message);
