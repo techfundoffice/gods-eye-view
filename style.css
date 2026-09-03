@@ -17496,3 +17496,54 @@ body {
 #left-panel-stack > #gev-voice-control {
   display: none !important;
 }
+
+
+/* === GEV_CENTER_TITLE_WITH_ICONS_V1 ===
+   CLOUD COMPUTER AI.COM + tagline sit left of the four icons.
+   The whole group is centered on the screen. */
+#title-bar {
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  top: calc(var(--gev-top-chrome-height, 2.4rem) + 0.3rem) !important;
+  transform: translateX(-50%) !important;
+  display: grid !important;
+  grid-template-columns: auto auto !important;
+  grid-template-rows: auto auto !important;
+  align-items: center !important;
+  column-gap: 0.7rem !important;
+  row-gap: 0.12rem !important;
+  width: max-content !important;
+  max-width: calc(100vw - 1.5rem) !important;
+  z-index: 220 !important;
+  pointer-events: none !important;
+}
+#title-bar .title-glow {
+  display: none !important;
+}
+#title-bar h1 {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+}
+#title-bar .subtitle {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+}
+#title-bar > #top-center-actions {
+  grid-column: 2 !important;
+  grid-row: 1 / span 2 !important;
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+  pointer-events: auto !important;
+  z-index: 1 !important;
+}

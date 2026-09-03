@@ -329,8 +329,12 @@ export class IntelHUD {
     if (leftNav && logo && logo.parentElement !== leftNav) {
       leftNav.insertBefore(logo, leftNav.firstChild);
     }
-    const voice = document.getElementById("gev-voice-control");
+    const title = document.getElementById("title-bar");
     const actionsCluster = document.getElementById("top-center-actions");
+    if (title && actionsCluster && actionsCluster.parentElement !== title) {
+      title.appendChild(actionsCluster);
+    }
+    const voice = document.getElementById("gev-voice-control");
     if (actionsCluster && voice && voice.parentElement !== actionsCluster) {
       actionsCluster.appendChild(voice);
     }
