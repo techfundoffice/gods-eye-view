@@ -169,36 +169,15 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     if (!output?.ok) {
       await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: bounded(output?.reason, 160), remainingTurns: turns });
     } else if (output.kind === 'complete') {
-      const forced = inferNavigateTool(record.comment);
-      const checkedForce = forced
-        ? validatePublicToolCall(record.mode, forced.name, forced.arguments)
-        : { ok: false };
-      if (checkedForce.ok) {
-        await ledger.compareAndSet(record.id, 'interpreting', {
-          state: 'awaiting-execution',
-          nonce: id(),
-          modelResponseId: output.responseId || record.modelResponseId || '',
-          functionCallId: output.call?.callId || `forced-fly-${record.id}`,
-          validatedTool: checkedForce,
-          remainingTurns: Math.max(1, turns),
-          remainingTools: Math.max(0, record.remainingTools - 1),
-        });
-      } else {
-        await ledger.compareAndSet(record.id, 'interpreting', { state: 'succeeded', answer: bounded(output.text, 1000), remainingTurns: turns });
-      }
+      await ledger.compareAndSet(record.id, 'interpreting', { state: 'succeeded', answer: bounded(output.text, 1000), remainingTurns: turns });
     } else {
-      const forced = inferNavigateTool(record.comment);
-      const checkedForce = forced
-        ? validatePublicToolCall(record.mode, forced.name, forced.arguments)
-        : { ok: false };
       const checked = validatePublicToolCall(record.mode, output.call?.name, output.call?.arguments);
-      const chosen = checkedForce.ok ? checkedForce : checked;
-      if (!chosen.ok) {
-        await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: chosen.reason || checked.reason || 'Invalid tool call', remainingTurns: turns });
+      if (!checked.ok) {
+        await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: checked.reason || 'Invalid tool call', remainingTurns: turns });
       } else {
         await ledger.compareAndSet(record.id, 'interpreting', {
           state: 'awaiting-execution', nonce: id(), modelResponseId: output.call.responseId,
-          functionCallId: output.call.callId, validatedTool: chosen,
+          functionCallId: output.call.callId, validatedTool: checked,
           remainingTurns: Math.max(1, turns), remainingTools: Math.max(0, record.remainingTools - 1),
         });
       }

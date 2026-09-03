@@ -255,7 +255,7 @@ export function createAdminAuth({
   const sessions = new Map();
   /** @type {Map<string, {failures: number, nextAttemptAt: number}>} */
   const attempts = new Map();
-  const memoryState = { apiKeys: [], mcpEnabled: false };
+  const memoryState = { apiKeys: [], mcpEnabled: false, hermesYoutubeAdmin: null };
 
   function readState() {
     if (store) return store.read();
@@ -267,6 +267,7 @@ export function createAdminAuth({
     const next = mutate(memoryState);
     memoryState.apiKeys = next.apiKeys;
     memoryState.mcpEnabled = next.mcpEnabled;
+    memoryState.hermesYoutubeAdmin = next.hermesYoutubeAdmin;
     return memoryState;
   }
 
@@ -428,6 +429,11 @@ export function createAdminAuth({
     verifyApiKey,
     mcpEnabled,
     setMcpEnabled,
+    hermesYoutubeAdmin: () => readState().hermesYoutubeAdmin || null,
+    setHermesYoutubeAdmin: (value) => {
+      updateState((state) => ({ ...state, hermesYoutubeAdmin: value }));
+      return readState().hermesYoutubeAdmin;
+    },
     sessionCount: () => {
       pruneSessions();
       return sessions.size;

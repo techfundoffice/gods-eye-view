@@ -9,7 +9,8 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { validatePublicToolCall } from './youtubePublicCommandPolicy.js';
+import { PUBLIC_GEV_TOOL_NAMES, validatePublicToolCall } from './youtubePublicCommandPolicy.js';
+import { GEV_FUNCTION_DOCS } from './gevApi.js';
 
 export const NOUS_HERMES_BIN = '/home/runner/.local/bin/hermes';
 export const NOUS_HERMES_SESSION = 'gev-youtube-live';
@@ -35,9 +36,10 @@ export function parseHermesCliOutput(stdout, mode = 'execute') {
   if (jsonText) {
     try {
       const parsed = JSON.parse(jsonText);
-      const name = parsed.tool || parsed.name || parsed.function || '';
-      const args = parsed.arguments || parsed.args || parsed.parameters || {};
-      const reply = String(parsed.reply || parsed.text || parsed.message || '').trim();
+      const first = Array.isArray(parsed.tools) && parsed.tools[0] ? parsed.tools[0] : parsed;
+      const name = first.tool || first.name || first.function || parsed.tool || parsed.name || '';
+      const args = first.arguments || first.args || first.parameters || parsed.arguments || parsed.args || {};
+      const reply = String(parsed.reply || parsed.text || parsed.message || first.reply || '').trim();
       if (name) {
         const checked = validatePublicToolCall(mode, name, args && typeof args === 'object' ? args : {});
         if (checked.ok) {
@@ -72,6 +74,10 @@ function extractJson(raw) {
   return '';
 }
 
+export function gevCapabilityList() {
+  return PUBLIC_GEV_TOOL_NAMES.map((name) => `- ${name}: ${GEV_FUNCTION_DOCS[name] || name}`).join('\n');
+}
+
 export function buildHermesChatPrompt(input = {}) {
   const viewer = String(input.viewer || input.authorHandle || 'viewer').trim() || 'viewer';
   const comment = String(input.comment || '').trim();
@@ -86,17 +92,27 @@ export function buildHermesChatPrompt(input = {}) {
     : '';
   return `You are God's Eye View on a live YouTube broadcast. You are Nous Research Hermes.
 
+You have EVERY God's Eye View capability below. Do not limit yourself to fly_to_location. Pick the function that actually does what the viewer asked: camera, layers, HUD, style, cockpit, tracking, CCTV, radio, annotations, presets, analysis, ISS, routing.
+
+Capabilities:
+${gevCapabilityList()}
+
 Viewer ${viewer} wrote in YouTube chat: ${JSON.stringify(comment)}
 Current globe view: ${view}${prior}${toolResult}
 
-If the globe must move or change, output ONLY JSON:
-{"tool":"fly_to_location","arguments":{"query":"Los Angeles, CA","viewMode":"overview"},"reply":"short chat reply"}
-Use viewMode overview for cities and countries. Close is only for a named building or street.
-
-If they are chatting or you already finished the tool, output ONLY JSON:
+Output ONLY JSON, one next action:
+{"tool":"<exact capability name>","arguments":{...},"reply":"short chat reply to ${viewer}"}
+If no globe change is needed:
 {"reply":"short YouTube live chat reply addressing ${viewer}"}
 
-No markdown. No extra prose. Keep reply under 240 characters.`;
+Examples:
+{"tool":"set_layer_visibility","arguments":{"layerId":"flights","enabled":true},"reply":"@user Flights are on."}
+{"tool":"set_visual_style","arguments":{"style":"thermal"},"reply":"@user Thermal view is up."}
+{"tool":"frame_overhead","arguments":{},"reply":"@user Looking straight down."}
+{"tool":"run_view_preset","arguments":{"preset":"contacts"},"reply":"@user Live contacts preset."}
+{"tool":"fly_to_location","arguments":{"query":"Los Angeles, CA","viewMode":"overview"},"reply":"@user Map overview of LA."}
+
+Cities/countries use fly_to_location viewMode overview. Close is only for a named building or street. No markdown. Keep reply under 240 characters.`;
 }
 
 export function createNousHermesCliInterpreter({
@@ -104,7 +120,7 @@ export function createNousHermesCliInterpreter({
   model = process.env.HERMES_MODEL || 'x-ai/grok-4.6',
   provider = 'openrouter',
   spawnImpl = spawn,
-  timeoutMs = 45_000,
+  timeoutMs = 90_000,
 } = {}) {
   return async function interpret(input = {}) {
     const command = resolveHermesBin(bin);
@@ -121,8 +137,8 @@ export function createNousHermesCliInterpreter({
       '--yolo',
       '--provider', provider,
       '-m', model,
-      '--max-turns', '2',
-      '--run-budget', '30',
+      '--max-turns', '8',
+      '--run-budget', '60',
     ];
     const result = await runCommand(spawnImpl, command, args, timeoutMs);
     if (!result.ok) {

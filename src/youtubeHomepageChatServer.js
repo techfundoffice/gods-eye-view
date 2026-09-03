@@ -107,11 +107,18 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
     80,
   );
   const agentRequested = commandsEnabled;
+  const channelId = boundedText(
+    raw.channelId || raw.authorChannelId || raw.authorDetails?.channelId || normalized.author?.channelId,
+    80,
+  );
+  const isChatOwner = raw.isChatOwner === true || raw.authorDetails?.isChatOwner === true;
   return {
     id: normalized.commentId,
     videoId: normalized.videoId,
     author: normalized.author.displayName,
     ...(authorHandle ? { authorHandle } : {}),
+    ...(channelId ? { channelId } : {}),
+    ...(isChatOwner ? { isChatOwner: true } : {}),
     text: normalized.text,
     publishedAt: normalized.receivedAt,
     source: 'youtube',

@@ -828,6 +828,10 @@
                 <strong>GEV API</strong>
                 <small>REST + MCP documentation for every GEV function.</small>
               </button>
+              <button class="admin-menu-item" type="button" data-admin-view="hermes-admin" aria-current="false">
+                <strong>Hermes Admin</strong>
+                <small>YouTube account that may run the Hermes CLI for code, skills, and go-live.</small>
+              </button>
             </div>
             <div class="admin-nav-group" data-admin-nav-group="plugins" role="group" aria-labelledby="admin-nav-plugins-heading">
               <h3 id="admin-nav-plugins-heading" class="admin-nav-heading">Plugins</h3>
@@ -907,6 +911,38 @@
           <pre id="admin-gev-api-curl" class="admin-mcp-snippet"></pre>
           <span class="admin-mcp-label">MCP / OPENROUTER</span>
           <pre id="admin-gev-api-mcp" class="admin-mcp-snippet"></pre>
+        </div>
+
+        <div class="admin-pane admin-pane-hermes-admin" data-admin-pane="hermes-admin" hidden>
+          <p class="admin-mcp-help">
+            Only this YouTube account can send live-chat commands into the real Hermes Agent CLI
+            (code changes, <code>hermes skills</code> / skills.sh, and go live). Viewers stay on
+            globe controls. Default operator:
+            <code>techfundoffice@gmail.com</code> / <code>@TechfundOffice</code>.
+          </p>
+          <form id="admin-hermes-admin-form" class="admin-live-form" autocomplete="off">
+            <label class="admin-field" for="admin-hermes-admin-emails">
+              <span>ADMIN EMAILS</span>
+              <input id="admin-hermes-admin-emails" type="text" name="hermes-admin-emails"
+                placeholder="techfundoffice@gmail.com" />
+            </label>
+            <label class="admin-field" for="admin-hermes-admin-handles">
+              <span>YOUTUBE HANDLES</span>
+              <input id="admin-hermes-admin-handles" type="text" name="hermes-admin-handles"
+                placeholder="TechfundOffice" />
+            </label>
+            <label class="admin-field" for="admin-hermes-admin-channels">
+              <span>CHANNEL IDS (optional)</span>
+              <input id="admin-hermes-admin-channels" type="text" name="hermes-admin-channels"
+                placeholder="UC…" />
+            </label>
+            <div class="admin-live-actions">
+              <button id="admin-hermes-admin-save" class="scene-btn" type="submit">SAVE</button>
+            </div>
+          </form>
+          <p id="admin-hermes-admin-status" class="admin-live-summary" role="status" aria-live="polite">
+            Hermes admin settings have not loaded yet.
+          </p>
         </div>
 
         <div class="admin-pane admin-pane-openrouter" data-admin-pane="openrouter" hidden>

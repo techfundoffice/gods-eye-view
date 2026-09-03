@@ -13,13 +13,14 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { normalizeHermesYoutubeAdmin } from './hermesYoutubeAdmin.js';
 
 /** Default on-disk location, relative to the repository root. */
 export const ADMIN_STATE_FILE = '.gev-cache/admin-state.json';
 
 /** Shape returned when nothing has been persisted yet. */
 export function emptyAdminState() {
-  return { version: 1, apiKeys: [], mcpEnabled: false, plugins: [] };
+  return { version: 1, apiKeys: [], mcpEnabled: false, plugins: [], hermesYoutubeAdmin: normalizeHermesYoutubeAdmin(null) };
 }
 
 /**
@@ -38,6 +39,7 @@ export function normalizeAdminState(raw) {
     apiKeys: Array.isArray(raw.apiKeys) ? raw.apiKeys.filter((entry) => entry && typeof entry === 'object') : [],
     mcpEnabled: Boolean(raw.mcpEnabled),
     plugins: Array.isArray(raw.plugins) ? raw.plugins.filter((entry) => entry && typeof entry === 'object') : [],
+    hermesYoutubeAdmin: normalizeHermesYoutubeAdmin(raw.hermesYoutubeAdmin),
   };
 }
 

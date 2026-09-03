@@ -46,3 +46,17 @@ test('oneshot spawn uses the real hermes chat CLI', async () => {
   assert.ok(calls[0].args.includes('--oneshot'));
   assert.match(buildHermesChatPrompt({ comment: 'navigate to tokyo', viewer: '@ada' }), /tokyo/i);
 });
+
+
+test('Hermes can call any GEV capability, not only fly_to_location', () => {
+  const prompt = buildHermesChatPrompt({ comment: 'turn on flights', viewer: '@ada' });
+  assert.match(prompt, /set_layer_visibility/);
+  assert.match(prompt, /set_visual_style/);
+  assert.match(prompt, /control_cockpit/);
+  assert.match(prompt, /run_view_preset/);
+  assert.match(prompt, /EVERY God's Eye View capability/i);
+  const out = parseHermesCliOutput('{"tool":"set_layer_visibility","arguments":{"layerId":"flights","enabled":true},"reply":"Flights on"}');
+  assert.equal(out.kind, 'tool-call');
+  assert.equal(out.call.name, 'set_layer_visibility');
+  assert.equal(out.call.arguments.layerId, 'flights');
+});

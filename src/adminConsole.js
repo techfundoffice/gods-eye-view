@@ -68,6 +68,11 @@ export const ADMIN_MENU_ITEMS = Object.freeze([
     label: 'GEV API',
     description: 'REST + MCP documentation for every GEV function.',
   },
+  {
+    id: 'hermes-admin',
+    label: 'Hermes Admin',
+    description: 'YouTube account that may run the Hermes CLI for code, skills, and go-live.',
+  },
 ]);
 
 /** Viewport width at which the left rail becomes a compact drawer. */
@@ -468,6 +473,8 @@ export class AdminConsoleController {
       youtubeAuth: { configured: false, authenticated: false, canWrite: false, account: null },
       openrouter: { present: false, source: 'missing', model: 'google/gemini-3.8-flash' },
       openrouterLoaded: false,
+      hermesYoutubeAdmin: { emails: ['techfundoffice@gmail.com'], handles: ['TechfundOffice'], channelIds: [] },
+      hermesYoutubeAdminLoaded: false,
       gevApi: null,
       gevApiLoaded: false,
       liveWatchUrl: '',
@@ -562,6 +569,10 @@ export class AdminConsoleController {
       void this._saveOpenrouter();
     });
     this._el('admin-openrouter-test')?.addEventListener('click', () => void this._testOpenrouter());
+    this._el('admin-hermes-admin-form')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void this._saveHermesYoutubeAdmin();
+    });
     this._el('admin-mcp-key-form')?.addEventListener('submit', (event) => {
       event.preventDefault();
       void this._createKey();
@@ -810,6 +821,7 @@ export class AdminConsoleController {
     if (view === 'live-stream') void this._loadLive();
     if (view === 'openrouter') void this._loadOpenrouter();
     if (view === 'gev-api') void this._loadGevApi();
+    if (view === 'hermes-admin') void this._loadHermesYoutubeAdmin();
     else this._stopLivePolling();
     const plugin = this.state.menuPlugins.find((entry) => entry.id === view);
     if (plugin) this._mountPluginView(plugin);
@@ -1114,6 +1126,52 @@ export class AdminConsoleController {
       this.state.message = error.message;
     }
     this._render();
+  }
+
+  async _loadHermesYoutubeAdmin() {
+    try {
+      this.state.hermesYoutubeAdmin = await this.client.hermesYoutubeAdmin();
+      this.state.hermesYoutubeAdminLoaded = true;
+    } catch (error) {
+      this.state.message = error.message;
+    }
+    this._render();
+  }
+
+  async _saveHermesYoutubeAdmin() {
+    const split = (value) => String(value || '').split(/[,\n]/).map((part) => part.trim()).filter(Boolean);
+    const body = {
+      emails: split(this._el('admin-hermes-admin-emails')?.value),
+      handles: split(this._el('admin-hermes-admin-handles')?.value),
+      channelIds: split(this._el('admin-hermes-admin-channels')?.value),
+    };
+    try {
+      this.state.hermesYoutubeAdmin = await this.client.saveHermesYoutubeAdmin(body);
+      this.state.hermesYoutubeAdminLoaded = true;
+      this.state.message = `Hermes YouTube admin: ${(this.state.hermesYoutubeAdmin.emails || []).join(', ')}`;
+    } catch (error) {
+      this.state.message = error.message;
+    }
+    this._render();
+  }
+
+  _renderHermesYoutubeAdmin() {
+    const cfg = this.state.hermesYoutubeAdmin || {};
+    const fill = (id, value) => {
+      const field = this._el(id);
+      if (field && this.state.hermesYoutubeAdminLoaded && document.activeElement !== field) {
+        field.value = value;
+      }
+    };
+    fill('admin-hermes-admin-emails', (cfg.emails || []).join(', '));
+    fill('admin-hermes-admin-handles', (cfg.handles || []).join(', '));
+    fill('admin-hermes-admin-channels', (cfg.channelIds || []).join(', '));
+    const status = this._el('admin-hermes-admin-status');
+    if (status) {
+      status.textContent = this.state.hermesYoutubeAdminLoaded
+        ? `YouTube operator · ${(cfg.emails || []).join(', ') || 'unset'} · @${(cfg.handles || ['TechfundOffice'])[0]}`
+        : 'Hermes admin settings have not loaded yet.';
+    }
   }
 
   _renderOpenrouter() {
@@ -1653,6 +1711,7 @@ export class AdminConsoleController {
     this._renderMcp();
     this._renderGevApi();
     this._renderOpenrouter();
+    this._renderHermesYoutubeAdmin();
     this._renderLive();
   }
 

@@ -146,7 +146,7 @@ export function createHermesHarnessController({
       return status();
     }
     const tools = viewSafeToolsFrom();
-    const bin = resolveHermesBin(hermesCommand);
+    const bin = hermesCommand ? resolveHermesBin(hermesCommand) : '';
     if (bin) {
       hermesInterpret = createNousHermesCliInterpreter({ bin, model });
       bridge = {
