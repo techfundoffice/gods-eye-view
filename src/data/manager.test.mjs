@@ -2832,6 +2832,35 @@ function makeRowControlLayer() {
   };
 }
 
+test('clicking a layer name toggles the layer just like the ON/OFF control', async () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: makeControlElement };
+  const mgr = new DataLayerManager({});
+  const layer = makeRowControlLayer();
+  mgr.register(layer.module);
+  const container = makeControlElement();
+
+  try {
+    mgr.buildTogglePanel(container);
+    const row = container.querySelector('[data-layer-id="satellites"]');
+    const labelButton = row.querySelector('.data-toggle-left');
+    assert.equal(labelButton.type, 'button');
+    assert.equal(labelButton.attributes['aria-label'], 'Toggle Satellites');
+
+    labelButton.listeners.click();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(mgr.isEnabled('satellites'), true);
+
+    labelButton.listeners.click();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(mgr.isEnabled('satellites'), false);
+  } finally {
+    await mgr.destroyAll();
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  }
+});
+
 test('a layer that declares row controls renders its chips and color legend', async () => {
   const originalDocument = globalThis.document;
   globalThis.document = { createElement: makeControlElement };

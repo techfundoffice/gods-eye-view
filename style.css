@@ -6135,6 +6135,31 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.data-toggle-left:hover .data-name,
+.data-toggle-left:focus-visible .data-name {
+  color: var(--accent);
+}
+
+.data-toggle-left:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.data-toggle-left:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .data-icon {

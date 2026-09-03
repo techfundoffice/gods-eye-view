@@ -2,7 +2,7 @@ import * as Cesium from 'cesium';
 
 /**
  * Camera presets for notable locations.
- * Phase 1 default: fly to Austin, TX on load.
+ * Default: open above Los Angeles in a Google Earth-style regional view.
  */
 export const CAMERA_PRESETS = {
   austin: {
@@ -10,6 +10,14 @@ export const CAMERA_PRESETS = {
     orientation: {
       heading: Cesium.Math.toRadians(0),
       pitch: Cesium.Math.toRadians(-35),
+      roll: 0.0,
+    },
+  },
+  losAngeles: {
+    destination: Cesium.Cartesian3.fromDegrees(-118.2437, 34.0522, 18000),
+    orientation: {
+      heading: Cesium.Math.toRadians(25),
+      pitch: Cesium.Math.toRadians(-50),
       roll: 0.0,
     },
   },
@@ -47,29 +55,30 @@ export function flyToPreset(viewer, presetName, duration = 3.0) {
 }
 
 /**
- * Set camera to Austin on load with a cinematic fly-in.
+ * Set the default camera above Los Angeles with a Google Earth-style
+ * regional fly-in. The high opening frame makes the globe immediately
+ * legible; the settled oblique view exposes Photorealistic 3D terrain and
+ * buildings without dropping into an indistinct street-level close-up.
  */
-export function flyToAustin(viewer) {
-  // Start from a high altitude, then fly down
+export function flyToLosAngeles(viewer) {
   viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(-97.7431, 30.2672, 25000),
+    destination: Cesium.Cartesian3.fromDegrees(-118.2437, 34.0522, 120000),
     orientation: {
-      heading: Cesium.Math.toRadians(0),
-      pitch: Cesium.Math.toRadians(-90),
+      heading: Cesium.Math.toRadians(10),
+      pitch: Cesium.Math.toRadians(-78),
       roll: 0.0,
     },
   });
 
-  // Cinematic fly-in after a brief pause
   setTimeout(() => {
     viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(-97.7431, 30.2672, 600),
+      destination: Cesium.Cartesian3.fromDegrees(-118.2437, 34.0522, 18000),
       orientation: {
-        heading: Cesium.Math.toRadians(15),
-        pitch: Cesium.Math.toRadians(-30),
+        heading: Cesium.Math.toRadians(25),
+        pitch: Cesium.Math.toRadians(-50),
         roll: 0.0,
       },
-      duration: 4.0,
+      duration: 4.5,
       easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
     });
   }, 500);

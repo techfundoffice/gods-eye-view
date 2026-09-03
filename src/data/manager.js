@@ -2031,7 +2031,8 @@ export class DataLayerManager {
       const topRow = document.createElement('div');
       topRow.className = 'data-toggle-top';
 
-      const left = document.createElement('div');
+      const left = document.createElement('button');
+      left.type = 'button';
       left.className = 'data-toggle-left';
       left.innerHTML = `<span class="data-icon">${layer.icon}</span><span class="data-name">${layer.name}</span>`;
 
@@ -2045,16 +2046,22 @@ export class DataLayerManager {
       const toggle = document.createElement('button');
       toggle.className = `data-toggle-btn${layer.enabled ? ' active' : ''}`;
       this._syncToggleButton(toggle, layer);
-      toggle.addEventListener('click', async () => {
+      const requestToggle = async (button) => {
+        if (button.disabled) return;
         toggle.disabled = true;
+        left.disabled = true;
         try {
           await this.setEnabled(layer.id, !this.isEnabled(layer.id), { origin: 'user' });
         } catch (error) {
           console.warn(`[Data] ${layer.id} toggle error:`, error);
         } finally {
           toggle.disabled = false;
+          left.disabled = false;
         }
-      });
+      };
+      left.setAttribute('aria-label', `Toggle ${layer.name}`);
+      left.addEventListener('click', () => void requestToggle(left));
+      toggle.addEventListener('click', () => void requestToggle(toggle));
 
       right.appendChild(count);
       right.appendChild(toggle);
