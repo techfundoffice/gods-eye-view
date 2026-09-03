@@ -15491,3 +15491,454 @@ html, body {
     white-space: pre-wrap !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Canonical control view — horizontal bottom deck
+
+   This is intentionally the final layout authority. Earlier broadcast
+   experiments hid these docks and moved their children into side columns.
+   StyleManager now moves the original nodes (never clones) into
+   #bottom-control-deck. There is one view only: horizontal bottom rows.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  --gev-status-band-height: calc(
+    var(--live-news-ticker-height, 2rem) +
+    var(--broadcast-legend-height, 2rem)
+  );
+  --gev-command-row-height: 7.5rem;
+  --context-hud-dock-height: 13rem;
+  --display-cctv-dock-height: 8.5rem;
+}
+
+html,
+body {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  overflow: hidden !important;
+}
+
+.live-news-ticker {
+  top: auto !important;
+  bottom: 0 !important;
+  border-top: 1px solid rgba(255, 92, 92, 0.62) !important;
+  border-bottom: 0 !important;
+  padding-top: 0.38rem !important;
+  padding-bottom: calc(0.38rem + env(safe-area-inset-bottom)) !important;
+}
+
+#gev-command-legend {
+  top: auto !important;
+  bottom: calc(var(--live-news-ticker-height, 2rem) + env(safe-area-inset-bottom)) !important;
+  border-top: 1px solid rgba(0, 212, 255, 0.2) !important;
+  border-bottom: 0 !important;
+}
+
+#bottom-control-deck {
+  position: fixed;
+  z-index: 1270;
+  left: max(0.5rem, env(safe-area-inset-left));
+  right: max(0.5rem, env(safe-area-inset-right));
+  bottom: calc(var(--gev-status-band-height) + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: calc(100dvh - var(--youtube-north-band, 7.25rem) - var(--gev-status-band-height) - 0.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  pointer-events: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(126, 240, 255, 0.4) transparent;
+}
+
+#bottom-control-deck > * {
+  pointer-events: auto;
+}
+
+#bottom-control-deck > #left-panel-stack {
+  position: fixed !important;
+  left: var(--left-stack-x, 52px) !important;
+  right: auto !important;
+  top: var(--left-stack-safe-top, var(--youtube-north-band, 7.25rem)) !important;
+  bottom: calc(
+    var(--gev-status-band-height) +
+    var(--gev-command-row-height) +
+    var(--context-hud-dock-height) +
+    var(--display-cctv-dock-height) +
+    1.4rem
+  ) !important;
+  width: min(18rem, calc(100vw - 1rem)) !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+#bottom-control-deck > #command-dock {
+  position: relative !important;
+  inset: auto !important;
+  order: 1;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  gap: 0.5rem !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: var(--gev-command-row-height) !important;
+  min-height: var(--gev-command-row-height) !important;
+  max-height: var(--gev-command-row-height) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  transform: none !important;
+}
+
+#bottom-control-deck #command-dock > #control-panel,
+#bottom-control-deck #command-dock > #location-bar,
+#bottom-control-deck #command-dock > #gev-voice-control {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+#bottom-control-deck #command-dock > #control-panel {
+  flex: 1.2 1 35rem !important;
+  width: auto !important;
+  min-width: 30rem !important;
+  max-width: none !important;
+}
+
+#bottom-control-deck #command-dock > #location-bar {
+  flex: 1 1 28rem !important;
+  width: auto !important;
+  min-width: 24rem !important;
+  max-width: none !important;
+}
+
+#bottom-control-deck #command-dock > #gev-voice-control {
+  flex: 0 0 14rem !important;
+  width: 14rem !important;
+  min-width: 14rem !important;
+  overflow: hidden !important;
+}
+
+#bottom-control-deck #command-dock .panel-inner,
+#bottom-control-deck #command-dock .location-inner,
+#bottom-control-deck #command-dock .dock-popover-content,
+#bottom-control-deck #command-dock #control-panel-popover {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
+#bottom-control-deck #command-dock #control-panel-popover {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.2rem !important;
+  padding: 0.25rem 0.45rem !important;
+}
+
+#bottom-control-deck #command-dock #style-buttons.button-grid {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(3.2rem, 1fr)) !important;
+  gap: 0.25rem !important;
+  flex: 0 0 2.35rem !important;
+  width: 100% !important;
+  min-height: 2.35rem !important;
+  max-height: 2.35rem !important;
+}
+
+#bottom-control-deck #command-dock .style-btn {
+  min-width: 0 !important;
+  min-height: 2.15rem !important;
+  height: 2.15rem !important;
+  padding: 0.2rem 0.35rem !important;
+}
+
+#bottom-control-deck #command-dock .map-source-section,
+#bottom-control-deck #command-dock .location-city-row,
+#bottom-control-deck #command-dock .location-search-wrap {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#bottom-control-deck #command-dock .map-source-section {
+  flex: 0 0 2rem !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+  width: 100% !important;
+  height: 2rem !important;
+  min-height: 2rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#bottom-control-deck #command-dock .map-source-heading {
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+
+#bottom-control-deck #command-dock #map-stack-chips {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 0.25rem !important;
+  width: auto !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+}
+
+#bottom-control-deck #command-dock .map-stack-chip {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 4.5rem !important;
+  min-height: 1.8rem !important;
+  height: 1.8rem !important;
+  padding: 0.15rem 0.35rem !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+}
+
+#bottom-control-deck > #context-hud-dock {
+  position: relative !important;
+  inset: auto !important;
+  order: 2;
+  display: block !important;
+  width: 100% !important;
+  height: var(--context-hud-dock-height) !important;
+  min-height: var(--context-hud-dock-height) !important;
+  max-height: var(--context-hud-dock-height) !important;
+  overflow: hidden !important;
+  pointer-events: auto !important;
+}
+
+#bottom-control-deck #context-hud-dock > #global-context-panel,
+#bottom-control-deck #context-hud-dock > #global-context-panel.collapsed,
+#bottom-control-deck #context-hud-dock > #global-context-panel.layout-auto-collapsed {
+  position: relative !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#bottom-control-deck #context-hud-dock .global-context-panel-inner {
+  display: grid !important;
+  grid-template-columns: minmax(10rem, 0.8fr) minmax(12rem, 1fr) minmax(27rem, 2fr) !important;
+  grid-template-areas:
+    "head head head"
+    "flights missions radio" !important;
+  gap: 0.35rem 0.7rem !important;
+  width: 100% !important;
+  min-width: 58rem !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  padding: 0.4rem 0.55rem !important;
+  overflow: hidden !important;
+}
+
+#bottom-control-deck #context-hud-dock #context-flights-view,
+#bottom-control-deck #context-hud-dock #context-missions-view,
+#bottom-control-deck #context-hud-dock #radio-panel,
+#bottom-control-deck #context-hud-dock #radio-panel.collapsed {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-width: 0 !important;
+  height: auto !important;
+  max-height: 10.4rem !important;
+  overflow: auto !important;
+}
+
+#bottom-control-deck #context-hud-dock #radio-panel {
+  grid-area: radio;
+  position: relative !important;
+  inset: auto !important;
+  width: auto !important;
+  max-width: none !important;
+  max-height: 10.4rem !important;
+  box-sizing: border-box !important;
+}
+
+#bottom-control-deck #context-hud-dock .radio-panel-inner {
+  display: flex !important;
+  flex-flow: row wrap !important;
+  align-content: flex-start !important;
+  gap: 0.3rem 0.45rem !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+#bottom-control-deck #context-hud-dock .radio-directory-row,
+#bottom-control-deck #context-hud-dock #radio-station-card,
+#bottom-control-deck #context-hud-dock #radio-tuner,
+#bottom-control-deck #context-hud-dock .radio-transport,
+#bottom-control-deck #context-hud-dock .radio-volume-row,
+#bottom-control-deck #context-hud-dock #radio-playback-state,
+#bottom-control-deck #context-hud-dock .radio-links,
+#bottom-control-deck #context-hud-dock .radio-privacy {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#bottom-control-deck #context-hud-dock .radio-directory-row {
+  flex: 1 1 13rem;
+}
+
+#bottom-control-deck #context-hud-dock #radio-station-card {
+  flex: 1 1 16rem;
+}
+
+#bottom-control-deck #context-hud-dock #radio-tuner {
+  flex: 1 1 17rem;
+  min-width: 15rem;
+  max-height: 4.2rem !important;
+}
+
+#bottom-control-deck #context-hud-dock .radio-transport {
+  flex: 1 1 18rem;
+  grid-template-columns: repeat(4, minmax(3.4rem, 1fr)) !important;
+  min-width: 17rem !important;
+}
+
+#bottom-control-deck #context-hud-dock .radio-volume-row {
+  flex: 1 1 13rem;
+}
+
+#bottom-control-deck #context-hud-dock .radio-links,
+#bottom-control-deck #context-hud-dock .radio-privacy,
+#bottom-control-deck #context-hud-dock #radio-playback-state {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+
+#bottom-control-deck > #display-cctv-dock {
+  position: relative !important;
+  inset: auto !important;
+  order: 3;
+  z-index: auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  gap: 0.5rem !important;
+  width: 100% !important;
+  height: var(--display-cctv-dock-height) !important;
+  min-height: var(--display-cctv-dock-height) !important;
+  max-height: var(--display-cctv-dock-height) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  pointer-events: auto !important;
+}
+
+#bottom-control-deck #display-cctv-dock > #pp-toggles,
+#bottom-control-deck #display-cctv-dock > #pp-toggles.collapsed,
+#bottom-control-deck #display-cctv-dock > #cctv-panel,
+#bottom-control-deck #display-cctv-dock > #cctv-panel.collapsed {
+  position: relative !important;
+  inset: auto !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: auto !important;
+  pointer-events: auto !important;
+}
+
+#bottom-control-deck #display-cctv-dock > #pp-toggles {
+  flex: 2 1 68% !important;
+  width: auto !important;
+  min-width: 45rem !important;
+  flex-flow: row nowrap !important;
+  align-items: stretch !important;
+  gap: 0.35rem !important;
+  padding: 0.35rem !important;
+}
+
+#bottom-control-deck #display-cctv-dock > #cctv-panel {
+  flex: 1 1 32% !important;
+  width: auto !important;
+  min-width: 22rem !important;
+}
+
+#bottom-control-deck #display-cctv-dock #param-slider-panel,
+#bottom-control-deck #display-cctv-dock #param-slider-panel.active,
+#bottom-control-deck #display-cctv-dock .pp-toggle-group,
+#bottom-control-deck #display-cctv-dock .pp-slider-row,
+#bottom-control-deck #display-cctv-dock .param-slider-row {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#bottom-control-deck #display-cctv-dock #param-slider-panel {
+  min-width: 18rem !important;
+  max-height: 100% !important;
+  overflow: auto !important;
+}
+
+#bottom-control-deck #display-cctv-dock #pp-toggles > .pp-header-row {
+  flex: 0 0 8rem !important;
+  width: 8rem !important;
+  min-width: 8rem !important;
+  height: 100% !important;
+}
+
+#bottom-control-deck #display-cctv-dock #pp-toggles > .pp-toggle-group,
+#bottom-control-deck #display-cctv-dock #pp-toggles > #clean-view-toggle {
+  flex: 0 0 8.5rem !important;
+  width: 8.5rem !important;
+  min-width: 8.5rem !important;
+  height: 100% !important;
+}
+
+#bottom-control-deck #display-cctv-dock .cctv-panel-inner {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: auto !important;
+}
+
+#right-context-rail:empty,
+#right-context-rail:not(:has([data-panel-id])) {
+  display: none !important;
+}
+
+#cesiumContainer {
+  top: var(--youtube-north-band, 7.25rem) !important;
+  bottom: calc(
+    var(--gev-status-band-height) +
+    var(--gev-command-row-height) +
+    var(--context-hud-dock-height) +
+    var(--display-cctv-dock-height) +
+    1rem
+  ) !important;
+}

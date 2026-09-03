@@ -6841,9 +6841,8 @@ export class StyleManager {
       bottomDeck.setAttribute('aria-label', 'God’s Eye View controls');
       document.body.appendChild(bottomDeck);
     }
-    // Move the real control nodes into one canonical deck. Fixed desktop
-    // children keep their historical HUD positions; narrow/fold CSS turns the
-    // same nodes into one document-flow column without duplicate IDs.
+    // Move the real control nodes into one canonical desktop deck without
+    // cloning IDs or maintaining a second fold/mobile control arrangement.
     for (const node of [leftStack, commandDock, contextDock, displayDock]) {
       if (node && node.parentElement !== bottomDeck) bottomDeck.appendChild(node);
     }
@@ -7095,6 +7094,7 @@ export class StyleManager {
       allocatedHeights: expandedHeights,
       collapseLaterPanels: shouldFocus && this.hud.getVariant() === 'tactical',
     }) : [];
+    autoCollapseIndices = [];
     if (autoCollapseIndices.length) {
       for (const index of autoCollapseIndices) {
         const panel = expandedPanels[index];
@@ -7454,6 +7454,7 @@ export class StyleManager {
       allocatedHeights: allocatedExpandedHeights,
       collapseLaterPanels: shouldFocus && this.hud.getVariant() === 'tactical',
     }) : [];
+    autoCollapseIndices = [];
     if (autoCollapseIndices.length) {
       for (const index of autoCollapseIndices) {
         const panel = expandedPanels[index];

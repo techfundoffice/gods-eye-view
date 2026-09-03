@@ -367,13 +367,6 @@ export function initFirstRunExperience({
       if (bottom) cluster.appendChild(bottom);
       if (top) cluster.appendChild(top);
     }
-    const locationBar = documentRef.getElementById("location-bar");
-    const choices = root.querySelector(".first-run-choices");
-    if (locationBar) {
-      locationBar.classList.remove("collapsed");
-      if (choices) root.insertBefore(locationBar, choices);
-      else root.appendChild(locationBar);
-    }
   }
   const maximizeButton = root.querySelector('#first-run-maximize');
   const defaultStatus = status?.textContent || '';
