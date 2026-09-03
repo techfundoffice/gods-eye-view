@@ -17048,3 +17048,112 @@ body {
   flex: 0 0 auto !important;
   z-index: 148 !important;
 }
+
+
+/* === GEV_SNUG_LEFT_NAV_MIC_V1 ===
+   Left nav: microphone icon only. Hide the AI AGENT / cost / error wall.
+   Keep DOM nodes so gevRealtime.js querySelectors still work. */
+#left-panel-stack > #gev-voice-control,
+#left-panel-stack > #gev-voice-control[data-status],
+#left-panel-stack > #gev-voice-control[data-status='error'],
+#left-panel-stack > #gev-voice-control[data-status='listening'],
+#left-panel-stack > #gev-voice-control[data-status='executing'] {
+  position: relative !important;
+  inset: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 2.75rem !important;
+  min-width: 2.75rem !important;
+  max-width: 2.75rem !important;
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  max-height: 2.75rem !important;
+  margin: 4.6rem 0 0.45rem 0.2rem !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  flex: 0 0 2.75rem !important;
+  z-index: 148 !important;
+  pointer-events: auto !important;
+}
+
+#left-panel-stack > #gev-voice-control .gev-voice-heading,
+#left-panel-stack > #gev-voice-control .gev-voice-visualizer,
+#left-panel-stack > #gev-voice-control .gev-voice-readout,
+#left-panel-stack > #gev-voice-control .gev-voice-help-tray,
+#left-panel-stack > #gev-voice-control .gev-voice-error-tray,
+#left-panel-stack > #gev-voice-control .gev-mic-label {
+  display: none !important;
+}
+
+#left-panel-stack > #gev-voice-control #gev-voice-button {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 2.75rem !important;
+  height: 2.75rem !important;
+  min-width: 2.75rem !important;
+  min-height: 2.75rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(0, 212, 255, 0.55) !important;
+  background: rgba(0, 18, 28, 0.92) !important;
+  color: #7af0ff !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 212, 255, 0.12) inset,
+    0 0 10px rgba(0, 212, 255, 0.18) !important;
+  grid-area: auto !important;
+}
+
+#left-panel-stack > #gev-voice-control #gev-voice-button:hover {
+  border-color: #7af0ff !important;
+  box-shadow: 0 0 14px rgba(0, 212, 255, 0.35) !important;
+}
+
+#left-panel-stack > #gev-voice-control .gev-mic-orbit {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 1.35rem !important;
+  height: 1.35rem !important;
+  margin: 0 !important;
+}
+
+#left-panel-stack > #gev-voice-control .gev-mic-orbit img {
+  width: 1.2rem !important;
+  height: 1.2rem !important;
+  display: block !important;
+  filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.55));
+}
+
+#left-panel-stack > #gev-voice-control[data-status='listening'] #gev-voice-button {
+  border-color: #5cffc6 !important;
+  background: rgba(0, 40, 32, 0.95) !important;
+  box-shadow: 0 0 0 2px rgba(92, 255, 198, 0.28), 0 0 16px rgba(92, 255, 198, 0.4) !important;
+  animation: gev-snug-mic-pulse 1.4s ease-in-out infinite;
+}
+
+#left-panel-stack > #gev-voice-control[data-status='executing'] #gev-voice-button {
+  border-color: #ffdc78 !important;
+  box-shadow: 0 0 0 2px rgba(255, 220, 120, 0.28), 0 0 16px rgba(255, 220, 120, 0.35) !important;
+}
+
+#left-panel-stack > #gev-voice-control[data-status='error'] #gev-voice-button {
+  border-color: #ff6b7d !important;
+  background: rgba(40, 8, 14, 0.95) !important;
+  box-shadow: 0 0 0 2px rgba(255, 92, 110, 0.35), 0 0 14px rgba(255, 92, 110, 0.35) !important;
+}
+
+@keyframes gev-snug-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(92, 255, 198, 0.22), 0 0 10px rgba(92, 255, 198, 0.28); }
+  50% { box-shadow: 0 0 0 4px rgba(92, 255, 198, 0.16), 0 0 18px rgba(92, 255, 198, 0.5); }
+}
