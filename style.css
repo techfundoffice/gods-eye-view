@@ -17184,111 +17184,168 @@ body {
 }
 
 
-/* === GEV_LEFT_NAV_PRESETS_STACK_V1 ===
-   LOCATION fits the 330px left column (same width as CONTEXT).
-   Visual Preset chips stack vertically as squares, not 7-across. */
+
+/* === GEV_LOCATION_MATCH_CONTEXT_V1 ===
+   LOCATION only. Same box as CONTEXT in #left-panel-stack.
+   Do not touch Visual Presets / MAP SOURCE. */
 #left-panel-stack > #location-bar,
 #left-panel-stack > #location-bar.dock-pinned,
-#left-panel-stack > #location-bar.collapsed {
+#left-panel-stack > #location-bar.collapsed,
+#left-panel-stack > #location-bar.panel-collapsible {
+  position: relative !important;
+  inset: auto !important;
   flex: 0 0 auto !important;
+  align-self: stretch !important;
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
-  overflow: visible !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  overflow-x: hidden !important;
 }
 
-#left-panel-stack #location-bar .location-inner,
-#left-panel-stack #location-bar .dock-popover-content,
-#left-panel-stack #location-bar .location-city-row,
-#left-panel-stack #location-bar .location-search-wrap {
+#left-panel-stack > #location-bar .location-inner,
+#left-panel-stack > #location-bar .dock-popover-content,
+#left-panel-stack > #location-bar .location-toolbar,
+#left-panel-stack > #location-bar .location-city-row,
+#left-panel-stack > #location-bar .location-search-wrap,
+#left-panel-stack > #location-bar .location-mini-status {
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
 }
 
-#left-panel-stack #location-search {
-  width: 100% !important;
-  min-width: 0 !important;
+#left-panel-stack > #location-bar #location-search,
+#left-panel-stack > #location-bar #search-toggle {
   max-width: 100% !important;
   box-sizing: border-box !important;
 }
 
-#left-panel-stack > #control-panel,
-#left-panel-stack > #control-panel.dock-pinned {
-  flex: 0 0 auto !important;
+#left-panel-stack > #location-bar #location-search {
   width: 100% !important;
   min-width: 0 !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-  overflow: visible !important;
 }
 
-#left-panel-stack #control-panel-popover,
-#left-panel-stack #control-panel .panel-inner {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
+#left-panel-stack > #location-bar .location-city-row {
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
-  box-sizing: border-box !important;
 }
 
-#left-panel-stack #style-buttons.button-grid {
-  display: flex !important;
-  flex-direction: column !important;
-  flex-wrap: nowrap !important;
-  align-items: flex-start !important;
-  justify-content: flex-start !important;
-  gap: 0.28rem !important;
+#left-panel-stack > #location-bar #location-pills {
+  display: none !important;
+}
+
+
+/* === GEV_HIDE_LEFT_NAV_PIN_V1 ===
+   Hide the dock pin chip on LOCATION in the left column. */
+#left-panel-stack > #location-bar .dock-pin-btn,
+#left-panel-stack #location-bar .dock-pin-btn {
+  display: none !important;
+}
+
+
+/* === GEV_LEFT_NAV_SHRINK_PRESET_CHIPS_V1 ===
+   Visual Presets + MAP SOURCE: shrink to fit the left column. */
+#left-panel-stack > #control-panel,
+#left-panel-stack > #control-panel.dock-pinned,
+#left-panel-stack > #control-panel.dock-pinned-top,
+#left-panel-stack > #control-panel.panel-collapsible {
+  position: relative !important;
+  inset: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+#left-panel-stack #control-panel .panel-inner,
+#left-panel-stack #control-panel-popover,
+#left-panel-stack #control-panel .dock-popover-content,
+#left-panel-stack #control-panel .map-source-section {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+#left-panel-stack #style-buttons.button-grid,
+#left-panel-stack #style-buttons {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  gap: 0.18rem !important;
   width: 100% !important;
   min-width: 0 !important;
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
   flex: 0 0 auto !important;
-  grid-template-columns: none !important;
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 #left-panel-stack #style-buttons .style-btn {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 2.85rem !important;
-  height: 2.85rem !important;
-  min-width: 2.85rem !important;
-  min-height: 2.85rem !important;
-  max-width: 2.85rem !important;
-  max-height: 2.85rem !important;
-  margin: 0 !important;
-  padding: 0.15rem !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 1 / 1 !important;
+  padding: 0.12rem 0 !important;
+  gap: 0.05rem !important;
   box-sizing: border-box !important;
+}
+
+#left-panel-stack #style-buttons .btn-label {
+  font-size: 0.48rem !important;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+#left-panel-stack #style-buttons .btn-icon {
+  font-size: 0.7rem !important;
+  line-height: 1 !important;
 }
 
 #left-panel-stack #style-buttons .btn-key {
   display: none !important;
 }
 
-#left-panel-stack #control-panel .map-source-section,
 #left-panel-stack #control-panel #map-stack-chips,
 #left-panel-stack #control-panel .map-stack-chip-row {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.18rem !important;
   width: 100% !important;
   min-width: 0 !important;
-  gap: 0.28rem !important;
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 #left-panel-stack #control-panel .map-stack-chip {
   width: 100% !important;
   min-width: 0 !important;
-  justify-content: flex-start !important;
+  max-width: 100% !important;
+  justify-content: center !important;
+  padding: 0.22rem 0.2rem !important;
+  font-size: 0.58rem !important;
   box-sizing: border-box !important;
   white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+#left-panel-stack #control-panel .dock-pin-btn {
+  display: none !important;
 }
