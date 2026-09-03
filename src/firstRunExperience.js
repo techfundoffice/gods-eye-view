@@ -601,10 +601,15 @@ export function initFirstRunExperience({
 
   const onLayerToggle = async (event) => {
     if (closing) return;
+    event.preventDefault?.();
+    event.stopPropagation?.();
     const entry = layerById.get(event.currentTarget?.dataset?.mcLayer);
     if (!entry) return;
+    const button = event.currentTarget;
     const next = !layerIsOn(entry);
-    paintLayerButton(event.currentTarget, next);
+    button.dataset.state = 'switching';
+    button.setAttribute('aria-busy', 'true');
+    paintLayerButton(button, next);
     try {
       if (entry.stackId) {
         await styleManager.setMapStack?.(next ? entry.stackId : 'osm');
@@ -613,12 +618,22 @@ export function initFirstRunExperience({
       }
     } catch (error) {
       console.warn('[First run] Data layer toggle failed:', error);
+      if (status) {
+        status.dataset.sticky = 'true';
+        status.textContent = `${entry.id} could not be changed. ${error?.message || 'Retry.'}`;
+      }
+    } finally {
+      delete button.dataset.state;
+      button.setAttribute('aria-busy', 'false');
     }
     syncLayerButtons();
   };
 
   for (const button of buttons) button.addEventListener('click', onChoice);
-  for (const button of layerButtons) button.addEventListener('click', onLayerToggle);
+  // Capture phase makes these controls immune to the app-wide HUD/map click
+  // routers, which otherwise may consume the event before this compact rail
+  // sees it after the layer block is reparented into Mission Control.
+  for (const button of layerButtons) button.addEventListener('click', onLayerToggle, true);
   syncLayerButtons();
   unsubscribeLayers = dataManager?.subscribe?.(() => {
     if (!closing) syncLayerButtons();

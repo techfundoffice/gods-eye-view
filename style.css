@@ -9983,6 +9983,11 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   border-color: rgba(54, 220, 255, 0.55);
 }
 
+.first-run-layers-list button[data-state='switching'] {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .first-run-layers-list button > .material-symbols-outlined:first-child,
 .first-run-layer-check {
   color: var(--first-run-ink);

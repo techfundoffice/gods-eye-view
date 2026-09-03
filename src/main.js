@@ -1,6 +1,7 @@
 import * as Cesium from 'cesium';
 import { StyleManager } from './ui.js';
 import { flyToLosAngeles } from './camera.js';
+import { guardPhotorealRendering } from './photorealRuntimeGuard.js';
 import { DataLayerManager } from './data/manager.js';
 import flightsLayer from './data/flights.js';
 import militaryFlightsLayer from './data/militaryFlights.js';
@@ -499,6 +500,14 @@ async function init() {
     });
     await mapStackController.setStack(tileset ? 'photoreal' : 'osm', { silent: true });
     if (startupFallbackShown) return;
+    guardPhotorealRendering({
+      tileset,
+      mapStackController,
+      viewer,
+      onFallback: () => {
+        loaderStatus.textContent = 'Google 3D unavailable. Showing a visible map instead.';
+      },
+    });
 
     // Initialize the style manager (post-processing, HUD, locations, share links)
     const styleManager = new StyleManager(viewer, { mapStackController });
