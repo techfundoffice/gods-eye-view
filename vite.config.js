@@ -161,6 +161,7 @@ function sharedPublicCommandRuntime() {
         }, opts);
       },
       onViewerActivity: () => hermesTrainingControlSingleton?.viewerActivity('viewer activity'),
+      isTrainingActive: () => hermesTrainingControlSingleton?.isTraining() === true,
     });
     void publicCommandRuntimeSingleton.rotateExecutor();
   }

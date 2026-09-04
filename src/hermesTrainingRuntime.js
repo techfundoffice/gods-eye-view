@@ -76,7 +76,7 @@ export function createHermesTrainingRuntime({
         version: nextPatchVersion(current.active?.version),
         instructions: 'Operate only enabled view-safe live-interface controls. Inspect the observed result before recording success.',
         rules: [
-          'Viewer work always preempts idle practice.',
+          'Finish the current practice task before beginning queued viewer work.',
           'Use the executable schema from the current generated catalog.',
           'Record a procedure only after a browser result is observed.',
         ],

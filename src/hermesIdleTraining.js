@@ -72,12 +72,10 @@ export function createIdleTrainingCoordinator({
       try {
         timeout = setTimer(() => controller.abort(new Error('Training time limit exceeded')), maxRunMs);
         timeout?.unref?.();
-        const value = await Promise.race([
-          train({ signal: controller.signal, reason, startedAt, deadline: startedAt + maxRunMs }),
-          new Promise((_, reject) => controller.signal.addEventListener('abort', () => {
-            reject(controller.signal.reason || new Error('Training cancelled'));
-          }, { once: true })),
-        ]);
+        // Abort is cooperative: once a run has started, wait for its complete
+        // execution/observation/learning transaction to settle. This prevents a
+        // viewer lease from racing a lesson or generated-skill commit.
+        const value = await train({ signal: controller.signal, reason, startedAt, deadline: startedAt + maxRunMs });
         lastResult = value == null ? null : structuredClone(value);
         lastError = '';
         return { started: true, ok: true, result: lastResult };
@@ -96,10 +94,9 @@ export function createIdleTrainingCoordinator({
   const viewerActivity = (reason = 'viewer activity') => {
     lastViewerAt = now();
     clearScheduled();
-    if (active && !active.controller.signal.aborted) {
-      preemptions += 1;
-      active.controller.abort(new Error(String(reason).slice(0, 120)));
-    }
+    // Viewer work postpones the next run, but never interrupts the training
+    // task that is already executing.
+    void reason;
     schedule();
     return status();
   };

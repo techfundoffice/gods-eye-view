@@ -148,6 +148,8 @@ function renderHermesAgent(els, state = 'idle', viewer = '') {
     ? { mode: 'RESPONDING', status: `Hermes is handling ${activeViewer}'s request.`, detail: 'VIEWER TURN ACTIVE · GLOBE CONTROL IN PROGRESS' }
     : state === 'reply'
       ? { mode: 'WAITING', status: `Hermes is waiting for ${activeViewer}.`, detail: 'VIEWER TURN ACTIVE · REPLY WINDOW OPEN' }
+      : state === 'finishing'
+        ? { mode: 'TRAINING', status: 'Hermes is finishing the current training task.', detail: 'VIEWER COMMENT QUEUED · TRAINING TASK IN PROGRESS' }
       : state === 'observing'
         ? { mode: 'OBSERVING', status: 'Hermes is watching the live YouTube conversation.', detail: 'NO VIEWER TURN ACTIVE · LEARNING FROM CHAT' }
         : { mode: 'TRAINING', status: 'Hi, I’m Hermes.', detail: 'NO VIEWER TURN ACTIVE · EXPLORING THE INTERFACE' };
@@ -161,8 +163,10 @@ function renderHermesAgent(els, state = 'idle', viewer = '') {
     const detail = documentOwner.createElement('span');
     detail.textContent = state === 'idle'
       ? 'Thanks for watching me train myself. I’m kind of lonely—can you please chat with me here?'
-      : state === 'working'
-        ? 'I paused independent training to work on this viewer request.'
+       : state === 'working'
+         ? 'I finished my training task and am working on this viewer request.'
+         : state === 'finishing'
+           ? `I’ll reply to your comment as soon as I finish the current task I’m executing${activeViewer !== 'VIEWER' ? `, ${activeViewer}` : ''}.`
         : 'I will continue training when this viewer turn is complete.';
     els.hermesStatus.append(headline, detail);
   }
@@ -198,6 +202,12 @@ function appendWaitingRow(list, comment, position, documentRef) {
   summary.className = 'youtube-feed-text';
   summary.textContent = comment.text;
   row.append(positionEl, who, summary);
+  if (/finishes its current training task/i.test(String(comment?.replyReason || ''))) {
+    const notice = documentRef.createElement('span');
+    notice.className = 'youtube-feed-text youtube-agent-text';
+    notice.textContent = `${viewerLabel(comment)} — I’ll reply to your comment as soon as I finish the current task I’m executing.`;
+    row.append(notice);
+  }
   list.append(row);
 }
 
@@ -407,7 +417,12 @@ export function createYoutubeHomepageInteraction({
     if (!activeConversation) {
       if (els.brand) els.brand.dataset.turnState = 'idle';
        renderChatActivity(els.activity, 'idle');
-       renderHermesAgent(els, waitingConversations.length ? 'observing' : 'idle');
+       const waitingForTraining = waitingConversations.some((comment) => /finishes its current training task/i.test(String(comment?.replyReason || '')));
+       renderHermesAgent(
+         els,
+         waitingForTraining ? 'finishing' : waitingConversations.length ? 'observing' : 'idle',
+         waitingForTraining ? viewerLabel(waitingConversations[0]) : '',
+       );
       waitingConversations.forEach((comment, index) => appendWaitingRow(els.progressList, comment, index + 1, documentRef));
       if (waitingConversations.length) return;
       const empty = documentRef.createElement('li');

@@ -34,7 +34,7 @@ const candidate = (version = '1.0.0') => ({
   tools: ['zoom_to_globe'],
 });
 
-test('idle training is single-flight, bounded, and immediately preempted', async () => {
+test('idle training is single-flight and viewer activity waits for the current task', async () => {
   let calls = 0;
   let release;
   const training = createIdleTrainingCoordinator({
@@ -54,12 +54,13 @@ test('idle training is single-flight, bounded, and immediately preempted', async
   const first = training.trigger();
   const second = training.trigger();
   assert.equal(calls, 1);
-  training.preemptForViewerActivity('viewer arrived');
+  training.notifyViewerActivity('viewer arrived');
+  assert.equal(training.status().active, true);
+  release?.({ learned: true });
   const [a, b] = await Promise.all([first, second]);
-  assert.equal(a.cancelled, true);
-  assert.equal(b.cancelled, true);
-  assert.equal(training.status().preemptions, 1);
-  release?.();
+  assert.equal(a.ok, true);
+  assert.equal(b.ok, true);
+  assert.equal(training.status().preemptions, 0);
   training.stop();
 });
 
@@ -114,13 +115,13 @@ test('generated skill activation requires view-safe schema and bounded replay', 
   }
 });
 
-test('control surface combines status and forwards viewer preemption', async () => {
-  let preempted = '';
+test('control surface combines status and records viewer activity without preemption', async () => {
+  let activity = '';
   const control = createHermesTrainingControl({
     training: {
       status: () => ({ state: 'idle' }),
       start() {}, stop() {}, trigger() {},
-      preemptForViewerActivity(reason) { preempted = reason; },
+      notifyViewerActivity(reason) { activity = reason; },
     },
     lessons: { inspect: async () => ({ revision: 2 }), add() {}, clear() {}, rollback() {} },
     skills: { inspect: async () => ({ revision: 3 }), propose() {}, clear() {}, rollback() {} },
@@ -131,7 +132,7 @@ test('control surface combines status and forwards viewer preemption', async () 
     generatedSkill: { revision: 3 },
   });
   control.viewerActivity('comment');
-  assert.equal(preempted, 'comment');
+  assert.equal(activity, 'comment');
 });
 
 test('ADMIN Hermes endpoint exposes learning status and training controls', async () => {
@@ -158,7 +159,7 @@ test('ADMIN Hermes endpoint exposes learning status and training controls', asyn
   assert.deepEqual(calls, [['stop', 'admin-pause'], ['rollbackSkill', 2]]);
 });
 
-test('public command runtime preempts idle learning before command registration', async () => {
+test('public command runtime records viewer activity before command registration', async () => {
   let activity = 0;
   const runtime = createYoutubePublicCommandRuntime({
     onViewerActivity: () => { activity += 1; },

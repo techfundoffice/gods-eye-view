@@ -65,9 +65,11 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       command: parsed.command || 'viewer-request',
       mode: parsed.mode || overrideMode,
       state: valid ? 'received' : 'rejected',
-      reason: valid ? (hold
-        ? `Queued until ${atHandle(active.handle)} replies (${HOST_FOLLOWUP_SECONDS}s window)`
-        : '')
+      reason: valid ? (comment?.deferAgent === true && comment?.deferReason
+        ? bounded(comment.deferReason, 160)
+        : hold
+          ? `Queued until ${atHandle(active.handle)} replies (${HOST_FOLLOWUP_SECONDS}s window)`
+          : '')
         : (parsed.reason || 'Unknown public command mode'),
       holdUntil: hold ? active.expiresAt : 0,
       expiresAt: now() + PUBLIC_COMMAND_LIMITS.totalMs,

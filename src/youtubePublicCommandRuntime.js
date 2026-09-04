@@ -92,6 +92,7 @@ export function createYoutubePublicCommandRuntime({
   now = Date.now,
   youtubePoster = null,
   onViewerActivity = null,
+  isTrainingActive = async () => false,
 } = {}) {
   const coordinator = createYoutubePublicCommandCoordinator({ ledger, interpret, now });
   let executor = null;
@@ -173,20 +174,23 @@ export function createYoutubePublicCommandRuntime({
     if (!binding?.commandsEnabled || !executor) return { recognized: false, disabled: true };
     const commentId = bounded(message?.id || message?.commentId);
     const existing = commentId ? await ledger.find(binding.videoId, commentId) : null;
-    // Preempt idle practice before any actionable viewer work is interpreted.
     // Replayed poll results must not keep resetting the idle-training clock.
     // The callback receives no viewer content or identity.
     if (!existing) {
-      await cancelIdleWork('Viewer work preempted idle practice');
       try { await onViewerActivity?.('viewer message'); } catch { /* control hooks must not affect commands */ }
     }
+    let trainingActive = false;
+    try { trainingActive = await isTrainingActive() === true; } catch { /* status hooks never block ingest */ }
     const result = await coordinator.register({
       commentId,
       text: message?.text,
       author: { displayName: message?.author, handle: message?.authorHandle },
       authorHandle: message?.authorHandle,
       agentMode: message?.agentMode,
-      deferAgent: message?.deferAgent === true,
+      deferAgent: message?.deferAgent === true || trainingActive,
+      deferReason: trainingActive
+        ? 'Queued while Hermes finishes its current training task'
+        : '',
     }, bindingWithExecutor(binding));
     await notifyReplyWindow(result.record);
     return result;
@@ -308,11 +312,14 @@ export function createYoutubePublicCommandRuntime({
     const target = bindingWithExecutor(binding);
     if (!target.commandsEnabled) return null;
     const rows = await ledger.list();
+    let trainingActive = false;
+    try { trainingActive = await isTrainingActive() === true; } catch { /* lease remains available */ }
     let record = rows.find((row) => row.state === 'awaiting-execution'
       && row.videoId === target.videoId
       && row.generation === target.generation
-      && row.captureExecutorId === target.captureExecutorId);
-    if (!record) {
+      && row.captureExecutorId === target.captureExecutorId
+      && (!trainingActive || row.viewer === 'idle-practice'));
+    if (!record && !trainingActive) {
       const hostSession = coordinator.hostSession?.();
       const received = rows.find((row) => row.state === 'received'
         && row.videoId === target.videoId
@@ -354,6 +361,9 @@ export function createYoutubePublicCommandRuntime({
     await reconcileBinding(binding);
     const target = bindingWithExecutor(binding);
     if (!target.commandsEnabled) return null;
+    try {
+      if (await isTrainingActive() === true) return null;
+    } catch { /* training status failures must not permanently block viewers */ }
     const rows = await ledger.list();
     let record = rows.find((row) => row.state === 'awaiting-execution'
       && row.videoId === target.videoId
