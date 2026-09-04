@@ -638,6 +638,18 @@ test('Hermes diagnostics follow all live comments in the required single-column 
   assert.match(css, /#youtube-comments-panel \.hermes-agent-diagnostics #hermes-agent-lessons \{[\s\S]*?overflow-wrap: anywhere !important;[\s\S]*?white-space: normal !important;/);
 });
 
+test('Youtube Chat rail owns scrolling while every card keeps an independent track', () => {
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  const finalRailRules = css.slice(css.lastIndexOf('/* The complete Youtube/Hermes rail occupies the full right edge.'));
+
+  assert.match(finalRailRules, /#admin-stamp-stack \{[\s\S]*?overflow:\s*hidden !important;/);
+  assert.match(finalRailRules, /\.youtube-comments-panel-inner \{[\s\S]*?overflow-x:\s*hidden !important;[\s\S]*?overflow-y:\s*auto !important;/);
+  assert.match(finalRailRules, /\.youtube-chat-cards \{[\s\S]*?grid-template-rows:\s*max-content\s+22rem\s+26rem\s+max-content !important;[\s\S]*?overflow-y:\s*visible !important;/);
+  assert.match(finalRailRules, /#hermes-agent-card \{[\s\S]*?min-height:\s*max-content !important;[\s\S]*?overflow:\s*visible !important;/);
+  assert.match(css, /\.youtube-chat-card > \.youtube-comments-list \{[\s\S]*?min-height:\s*0 !important;[\s\S]*?overflow-y:\s*auto !important;/);
+  assert.doesNotMatch(finalRailRules, /#hermes-agent-card \{[\s\S]*?overflow-y:\s*auto !important;/);
+});
+
 test('the Youtube Chat rail keeps fixed lane geometry instead of responsive tracks', () => {
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
   // The rail is a fixed-geometry broadcast surface: lane heights are absolute

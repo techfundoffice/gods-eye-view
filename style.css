@@ -18606,13 +18606,13 @@ body #left-panel-stack #scene-shot-list {
   inset: auto !important;
   width: 100% !important;
   min-width: 0 !important;
-  min-height: 0 !important;
+  min-height: max-content !important;
   max-width: 100% !important;
   max-height: none !important;
   margin: 0 !important;
   padding: .45rem .5rem !important;
   overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow-y: visible !important;
   box-sizing: border-box !important;
 }
 
@@ -18750,21 +18750,27 @@ body #left-panel-stack #scene-shot-list {
   width: 19rem !important;
   height: 100dvh !important;
   max-height: 100dvh !important;
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 #admin-stamp-stack #youtube-comments-panel,
-#admin-stamp-stack #youtube-comments-panel.panel-collapsible,
-#admin-stamp-stack #youtube-comments-panel .youtube-comments-panel-inner {
+#admin-stamp-stack #youtube-comments-panel.panel-collapsible {
   width: 100% !important;
   height: 100% !important;
   max-height: 100% !important;
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 #admin-stamp-stack #youtube-comments-panel .youtube-comments-panel-inner {
   display: flex !important;
   flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  scrollbar-gutter: stable !important;
 }
 
 #admin-stamp-stack #youtube-comments-panel .youtube-chat-brand,
@@ -18776,14 +18782,12 @@ body #left-panel-stack #scene-shot-list {
   max-height: 4.25rem !important;
 }
 
-/* The rail is a fixed-geometry broadcast surface, not a responsive panel.
-   Lane heights are absolute rem so the composition is identical on every
-   window and stream size; viewport units (dvh) previously reflowed the lanes
-   and let content spill into the neighbouring track. Do not reintroduce
-   dvh/vh sizing or a media query here — see docs/CURRENT-STATE.md. */
+/* The panel inner element owns vertical scrolling. Cards remain in normal
+   document flow so short viewports reveal them by scrolling the rail instead
+   of shrinking one card into another. */
 #admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
+  flex: 0 0 auto !important;
+  min-height: max-content !important;
   height: auto !important;
   max-height: none !important;
   grid-template-rows:
@@ -18792,8 +18796,7 @@ body #left-panel-stack #scene-shot-list {
     26rem
     max-content !important;
   overflow-x: hidden !important;
-  overflow-y: auto !important;
-  overscroll-behavior: contain !important;
+  overflow-y: visible !important;
 }
 
 #admin-stamp-stack #youtube-comments-panel .youtube-progress-card,
@@ -18806,9 +18809,10 @@ body #left-panel-stack #scene-shot-list {
 }
 
 #admin-stamp-stack #youtube-comments-panel #hermes-agent-card {
+  min-height: max-content !important;
   max-height: none !important;
   overflow: visible !important;
-}\n
+}
 
 
 /* === GEV_LEFT_YT_CHROME_V1 ===
