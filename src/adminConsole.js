@@ -515,7 +515,6 @@ export class AdminConsoleController {
   }
 
   _bind() {
-    globalThis.document?.getElementById('admin-launch')?.addEventListener('click', () => this.open());
     this._el('admin-close')?.addEventListener('click', () => this.close());
     this._el('admin-signout')?.addEventListener('click', () => this._signOut());
     this._el('admin-nav-toggle')?.addEventListener('click', () => this._toggleNavDrawer());
