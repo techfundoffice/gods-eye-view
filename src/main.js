@@ -30,6 +30,7 @@ import { MapStackController } from './mapStackController.js';
 import { startSettingsSummaryTicker } from './settingsSummaryTicker.js';
 import { initLeftNavAutoscroll } from './leftNavAutoscroll.js';
 import { initLeftYtChrome } from './leftYtChrome.js';
+import { initImageLibrary } from './imageLibrary.js';
 import { initHomeVideo } from './homeVideo.js';
 import {
   googleEarthUnavailableReason,
@@ -251,6 +252,7 @@ async function init() {
     startupFallbackShown = true;
     clearStartupWatchdog();
     try { initLeftNavAutoscroll(document); } catch (err) { console.warn('[left-nav-autoscroll]', err); }
+    try { initImageLibrary(document); } catch (err) { console.warn('[image-library]', err); }
     try { initLeftYtChrome(document); } catch (err) { console.warn('[left-yt-chrome]', err); }
     try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
@@ -695,6 +697,7 @@ async function init() {
     youtubePanel?.setActionRunner(window.__godsEyeView.voiceCommands.runner);
     clearStartupWatchdog();
     try { initLeftNavAutoscroll(document); } catch (err) { console.warn('[left-nav-autoscroll]', err); }
+    try { initImageLibrary(document); } catch (err) { console.warn('[image-library]', err); }
     try { initLeftYtChrome(document); } catch (err) { console.warn('[left-yt-chrome]', err); }
     try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }

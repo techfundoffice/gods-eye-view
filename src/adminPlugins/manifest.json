@@ -36,6 +36,18 @@
     "module": "./royalty-free-music.js"
   },
   {
+    "id": "image-library",
+    "label": "Image Library",
+    "description": "Youtube Chat brand logo above NOW TAKING REQUESTS (#youtube-chat-brand)",
+    "module": "./image-library.js"
+  },
+  {
+    "id": "radio-library",
+    "label": "Radio Library",
+    "description": "Curated internet-radio shortlist for the Radio companion",
+    "module": "./radio-library.js"
+  },
+  {
     "id": "home-video",
     "label": "Home Video Player",
     "description": "Default video/playlist and the approved-channel list for the home player (#gev-home-video)",

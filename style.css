@@ -19612,3 +19612,49 @@ body.ui-clean-view #gev-home-video {
   overflow: visible !important;
   line-height: 1.25 !important;
 }
+
+/* === GEV_ADMIN_IMAGE_RADIO_LIBRARY_V1 === */
+.admin-image-library,
+.admin-radio-library {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 42rem;
+}
+.admin-image-library-preview {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: #05080d;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+}
+.admin-image-library-preview-img {
+  max-width: 100%;
+  max-height: 7rem;
+  object-fit: contain;
+}
+.admin-image-library-actions,
+.admin-radio-library-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+.admin-radio-library-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.admin-radio-library-meta {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.admin-image-library-message.warn,
+.admin-radio-library-message.warn {
+  color: #ffb4b4;
+}
