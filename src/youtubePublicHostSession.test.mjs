@@ -5,6 +5,7 @@ import { createInMemoryPublicCommandLedger } from './youtubePublicCommandLedger.
 import {
   HOST_FOLLOWUP_MS,
   formatHostAsk,
+  isHostActionableComment,
   isNewPlaceComment,
   isViewChoiceComment,
 } from './youtubePublicHostSession.js';
@@ -17,11 +18,11 @@ const binding = {
   captureEpoch: 'epoch',
 };
 
-test('host ask names the viewer, the place, the views, and the 90 second deadline', () => {
+test('host ask names the viewer, the place, the views, and the two minute deadline', () => {
   const text = formatHostAsk({ handle: 'marcusmanagementservices488', place: 'Los Angeles, CA, USA' });
   assert.match(text, /@marcusmanagementservices488/);
   assert.match(text, /Los Angeles/);
-  assert.match(text, /90 seconds to reply/);
+  assert.match(text, /120 seconds to reply/);
   assert.match(text, /Downtown closer/);
   assert.match(text, /3D buildings/);
 });
@@ -34,23 +35,35 @@ test('view-choice replies are not treated as a new place', () => {
   assert.equal(isViewChoiceComment('navigate to tokyo'), false);
 });
 
-test('after a fly, only that username may continue; others queue until 90s', async () => {
+test('ordinary chat does not claim or enter the viewer-control queue', () => {
+  assert.equal(isHostActionableComment('This stream looks great!'), false);
+  assert.equal(isHostActionableComment('Navigate to Tokyo'), true);
+  assert.equal(isHostActionableComment('turn on live flights'), true);
+});
+
+test('after a fly, only that username may continue; others queue until two minutes', async () => {
   const clock = { t: 1_000 };
   const ledger = createInMemoryPublicCommandLedger({ now: () => clock.t });
   const coordinator = createYoutubePublicCommandCoordinator({
     ledger,
     now: () => clock.t,
     id: (() => { let n = 0; return () => `id-${++n}`; })(),
-    interpret: async () => ({
-      ok: true,
-      kind: 'tool-call',
-      call: {
-        responseId: 'r',
-        callId: 'c',
-        name: 'fly_to_location',
-        arguments: { query: 'Los Angeles', viewMode: 'overview' },
+    interpret: async ({ previousResponseId }) => previousResponseId
+      ? {
+        ok: true,
+        kind: 'complete',
+        text: '@marcusmanagementservices488 Los Angeles is up. You have 120 seconds to reply.',
+      }
+      : {
+        ok: true,
+        kind: 'tool-call',
+        call: {
+          responseId: 'r',
+          callId: 'c',
+          name: 'fly_to_location',
+          arguments: { query: 'Los Angeles', viewMode: 'overview' },
+        },
       },
-    }),
   });
   const first = await coordinator.register({
     commentId: 'm1',
@@ -70,7 +83,7 @@ test('after a fly, only that username may continue; others queue until 90s', asy
   });
   assert.equal(done.record.state, 'succeeded');
   assert.match(done.record.answer, /@marcusmanagementservices488/);
-  assert.match(done.record.answer, /90 seconds to reply/);
+  assert.match(done.record.answer, /120 seconds to reply/);
   assert.match(done.record.answer, /Los Angeles/);
 
   const other = await coordinator.register({

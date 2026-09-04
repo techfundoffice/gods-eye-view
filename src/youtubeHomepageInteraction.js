@@ -98,6 +98,42 @@ function appendConversationReply(row, comment, documentRef, currentTime, { showC
   row.append(replyRow);
 }
 
+function viewerLabel(comment) {
+  return comment?.authorHandle || comment?.author || 'VIEWER';
+}
+
+function isProcessing(comment) {
+  return ['pending', 'interpreting', 'received', 'awaiting-execution', 'executing', 'awaiting-model']
+    .includes(String(comment?.replyState || ''));
+}
+
+function isQueued(comment, currentTime) {
+  return comment?.queued === true && String(comment?.replyState || '') === 'received';
+}
+
+function looksActionable(text) {
+  const raw = String(text || '');
+  return /^\s*\//.test(raw)
+    || /\b(?:turn|switch|enable|disable|hide|show|display|open|close|zoom|fly|navigate|focus|locate|find|track|follow|view|look)\b/i.test(raw)
+    || /\b(?:earthquakes?|flights?|ships?|satellites?|contacts?|layers?|traffic|cctv|weather|storms?|fires?)\b/i.test(raw);
+}
+
+function appendWaitingRow(list, comment, position, documentRef) {
+  const row = documentRef.createElement('li');
+  row.className = 'youtube-feed-item youtube-waiting-request';
+  const positionEl = documentRef.createElement('span');
+  positionEl.className = 'youtube-queue-position';
+  positionEl.textContent = `#${position} WAITING`;
+  const who = documentRef.createElement('span');
+  who.className = 'youtube-feed-meta';
+  who.textContent = viewerLabel(comment);
+  const summary = documentRef.createElement('span');
+  summary.className = 'youtube-feed-text';
+  summary.textContent = comment.text;
+  row.append(positionEl, who, summary);
+  list.append(row);
+}
+
 
 function clampPoll(value) {
   const number = Number(value);
@@ -196,6 +232,8 @@ export function createYoutubeHomepageInteraction({
       progressList: root.querySelector('#youtube-progress-list'),
       progressStatus: root.querySelector('#youtube-progress-status'),
       progressCount: root.querySelector('#youtube-progress-count'),
+      brand: root.querySelector('#youtube-chat-brand'),
+      activity: root.querySelector('#youtube-chat-activity'),
       status: root.querySelector('#youtube-comments-status'),
       subject: root.querySelector('#youtube-comments-video'),
       count: root.querySelector('#youtube-comments-count'),
@@ -214,7 +252,9 @@ export function createYoutubeHomepageInteraction({
       if (els.status) els.status.textContent = 'CONNECT YOUTUBE TO LOAD COMMENTS';
       if (els.count) els.count.textContent = '0';
       if (els.progressCount) els.progressCount.textContent = '0';
-      if (els.progressStatus) els.progressStatus.textContent = 'NO CONVERSATIONS IN PROGRESS';
+      if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
+      if (els.brand) els.brand.dataset.turnState = 'idle';
+      if (els.activity) els.activity.textContent = 'WAITING FOR THE NEXT VIEWER REQUEST';
       if (els.refresh) els.refresh.disabled = true;
       if (els.more) els.more.disabled = true;
       if (els.list) {
@@ -246,12 +286,14 @@ export function createYoutubeHomepageInteraction({
       empty.textContent = 'YT LIVE · waiting for comments';
       els.list.append(empty);
       if (els.progressCount) els.progressCount.textContent = '0';
-      if (els.progressStatus) els.progressStatus.textContent = 'NO CONVERSATIONS IN PROGRESS';
+        if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
+        if (els.brand) els.brand.dataset.turnState = 'idle';
+        if (els.activity) els.activity.textContent = 'WAITING FOR THE NEXT VIEWER REQUEST';
       if (els.progressList) {
         els.progressList.replaceChildren();
         const progressEmpty = documentRef.createElement('li');
         progressEmpty.className = 'youtube-feed-empty youtube-progress-empty';
-        progressEmpty.textContent = 'WAITING FOR A VIEWER REQUEST';
+        progressEmpty.textContent = 'WAITING FOR THE NEXT VIEWER REQUEST';
         els.progressList.append(progressEmpty);
       }
       return;
@@ -272,7 +314,7 @@ export function createYoutubeHomepageInteraction({
     els.progressList.replaceChildren();
     const currentTime = now();
     const activeConversations = chronological
-      .filter((comment) => isConversationActive(comment, currentTime))
+      .filter((comment) => isConversationActive(comment, currentTime) && !isQueued(comment, currentTime))
       .sort((a, b) => {
         const aProcessing = ['pending', 'interpreting', 'received', 'awaiting-execution', 'executing', 'awaiting-model'].includes(String(a.replyState));
         const bProcessing = ['pending', 'interpreting', 'received', 'awaiting-execution', 'executing', 'awaiting-model'].includes(String(b.replyState));
@@ -280,34 +322,39 @@ export function createYoutubeHomepageInteraction({
         return (Number(a.followUpExpiresAt || 0) || Date.parse(a.publishedAt) || 0)
           - (Number(b.followUpExpiresAt || 0) || Date.parse(b.publishedAt) || 0);
       })
+      .slice(0, 1);
+    const waitingConversations = chronological
+      .filter((comment) => isQueued(comment, currentTime))
       .slice(0, MAX_VISIBLE_ACTIONS);
-    if (els.progressCount) els.progressCount.textContent = String(activeConversations.length);
+    const activeConversation = activeConversations[0] || null;
+    if (els.progressCount) els.progressCount.textContent = String((activeConversation ? 1 : 0) + waitingConversations.length);
     if (els.progressStatus) {
-      els.progressStatus.textContent = activeConversations.length
-        ? `${activeConversations.length} ACTIVE CONVERSATION${activeConversations.length === 1 ? '' : 'S'}`
-        : 'NO CONVERSATIONS IN PROGRESS';
+      els.progressStatus.textContent = `${activeConversation ? '1 ACTIVE VIEWER' : 'NO ACTIVE VIEWER'} · ${waitingConversations.length} WAITING`;
     }
-    if (!activeConversations.length) {
+    if (!activeConversation) {
+      if (els.brand) els.brand.dataset.turnState = 'idle';
+      if (els.activity) els.activity.textContent = 'WAITING FOR THE NEXT VIEWER REQUEST';
+      waitingConversations.forEach((comment, index) => appendWaitingRow(els.progressList, comment, index + 1, documentRef));
+      if (waitingConversations.length) return;
       const empty = documentRef.createElement('li');
       empty.className = 'youtube-feed-empty youtube-progress-empty';
-      empty.textContent = 'WAITING FOR A VIEWER REQUEST';
+      empty.textContent = 'WAITING FOR THE NEXT VIEWER REQUEST';
       els.progressList.append(empty);
       return;
     }
-    const countdownCommentId = activeConversations.find((comment) => {
-      const state = String(comment.replyState || 'display');
-      const processing = ['interpreting', 'pending', 'received', 'awaiting-execution', 'executing', 'awaiting-model'].includes(state);
-      return !processing && Number(comment.followUpExpiresAt || 0) > currentTime;
-    })?.id;
-    for (const comment of activeConversations) {
-      const row = documentRef.createElement('li');
-      row.className = 'youtube-feed-item youtube-comment-thread youtube-active-conversation';
-      appendConversationReply(row, comment, documentRef, currentTime, {
-        showCountdown: comment.id === countdownCommentId,
-      });
-      appendCommentBody(row, comment, documentRef);
-      els.progressList.append(row);
+    const processing = isProcessing(activeConversation);
+    if (els.brand) els.brand.dataset.turnState = processing ? 'working' : 'reply';
+    if (els.activity) {
+      els.activity.textContent = processing
+        ? `WORKING ON ${viewerLabel(activeConversation)}'S REQUEST`
+        : `WAITING FOR ${viewerLabel(activeConversation)}'S REPLY`;
     }
+    const row = documentRef.createElement('li');
+    row.className = 'youtube-feed-item youtube-comment-thread youtube-active-conversation';
+    appendCommentBody(row, activeConversation, documentRef);
+    appendConversationReply(row, activeConversation, documentRef, currentTime, { showCountdown: !processing });
+    els.progressList.append(row);
+    waitingConversations.forEach((comment, index) => appendWaitingRow(els.progressList, comment, index + 1, documentRef));
   }
 
   function notifyAgentReply(payload) {
@@ -316,7 +363,11 @@ export function createYoutubeHomepageInteraction({
     if (!id) return;
     const row = liveComments.find((item) => item.id === id);
     if (!row) return;
+    if (row.actionable !== true && !/^Queued\b/i.test(String(payload.reason || ''))) return;
     if (payload.replyState) row.replyState = String(payload.replyState);
+    if (payload.reason != null) row.replyReason = safeText(payload.reason, 160);
+    if (payload.holdUntil != null) row.holdUntil = Math.max(0, Number(payload.holdUntil) || 0);
+    row.queued = row.replyState === 'received' && /^Queued\b/i.test(row.replyReason || '');
     if (payload.replyText != null && payload.replyText !== '') {
       row.replyText = safeText(payload.replyText, 240);
     } else if (row.replyState === 'interpreting' || row.replyState === 'pending') {
@@ -456,6 +507,7 @@ export function createYoutubeHomepageInteraction({
       remember(id);
       const actions = Array.isArray(message.actions) ? message.actions : [];
       const agentRequested = Boolean(message.agentMode);
+      const actionable = actions.length > 0 || (agentRequested && looksActionable(message.text));
       nextchat?.publishViewerMessage?.({
         author: safeText(message.author, 80) || 'YouTube viewer',
         authorHandle: safeText(message.authorHandle, 80),
@@ -466,7 +518,7 @@ export function createYoutubeHomepageInteraction({
           videoId: safeText(message.videoId, 80),
           generation,
           receivedAt: safeText(message.publishedAt, 40),
-          actionState: actions.length || agentRequested ? 'interpreting' : 'chat',
+          actionState: actionable ? 'interpreting' : 'chat',
           actionCount: actions.length,
         },
       });
@@ -478,7 +530,7 @@ export function createYoutubeHomepageInteraction({
         authorHandle: safeText(message.authorHandle, 80),
         text: safeText(message.text, 500),
         receivedAt: safeText(message.publishedAt, 40),
-        replyState: actions.length || agentRequested ? 'interpreting' : 'display',
+        replyState: actionable ? 'interpreting' : 'display',
         actionCount: actions.length,
       });
       liveComments.unshift({
@@ -487,8 +539,9 @@ export function createYoutubeHomepageInteraction({
         authorHandle: safeText(message.authorHandle, 80),
         text: safeText(message.text, 500),
         publishedAt: safeText(message.publishedAt, 40),
-        replyState: actions.length || agentRequested ? 'interpreting' : 'display',
-        replyAt: actions.length || agentRequested ? new Date(now()).toISOString() : '',
+        replyState: actionable ? 'interpreting' : 'display',
+        replyAt: actionable ? new Date(now()).toISOString() : '',
+        actionable,
       });
       while (liveComments.length > MAX_PANEL_COMMENTS) liveComments.pop();
       await applyMessageActions(message);
@@ -543,6 +596,8 @@ export function createYoutubeHomepageInteraction({
         videoId: commandVideoId,
         generation: commandGeneration,
         replyState: state,
+        reason: command.reason,
+        holdUntil: command.holdUntil,
         actionState: state,
         replyText: `${slash || 'command'} · ${state}${detail ? ` · ${detail}` : ''}`,
         address: state === 'succeeded' || state === 'validated',

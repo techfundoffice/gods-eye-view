@@ -1,7 +1,7 @@
 /** One live YouTube viewer owns the globe at a time. */
 
-export const HOST_FOLLOWUP_MS = 90_000;
-export const HOST_FOLLOWUP_SECONDS = 90;
+export const HOST_FOLLOWUP_MS = 120_000;
+export const HOST_FOLLOWUP_SECONDS = 120;
 export const HOST_VIEW_OPTIONS = 'Downtown closer · 3D buildings · overhead · orbit · live flights';
 
 const VIEW_CHOICE = /\b(?:downtown(?:\s+closer)?|closer|close(?:-?up)?|3d(?:\s+buildings)?|photorealistic|overhead|orbit|live\s+flights|flights|traffic|cctv)\b/i;
@@ -50,6 +50,15 @@ export function isNewPlaceComment(text) {
   const raw = bounded(text, 500);
   if (!raw || isViewChoiceComment(raw)) return false;
   return /\b(?:navigate to|take me to|go to|fly to|zoom to|focus on|look at|show me|show|see|view|find|locate)\s+(?:me\s+)?(.{2,160})$/i.test(raw);
+}
+
+export function isHostActionableComment(text) {
+  const raw = bounded(text, 500);
+  if (!raw) return false;
+  return isNewPlaceComment(raw)
+    || isViewChoiceComment(raw)
+    || /\b(?:turn|switch|enable|disable|hide|show|display|open|close|zoom|fly|navigate|focus|locate|find|track|follow|view|look)\b/i.test(raw)
+    || /\b(?:earthquakes?|flights?|ships?|satellites?|contacts?|layers?|traffic|cctv|weather|storms?|fires?)\b/i.test(raw);
 }
 
 export function createHostSession({ now = Date.now } = {}) {

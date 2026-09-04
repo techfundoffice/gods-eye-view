@@ -79,6 +79,7 @@ function publicRecord(record) {
     state: bounded(record?.state, 32),
     reason: bounded(record?.reason, 160),
     answer: bounded(record?.answer, 1000),
+    holdUntil: Math.max(0, Number(record?.holdUntil) || 0),
     updatedAt: Number(record?.updatedAt || record?.createdAt) || 0,
   };
 }
@@ -216,15 +217,16 @@ export function createYoutubePublicCommandRuntime({
       && row.generation === target.generation
       && row.captureExecutorId === target.captureExecutorId);
     if (!record) {
+      const hostSession = coordinator.hostSession?.();
       const received = rows.find((row) => row.state === 'received'
         && row.videoId === target.videoId
         && row.generation === target.generation
         && row.captureExecutorId === target.captureExecutorId
-        && !(Number(row.holdUntil) > Date.now()));
+        && !(/^Queued\b/i.test(String(row.reason || '')) && hostSession));
       if (received) {
         const claimed = await ledger.compareAndSet(received.id, 'received', {
           state: 'interpreting',
-          expiresAt: Date.now() + PUBLIC_COMMAND_LIMITS.totalMs,
+           expiresAt: now() + PUBLIC_COMMAND_LIMITS.totalMs,
           remainingTurns: PUBLIC_COMMAND_LIMITS.modelTurns,
           remainingTools: PUBLIC_COMMAND_LIMITS.toolCalls,
         });

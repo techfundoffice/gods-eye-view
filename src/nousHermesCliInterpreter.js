@@ -113,6 +113,9 @@ If no globe change is needed:
 Examples:
 {"tool":"set_layer_visibility","arguments":{"layerId":"flights","enabled":true},"reply":"@user Flights are on."}
 {"tool":"set_visual_style","arguments":{"style":"thermal"},"reply":"@user Thermal view is up."}
+{"tool":"set_visual_style","arguments":{"style":"retro"},"reply":"@user Retro style is up. Chat /style-retro."}
+{"tool":"set_visual_style","arguments":{"style":"surveillance"},"reply":"@user Surveillance style is up. Chat /style-surveillance."}
+{"tool":"set_visual_style","arguments":{"style":"snow"},"reply":"@user Snow style is up. Chat /style-snow."}
 {"tool":"frame_overhead","arguments":{},"reply":"@user Looking straight down."}
 {"tool":"run_view_preset","arguments":{"preset":"contacts"},"reply":"@user Live contacts preset."}
 {"tool":"fly_to_location","arguments":{"query":"Los Angeles, CA","viewMode":"overview"},"reply":"@user Map overview of LA."}

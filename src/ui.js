@@ -380,9 +380,9 @@ const RIGHT_STACK_OBSTACLE_SELECTOR = [
 /** Display labels shown in the mini-status readout for each active style. */
 const STYLE_STATUS_LABELS = {
   normal: 'NORMAL',
-  retro: 'CRT',
-  surveillance: 'NVG',
-  thermal: 'FLIR',
+  retro: 'RETRO',
+  surveillance: 'SURVEILLANCE',
+  thermal: 'THERMAL',
   anime: 'ANIME',
   noir: 'NOIR',
   snow: 'SNOW',
@@ -9162,8 +9162,10 @@ export class StyleManager {
     });
 
     // Update style indicator
-    const displayNames = { surveillance: 'NVG', thermal: 'FLIR', retro: 'CRT' };
-    this._styleIndicator.textContent = displayNames[styleName] || (styleName.charAt(0).toUpperCase() + styleName.slice(1).toLowerCase());
+    // Lined-up slash id: /style-normal, /style-retro, … (matches data-style + slash commands)
+    if (this._styleIndicator) {
+      this._styleIndicator.textContent = styleName ? `/style-${styleName}` : '/style-normal';
+    }
     this._updateStyleMiniStatus(styleName);
 
     // Update parameter sliders

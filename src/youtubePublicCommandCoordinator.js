@@ -4,6 +4,7 @@ import {
   parsePublicCommand,
   toolsForPublicMode,
   validatePublicToolCall,
+  styleIdForPublicCommand,
 } from './youtubePublicCommandPolicy.js';
 import { isGevFunctionEnabled } from './gevFunctionToggles.js';
 import {
@@ -13,6 +14,7 @@ import {
   formatHostAsk,
   formatHostFollowupAsk,
   hostViewerIdentity,
+  isHostActionableComment,
   isViewChoiceComment,
 } from './youtubePublicHostSession.js';
 
@@ -53,7 +55,8 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     if (!recognized) return { recognized: false };
     const identity = hostViewerIdentity(comment);
     const active = host.current();
-    const hold = valid && comment?.deferAgent !== true && host.shouldHold(identity);
+    const actionable = parsed.recognized || isHostActionableComment(comment?.text);
+    const hold = valid && actionable && comment?.deferAgent !== true && host.shouldHold(identity);
     const record = {
       id: id(), videoId: bounded(binding?.videoId, 80), commentId: bounded(comment?.commentId, 160),
       generation: Number(binding?.generation), captureExecutorId: bounded(binding?.captureExecutorId, 160),
@@ -77,7 +80,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
     if (comment?.deferAgent === true || hold) {
       return { recognized: true, queued: Boolean(hold), record: await ledger.get(record.id) };
     }
-    host.open(identity, host.current()?.place || identity.handle, record.id);
+    if (actionable) host.open(identity, host.current()?.place || identity.handle, record.id);
     await ledger.compareAndSet(record.id, 'received', { state: 'interpreting' });
     return advance(record.id, binding);
   }
@@ -110,7 +113,26 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       record = await ledger.get(record.id);
     }
     let output;
+    // Deterministic /style-* → set_visual_style (no model round-trip).
+    const styleId = styleIdForPublicCommand(record.command) || styleIdForPublicCommand(record.comment);
+    if (!continuation && (record.mode === 'visual-style' || styleId)) {
+      const id = styleId || styleIdForPublicCommand(String(record.comment || '').trim().split(/\s+/)[0]);
+      if (id) {
+        output = {
+          ok: true,
+          kind: 'tool',
+          call: {
+            name: 'set_visual_style',
+            arguments: { style: id },
+            responseId: `style-${id}`,
+            callId: `style-${id}`,
+          },
+          text: '',
+        };
+      }
+    }
     try {
+      if (!output) {
       const identity = hostViewerIdentity({}, record);
       output = await interpret({
         mode: record.mode, comment: record.comment, viewer: record.viewer,
@@ -126,6 +148,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
         } : {}),
         viewContext: viewContext && typeof viewContext === 'object' ? viewContext : {},
       });
+      }
     } catch (error) {
       if (error?.kind === 'rate-limited') {
         await ledger.compareAndSet(record.id, 'interpreting', {

@@ -405,7 +405,7 @@ test('homepage interaction displays every comment but never executes untrusted f
   assert.deepEqual(calls, []);
 });
 
-test('visible Youtube conversation renders result first with UTC headers, verified handle, and contextual options', async () => {
+test('visible Youtube conversation renders viewer request first with one countdown and a waiting queue', async () => {
   class Element {
     constructor(tagName = 'div') {
       this.tagName = tagName;
@@ -463,16 +463,16 @@ test('visible Youtube conversation renders result first with UTC headers, verifi
   assert.equal(list.children[0].children[0].textContent, '@viewerhandle · 14:00 UTC');
   assert.equal(list.children[0].children[1].textContent, 'Navigate to Ensenada, Mexico');
   const exchange = progressList.children[0];
-  assert.equal(exchange.children[0].className, 'youtube-agent-reply');
-  assert.equal(exchange.children[0].children[0].className, 'youtube-followup-countdown');
-  assert.equal(exchange.children[0].children[0].children[0].textContent, '2:00');
-  assert.equal(exchange.children[0].children[0].children[1].textContent, 'TIME LEFT TO REPLY');
-  assert.equal(exchange.children[0].children[1].textContent, "@viewerhandle'S TURN");
-  assert.equal(exchange.children[0].children[2].textContent, 'CLOUD COMPUTER AI.COM REPLY · 14:01 UTC');
-  assert.match(exchange.children[0].children[4].textContent, /I NAVIGATED TO ENSENADA, MEXICO · STREET VIEW/);
-  assert.match(exchange.children[0].children[5].textContent, /REPLY TO ASK: ALTITUDE/);
-  assert.equal(exchange.children[1].textContent, '@viewerhandle · 14:00 UTC');
-  assert.equal(exchange.children[2].textContent, 'Navigate to Ensenada, Mexico');
+  assert.equal(exchange.children[0].textContent, '@viewerhandle · 14:00 UTC');
+  assert.equal(exchange.children[1].textContent, 'Navigate to Ensenada, Mexico');
+  assert.equal(exchange.children[2].className, 'youtube-agent-reply');
+  assert.equal(exchange.children[2].children[0].className, 'youtube-followup-countdown');
+  assert.equal(exchange.children[2].children[0].children[0].textContent, '2:00');
+  assert.equal(exchange.children[2].children[0].children[1].textContent, 'TIME LEFT TO REPLY');
+  assert.equal(exchange.children[2].children[1].textContent, "@viewerhandle'S TURN");
+  assert.equal(exchange.children[2].children[2].textContent, 'CLOUD COMPUTER AI.COM REPLY · 14:01 UTC');
+  assert.match(exchange.children[2].children[4].textContent, /I NAVIGATED TO ENSENADA, MEXICO · STREET VIEW/);
+  assert.match(exchange.children[2].children[5].textContent, /REPLY TO ASK: ALTITUDE/);
 
   await interaction.ingest([{
     id: 'ordinary-1',
@@ -486,23 +486,50 @@ test('visible Youtube conversation renders result first with UTC headers, verifi
   assert.equal(list.children.length, 2, 'all comments keeps receiving ordinary chat');
   assert.equal(progressList.children.length, 1, 'ordinary chat does not displace the active conversation');
 
+  await interaction.ingest([{
+    id: 'queued-1',
+    videoId: '',
+    author: 'Queued Viewer',
+    authorHandle: '@queued',
+    text: 'Navigate to Tokyo',
+    publishedAt: '2026-09-02T14:01:31.000Z',
+    agentMode: 'execute',
+    actions: [],
+  }]);
   interaction.publishCommandStatuses([{
-    id: 'cmd-ordinary-1',
-    command: '/test',
-    state: 'succeeded',
-    answer: 'Second active reply',
-    viewer: 'Another Viewer',
-    commentId: 'ordinary-1',
+    id: 'cmd-queued-1',
+    command: 'viewer-request',
+    state: 'received',
+    reason: 'Queued until @viewerhandle replies (120s window)',
+    holdUntil: currentTime + 120_000,
+    viewer: 'Queued Viewer',
+    authorHandle: '@queued',
+    commentId: 'queued-1',
     videoId: '',
     updatedAt: currentTime,
   }]);
   assert.equal(progressList.children.length, 2);
   const largeCountdowns = progressList.children.flatMap((row) => (
-    row.children[0]?.children?.filter((child) => child.className?.includes('youtube-followup-countdown')) || []
+    row.children.flatMap((child) => (
+      child.children?.filter((nested) => nested.className?.includes('youtube-followup-countdown')) || []
+    ))
   ));
   assert.equal(largeCountdowns.length, 1, 'only one active conversation renders the large countdown');
+  assert.equal(progressList.children[1].children[0].textContent, '#1 WAITING');
+  assert.equal(progressList.children[1].children[1].textContent, '@queued');
+  assert.equal(progressList.children[1].children[2].textContent, 'Navigate to Tokyo');
 
   currentTime += 120_001;
+  interaction.publishCommandStatuses([{
+    id: 'cmd-queued-1',
+    command: 'viewer-request',
+    state: 'interpreting',
+    viewer: 'Queued Viewer',
+    authorHandle: '@queued',
+    commentId: 'queued-1',
+    videoId: '',
+    updatedAt: currentTime,
+  }]);
   await interaction.ingest([{
     id: 'ordinary-2',
     videoId: '',
@@ -512,9 +539,21 @@ test('visible Youtube conversation renders result first with UTC headers, verifi
     publishedAt: '2026-09-02T14:03:01.000Z',
     actions: [],
   }]);
-  assert.equal(list.children.length, 3);
+  assert.equal(list.children.length, 4);
   assert.equal(progressList.children.length, 1);
-  assert.equal(progressList.children[0].textContent, 'WAITING FOR A VIEWER REQUEST');
+  assert.equal(progressList.children[0].children[0].textContent, '@queued · 14:01 UTC');
+  assert.equal(progressList.children[0].children[1].textContent, 'Navigate to Tokyo');
+  assert.equal(progressList.children[0].children[2].children[0].textContent, "CLOUD COMPUTER AI.COM'S TURN");
+});
+
+test('chat box includes the supplied Cloud Computer AI.com logo and working state', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(html, /id="youtube-chat-brand"/);
+  assert.match(html, /Cloud_Computer_Ai\.com_Logo_1788479760821\.png/);
+  assert.match(html, /WAITING FOR THE NEXT VIEWER REQUEST/);
+  assert.match(css, /\.youtube-chat-brand\[data-turn-state='working'\] \.youtube-chat-brand-logo/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test('follow-up countdown displays the complete remaining two-minute window', () => {
@@ -533,7 +572,7 @@ test('an actionable comment received before globe startup is queued and runs whe
       setHarnessStatus() {},
     },
     runner: null,
-    now: () => 20_000,
+    now: () => 100_000,
     documentRef: null,
   });
   await interaction.ingest([{
@@ -555,7 +594,7 @@ test('an actionable comment received before globe startup is queued and runs whe
   assert.equal(interaction.getState().pendingActions, 0);
   assert.deepEqual(calls, [{
     action: 'fly_to_location',
-    args: { query: 'ensenada mexico', viewMode: 'close', waitForArrival: true },
+    args: { query: 'ensenada mexico', viewMode: 'overview', waitForArrival: true },
   }]);
 });
 
@@ -572,7 +611,7 @@ test('viewer navigation dismisses the first-run launcher before moving the camer
       setHarnessStatus() {},
     },
     runner: async () => ({ ok: true }),
-    now: () => 20_000,
+    now: () => 100_000,
     documentRef: {
       getElementById(id) {
         if (id === 'first-run-launcher') return launcher;

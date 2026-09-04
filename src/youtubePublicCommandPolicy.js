@@ -151,7 +151,7 @@ const Y_TOOLS = ['get_current_view_state', 'get_entity_context', 'analyst_query'
 const Z_TOOLS = ['fly_to_location', 'select_nearest_aircraft', 'adjust_camera_zoom', 'zoom_to_globe', 'move_camera', 'frame_overhead', 'fly_route', 'stop_tracking'];
 
 /** Exact GEV ACTIONS reply for `/help`. The space before the first comma is intentional. */
-export const PUBLIC_HELP_REPLY = 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually';
+export const PUBLIC_HELP_REPLY = 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow';
 
 /** Slash command → first-run Mission Control choice. `/explore-manually` is required. */
 export const PUBLIC_VIEW_PRESETS = deepFreeze({
@@ -171,6 +171,13 @@ export const PUBLIC_COMMAND_REGISTRY = deepFreeze({
   '/y': { command: '/y', mode: 'analyze', description: 'Analyze or answer from GEV data', requiresText: true, enabled: true, tools: Y_TOOLS },
   '/z': { command: '/z', mode: 'navigate', description: 'Move or frame the camera', requiresText: true, enabled: true, tools: Z_TOOLS },
   '/gods-eye-view': { command: '/gods-eye-view', mode: 'whole-globe', description: 'Frame the whole globe', requiresText: false, enabled: true, tools: ['zoom_to_globe'] },
+  '/style-normal': { command: '/style-normal', mode: 'visual-style', description: 'Normal visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'normal' },
+  '/style-retro': { command: '/style-retro', mode: 'visual-style', description: 'Retro visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'retro' },
+  '/style-surveillance': { command: '/style-surveillance', mode: 'visual-style', description: 'Surveillance visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'surveillance' },
+  '/style-thermal': { command: '/style-thermal', mode: 'visual-style', description: 'Thermal visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'thermal' },
+  '/style-anime': { command: '/style-anime', mode: 'visual-style', description: 'Anime visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'anime' },
+  '/style-noir': { command: '/style-noir', mode: 'visual-style', description: 'Noir visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'noir' },
+  '/style-snow': { command: '/style-snow', mode: 'visual-style', description: 'Snow visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'snow' },
 });
 
 export function publicCommandLegend() {
@@ -230,4 +237,14 @@ export function toolsForPublicMode(modeOrCommand) {
   const policy = PUBLIC_COMMAND_REGISTRY[modeOrCommand]
     || Object.values(PUBLIC_COMMAND_REGISTRY).find((entry) => entry.mode === modeOrCommand);
   return policy ? policy.tools.map((name) => PUBLIC_GEV_TOOL_CATALOG[name]) : [];
+}
+
+/** Map `/style-snow` (and friends) to the lined-up style id. */
+export function styleIdForPublicCommand(command) {
+  const token = String(command || '').trim().toLowerCase();
+  const match = token.match(/^\/style-([a-z0-9-]+)$/);
+  if (!match) return null;
+  const id = match[1];
+  const allowed = new Set(['normal', 'retro', 'surveillance', 'thermal', 'anime', 'noir', 'snow']);
+  return allowed.has(id) ? id : null;
 }

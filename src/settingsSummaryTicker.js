@@ -8,10 +8,11 @@ function text(el) {
 
 function activeStyle() {
   const named = text(document.getElementById("active-style-name"));
-  if (named) return named;
+  if (named) return named.startsWith("/style-") ? named : `/style-${named.toLowerCase()}`;
   const btn = document.querySelector("#control-panel .style-btn.active");
-  if (!btn) return "—";
-  return text(btn).replace(/^\S+\s+/, "").replace(/\s+\d+$/, "") || "—";
+  const id = btn?.getAttribute("data-style");
+  if (id) return `/style-${id}`;
+  return "/style-normal";
 }
 
 function activeMapSource() {

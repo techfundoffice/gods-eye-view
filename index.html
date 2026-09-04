@@ -34,8 +34,8 @@
 
   <!-- Style indicator -->
   <div id="style-indicator">
-    <span class="indicator-label">Active Style:</span>
-    <span class="indicator-value" id="active-style-name">Normal</span>
+    <span class="indicator-label">/style | Active Style:</span>
+    <span class="indicator-value" id="active-style-name">/style-normal</span>
   </div>
 
   <!-- ADMIN entry point: opens the password-gated admin console -->
@@ -51,6 +51,14 @@
     <section id="youtube-comments-panel" class="panel-collapsible" data-panel-id="youtube-comments-panel" aria-label="Youtube Chat">
       <div class="panel-glow"></div>
       <div class="youtube-comments-panel-inner">
+        <div id="youtube-chat-brand" class="youtube-chat-brand" data-turn-state="idle">
+          <img class="youtube-chat-brand-logo"
+            src="./attached_assets/Cloud_Computer_Ai.com_Logo_1788479760821.png"
+            alt="Cloud Computer AI.com">
+          <div id="youtube-chat-activity" class="youtube-chat-activity" role="status" aria-live="polite">
+            WAITING FOR THE NEXT VIEWER REQUEST
+          </div>
+        </div>
         <div class="panel-header">
           <span class="panel-title">Youtube Chat</span>
           <span id="youtube-comments-count" class="youtube-comments-count" title="Loaded comment threads">0</span>
@@ -425,17 +433,17 @@
         </button>
         <button class="style-btn" data-style="retro">
           <span class="btn-icon">▦</span>
-          <span class="btn-label">CRT</span>
+          <span class="btn-label">Retro</span>
           <span class="btn-key">2</span>
         </button>
         <button class="style-btn" data-style="surveillance">
           <span class="btn-icon">🌙</span>
-          <span class="btn-label">NVG</span>
+          <span class="btn-label">Surveillance</span>
           <span class="btn-key">3</span>
         </button>
         <button class="style-btn" data-style="thermal">
           <span class="btn-icon">🌡️</span>
-          <span class="btn-label">FLIR</span>
+          <span class="btn-label">Thermal</span>
           <span class="btn-key">4</span>
         </button>
         <button class="style-btn" data-style="anime">
