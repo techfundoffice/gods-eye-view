@@ -17043,14 +17043,19 @@ body {
 }
 
 /* Hermes is a separate, honest operator readout: the state is derived from
-   the live YouTube turn above, never from an implied background learner. */
+   the live YouTube turn above, never from an implied background learner.
+   Keep it on the same instrument surface as the comment lanes; the readout
+   is distinct through state color, not through a separate widget aesthetic. */
 #admin-stamp-stack #youtube-comments-panel .youtube-hermes-card {
-  border-color: rgba(166, 132, 255, 0.34) !important;
-  background: linear-gradient(135deg, rgba(16, 13, 31, 0.92), rgba(3, 16, 26, 0.86)) !important;
+  position: relative;
+  border-color: rgba(126, 240, 255, 0.24) !important;
+  border-left: 2px solid rgba(126, 240, 255, 0.62) !important;
+  background: rgba(2, 12, 20, 0.76) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
 .youtube-hermes-mode {
-  color: #c9b8ff;
+  color: #7ef0ff;
   font: 800 9px/1 var(--font-mono);
   letter-spacing: 0.12em;
 }
@@ -17059,30 +17064,32 @@ body {
   display: grid;
   gap: 0.38rem;
   padding: 0.65rem 0.15rem 0.45rem;
-  color: #f5fdff;
+  color: #d7fbff;
   font: 500 11px/1.35 var(--font-sans);
 }
 
 .youtube-hermes-status strong {
-  color: #d7caff;
+  color: #f5fdff;
   font: 800 12px/1.25 var(--font-mono);
 }
 
 .youtube-hermes-status span {
-  color: rgba(232, 234, 237, 0.72);
+  color: rgba(215, 251, 255, 0.72);
 }
 
 .youtube-hermes-detail {
   margin-top: auto;
   padding-top: 0.45rem;
-  border-top: 1px solid rgba(166, 132, 255, 0.18);
-  color: rgba(201, 184, 255, 0.82);
+  border-top: 1px solid rgba(126, 240, 255, 0.15);
+  color: rgba(126, 240, 255, 0.72);
   font: 700 8px/1.35 var(--font-mono);
   letter-spacing: 0.08em;
 }
 
 #youtube-hermes-card[data-state='working'] {
   border-color: rgba(255, 210, 74, 0.48) !important;
+  border-left-color: #ffd24a !important;
+  background: rgba(18, 15, 5, 0.8) !important;
 }
 
 #youtube-hermes-card[data-state='working'] .youtube-hermes-mode,
@@ -17092,6 +17099,7 @@ body {
 
 #youtube-hermes-card[data-state='reply'] {
   border-color: rgba(126, 240, 255, 0.42) !important;
+  border-left-color: #7ef0ff !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

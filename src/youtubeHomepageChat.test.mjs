@@ -575,6 +575,8 @@ test('Hermes is a separate right-rail card with honest idle copy and live-turn s
     'viewer progress and all-comments cards should retain their order after Hermes',
   );
   assert.match(css, /\.youtube-hermes-card/);
+  assert.match(css, /\.youtube-hermes-card[\s\S]*background:\s*rgba\(2,\s*12,\s*20,\s*0\.76\)/);
+  assert.doesNotMatch(css, /youtube-hermes-card[\s\S]{0,300}166,\s*132,\s*255/);
   assert.match(css, /#youtube-hermes-card\[data-state='working'\]/);
   assert.match(interaction, /NO VIEWER TURN ACTIVE/);
   assert.match(css, /prefers-reduced-motion: reduce/);
