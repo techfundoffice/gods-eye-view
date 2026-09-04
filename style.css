@@ -19784,3 +19784,60 @@ body.ui-clean-view .gev-home-video-rail {
   color: #ffd24a !important;
   -webkit-text-fill-color: #ffd24a !important;
 }
+
+
+/* === GEV_YT_CHAT_GEMINI_STARTERS_V1 === */
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-activity-headline,
+.youtube-chat-activity-headline {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.15rem !important;
+  align-items: flex-start !important;
+}
+.youtube-chat-hello-line {
+  display: block;
+  color: #ffd24a !important;
+  -webkit-text-fill-color: #ffd24a !important;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1.25;
+}
+.youtube-chat-hello-ask {
+  font-weight: 600 !important;
+}
+.youtube-chat-starters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+  width: 100%;
+}
+.youtube-chat-starter {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 210, 74, 0.35);
+  background: rgba(8, 14, 24, 0.72);
+  color: #f4f7fb !important;
+  -webkit-text-fill-color: #f4f7fb !important;
+  font-size: 0.68rem;
+  font-weight: 550;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.youtube-chat-starter:hover,
+.youtube-chat-starter:focus-visible {
+  border-color: rgba(255, 210, 74, 0.75);
+  background: rgba(255, 210, 74, 0.12);
+  outline: none;
+}
+.youtube-chat-activity:not([data-state='idle']) .youtube-chat-starters {
+  display: none !important;
+}

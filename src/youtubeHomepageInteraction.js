@@ -130,8 +130,19 @@ function latestCommentHandle(comments) {
   return formatAtHandle(best?.authorHandle || best?.author || 'Username');
 }
 
+/** Gemini-literal idle starter prompts (exact copy). */
+export const GEV_IDLE_STARTER_PROMPTS = Object.freeze([
+  'Summarize takeaways from a page',
+  'What kinds of questions can I ask?',
+  'Help me with my writing',
+]);
+
 function helloHeadline(viewer) {
-  return `Hello ${formatAtHandle(viewer || 'Username')}, How can I help you today?`;
+  return `Hello ${formatAtHandle(viewer || 'Username')}`;
+}
+
+function helloSubline() {
+  return 'How can I help you today?';
 }
 
 /**
@@ -139,10 +150,11 @@ function helloHeadline(viewer) {
  * sentence loses the important information. Keep the state and the person in
  * dedicated, stable visual slots while the live region retains a clear phrase.
  */
-function renderChatActivity(activity, state = 'idle', viewer = '') {
+function renderChatActivity(activity, state = 'idle', viewer = '', onStarter = null) {
   if (!activity) return;
   const fullViewer = safeText(viewer || 'VIEWER', 80);
   const visibleViewer = displayViewerLabel(fullViewer);
+  const idle = state !== 'working' && state !== 'reply';
   const copy = state === 'working'
     ? { kicker: 'CAMERA CONTROL IN PROGRESS', headline: visibleViewer, detail: 'DIRECTING THE GLOBE' }
     : state === 'reply'
@@ -154,17 +166,50 @@ function renderChatActivity(activity, state = 'idle', viewer = '') {
     : state === 'reply'
       ? `Waiting for ${fullViewer}'s reply`
       : `Greeting ${formatAtHandle(viewer || 'Username')}`);
-  const kicker = activity.ownerDocument.createElement('span');
+  const doc = activity.ownerDocument;
+  const kicker = doc.createElement('span');
   kicker.className = 'youtube-chat-activity-kicker';
   kicker.textContent = copy.kicker;
-  const headline = activity.ownerDocument.createElement('strong');
+  const headline = doc.createElement('strong');
   headline.className = 'youtube-chat-activity-headline';
-  headline.textContent = copy.headline;
+  if (idle) {
+    const line1 = doc.createElement('span');
+    line1.className = 'youtube-chat-hello-line';
+    line1.textContent = copy.headline;
+    const line2 = doc.createElement('span');
+    line2.className = 'youtube-chat-hello-line youtube-chat-hello-ask';
+    line2.textContent = helloSubline();
+    headline.append(line1, line2);
+  } else {
+    headline.textContent = copy.headline;
+  }
   if (fullViewer !== visibleViewer) headline.title = fullViewer;
-  const detail = activity.ownerDocument.createElement('span');
+  const detail = doc.createElement('span');
   detail.className = 'youtube-chat-activity-detail';
   detail.textContent = copy.detail;
-  activity.replaceChildren(kicker, headline, detail);
+  const nodes = [kicker, headline, detail];
+  if (idle) {
+    const starters = doc.createElement('div');
+    starters.className = 'youtube-chat-starters';
+    starters.setAttribute('role', 'list');
+    starters.setAttribute('aria-label', 'Suggested questions');
+    for (const prompt of GEV_IDLE_STARTER_PROMPTS) {
+      const btn = doc.createElement('button');
+      btn.type = 'button';
+      btn.className = 'youtube-chat-starter';
+      btn.setAttribute('role', 'listitem');
+      btn.dataset.prompt = prompt;
+      btn.textContent = prompt;
+      btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof onStarter === 'function') onStarter(prompt);
+      });
+      starters.append(btn);
+    }
+    nodes.push(starters);
+  }
+  activity.replaceChildren(...nodes);
 }
 
 function renderHermesAgent(els, state = 'idle', viewer = '') {
@@ -361,7 +406,7 @@ export function createYoutubeHomepageInteraction({
       if (els.progressCount) els.progressCount.textContent = '0';
       if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
       if (els.brand) els.brand.dataset.turnState = 'idle';
-       renderChatActivity(els.activity, 'idle', latestCommentHandle(liveComments));
+       renderChatActivity(els.activity, 'idle', latestCommentHandle(liveComments), runIdleStarter);
        renderHermesAgent(els, 'idle');
       if (els.refresh) els.refresh.disabled = true;
       if (els.more) els.more.disabled = true;
@@ -396,7 +441,7 @@ export function createYoutubeHomepageInteraction({
       if (els.progressCount) els.progressCount.textContent = '0';
         if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
         if (els.brand) els.brand.dataset.turnState = 'idle';
-         renderChatActivity(els.activity, 'idle', latestCommentHandle(liveComments));
+         renderChatActivity(els.activity, 'idle', latestCommentHandle(liveComments), runIdleStarter);
          renderHermesAgent(els, 'idle');
       if (els.progressList) {
         els.progressList.replaceChildren();
@@ -442,7 +487,7 @@ export function createYoutubeHomepageInteraction({
     }
     if (!activeConversation) {
       if (els.brand) els.brand.dataset.turnState = 'idle';
-       renderChatActivity(els.activity, 'idle', latestCommentHandle(liveComments));
+       renderChatActivity(els.activity, 'idle', latestCommentHandle(liveComments), runIdleStarter);
        const waitingForTraining = waitingConversations.some((comment) => /finishes its current training task/i.test(String(comment?.replyReason || '')));
        renderHermesAgent(
          els,
@@ -610,6 +655,63 @@ export function createYoutubeHomepageInteraction({
       replyAt: new Date(now()).toISOString(),
       address: false,
     });
+  }
+
+  async function runIdleStarter(prompt) {
+    const textPrompt = safeText(prompt, 200);
+    if (!GEV_IDLE_STARTER_PROMPTS.includes(textPrompt)) return;
+    const handle = latestCommentHandle(liveComments);
+    const author = handle.replace(/^@+/, '') || 'Viewer';
+    const id = `starter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const publishedAt = new Date(now()).toISOString();
+    const itemVideoId = videoId || 'local-starter';
+    const item = {
+      id,
+      videoId: itemVideoId,
+      author,
+      authorHandle: handle,
+      text: textPrompt,
+      publishedAt,
+      agentMode: true,
+    };
+    try { await ingest([item]); } catch { /* continue */ }
+    try {
+      await fetchImpl('/api/youtube/homepage-chat/starter', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          text: textPrompt,
+          author,
+          authorHandle: handle,
+          videoId: itemVideoId === 'local-starter' ? (videoId || '') : itemVideoId,
+          id,
+        }),
+      });
+    } catch { /* panel mirror already ran */ }
+    if (/what kinds of questions can i ask/i.test(textPrompt)) {
+      try {
+        const answer = PUBLIC_HELP_REPLY;
+        if (typeof nextchat?.typeActionReply === 'function') {
+          nextchat.typeActionReply(answer, {
+            commentId: id,
+            videoId: itemVideoId,
+            generation,
+            author,
+            authorHandle: handle,
+            actionState: 'succeeded',
+          });
+        }
+        notifyAgentReply({
+          commentId: id,
+          videoId: itemVideoId,
+          generation,
+          replyState: 'replied',
+          replyText: answer,
+          actionState: 'succeeded',
+        });
+      } catch { /* ignore */ }
+    }
   }
 
   async function ingest(items) {

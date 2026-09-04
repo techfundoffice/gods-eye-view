@@ -205,6 +205,71 @@ export function createYoutubeHomepageChatMiddleware({
   return async function youtubeHomepageChatMiddleware(req, res) {
     const method = String(req.method || 'GET').toUpperCase();
     const parsed = new URL(String(req.url || '/'), 'http://internal');
+    if (parsed.pathname === '/starter') {
+      if (method !== 'POST') {
+        sendJson(res, 405, { error: { kind: 'method', message: 'POST only' } });
+        return;
+      }
+      let body = {};
+      try { body = await readJsonBody(req); }
+      catch (error) {
+        sendJson(res, error.status || 400, { error: { kind: 'invalid', message: error.message } });
+        return;
+      }
+      const ALLOWED = new Set([
+        'Summarize takeaways from a page',
+        'What kinds of questions can I ask?',
+        'Help me with my writing',
+      ]);
+      const text = boundedText(body.text, 200);
+      if (!text || !ALLOWED.has(text)) {
+        sendJson(res, 400, { error: { kind: 'invalid', message: 'Only the three Gemini starter prompts are allowed.' } });
+        return;
+      }
+      const snap = ingest && typeof ingest.snapshot === 'function' ? (ingest.snapshot() || {}) : {};
+      const videoId = boundedText(body.videoId || snap.videoId, 80);
+      const raw = {
+        id: boundedText(body.id, 160) || `starter-${Date.now()}`,
+        videoId,
+        snippet: { displayMessage: text, publishedAt: new Date(now()).toISOString() },
+        authorDetails: { displayName: boundedText(body.author, 80) || 'Viewer' },
+        authorHandle: boundedText(body.authorHandle, 80) || '@Username',
+        text,
+        author: { displayName: boundedText(body.author, 80) || 'Viewer' },
+      };
+      // Client already mirrored into the panel; only inject when live so feed/Hermes see it.
+      if (videoId && ingest && typeof ingest.inject === 'function') ingest.inject(raw);
+      let liveChatId = boundedText(body.liveChatId || snap.liveChatId, 80);
+      if (liveChatId === 'innertube') liveChatId = '';
+      if (!liveChatId && ownerDiscovery) {
+        try {
+          const identity = await ownerDiscovery.get();
+          liveChatId = boundedText(identity?.liveChatId, 80);
+        } catch { /* starter still registers locally */ }
+      }
+      lastBinding = {
+        videoId,
+        generation: Math.max(0, Number(snap.generation) || 0),
+        commandsEnabled: true,
+        liveChatId,
+      };
+      const item = publicMessage(raw, videoId, now, { commandsEnabled: true });
+      // Help chip keeps Gemini wording in chat; register /help for the public command answer.
+      const registerItem = item && text === 'What kinds of questions can I ask?'
+        ? { ...item, text: '/help' }
+        : item;
+      const registered = registerItem ? await commandRuntime?.registerMessage?.(registerItem, lastBinding) : { recognized: false };
+      const commands = await commandRuntime?.statuses?.(lastBinding) || [];
+      void Promise.resolve(commandRuntime?.deliverReplies?.(lastBinding)).catch(() => {});
+      // Best-effort mirror into the live YouTube chat when poster/runtime supports it
+      try {
+        if (liveChatId && typeof commandRuntime?.postOwnerChat === 'function') {
+          await commandRuntime.postOwnerChat({ liveChatId, text, videoId });
+        }
+      } catch { /* panel + Hermes path already ran */ }
+      sendJson(res, 200, { ok: true, item, registered, commands: commands.slice(-5) });
+      return;
+    }
     if (parsed.pathname === '/inject') {
       const loopback = isLoopbackAddress(req.socket?.remoteAddress || req.connection?.remoteAddress);
       if (!loopback) {
