@@ -102,6 +102,45 @@ function viewerLabel(comment) {
   return comment?.authorHandle || comment?.author || 'VIEWER';
 }
 
+function displayViewerLabel(value) {
+  const label = safeText(value || 'VIEWER', 80);
+  if (label.length <= 30) return label;
+  return `${label.slice(0, 27).trimEnd()}…`;
+}
+
+/**
+ * The status sits in a streamed 720p composition, where a single all-caps
+ * sentence loses the important information. Keep the state and the person in
+ * dedicated, stable visual slots while the live region retains a clear phrase.
+ */
+function renderChatActivity(activity, state = 'idle', viewer = '') {
+  if (!activity) return;
+  const fullViewer = safeText(viewer || 'VIEWER', 80);
+  const visibleViewer = displayViewerLabel(fullViewer);
+  const copy = state === 'working'
+    ? { kicker: 'CAMERA CONTROL IN PROGRESS', headline: visibleViewer, detail: 'DIRECTING THE GLOBE' }
+    : state === 'reply'
+      ? { kicker: 'AWAITING REPLY', headline: visibleViewer, detail: 'YOUR TURN IN CHAT' }
+      : { kicker: 'LIVE CAMERA DESK', headline: 'NOW TAKING REQUESTS', detail: 'WAITING FOR THE NEXT VIEWER REQUEST' };
+  activity.dataset.state = state;
+  activity.setAttribute('aria-label', state === 'working'
+    ? `Working on ${fullViewer}'s request`
+    : state === 'reply'
+      ? `Waiting for ${fullViewer}'s reply`
+      : 'Waiting for the next viewer request');
+  const kicker = activity.ownerDocument.createElement('span');
+  kicker.className = 'youtube-chat-activity-kicker';
+  kicker.textContent = copy.kicker;
+  const headline = activity.ownerDocument.createElement('strong');
+  headline.className = 'youtube-chat-activity-headline';
+  headline.textContent = copy.headline;
+  if (fullViewer !== visibleViewer) headline.title = fullViewer;
+  const detail = activity.ownerDocument.createElement('span');
+  detail.className = 'youtube-chat-activity-detail';
+  detail.textContent = copy.detail;
+  activity.replaceChildren(kicker, headline, detail);
+}
+
 function isProcessing(comment) {
   return ['pending', 'interpreting', 'received', 'awaiting-execution', 'executing', 'awaiting-model']
     .includes(String(comment?.replyState || ''));
@@ -254,7 +293,7 @@ export function createYoutubeHomepageInteraction({
       if (els.progressCount) els.progressCount.textContent = '0';
       if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
       if (els.brand) els.brand.dataset.turnState = 'idle';
-      if (els.activity) els.activity.textContent = 'WAITING FOR THE NEXT VIEWER REQUEST';
+       renderChatActivity(els.activity, 'idle');
       if (els.refresh) els.refresh.disabled = true;
       if (els.more) els.more.disabled = true;
       if (els.list) {
@@ -288,7 +327,7 @@ export function createYoutubeHomepageInteraction({
       if (els.progressCount) els.progressCount.textContent = '0';
         if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
         if (els.brand) els.brand.dataset.turnState = 'idle';
-        if (els.activity) els.activity.textContent = 'WAITING FOR THE NEXT VIEWER REQUEST';
+         renderChatActivity(els.activity, 'idle');
       if (els.progressList) {
         els.progressList.replaceChildren();
         const progressEmpty = documentRef.createElement('li');
@@ -333,7 +372,7 @@ export function createYoutubeHomepageInteraction({
     }
     if (!activeConversation) {
       if (els.brand) els.brand.dataset.turnState = 'idle';
-      if (els.activity) els.activity.textContent = 'WAITING FOR THE NEXT VIEWER REQUEST';
+       renderChatActivity(els.activity, 'idle');
       waitingConversations.forEach((comment, index) => appendWaitingRow(els.progressList, comment, index + 1, documentRef));
       if (waitingConversations.length) return;
       const empty = documentRef.createElement('li');
@@ -344,11 +383,7 @@ export function createYoutubeHomepageInteraction({
     }
     const processing = isProcessing(activeConversation);
     if (els.brand) els.brand.dataset.turnState = processing ? 'working' : 'reply';
-    if (els.activity) {
-      els.activity.textContent = processing
-        ? `WORKING ON ${viewerLabel(activeConversation)}'S REQUEST`
-        : `WAITING FOR ${viewerLabel(activeConversation)}'S REPLY`;
-    }
+     renderChatActivity(els.activity, processing ? 'working' : 'reply', viewerLabel(activeConversation));
     const row = documentRef.createElement('li');
     row.className = 'youtube-feed-item youtube-comment-thread youtube-active-conversation';
     appendCommentBody(row, activeConversation, documentRef);

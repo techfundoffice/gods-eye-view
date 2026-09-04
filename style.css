@@ -13822,10 +13822,10 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
 .youtube-chat-brand {
   display: grid;
   place-items: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.6rem 0.55rem;
-  border-bottom: 1px solid rgba(126, 240, 255, 0.24);
-  background: rgba(255, 255, 255, 0.96);
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem 0.7rem;
+  border-bottom: 1px solid rgba(87, 191, 255, 0.45);
+  background: linear-gradient(145deg, rgba(246, 251, 255, 0.98), rgba(225, 242, 255, 0.98));
 }
 
 .youtube-chat-brand-logo {
@@ -13836,18 +13836,70 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
 }
 
 .youtube-chat-activity {
-  color: #08234f;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  line-height: 1.3;
+  --activity-ink: #06295b;
+  --activity-accent: #087de0;
+  position: relative;
+  display: grid;
+  width: min(100%, 21rem);
+  gap: 0.14rem;
+  padding: 0.56rem 0.75rem 0.62rem 0.95rem;
+  overflow: hidden;
+  color: var(--activity-ink);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid color-mix(in srgb, var(--activity-accent) 42%, transparent);
+  border-left: 0.35rem solid var(--activity-accent);
+  border-radius: 0.45rem;
+  box-shadow: 0 0.3rem 0.8rem rgba(4, 38, 92, 0.1);
   text-align: center;
+  transition: border-color 260ms ease, background-color 260ms ease, transform 260ms ease;
+}
+
+.youtube-chat-activity-kicker,
+.youtube-chat-activity-detail {
+  color: color-mix(in srgb, var(--activity-ink) 72%, white);
+  font-family: var(--font-mono);
+  font-size: clamp(0.58rem, 0.72vw, 0.68rem);
+  font-weight: 700;
+  letter-spacing: 0.105em;
+  line-height: 1.2;
+}
+
+.youtube-chat-activity-headline {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--activity-ink);
+  font-family: var(--font-mono);
+  font-size: clamp(0.98rem, 1.3vw, 1.18rem);
+  font-weight: 800;
+  letter-spacing: 0.015em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.youtube-chat-activity[data-state='working'] {
+  --activity-ink: #482600;
+  --activity-accent: #f09a13;
+  background: rgba(255, 245, 220, 0.94);
+}
+
+.youtube-chat-activity[data-state='reply'] {
+  --activity-ink: #073c61;
+  --activity-accent: #00a6be;
+  background: rgba(220, 249, 252, 0.94);
 }
 
 .youtube-chat-brand[data-turn-state='working'] .youtube-chat-brand-logo {
   animation: youtube-logo-working 1.15s ease-in-out infinite;
   filter: drop-shadow(0 0 0.55rem rgba(0, 132, 255, 0.7));
+}
+
+.youtube-chat-brand[data-turn-state='working'] .youtube-chat-activity {
+  animation: youtube-activity-arrive 360ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+@keyframes youtube-activity-arrive {
+  from { opacity: 0.55; transform: translateY(-0.22rem); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes youtube-logo-working {
@@ -13860,6 +13912,10 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
     animation: none;
     outline: 3px solid rgba(0, 132, 255, 0.55);
     outline-offset: 3px;
+  }
+
+  .youtube-chat-brand[data-turn-state='working'] .youtube-chat-activity {
+    animation: none;
   }
 }
 
