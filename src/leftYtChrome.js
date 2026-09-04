@@ -148,6 +148,7 @@ function createRoyaltyFreeMusicPlayer(doc) {
   const onConfigChanged = () => {
     void (async () => {
       const wasPlaying = Boolean(audio && !audio.paused && !audio.ended);
+      await refreshTitles();
       await refreshPlaylist();
       syncTrackSelect();
       if (!audio) return;
@@ -171,14 +172,41 @@ function createRoyaltyFreeMusicPlayer(doc) {
     })();
   };
 
+  /** @type {Map<string, string>} */
+  let titleByUrl = new Map();
+
+  const refreshTitles = async () => {
+    try {
+      const library = await loadLibrary();
+      const map = new Map();
+      const tracks = Array.isArray(library?.tracks) ? library.tracks : [];
+      for (const t of tracks) {
+        const url = String(t?.url || "").trim();
+        const title = String(t?.title || "").trim();
+        if (url && title) map.set(url, title);
+      }
+      titleByUrl = map;
+    } catch (err) {
+      console.warn("[left-yt-chrome] loadLibrary titles failed", err);
+    }
+  };
+
+  const labelForUrl = (url, i) => {
+    const known = titleByUrl.get(url);
+    if (known) return known;
+    const name = (url.split("/").pop() || url)
+      .replace(/\.mp3$/i, "")
+      .replace(/soundhelix-/i, "SoundHelix Song ");
+    return name || `Track ${i + 1}`;
+  };
+
   const syncTrackSelect = () => {
     const sel = doc.getElementById("left-yt-music-track");
     if (!sel) return;
     const current = playlistUrls[trackIndex] || "";
     const opts = playlistUrls.map((url, i) => {
-      const name = url.split("/").pop() || url;
-      const label = name.replace(/\.mp3$/i, "").replace(/soundhelix-/i, "Song ");
-      return `<option value="${url.replace(/"/g, "&quot;")}">${i + 1}. ${label}</option>`;
+      const label = labelForUrl(url, i);
+      return `<option value="${url.replace(/"/g, "&quot;")}">${label}</option>`;
     });
     sel.innerHTML = opts.length
       ? opts.join("")
@@ -193,9 +221,14 @@ function createRoyaltyFreeMusicPlayer(doc) {
     globalThis.addEventListener?.(ROYALTY_FREE_MUSIC_EVENT, onConfigChanged);
   } catch { /* ignore */ }
 
-  // Immediate fallback so TRK never stays on HTML "Loading…"
+  // Fill TRACK with real SoundHelix titles ASAP (never leave "Loading…")
   syncTrackSelect();
-  void refreshPlaylist().then(() => syncTrackSelect());
+  void (async () => {
+    await refreshTitles();
+    syncTrackSelect();
+    await refreshPlaylist();
+    syncTrackSelect();
+  })();
 
   return {
     syncTrackSelect,

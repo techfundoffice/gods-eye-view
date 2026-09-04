@@ -12,6 +12,12 @@
     "module": "./google-earth.js"
   },
   {
+    "id": "hermes-dashboard",
+    "label": "HERMES DASHBOARD Port 8000",
+    "description": "Open the authenticated bundled Hermes dashboard on Replit port 8000.",
+    "module": "./hermes-dashboard.js"
+  },
+  {
     "id": "youtube-go-live",
     "label": "YouTube Go Live",
     "description": "Publish the globe to YouTube Live from an authenticated ADMIN session.",

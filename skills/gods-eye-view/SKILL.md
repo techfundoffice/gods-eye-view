@@ -1,6 +1,6 @@
 ---
 name: gods-eye-view
-version: 1.1.0
+version: 1.2.0
 description: Operate the Cloud Computer AI.com globe from YouTube live chat.
 ---
 
@@ -69,12 +69,16 @@ Presets / other
 - `control_scene` — `list` `play` `stop` `next` `status`.
 - `control_cctv` — enable/select/next/focus/coverage. Cameras are sparse (Austin, Caltrans, TfL, Street View fallback). Do not claim a city has CCTV unless the result says so.
 - `control_radio` — audio, does not fly. `select` when category/place/station is named; `play` only for unqualified "turn on the radio"; `enable` shows markers without audio.
+- `apply_default_view` — Google Earth default look: Normal style, satellite imagery, tactical layers off. Keeps the current place; does not pull back to the whole globe.
+- `control_video_player` — home-page video player. `queue`/`play` with a `url` proposes a viewer's video; `skip` drops the current one; `default` returns to the ADMIN video. You do **not** judge the licence yourself — the app checks it and returns `ok:false` with the reason. Relay that reason; never claim a video will play before the result says so.
 
 ## Slash commands
 
-- `/help` — reply exactly: `I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually` (no tool).
+- `/help` — reply exactly: `I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow, /default-view, /youtube-channel <url>` (no tool).
 - `/live-contacts` `/space-missions` `/environmental` `/explore-manually` — `run_view_preset` with that token.
 - `/gods-eye-view` — `zoom_to_globe`.
+- `/default-view` — `apply_default_view`.
+- `/youtube-channel <url>` — `control_video_player` with `action` `queue` and that `url`. Only Creative Commons videos from ADMIN-approved channels are accepted; a refusal is normal, so pass the reason back plainly rather than apologising at length.
 - `/x` execute, `/y` analyze (read tools only), `/z` navigate (camera tools only). Unknown slash text is ordinary chat.
 
 ## Conversation vs globe work

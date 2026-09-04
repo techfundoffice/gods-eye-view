@@ -30,6 +30,34 @@
     <div class="title-glow"></div>
     <h1><span class="title-logo brand-logo" aria-hidden="true"><img src="/logo.svg" alt="" /></span> <span>CLOUD COMPUTER <span class="title-accent">AI.COM</span></span></h1>
     <p class="subtitle">You're not watching this your flying it</p>
+
+    <!-- Home video player. Row 3 of #title-bar, so it sits directly under the
+         tagline without measuring anything. ADMIN owns the default video and
+         playlist; viewer recommendations are moderated server-side before they
+         ever reach this markup. -->
+    <section id="gev-home-video" class="gev-home-video" data-size="sm" aria-label="Home video player">
+      <div class="gev-home-video-frame">
+        <div id="gev-home-video-mount" class="gev-home-video-mount"></div>
+      </div>
+      <div class="gev-home-video-bar">
+        <select id="gev-home-video-source" class="gev-home-video-source" aria-label="ADMIN video sources" disabled></select>
+        <div class="gev-home-video-sizes" role="group" aria-label="Player size">
+          <button class="scene-btn" type="button" data-home-video-size="sm" aria-pressed="true" title="Small">S</button>
+          <button class="scene-btn" type="button" data-home-video-size="md" aria-pressed="false" title="Medium">M</button>
+          <button class="scene-btn" type="button" data-home-video-size="lg" aria-pressed="false" title="Fullscreen">L</button>
+        </div>
+      </div>
+      <form id="gev-home-video-recommend" class="gev-home-video-recommend">
+        <input id="gev-home-video-url" class="admin-field gev-home-video-url" type="url" inputmode="url"
+          maxlength="300" autocomplete="off" aria-label="Recommend a royalty-free YouTube video"
+          placeholder="Paste a royalty-free YouTube video URL…" />
+        <button class="scene-btn" type="submit">PLAY</button>
+      </form>
+      <p id="gev-home-video-status" class="gev-home-video-status" role="status" aria-live="polite"></p>
+      <p id="gev-home-video-now" class="gev-home-video-now"></p>
+      <ol id="gev-home-video-queue" class="gev-home-video-queue" aria-label="Up next" hidden></ol>
+      <p class="gev-home-video-hint">or comment <code>/youtube-channel &lt;url&gt;</code> on the live stream</p>
+    </section>
   </div>
 
   <!-- Style indicator -->
@@ -601,9 +629,9 @@
         <span class="material-symbols-outlined" aria-hidden="true">volume_up</span>
       </button>
       <label class="left-yt-track" title="Choose music track">
-        <span class="left-yt-track-label">TRK</span>
+        <span class="left-yt-track-label">TRACK</span>
         <select id="left-yt-music-track" aria-label="Royalty-free music track">
-          <option value="">Loading…</option>
+          <option value="/music/soundhelix-1.mp3">SoundHelix Song 1</option>
         </select>
       </label>
       <label class="left-yt-speed" title="Music speed">

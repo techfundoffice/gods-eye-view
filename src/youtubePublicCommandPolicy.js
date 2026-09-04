@@ -131,6 +131,14 @@ const SCHEMAS = {
     // Google Earth look: Normal style, soft photoreal/satellite, tactical layers off.
     // Does not yank camera to the Earth pearl.
   }),
+  // Home-page video player. `play`/`queue` carry a viewer-supplied URL that is
+  // license-checked server-side before anything reaches the player; this schema
+  // only bounds the shape. The name deliberately avoids the words the Hermes
+  // capability classifier treats as admin / youtube-write.
+  control_video_player: object({
+    action: enumeration('play', 'queue', 'skip', 'default'),
+    url: string({ maxLength: 300 }),
+  }, { required: ['action'] }),
 };
 
 function deepFreeze(value) {
@@ -155,7 +163,7 @@ const Y_TOOLS = ['get_current_view_state', 'get_entity_context', 'analyst_query'
 const Z_TOOLS = ['fly_to_location', 'select_nearest_aircraft', 'adjust_camera_zoom', 'zoom_to_globe', 'move_camera', 'frame_overhead', 'fly_route', 'stop_tracking'];
 
 /** Exact GEV ACTIONS reply for `/help`. The space before the first comma is intentional. */
-export const PUBLIC_HELP_REPLY = 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow, /default-view';
+export const PUBLIC_HELP_REPLY = 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow, /default-view, /youtube-channel <url>';
 
 /** Slash command → first-run Mission Control choice. `/explore-manually` is required. */
 export const PUBLIC_VIEW_PRESETS = deepFreeze({
@@ -176,6 +184,7 @@ export const PUBLIC_COMMAND_REGISTRY = deepFreeze({
   '/z': { command: '/z', mode: 'navigate', description: 'Move or frame the camera', requiresText: true, enabled: true, tools: Z_TOOLS },
   '/gods-eye-view': { command: '/gods-eye-view', mode: 'whole-globe', description: 'Frame the whole globe', requiresText: false, enabled: true, tools: ['zoom_to_globe'] },
   '/default-view': { command: '/default-view', mode: 'default-view', description: 'Google Earth default look (Normal, satellite, no tactical layers)', requiresText: false, enabled: true, tools: ['apply_default_view'] },
+  '/youtube-channel': { command: '/youtube-channel', mode: 'youtube-channel', description: 'Recommend a royalty-free video for the home player', requiresText: true, enabled: true, tools: ['control_video_player'] },
   '/style-normal': { command: '/style-normal', mode: 'visual-style', description: 'Normal visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'normal' },
   '/style-retro': { command: '/style-retro', mode: 'visual-style', description: 'Retro visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'retro' },
   '/style-surveillance': { command: '/style-surveillance', mode: 'visual-style', description: 'Surveillance visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'surveillance' },

@@ -17,6 +17,7 @@ import militaryAwarenessLayer, {
 import { initCameraVerbs, moveCamera, flyRoute, interruptCameraMotion, adjustOrbitRange } from '../cameraVerbs.js';
 import { cachedGroundFloor, warmGroundFloor } from '../data/groundFloor.js';
 import { isPickedWorldPosition } from '../data/scenePick.js';
+import { requestHomeVideo } from '../homeVideo.js';
 import { resolveRegionRingForQuery } from '../annotations/annotationResolver.js';
 import { normalizeRadioCountryInput } from '../data/radioCountry.js';
 import { TR3B_CLASS } from '../data/tr3bRegistry.js';
@@ -939,6 +940,13 @@ export function createGevActionRunner({ viewer, styleManager, dataManager, scene
       // Fallback: Normal style only.
       styleManager?.setStyle?.('normal');
       return { ok: true, action: 'apply_default_view', style: 'normal', degraded: true };
+    }
+
+    // The home player owns its own state; this only forwards the intent. A
+    // viewer-supplied URL is license-checked server-side, so a refusal comes
+    // back here as ok:false with the reason the viewer should hear.
+    if (name === 'control_video_player') {
+      return requestHomeVideo({ action: args.action, url: args.url });
     }
 
     if (name === 'annotate_map') {
