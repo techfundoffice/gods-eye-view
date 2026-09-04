@@ -18818,8 +18818,8 @@ nav.left-yt-chrome {
   flex: 0 0 auto !important;
   order: -30 !important;
   display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
   justify-content: flex-start !important;
   gap: 0.35rem !important;
   width: 100% !important;
@@ -19139,3 +19139,190 @@ nav.left-yt-chrome {
   color: #ff7272;
 }
 .admin-rf-music-message[hidden] { display: none; }
+/* === GEV_LEFT_YT_MUSIC_TRACK_V1 === */
+#left-yt-chrome .left-yt-track {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.2rem !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 2rem !important;
+  padding: 0 0.35rem 0 0.4rem !important;
+  border-radius: 999px !important;
+  background: #272727 !important;
+  color: #f1f1f1 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+#left-yt-chrome .left-yt-track-label {
+  font-size: 0.58rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  opacity: 0.75 !important;
+  flex: 0 0 auto !important;
+}
+#left-yt-chrome #left-yt-music-track {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: none !important;
+  background: transparent !important;
+  color: #fff !important;
+  font-size: 0.68rem !important;
+  font-weight: 650 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  height: 1.6rem !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  cursor: pointer !important;
+  outline: none !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+#left-yt-chrome #left-yt-music-track:focus-visible {
+  outline: 2px solid rgba(62, 166, 255, 0.85) !important;
+  outline-offset: 1px !important;
+  border-radius: 0.25rem !important;
+}
+#left-yt-chrome #left-yt-music-track option {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+/* === GEV_LEFT_YT_CHROME_STACK_V2 ===
+   Two-row left chrome so Ask / Create / TRK / SPD never crush together. */
+#left-yt-chrome,
+nav.left-yt-chrome {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 0.35rem !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0.35rem !important;
+  border-radius: 0.7rem !important;
+  background: rgba(12, 12, 12, 0.88) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-sizing: border-box !important;
+}
+
+#left-yt-chrome .left-yt-row {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#left-yt-chrome .left-yt-row-actions .left-yt-ask {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+#left-yt-chrome .left-yt-row-actions .left-yt-create {
+  flex: 0 0 auto !important;
+}
+
+#left-yt-chrome .left-yt-row-music .left-yt-music {
+  flex: 0 0 auto !important;
+}
+
+#left-yt-chrome .left-yt-row-music .left-yt-track {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  width: auto !important;
+}
+
+#left-yt-chrome .left-yt-row-music .left-yt-speed {
+  flex: 0 0 auto !important;
+  min-width: 4.6rem !important;
+}
+
+#left-yt-chrome .left-yt-track,
+#left-yt-chrome .left-yt-speed {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  height: 2rem !important;
+  padding: 0 0.55rem 0 0.5rem !important;
+  border-radius: 999px !important;
+  background: #272727 !important;
+  color: #f1f1f1 !important;
+  box-sizing: border-box !important;
+}
+
+#left-yt-chrome .left-yt-track-label,
+#left-yt-chrome .left-yt-speed-label {
+  flex: 0 0 auto !important;
+  font-size: 0.62rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.08em !important;
+  opacity: 0.85 !important;
+  white-space: nowrap !important;
+}
+
+#left-yt-chrome #left-yt-music-track,
+#left-yt-chrome #left-yt-music-speed {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  max-width: 100% !important;
+  font-size: 0.74rem !important;
+}
+
+#left-yt-chrome #left-yt-music-speed {
+  flex: 0 0 auto !important;
+  width: 3.2rem !important;
+}
+
+/* === GEV_LEFT_YT_CHROME_FONT_SM_V1 === */
+#left-yt-chrome .left-yt-ask-label {
+  font-size: 0.68rem !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.01em !important;
+}
+#left-yt-chrome .left-yt-create-label {
+  font-size: 0.68rem !important;
+  font-weight: 650 !important;
+}
+#left-yt-chrome .left-yt-track-label,
+#left-yt-chrome .left-yt-speed-label {
+  font-size: 0.52rem !important;
+  letter-spacing: 0.06em !important;
+}
+#left-yt-chrome #left-yt-music-track,
+#left-yt-chrome #left-yt-music-speed {
+  font-size: 0.62rem !important;
+}
+#left-yt-chrome .left-yt-ask .material-symbols-outlined,
+#left-yt-chrome .left-yt-create .material-symbols-outlined,
+#left-yt-chrome .left-yt-icon-btn .material-symbols-outlined,
+#left-yt-chrome .left-yt-bell .material-symbols-outlined {
+  font-size: 1.05rem !important;
+}
+#left-yt-chrome .left-yt-ask,
+#left-yt-chrome .left-yt-create {
+  font-size: 0.68rem !important;
+  padding-inline: 0.55rem !important;
+  height: 1.85rem !important;
+}
+#left-yt-chrome .left-yt-icon-btn,
+#left-yt-chrome .left-yt-bell {
+  width: 1.85rem !important;
+  height: 1.85rem !important;
+}
+#left-yt-chrome .left-yt-track,
+#left-yt-chrome .left-yt-speed {
+  height: 1.85rem !important;
+  padding: 0 0.45rem 0 0.4rem !important;
+  gap: 0.25rem !important;
+}
+#left-yt-chrome #left-yt-music-speed {
+  width: 2.7rem !important;
+  font-size: 0.62rem !important;
+}

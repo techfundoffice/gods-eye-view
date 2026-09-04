@@ -1,10 +1,120 @@
 {
-  "version": 1,
-  "attribution": "SoundHelix demo MP3s (https://www.soundhelix.com/) — local copies under /music",
+  "version": 2,
+  "attribution": "SoundHelix demo MP3s (https://www.soundhelix.com/) \u2014 local copies under /music. Free to use as demos; not a commercial stock-music license.",
   "tracks": [
-    {"id": "soundhelix-1", "title": "SoundHelix Song 1", "url": "/music/soundhelix-1.mp3", "source": "SoundHelix"},
-    {"id": "soundhelix-2", "title": "SoundHelix Song 2", "url": "/music/soundhelix-2.mp3", "source": "SoundHelix"},
-    {"id": "soundhelix-3", "title": "SoundHelix Song 3", "url": "/music/soundhelix-3.mp3", "source": "SoundHelix"}
+    {
+      "id": "soundhelix-1",
+      "title": "SoundHelix Song 1",
+      "url": "/music/soundhelix-1.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-2",
+      "title": "SoundHelix Song 2",
+      "url": "/music/soundhelix-2.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-3",
+      "title": "SoundHelix Song 3",
+      "url": "/music/soundhelix-3.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-4",
+      "title": "SoundHelix Song 4",
+      "url": "/music/soundhelix-4.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-5",
+      "title": "SoundHelix Song 5",
+      "url": "/music/soundhelix-5.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-6",
+      "title": "SoundHelix Song 6",
+      "url": "/music/soundhelix-6.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-7",
+      "title": "SoundHelix Song 7",
+      "url": "/music/soundhelix-7.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-8",
+      "title": "SoundHelix Song 8",
+      "url": "/music/soundhelix-8.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-9",
+      "title": "SoundHelix Song 9",
+      "url": "/music/soundhelix-9.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-10",
+      "title": "SoundHelix Song 10",
+      "url": "/music/soundhelix-10.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-11",
+      "title": "SoundHelix Song 11",
+      "url": "/music/soundhelix-11.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-12",
+      "title": "SoundHelix Song 12",
+      "url": "/music/soundhelix-12.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-13",
+      "title": "SoundHelix Song 13",
+      "url": "/music/soundhelix-13.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-14",
+      "title": "SoundHelix Song 14",
+      "url": "/music/soundhelix-14.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-15",
+      "title": "SoundHelix Song 15",
+      "url": "/music/soundhelix-15.mp3",
+      "source": "SoundHelix"
+    },
+    {
+      "id": "soundhelix-16",
+      "title": "SoundHelix Song 16",
+      "url": "/music/soundhelix-16.mp3",
+      "source": "SoundHelix"
+    }
   ],
-  "defaultActiveIds": ["soundhelix-1", "soundhelix-2", "soundhelix-3"]
+  "defaultActiveIds": [
+    "soundhelix-1",
+    "soundhelix-2",
+    "soundhelix-3",
+    "soundhelix-4",
+    "soundhelix-5",
+    "soundhelix-6",
+    "soundhelix-7",
+    "soundhelix-8",
+    "soundhelix-9",
+    "soundhelix-10",
+    "soundhelix-11",
+    "soundhelix-12",
+    "soundhelix-13",
+    "soundhelix-14",
+    "soundhelix-15",
+    "soundhelix-16"
+  ]
 }

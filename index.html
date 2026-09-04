@@ -576,38 +576,48 @@
 
   <div id="left-panel-stack">
     <nav id="left-yt-chrome" class="left-yt-chrome" aria-label="YouTube-style quick actions">
-    <button id="left-yt-ask" class="left-yt-ask" type="button" title="Ask YouTube">
-      <span class="material-symbols-outlined left-yt-ask-icon" aria-hidden="true">auto_awesome</span>
-      <span class="left-yt-ask-label">Ask YouTube</span>
-    </button>
-    <button id="left-yt-search" class="left-yt-icon-btn" type="button" title="Search location" aria-label="Search">
-      <span class="material-symbols-outlined" aria-hidden="true">search</span>
-    </button>
-    <button id="left-yt-mic" class="left-yt-icon-btn" type="button" title="Voice" aria-label="Microphone">
-      <span class="material-symbols-outlined" aria-hidden="true">mic</span>
-    </button>
-    <button id="left-yt-music" class="left-yt-icon-btn left-yt-music" type="button" title="Play royalty-free music" aria-label="Royalty-free music" aria-pressed="false">
-      <span class="material-symbols-outlined" aria-hidden="true">volume_up</span>
-    </button>
-    <label class="left-yt-speed" title="Music speed">
-      <span class="left-yt-speed-label">SPD</span>
-      <select id="left-yt-music-speed" aria-label="Music playback speed">
-        <option value="0.5">0.5x</option>
-        <option value="0.75">0.75x</option>
-        <option value="0.85">0.85x</option>
-        <option value="1" selected>1x</option>
-        <option value="1.25">1.25x</option>
-        <option value="1.5">1.5x</option>
-      </select>
-    </label>
-    <button id="left-yt-create" class="left-yt-create" type="button" title="Create">
-      <span class="material-symbols-outlined" aria-hidden="true">add</span>
-      <span class="left-yt-create-label">Create</span>
-    </button>
-    <button id="left-yt-bell" class="left-yt-bell" type="button" title="Notifications" aria-label="Notifications">
-      <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-      <span id="left-yt-bell-badge" class="left-yt-bell-badge">5</span>
-    </button>
+    <div class="left-yt-row left-yt-row-actions">
+      <button id="left-yt-ask" class="left-yt-ask" type="button" title="Ask YouTube">
+        <span class="material-symbols-outlined left-yt-ask-icon" aria-hidden="true">auto_awesome</span>
+        <span class="left-yt-ask-label">Ask YouTube</span>
+      </button>
+      <button id="left-yt-search" class="left-yt-icon-btn" type="button" title="Search location" aria-label="Search">
+        <span class="material-symbols-outlined" aria-hidden="true">search</span>
+      </button>
+      <button id="left-yt-mic" class="left-yt-icon-btn" type="button" title="Voice" aria-label="Microphone">
+        <span class="material-symbols-outlined" aria-hidden="true">mic</span>
+      </button>
+      <button id="left-yt-create" class="left-yt-create" type="button" title="Create">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+        <span class="left-yt-create-label">Create</span>
+      </button>
+      <button id="left-yt-bell" class="left-yt-bell" type="button" title="Notifications" aria-label="Notifications">
+        <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+        <span id="left-yt-bell-badge" class="left-yt-bell-badge">5</span>
+      </button>
+    </div>
+    <div class="left-yt-row left-yt-row-music" aria-label="Royalty-free music controls">
+      <button id="left-yt-music" class="left-yt-icon-btn left-yt-music" type="button" title="Play royalty-free music" aria-label="Royalty-free music" aria-pressed="false">
+        <span class="material-symbols-outlined" aria-hidden="true">volume_up</span>
+      </button>
+      <label class="left-yt-track" title="Choose music track">
+        <span class="left-yt-track-label">TRK</span>
+        <select id="left-yt-music-track" aria-label="Royalty-free music track">
+          <option value="">Loading…</option>
+        </select>
+      </label>
+      <label class="left-yt-speed" title="Music speed">
+        <span class="left-yt-speed-label">SPD</span>
+        <select id="left-yt-music-speed" aria-label="Music playback speed">
+          <option value="0.5">0.5x</option>
+          <option value="0.75">0.75x</option>
+          <option value="0.85">0.85x</option>
+          <option value="1" selected>1x</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+        </select>
+      </label>
+    </div>
   </nav>
 <div id="left-nav-autoscroll-bar" class="left-nav-autoscroll-bar">
     <label class="left-nav-autoscroll-label" for="left-nav-autoscroll">

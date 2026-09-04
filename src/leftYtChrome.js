@@ -9,6 +9,10 @@ import {
   EVENT as ROYALTY_FREE_MUSIC_EVENT,
   FALLBACK_URLS,
   getPlaylistUrls,
+  loadLibrary,
+  readConfig,
+  resolvePlaylist,
+  writeConfig,
 } from './royaltyFreeMusic.js';
 
 /**
@@ -173,6 +177,22 @@ function createRoyaltyFreeMusicPlayer(doc) {
 
   void refreshPlaylist();
 
+
+  const syncTrackSelect = () => {
+    const sel = doc.getElementById("left-yt-music-track");
+    if (!sel) return;
+    const current = playlistUrls[trackIndex] || "";
+    const opts = playlistUrls.map((url, i) => {
+      const name = url.split("/").pop() || url;
+      const label = name.replace(/\.mp3$/i, "").replace(/soundhelix-/i, "Song ");
+      return `<option value="${url.replace(/"/g, "&quot;")}">${i + 1}. ${label}</option>`;
+    });
+    sel.innerHTML = opts.length
+      ? opts.join("")
+      : '<option value="">No tracks</option>';
+    if (current) sel.value = current;
+  };
+
   return {
     isPlaying() {
       return Boolean(audio && !audio.paused && !audio.ended);
@@ -185,6 +205,33 @@ function createRoyaltyFreeMusicPlayer(doc) {
         audio.playbackRate = speed;
         audio.preservesPitch = true;
       }
+    },
+    async playTrackUrl(url) {
+      const target = String(url || "").trim();
+      if (!target) return;
+      await refreshPlaylist();
+      let idx = playlistUrls.indexOf(target);
+      if (idx < 0) {
+        playlistUrls = [target, ...playlistUrls.filter((u) => u !== target)];
+        idx = 0;
+      }
+      trackIndex = idx;
+      const a = ensureAudio();
+      a.src = playlistUrls[trackIndex];
+      a.playbackRate = readSpeed(doc);
+      a.preservesPitch = true;
+      try {
+        await a.play();
+        syncUi(true);
+        syncTrackSelect();
+      } catch (err) {
+        syncUi(false);
+        softToast("Music failed to start — try again");
+        console.warn("[left-yt-chrome] playTrackUrl failed", err);
+      }
+    },
+    getPlaylist() {
+      return playlistUrls.slice();
     },
     async toggle() {
       const a = ensureAudio();
@@ -348,6 +395,14 @@ export function initLeftYtChrome(doc = globalThis.document) {
   bell?.addEventListener('click', onBell);
   const onMusic = () => { musicPlayer.toggle(); };
   music?.addEventListener('click', onMusic);
+  const trackSel = doc.getElementById('left-yt-music-track');
+  const onMusicTrack = () => {
+    const url = String(trackSel?.value || '').trim();
+    if (!url) return;
+    void musicPlayer.playTrackUrl?.(url);
+  };
+  trackSel?.addEventListener('change', onMusicTrack);
+
   const speedSel = doc.getElementById('left-yt-music-speed');
   if (speedSel) {
     try {
@@ -383,6 +438,7 @@ export function initLeftYtChrome(doc = globalThis.document) {
       create?.removeEventListener('click', onCreate);
       bell?.removeEventListener('click', onBell);
       music?.removeEventListener('click', onMusic);
+      trackSel?.removeEventListener('change', onMusicTrack);
       speedSel?.removeEventListener('change', onMusicSpeed);
       try { musicPlayer.stop(); } catch { /* ignore */ }
       try { observer?.disconnect?.(); } catch { /* ignore */ }

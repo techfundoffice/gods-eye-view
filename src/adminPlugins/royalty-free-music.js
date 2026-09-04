@@ -55,7 +55,7 @@ export function renderRoyaltyFreeMusicPane(container, context = {}) {
     doc,
     'p',
     'admin-rf-music-lead',
-    'Select beds for the left-nav speaker (#left-yt-music). SPD speed control stays on the HUD row.',
+    'Enable and select beds for the left-nav speaker. Front-end users also get a TRK picker on that row; SPD stays on the HUD.',
   );
 
   const attribution = el(doc, 'p', 'admin-rf-music-attribution', 'Loading library…');

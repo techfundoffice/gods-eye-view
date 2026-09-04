@@ -13,6 +13,19 @@ export const FALLBACK_URLS = [
   '/music/soundhelix-1.mp3',
   '/music/soundhelix-2.mp3',
   '/music/soundhelix-3.mp3',
+  '/music/soundhelix-4.mp3',
+  '/music/soundhelix-5.mp3',
+  '/music/soundhelix-6.mp3',
+  '/music/soundhelix-7.mp3',
+  '/music/soundhelix-8.mp3',
+  '/music/soundhelix-9.mp3',
+  '/music/soundhelix-10.mp3',
+  '/music/soundhelix-11.mp3',
+  '/music/soundhelix-12.mp3',
+  '/music/soundhelix-13.mp3',
+  '/music/soundhelix-14.mp3',
+  '/music/soundhelix-15.mp3',
+  '/music/soundhelix-16.mp3',
 ];
 
 /**
@@ -96,7 +109,7 @@ export function readConfig() {
     if (!raw) {
       return normalizeConfig({
         enabled: true,
-        activeIds: ['soundhelix-1', 'soundhelix-2', 'soundhelix-3'],
+        activeIds: ['soundhelix-1', 'soundhelix-2', 'soundhelix-3', 'soundhelix-4', 'soundhelix-5', 'soundhelix-6', 'soundhelix-7', 'soundhelix-8', 'soundhelix-9', 'soundhelix-10', 'soundhelix-11', 'soundhelix-12', 'soundhelix-13', 'soundhelix-14', 'soundhelix-15', 'soundhelix-16'],
         customUrls: [],
       });
     }
@@ -104,7 +117,7 @@ export function readConfig() {
   } catch {
     return normalizeConfig({
       enabled: true,
-      activeIds: ['soundhelix-1', 'soundhelix-2', 'soundhelix-3'],
+      activeIds: ['soundhelix-1', 'soundhelix-2', 'soundhelix-3', 'soundhelix-4', 'soundhelix-5', 'soundhelix-6', 'soundhelix-7', 'soundhelix-8', 'soundhelix-9', 'soundhelix-10', 'soundhelix-11', 'soundhelix-12', 'soundhelix-13', 'soundhelix-14', 'soundhelix-15', 'soundhelix-16'],
       customUrls: [],
     });
   }
@@ -180,10 +193,18 @@ export function resolvePlaylist(library, config) {
  * @returns {Promise<string[]>}
  */
 export async function getPlaylistUrls() {
-  const config = readConfig();
+  let config = readConfig();
   if (!config.enabled) return [];
   try {
     const library = await loadLibrary();
+    const legacyThree = ["soundhelix-1", "soundhelix-2", "soundhelix-3"];
+    const isLegacy =
+      config.activeIds.length === 3 &&
+      legacyThree.every((id) => config.activeIds.includes(id)) &&
+      (library.tracks?.length || 0) > 3;
+    if (isLegacy && Array.isArray(library.defaultActiveIds) && library.defaultActiveIds.length) {
+      config = writeConfig({ ...config, activeIds: library.defaultActiveIds });
+    }
     return resolvePlaylist(library, config);
   } catch (err) {
     console.warn('[royalty-free-music] library load failed; using fallback', err);
