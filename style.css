@@ -17996,8 +17996,9 @@ body {
 }
 
 
-/* === GEV_ADMIN_ABOVE_CESIUM_CREDITS_V1 ===
-   Original ADMIN sits immediately above Cesium ion / Data attribution. */
+/* === GEV_ADMIN_BELOW_CESIUM_CREDITS_V2 ===
+   Keep ADMIN completely below Cesium ion / Data attribution and independently
+   clickable above the globe canvas. */
 #gev-admin-credits {
   position: fixed !important;
   left: 36px !important;
@@ -18007,7 +18008,7 @@ body {
   align-items: flex-start !important;
   gap: 0.35rem !important;
   z-index: 92 !important;
-  pointer-events: auto !important;
+  pointer-events: none !important;
 }
 #gev-admin-credits > #cesium-credits {
   position: relative !important;
@@ -18017,6 +18018,8 @@ body {
   top: auto !important;
   bottom: auto !important;
   transform: none !important;
+  z-index: 1 !important;
+  pointer-events: auto !important;
 }
 #gev-admin-credits > #admin-launch {
   position: relative !important;
@@ -18028,7 +18031,9 @@ body {
   transform: none !important;
   width: auto !important;
   margin: 0 !important;
-  z-index: auto !important;
+  z-index: 2 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
 }
 #left-panel-stack #location-bar #admin-launch,
 #location-lookat #admin-launch,
@@ -18037,7 +18042,7 @@ body {
 }
 
 
-/* === GEV_ADMIN_ABOVE_CESIUM_CREDITS_PAD_V1 === */
+/* === GEV_ADMIN_BELOW_CESIUM_CREDITS_PAD_V2 === */
 #gev-admin-credits {
   padding: 0.55rem 0.65rem 0.45rem !important;
   gap: 0.5rem !important;
@@ -19361,7 +19366,9 @@ nav.left-yt-chrome {
      #top-center-actions re-enables it. */
   pointer-events: auto !important;
   position: relative;
-  z-index: 138; /* top of the 100-139 panel band */
+  /* A child of #title-bar, so it shares that element's stacking context
+     (z 220). This value only orders it against the title's own children. */
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -19522,4 +19529,86 @@ body.scene-playback-mode #gev-home-video,
 body.recording-mode #gev-home-video,
 body.ui-clean-view #gev-home-video {
   display: none !important;
+}
+
+
+/* === GEV_ADMIN_HOME_VIDEO_V1 === */
+.admin-home-video {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-home-video-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.admin-home-video-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.admin-home-video-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.admin-home-video textarea.admin-field {
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.admin-home-video .scene-btn { align-self: flex-start; }
+.admin-home-video-message {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+  margin: 0;
+}
+.admin-home-video-message.warn { color: #ff7272; }
+.admin-home-video-message[hidden] { display: none; }
+
+/* === GEV_YT_CHAT_BRAND_BELOW_SETTINGS_TICKER_V1 ===
+   #youtube-chat-brand = Cloud Computer AI.com logo + LIVE CAMERA DESK /
+   NOW TAKING REQUESTS / waiting detail. East rail was top:0 so COMMANDS +
+   LIVE Breaking News + SUMMARY OF CURRENT SETTINGS clipped the logo. */
+:root {
+  --settings-summary-ticker-height: 2rem;
+  --gev-top-chrome-height: calc(
+    var(--broadcast-legend-height, 2rem) +
+    var(--live-news-ticker-height, 2rem) +
+    var(--settings-summary-ticker-height)
+  );
+}
+
+#admin-stamp-stack {
+  top: var(--gev-top-chrome-height) !important;
+  bottom: 0 !important;
+  height: calc(100dvh - var(--gev-top-chrome-height)) !important;
+  max-height: calc(100dvh - var(--gev-top-chrome-height)) !important;
+  padding-top: 0.25rem !important;
+  box-sizing: border-box !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand {
+  position: relative !important;
+  z-index: 2 !important;
+  overflow: visible !important;
+  margin-top: 0 !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand-logo {
+  display: block !important;
+  max-height: 4.5rem !important;
+  width: min(100%, 11rem) !important;
+  object-fit: contain !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-activity-headline {
+  overflow: visible !important;
+  line-height: 1.25 !important;
 }

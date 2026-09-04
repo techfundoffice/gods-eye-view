@@ -5,6 +5,24 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 
 ## [Unreleased] — 2026-09-04
 
+### Added
+
+- A YouTube player on the home page, directly under the tagline. It autoplays
+  the ADMIN-configured default (muted, because browsers block autoplay with
+  sound) and offers small, medium, and fullscreen. The look-at readout below it
+  moves down as the player grows rather than being covered.
+- A dropdown under the player always lists the ADMIN default video and playlist
+  with their URLs, whatever is currently playing; picking one plays it.
+- Viewers can recommend a video, either by pasting a URL under the player or by
+  commenting `/youtube-channel <url>` on the live stream. Accepted videos queue
+  behind the current one and the queue is visible to everyone.
+- **Recommendations are royalty-free only, and this is enforced, not advisory.**
+  A video is queued only if YouTube reports it as Creative Commons *and* its
+  channel is on the approved list in ADMIN → Home Video Player. The approved
+  list starts empty, so nothing is accepted until an operator curates it.
+- ADMIN → **Home Video Player** sets the default video, default playlist, and
+  the approved-channel list.
+
 ### Fixed
 
 - The YouTube Chat rail no longer overlaps itself. The HERMES AGENT header and

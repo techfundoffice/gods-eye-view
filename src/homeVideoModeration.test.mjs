@@ -74,11 +74,12 @@ test('parseYoutubeUrl refuses non-YouTube and malformed input', () => {
 });
 
 test('normalizeApprovedChannels accepts ids, handles, URLs, and free text', () => {
+  // Casing survives so ADMIN echoes back what the operator typed.
   assert.deepEqual(
     normalizeApprovedChannels([`https://www.youtube.com/channel/${CHANNEL}`, '@Blender', 'Blender', '  ', '@blender']),
-    [CHANNEL.toLowerCase(), 'blender'],
+    [CHANNEL, 'Blender'],
   );
-  assert.deepEqual(normalizeApprovedChannels('@Blender, NASA'), ['blender', 'nasa']);
+  assert.deepEqual(normalizeApprovedChannels('@Blender, NASA'), ['Blender', 'NASA']);
   assert.deepEqual(normalizeApprovedChannels(null), []);
 });
 

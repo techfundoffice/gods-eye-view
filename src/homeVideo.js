@@ -25,6 +25,9 @@ export const DEFAULT_SIZE = 'sm';
 
 const REFRESH_MS = 10_000;
 const YOUTUBE_EMBED_ORIGIN = 'https://www.youtube-nocookie.com';
+/** Exact origins the embed may speak from. A substring test would let
+ *  `https://youtube.evil.test` drive the queue. */
+const PLAYER_MESSAGE_ORIGINS = new Set([YOUTUBE_EMBED_ORIGIN, 'https://www.youtube.com']);
 /** YouTube player state 0 = ENDED. */
 const PLAYER_STATE_ENDED = 0;
 
@@ -179,7 +182,6 @@ export function initHomeVideo(doc = globalThis.document) {
 
   const renderSize = () => {
     root.dataset.size = size;
-    doc.body?.setAttribute('data-home-video-size', size);
     for (const button of sizeButtons) {
       button.setAttribute('aria-pressed', String(button.dataset.homeVideoSize === size));
     }
@@ -222,7 +224,7 @@ export function initHomeVideo(doc = globalThis.document) {
   }
 
   const onMessage = (event) => {
-    if (!String(event.origin || '').includes('youtube')) return;
+    if (!PLAYER_MESSAGE_ORIGINS.has(event.origin)) return;
     let payload;
     try {
       payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
@@ -236,8 +238,11 @@ export function initHomeVideo(doc = globalThis.document) {
   /** Current video finished: take the next queued item, else fall back home. */
   async function advance() {
     if (!queue.length) return;
+    // Naming what finished lets the server ignore a stale or replayed call
+    // rather than letting anyone drain the shared queue.
+    const finishedVideoId = nowPlaying?.videoId || parseYoutubeUrl(config.defaultVideoUrl).id;
     try {
-      await postJson(`${API_BASE}/advance`, {});
+      await postJson(`${API_BASE}/advance`, { finishedVideoId });
     } catch { /* fall through to a refresh */ }
     await refresh();
   }
@@ -314,9 +319,13 @@ export function initHomeVideo(doc = globalThis.document) {
   const setSize = async (next) => {
     const wanted = normalizeSize(next);
     if (wanted === 'lg') {
+      if (typeof root.requestFullscreen !== 'function') {
+        setStatus('This browser does not offer fullscreen here', 'warn');
+        return;
+      }
       previousFloatSize = FLOAT_SIZES.includes(size) ? size : DEFAULT_SIZE;
       try {
-        await root.requestFullscreen?.();
+        await root.requestFullscreen();
         size = 'lg';
       } catch {
         setStatus('Fullscreen was refused by the browser', 'warn');

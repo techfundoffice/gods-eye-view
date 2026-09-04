@@ -2612,6 +2612,29 @@ this file.
 
 ## UI/UX Runtime Defaults
 
+### Home video player (`#gev-home-video`, `src/homeVideo.js`)
+
+- A YouTube embed sits in row 3 of `#title-bar`, directly under the tagline, spanning both title columns. It is authored in `index.html` inside `#title-bar`, so it needs no height measurement; `_placeRecStampUnderAdmin()` in `src/hud.js` does not touch it.
+- Autoplays on load from `https://www.youtube-nocookie.com`, **muted** and looping. Muted is not a preference — every current browser blocks autoplay with sound. The viewer can unmute from YouTube's own controls.
+- Sizes: `S` 320 px and `M` 560 px float in the title bar (16:9, clamped to `100vw - 2rem`); `L` calls `requestFullscreen()` on the player. `S`/`M` persist in `gev:home-video:v1`; `lg` is transient and is never stored or restored.
+- The player publishes its rendered height as `--gev-home-video-height`, and `#hud-center-cluster` adds that to its top offset, so the look-at readout slides clear instead of being covered. In fullscreen the variable is `0`.
+- Hides under `cockpit-mode`, `scene-playback-mode`, `recording-mode`, and `ui-clean-view` rather than adding a fifth exclusive class.
+- A dropdown always lists the ADMIN default video and default playlist with their URLs, whatever is actually playing. Selecting one plays it.
+- Below that: a paste-a-URL box, a NOW PLAYING line, the UP NEXT queue, and the `/youtube-channel` hint.
+
+### Viewer recommendations and the royalty-free gate
+
+- Two ways in, one gate: the on-page box (`POST /api/home-video/recommend`) and `/youtube-channel <url>` in live chat, which Hermes turns into `control_video_player`. Both call `moderateRecommendation` in `src/homeVideoModeration.js`. There is no unmoderated, browser-local path.
+- **A recommendation is queued only when BOTH hold:** YouTube reports `status.license === 'creativeCommon'`, AND the video's channel is on the ADMIN approved list. The list is empty by default, so until an operator curates it every recommendation is refused. That is the intended closed state.
+- A Creative Commons video with embedding disabled is also refused — it would render as an error frame on the broadcast.
+- Only a single **video** can clear the gate. A playlist or channel URL is refused, because their future contents cannot be license-checked now.
+- **Honest degradation.** The license check needs `YOUTUBE_API_KEY` (server-side only; `src/youtubeProxy.js` is OAuth-session-bound and unusable from background moderation). With no key, the player and dropdown still work and recommendations are refused with `LICENSE CHECK UNAVAILABLE` and HTTP 503. An unverifiable video is never admitted. `GET /api/home-video` reports `licenseCheckAvailable` so the UI can say so rather than failing silently.
+- Approved items queue behind the current video; they do not interrupt it. While a queue exists the embed drops `loop` so it reports ENDED, which is what advances the queue.
+- `POST /api/home-video/advance` requires the `finishedVideoId` that is actually current, so a replayed or stale call cannot drain the shared queue. The queue is capped at 20, de-duplicated, and `/recommend` is rate-limited to 10 per address per minute.
+- The queue and now-playing are **shared server state**: what one viewer queues is what the capture page — and therefore the broadcast — plays.
+- ADMIN pane **Home Video Player** (`src/adminPlugins/home-video.js`) owns the default video, default playlist, and approved channels, persisted in `.gev-cache/admin-state.json` under `homeVideo` and read back by `readHomeVideoConfig()`.
+- Tool `control_video_player` (`queue` / `play` / `skip` / `default`) is view-safe. The name deliberately avoids the substrings `classifyToolCapability` treats as admin or youtube-write. The skill (`skills/gods-eye-view/SKILL.md`, now `1.2.0`) lists it, along with `apply_default_view`, which had been missing and was failing the skill/catalog comparison.
+
 - Z ladder: panels promote within 100–139 (renormalized on wrap), voice pill 150, toast 200, clean-view exit 300.
 - Panel POSITION keys are versioned `v8` (`godsEyeView.v8.panelPos.<id>`); collapsed-state keys remain `v6`. The one-time position reset clears stale DISPLAY placements that could overlap the Context rail.
 - Map Source lives in the bottom Visual Presets tray. The left accordion contains no MAP STACK panel, and the `k` panel token that addressed it is gone from the share registry, so legacy `ui=k...` state takes the ordinary unknown-token skip.

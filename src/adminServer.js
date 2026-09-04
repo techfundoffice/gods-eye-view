@@ -39,6 +39,7 @@ import { normalizePluginManifest } from './adminPluginRegistry.js';
 import { createAdminStore } from './adminStore.js';
 import { createOpenRouterAdminSecret, resolveOpenRouterApiKey } from './openrouterAdminSecret.js';
 import { normalizeHermesYoutubeAdmin } from './hermesYoutubeAdmin.js';
+import { normalizeHomeVideoConfig } from './homeVideoModeration.js';
 import { postOpenRouterChat } from './openrouterFreeClient.js';
 import { createLiveSessionController } from './liveSession.js';
 import { splitYoutubeIngestPaste } from './liveStream.js';
@@ -716,6 +717,22 @@ export function createAdminMiddleware({
           sendJson(res, 200, mcpSettings());
           return;
         }
+      }
+
+      if (first === 'home-video') {
+        if (req.method === 'GET') {
+          sendJson(res, 200, normalizeHomeVideoConfig(auth.homeVideo?.() || null));
+          return true;
+        }
+        if (req.method === 'POST') {
+          const body = await readJsonBody(req).catch(() => ({}));
+          const saved = normalizeHomeVideoConfig(body);
+          auth.setHomeVideo?.(saved);
+          sendJson(res, 200, saved);
+          return true;
+        }
+        sendJson(res, 405, { error: { kind: 'method', message: 'Use GET or POST' } });
+        return true;
       }
 
       if (first === 'hermes-youtube-admin') {

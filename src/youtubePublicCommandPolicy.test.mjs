@@ -12,7 +12,7 @@ import {
   validatePublicToolCall,
 } from './youtubePublicCommandPolicy.js';
 
-test('registry is deeply immutable, starts with /help, and includes /explore-manually plus 29 GEV tools', () => {
+test('registry is deeply immutable, starts with /help, and includes /explore-manually plus 31 GEV tools', () => {
   assert.deepEqual(Object.keys(PUBLIC_COMMAND_REGISTRY), [
     '/help',
     '/live-contacts',
@@ -23,11 +23,20 @@ test('registry is deeply immutable, starts with /help, and includes /explore-man
     '/y',
     '/z',
     '/gods-eye-view',
+    '/default-view',
+    '/youtube-channel',
+    '/style-normal',
+    '/style-retro',
+    '/style-surveillance',
+    '/style-thermal',
+    '/style-anime',
+    '/style-noir',
+    '/style-snow',
   ]);
   assert.equal(Object.keys(PUBLIC_COMMAND_REGISTRY)[0], '/help');
   assert.equal(publicCommandLegend()[0].command, '/help');
   assert.equal(PUBLIC_VIEW_PRESETS['/explore-manually'], 'explore');
-  assert.equal(PUBLIC_GEV_TOOL_NAMES.length, 29);
+  assert.equal(PUBLIC_GEV_TOOL_NAMES.length, 31);
   assert.ok(PUBLIC_GEV_TOOL_NAMES.includes('run_view_preset'));
   assert.ok(Object.isFrozen(PUBLIC_COMMAND_REGISTRY));
   assert.ok(Object.isFrozen(PUBLIC_COMMAND_REGISTRY['/x'].tools));
@@ -82,14 +91,32 @@ test('server validator rejects mode violations, extra keys, bad types and ranges
   assert.equal(validatePublicToolCall('/live-contacts', 'run_view_preset', { preset: '/live-contacts' }).ok, true);
   assert.equal(validatePublicToolCall('/explore-manually', 'run_view_preset', { preset: '/explore-manually' }).ok, true);
   assert.equal(validatePublicToolCall('/explore-manually', 'set_context_mode', { mode: 'contacts' }).ok, false);
-  assert.equal(PUBLIC_HELP_REPLY, 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually');
+  assert.equal(PUBLIC_HELP_REPLY, 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow, /default-view, /youtube-channel <url>');
 });
 
-test('all 28 schemas are strict server-safe validators', () => {
+test('every schema is a strict server-safe validator', () => {
   for (const name of PUBLIC_GEV_TOOL_NAMES) {
     const schema = PUBLIC_GEV_TOOL_CATALOG[name].parameters;
     assert.equal(schema.type, 'object', name);
     assert.equal(schema.additionalProperties, false, name);
     assert.equal(validatePublicToolCall('/x', name, { __protoPollution: true }).ok, false, name);
   }
+});
+test('/youtube-channel carries a URL and reaches only the player tool', () => {
+  const parsed = parsePublicCommand('/youtube-channel https://youtu.be/aqz-KE-bpKQ');
+  assert.equal(parsed.recognized, true);
+  assert.equal(parsed.mode, 'youtube-channel');
+  assert.equal(parsed.request, 'https://youtu.be/aqz-KE-bpKQ');
+  assert.equal(parsed.valid, true);
+
+  // A bare command has nothing to play.
+  assert.deepEqual(parsePublicCommand('/youtube-channel').reason, 'request-required');
+
+  assert.deepEqual(PUBLIC_COMMAND_REGISTRY['/youtube-channel'].tools, ['control_video_player']);
+  assert.equal(toolsForPublicMode('youtube-channel').length, 1);
+  assert.equal(validatePublicToolCall('/youtube-channel', 'control_video_player', { action: 'queue', url: 'https://youtu.be/aqz-KE-bpKQ' }).ok, true);
+  // The mode must not become a second route to the whole catalog.
+  assert.equal(validatePublicToolCall('/youtube-channel', 'fly_to_location', { query: 'Paris' }).ok, false);
+  assert.equal(validatePublicToolCall('/youtube-channel', 'control_video_player', { action: 'delete' }).ok, false);
+  assert.equal(validatePublicToolCall('/youtube-channel', 'control_video_player', {}).ok, false);
 });

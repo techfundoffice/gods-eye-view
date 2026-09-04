@@ -28,6 +28,38 @@ export const LICENSE_LOOKUP_TIMEOUT_MS = 10_000;
 export const DEFAULT_VIDEO_ID = 'aqz-KE-bpKQ';
 export const DEFAULT_VIDEO_URL = `https://www.youtube.com/watch?v=${DEFAULT_VIDEO_ID}`;
 
+/**
+ * ADMIN-owned settings for the home player.
+ *
+ * `approvedChannels` defaults to EMPTY on purpose: with no curated list, no
+ * viewer recommendation can clear the gate. The player still plays the default
+ * video, so the fail-closed state costs nothing but the request path.
+ */
+export const DEFAULT_HOME_VIDEO_CONFIG = Object.freeze({
+  defaultVideoUrl: DEFAULT_VIDEO_URL,
+  defaultPlaylistUrl: '',
+  approvedChannels: Object.freeze([]),
+});
+
+/**
+ * @param {unknown} raw
+ * @returns {{ defaultVideoUrl: string, defaultPlaylistUrl: string, approvedChannels: string[] }}
+ */
+export function normalizeHomeVideoConfig(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const playable = (value, kinds, fallback) => {
+    const text = String(value ?? '').trim();
+    if (!text) return fallback;
+    const parsed = parseYoutubeUrl(text);
+    return kinds.includes(parsed.kind) ? text : fallback;
+  };
+  return {
+    defaultVideoUrl: playable(source.defaultVideoUrl, ['video'], DEFAULT_HOME_VIDEO_CONFIG.defaultVideoUrl),
+    defaultPlaylistUrl: playable(source.defaultPlaylistUrl, ['playlist'], DEFAULT_HOME_VIDEO_CONFIG.defaultPlaylistUrl),
+    approvedChannels: normalizeApprovedChannels(source.approvedChannels),
+  };
+}
+
 /** Reasons are viewer-facing. Keep them short enough for a live-chat reply. */
 export const REASON_UNAVAILABLE = 'LICENSE CHECK UNAVAILABLE';
 export const REASON_NOT_YOUTUBE = 'NOT A YOUTUBE LINK';
@@ -55,21 +87,27 @@ const CHANNEL_NAME_PREFIXES = new Set(['c', 'user']);
  * Approved-channel entries are matched loosely on purpose: an operator pasting
  * a channel URL, a bare `UC...` id, or an `@handle` should all work.
  *
+ * Casing is preserved so ADMIN shows the operator back what they typed; the
+ * de-duplication and the later comparison are both case-insensitive.
+ *
  * @param {unknown} value
- * @returns {string[]} normalized, de-duplicated, non-empty entries
+ * @returns {string[]} de-duplicated, non-empty entries
  */
 export function normalizeApprovedChannels(value) {
   const list = Array.isArray(value) ? value : String(value ?? '').split(/[\n,]/);
   const seen = new Set();
+  const out = [];
   for (const raw of list) {
     const text = String(raw ?? '').trim();
     if (!text) continue;
     const parsed = parseYoutubeUrl(text);
-    const entry = parsed.kind === 'channel' ? (parsed.id || parsed.handle) : text;
-    const key = entry.replace(/^@/, '').toLowerCase();
-    if (key) seen.add(key);
+    const entry = (parsed.kind === 'channel' ? (parsed.id || parsed.handle) : text).replace(/^@/, '');
+    const key = entry.toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
   }
-  return [...seen];
+  return out;
 }
 
 /**
@@ -215,7 +253,7 @@ export async function checkVideoLicense(videoId, options = {}) {
  * @returns {boolean}
  */
 export function isApprovedChannel(video, approvedChannels) {
-  const approved = normalizeApprovedChannels(approvedChannels);
+  const approved = normalizeApprovedChannels(approvedChannels).map((entry) => entry.toLowerCase());
   if (!approved.length) return false;
   const candidates = [video?.channelId, video?.channelTitle]
     .map((entry) => String(entry ?? '').trim().replace(/^@/, '').toLowerCase())

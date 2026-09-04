@@ -405,6 +405,8 @@ export function createAdminClient({ fetchImpl = globalThis.fetch } = {}) {
     setGevFunction: (name, enabled) => request('/gev-functions', { method: 'POST', body: { name, enabled } }),
     hermesYoutubeAdmin: () => request('/hermes-youtube-admin'),
     saveHermesYoutubeAdmin: (body) => request('/hermes-youtube-admin', { method: 'POST', body }),
+    homeVideo: () => request('/home-video'),
+    saveHomeVideo: (body) => request('/home-video', { method: 'POST', body }),
     youtubeStatus: () => youtubeRequest('/status'),
     youtubeConnectUrl: () => '/api/youtube/auth/start?go=1',
     youtubeSignout: () => youtubeRequest('/signout', { method: 'POST' }),

@@ -13,7 +13,7 @@ import { gevMcpToolDefinitions } from './gevApi.js';
 
 export const HERMES_PROFILE_NAME = 'gev-youtube';
 export const HERMES_SKILL_ID = 'gods-eye-view';
-export const HERMES_SKILL_VERSION = '1.1.0';
+export const HERMES_SKILL_VERSION = '1.2.0';
 
 export const EXCLUDED_CAPABILITIES = Object.freeze([
   'admin',

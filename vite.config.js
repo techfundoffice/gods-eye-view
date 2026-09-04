@@ -68,6 +68,7 @@ import { createLiveStreamController } from './src/liveStream.js';
 import { createLiveSessionController } from './src/liveSession.js';
 import { createAdminMiddleware } from './src/adminServer.js';
 import { createGevApiMiddleware } from './src/gevApiServer.js';
+import { createHomeVideoServer } from './src/homeVideoServer.js';
 import { createAdminAuth } from './src/adminAuth.js';
 import { createAdminStore } from './src/adminStore.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
@@ -7777,7 +7778,12 @@ export function youtubeProxy({
       createYoutubeApiCaller(oauth.proxy, authorization),
     ),
   });
+  // Home-page video player. Mounted on its own prefix so the `/api/youtube`
+  // catch-all below never shadows it.
+  const homeVideo = createHomeVideoServer();
+
   function install(middlewares) {
+    middlewares.use(homeVideo.middleware);
     middlewares.use('/api/youtube/auth', oauth.middleware);
     middlewares.use('/api/youtube/live', liveMiddleware);
     middlewares.use('/api/youtube/live-chat', innerTubeChatMiddleware);

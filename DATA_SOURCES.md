@@ -66,6 +66,33 @@ rejected with a reason. Each feed is fetched at runtime through a same-origin
 proxy and capped (200 points); USGS Water and openSenseMap are also
 viewport-bounded so a full-earth camera does not ingest an uncapped dump.
 
+### Home video player (YouTube)
+
+The home-page player (`#gev-home-video`) embeds YouTube through
+`https://www.youtube-nocookie.com/embed/...`. YouTube's own Terms of Service and
+Privacy Policy govern playback; the nocookie host is used so a viewer who never
+presses play is not given YouTube's tracking cookies.
+
+The shipped placeholder is **Big Buck Bunny** (video id `aqz-KE-bpKQ`),
+© 2008 Blender Foundation, `peach.blender.org`, licensed
+**[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)**. It is a seed
+default only — ADMIN → Home Video Player replaces it, and no part of it is
+vendored into this repo.
+
+Viewer-recommended videos are checked against the **YouTube Data API v3**
+`videos.list` endpoint (`part=status,snippet`), which reports the uploader's
+declared licence. Only `status.license === "creativeCommon"` — YouTube's own
+Creative Commons Attribution setting — is accepted, and only from channels an
+operator added to the approved list. This read uses a server-side
+`YOUTUBE_API_KEY` and costs 1 quota unit per recommendation. Without the key no
+recommendation is accepted; the refusal is explicit (`LICENSE CHECK
+UNAVAILABLE`) rather than a silent pass.
+
+Note that the licence flag is what the *uploader* declared. It is the best
+machine-checkable signal available and is what gates the queue, but it is not an
+independent verification of the uploader's right to license the work — which is
+why the approved-channel list is required on top of it rather than instead of it.
+
 ### Notes on the live sources
 
 - **YouTube.** Channel lists, comments, and broadcast control go through the official Data API v3 proxy (`/api/youtube`) with the operator's OAuth session. Live chat is chat on **our own YouTube Live page**: `/api/youtube/live-chat` reads the same watch-page `get_live_chat` feed the YouTube player already shows for that broadcast, so a multi-hour stream of our page does not exhaust Data API quota on `liveChatMessages.list`. It never sends messages, never accepts a client-supplied upstream URL, and is gated on the same signed-in YouTube session. Protocol reference for that page's chat: [Agash/YTLiveChat](https://github.com/Agash/YTLiveChat) (MIT).

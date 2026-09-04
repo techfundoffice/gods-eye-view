@@ -245,7 +245,7 @@ export class IntelHUD {
 
 
 
-  _placeAdminAboveCesiumCredits() {
+  _placeAdminBelowCesiumCredits() {
     const credits = document.getElementById("cesium-credits");
     const launch = document.getElementById("admin-launch");
     if (!credits || !launch) return;
@@ -254,11 +254,13 @@ export class IntelHUD {
       wrap = document.createElement("div");
       wrap.id = "gev-admin-credits";
       credits.parentElement.insertBefore(wrap, credits);
-      wrap.appendChild(launch);
       wrap.appendChild(credits);
+      wrap.appendChild(launch);
     } else {
-      if (launch.parentElement !== wrap) wrap.insertBefore(launch, wrap.firstChild);
       if (credits.parentElement !== wrap) wrap.appendChild(credits);
+      if (launch.parentElement !== wrap || launch.previousElementSibling !== credits) {
+        wrap.appendChild(launch);
+      }
     }
   }
 
@@ -374,7 +376,7 @@ export class IntelHUD {
     if (nav && launcher && launcher.parentElement === nav) nav.appendChild(launcher);
     if (nav && layers) nav.appendChild(layers);
     this._placeMgrsLatlonInLocationBar();
-    this._placeAdminAboveCesiumCredits();
+    this._placeAdminBelowCesiumCredits();
     if (cluster) {
       const metrics = (this._el && this._el.querySelector(".hud-bottom-right"))
         || document.querySelector(".hud-bottom-right");

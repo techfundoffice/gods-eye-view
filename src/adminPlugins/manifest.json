@@ -34,5 +34,11 @@
     "label": "Royalty-Free Music",
     "description": "Select beds for the left-nav speaker (#left-yt-music)",
     "module": "./royalty-free-music.js"
+  },
+  {
+    "id": "home-video",
+    "label": "Home Video Player",
+    "description": "Default video/playlist and the approved-channel list for the home player (#gev-home-video)",
+    "module": "./home-video.js"
   }
 ]
