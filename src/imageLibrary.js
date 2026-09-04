@@ -9,7 +9,7 @@ export const EVENT = "gev:image-library-changed";
 export const STORAGE_KEY = "gev:image-library-v1";
 
 export const DEFAULT_BRAND_LOGO_URL =
-  "/public/cloud-computer-logo-dark.png?v=cyan2";
+  "/public/cloud-computer-logo-dark.png?v=cyan3";
 
 /**
  * @typedef {{ version: number, brandLogoUrl: string, updatedAt?: string }} ImageLibraryConfig

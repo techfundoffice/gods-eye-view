@@ -19443,7 +19443,7 @@ nav.left-yt-chrome {
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.4px;
-  color: var(--text-secondary);
+  color: #f1f1f1;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--glass-border);
   border-radius: var(--btn-radius);
@@ -19471,12 +19471,44 @@ nav.left-yt-chrome {
   display: flex;
   gap: 6px;
 }
+/* The copy-link field from YouTube's own Share dialog: near-black, white text.
+   `display: block` undoes the `display: flex` the generic .admin-field rule
+   applies to inputs; the colour and background are set here rather than
+   inherited because `.admin-field input` targets a wrapper this input is not
+   inside. */
 #gev-home-video .gev-home-video-url {
   flex: 1;
   min-width: 0;
+  display: block;
+  font-family: var(--font-mono);
   font-size: 10px;
+  letter-spacing: 0.4px;
+  padding: 6px 9px;
+  color: #f1f1f1;
+  background: #0f0f0f;
+  border: 1px solid #3f3f3f;
+  border-radius: var(--btn-radius);
+}
+#gev-home-video .gev-home-video-url::placeholder {
+  /* !important is required, not stylistic: the global high-contrast HUD rule
+     `::placeholder { color: #7eefff !important }` (~line 13037) would otherwise
+     paint this placeholder cyan regardless of specificity. */
+  color: #f1f1f1 !important;
+  /* Firefox dims placeholders by default; this keeps the words white. */
+  opacity: 1 !important;
+}
+#gev-home-video .gev-home-video-url:focus {
+  outline: none;
+  border-color: #f1f1f1;
 }
 #gev-home-video .gev-home-video-recommend .scene-btn { flex: 0 0 auto; min-width: 54px; }
+/* .scene-btn:hover turns text accent-cyan; PLAY sits in this panel, so it is
+   overridden to YouTube grey. Deliberately NOT applied to .gev-home-video-sizes. */
+#gev-home-video .gev-home-video-recommend .scene-btn:hover:not(:disabled) {
+  color: #f1f1f1;
+  border-color: #3f3f3f;
+  background: #3f3f3f;
+}
 
 #gev-home-video .gev-home-video-status,
 #gev-home-video .gev-home-video-now,
@@ -19485,16 +19517,16 @@ nav.left-yt-chrome {
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.6px;
-  color: var(--text-dim);
+  color: #f1f1f1;
 }
 #gev-home-video .gev-home-video-status:empty { display: none; }
 #gev-home-video .gev-home-video-now:empty { display: none; }
-#gev-home-video .gev-home-video-now { color: var(--text-secondary); }
-#gev-home-video .gev-home-video-status[data-tone="ok"] { color: var(--accent); }
+#gev-home-video .gev-home-video-status[data-tone="ok"] { color: #f1f1f1; }
+/* Refusals keep a colour: a rejected video has to read as a problem. */
 #gev-home-video .gev-home-video-status[data-tone="warn"] { color: #ff7272; }
 #gev-home-video .gev-home-video-hint code {
   font-family: var(--font-mono);
-  color: var(--accent-dim);
+  color: #f1f1f1;
 }
 
 #gev-home-video .gev-home-video-queue {
@@ -19510,7 +19542,7 @@ nav.left-yt-chrome {
 #gev-home-video .gev-home-video-queue-item {
   font-family: var(--font-mono);
   font-size: 9px;
-  color: var(--text-secondary);
+  color: #f1f1f1;
   padding: 3px 6px;
   border: 1px solid var(--glass-border);
   border-radius: 6px;
@@ -19657,4 +19689,66 @@ body.ui-clean-view #gev-home-video {
 .admin-image-library-message.warn,
 .admin-radio-library-message.warn {
   color: #ffb4b4;
+}
+
+/* === GEV_YT_CHAT_BRAND_LOGO_WIDE_V1 ===
+   Wider brand logo, same height — full rail width, locked height. */
+.youtube-chat-brand-logo,
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand-logo {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 4.5rem !important;
+  max-height: 4.5rem !important;
+  object-fit: fill !important;
+  object-position: center center !important;
+}
+
+/* === GEV_YT_CHAT_BRAND_LOGO_WIDE_V1 ===
+   Full rail width, undistorted (object-fit:contain), least tall = natural aspect height. */
+.youtube-chat-brand-logo,
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand-logo {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  aspect-ratio: auto !important;
+}
+
+/* === GEV_YT_CHAT_BRAND_LOGO_WIDE_V1 ===
+   Full rail width, undistorted, least tall (natural aspect). */
+.youtube-chat-brand-logo,
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand-logo {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+
+/* === GEV_YT_CHAT_BRAND_LOGO_WIDE_V1 ===
+   Full rail width, undistorted, least tall (natural aspect). */
+.youtube-chat-brand-logo,
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand-logo {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+
+/* === GEV_YT_CHAT_BRAND_LOGO_WIDE_V1 ===
+   Smaller brand logo, undistorted (contain), centered. */
+.youtube-chat-brand-logo,
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand-logo {
+  width: min(72%, 11.5rem) !important;
+  max-width: min(72%, 11.5rem) !important;
+  height: auto !important;
+  max-height: 5.5rem !important;
+  margin-inline: auto !important;
+  object-fit: contain !important;
+  object-position: center center !important;
 }
