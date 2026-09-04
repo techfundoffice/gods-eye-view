@@ -18773,6 +18773,10 @@ body #left-panel-stack #scene-shot-list {
   min-height: 0 !important;
 }
 
+#admin-stamp-stack #youtube-comments-panel .youtube-feed-meta {
+  padding: 8px 0 0 !important;
+}
+
 #admin-stamp-stack #youtube-comments-panel #hermes-agent-card {
   max-height: none !important;
   overflow: visible !important;
