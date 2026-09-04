@@ -81,6 +81,23 @@
               <span>Thanks for watching me train myself. I’m kind of lonely—can you please chat with me here?</span>
             </div>
             <div id="youtube-hermes-detail" class="youtube-hermes-detail">NO VIEWER TURN ACTIVE · EXPLORING THE INTERFACE</div>
+          </section>
+          <section class="youtube-chat-card youtube-progress-card" aria-labelledby="youtube-progress-title">
+            <div class="youtube-chat-card-header">
+              <span id="youtube-progress-title" class="youtube-chat-col-title">Live Comments In Progress</span>
+              <span id="youtube-progress-count" class="youtube-comments-count">0</span>
+            </div>
+            <div id="youtube-progress-status" class="youtube-comments-status" role="status" aria-live="polite">NO CONVERSATIONS IN PROGRESS</div>
+            <ol id="youtube-progress-list" class="youtube-feed-list youtube-comments-list youtube-conversation-list"></ol>
+          </section>
+          <section class="youtube-chat-card youtube-all-comments-card" aria-labelledby="youtube-all-comments-title">
+            <div class="youtube-chat-card-header">
+              <span id="youtube-all-comments-title" class="youtube-chat-col-title">All Live Comments</span>
+            </div>
+            <div id="youtube-comments-status" class="youtube-comments-status" role="status" aria-live="polite">CONNECT YOUTUBE TO LOAD COMMENTS</div>
+            <ol id="youtube-comments-list" class="youtube-feed-list youtube-comments-list"></ol>
+          </section>
+          <section class="youtube-chat-card youtube-hermes-card hermes-agent-diagnostics" aria-label="Hermes Agent diagnostics and controls">
             <div class="hermes-agent-mind">
               <div><span>SEEING</span><strong id="hermes-agent-seeing">Waiting for live interface</strong></div>
               <div><span>INTERPRETING</span><strong id="hermes-agent-practicing">Training idle</strong></div>
@@ -102,21 +119,6 @@
               <button type="button" data-hermes-action="rollback-learning">ROLLBACK</button>
             </div>
             <pre id="hermes-agent-inspection" hidden></pre>
-          </section>
-          <section class="youtube-chat-card youtube-progress-card" aria-labelledby="youtube-progress-title">
-            <div class="youtube-chat-card-header">
-              <span id="youtube-progress-title" class="youtube-chat-col-title">Live Comments In Progress</span>
-              <span id="youtube-progress-count" class="youtube-comments-count">0</span>
-            </div>
-            <div id="youtube-progress-status" class="youtube-comments-status" role="status" aria-live="polite">NO CONVERSATIONS IN PROGRESS</div>
-            <ol id="youtube-progress-list" class="youtube-feed-list youtube-comments-list youtube-conversation-list"></ol>
-          </section>
-          <section class="youtube-chat-card youtube-all-comments-card" aria-labelledby="youtube-all-comments-title">
-            <div class="youtube-chat-card-header">
-              <span id="youtube-all-comments-title" class="youtube-chat-col-title">All Live Comments</span>
-            </div>
-            <div id="youtube-comments-status" class="youtube-comments-status" role="status" aria-live="polite">CONNECT YOUTUBE TO LOAD COMMENTS</div>
-            <ol id="youtube-comments-list" class="youtube-feed-list youtube-comments-list"></ol>
           </section>
         </div>
         <div class="youtube-comments-actions" hidden>

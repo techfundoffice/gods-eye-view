@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# GEV_HERMES_PATH_SHIM_V1 — universal hermes entry for this workspace.
+set -euo pipefail
+if [[ -d "/home/runner/workspace/.hermes" ]]; then
+  ROOT="/home/runner/workspace"
+elif [[ -d "$PWD/.hermes" ]]; then
+  ROOT="$PWD"
+else
+  ROOT="/home/runner/workspace"
+fi
+export HERMES_HOME="${HERMES_HOME:-$ROOT/.hermes}"
+BIN="$HERMES_HOME/hermes-agent/venv/bin/hermes"
+if [[ ! -x "$BIN" ]]; then
+  echo "hermes: missing runtime at $BIN" >&2
+  echo "Try: bash \"$ROOT/scripts/install-hermes.sh\"" >&2
+  exit 127
+fi
+exec "$BIN" "$@"

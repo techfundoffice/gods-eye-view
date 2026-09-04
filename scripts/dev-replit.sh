@@ -7,6 +7,7 @@ PORT="${PORT:-5000}"
 HOST="${HOST:-0.0.0.0}"
 export HERMES_HOME="${HERMES_HOME:-$PWD/.hermes}"
 export HERMES_BIN="${HERMES_BIN:-$HERMES_HOME/hermes-agent/venv/bin/hermes}"
+export PATH="$PWD/bin:$PWD/node_modules/.bin:$PWD/.pythonlibs/bin:$PATH"  # GEV_HERMES_PATH_SHIM_V1
 
 if [[ ! -x "$HERMES_BIN" ]]; then
   echo "[dev-replit] Persistent Hermes runtime missing; restoring pinned runtime."

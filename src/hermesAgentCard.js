@@ -248,7 +248,8 @@ export function initHermesAgentCard({
 } = {}) {
   const root = documentRef?.getElementById?.('hermes-agent-card');
   if (!root) return null;
-  const get = (id) => root.querySelector?.(`#${id}`);
+  const panel = root.closest?.('#youtube-comments-panel') || root.parentElement || root;
+  const get = (id) => panel.querySelector?.(`#${id}`);
   const statusEl = get('hermes-agent-status');
   const inspectEl = get('hermes-agent-inspection');
   let stopped = false;
@@ -328,7 +329,7 @@ export function initHermesAgentCard({
     try { await request(); } catch (error) { setMessage(error?.message || 'Hermes status unavailable', 'error'); }
   };
 
-  root.querySelectorAll?.('[data-hermes-action]')?.forEach((button) => {
+  panel.querySelectorAll?.('[data-hermes-action]')?.forEach((button) => {
     button.addEventListener('click', async () => {
       const action = button.dataset.hermesAction;
       button.disabled = true;

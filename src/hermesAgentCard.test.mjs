@@ -68,6 +68,8 @@ test('nested learning status renders as a readable count and skill version', asy
   ]);
   const root = {
     dataset: {},
+    closest: () => null,
+    parentElement: null,
     querySelector: (selector) => nodes.get(selector.replace(/^#/, '')) || null,
     querySelectorAll: () => [],
   };

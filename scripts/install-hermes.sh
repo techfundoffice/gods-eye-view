@@ -30,3 +30,18 @@ HERMES_HOME="$HERMES_HOME" HERMES_INSTALL_DIR="$INSTALL_DIR" \
     }
 
 "$INSTALL_DIR/venv/bin/hermes" --version
+# GEV_HERMES_PATH_SHIM_V1 — refresh universal hermes PATH shims after install
+ROOT_DIR="/nix/store/smkzrg2vvp3lng3hq7v9svfni5mnqjh2-bash-interactive-5.2p37"
+if [[ -x "/venv/bin/hermes" ]]; then
+  mkdir -p "/bin" "/node_modules/.bin" "/.pythonlibs/bin"
+  if [[ ! -x "/bin/hermes" ]]; then
+    cp -f "/nix/store/smkzrg2vvp3lng3hq7v9svfni5mnqjh2-bash-interactive-5.2p37/bin/bash" "/bin/hermes" 2>/dev/null || true
+  fi
+  # Prefer copying the canonical workspace shim if present
+  if [[ -x "/bin/hermes" ]]; then
+    rm -f "/node_modules/.bin/hermes" "/.pythonlibs/bin/hermes"
+    cp -f "/bin/hermes" "/node_modules/.bin/hermes"
+    cp -f "/bin/hermes" "/.pythonlibs/bin/hermes"
+    chmod +x "/bin/hermes" "/node_modules/.bin/hermes" "/.pythonlibs/bin/hermes"
+  fi
+fi
