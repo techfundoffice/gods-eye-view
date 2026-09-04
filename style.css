@@ -19387,6 +19387,10 @@ nav.left-yt-chrome {
   flex-direction: column;
   gap: 6px;
   width: var(--gev-home-video-sm);
+  /* Hold the requested width. As a flex item the default shrink factor would
+     squeeze a Medium player back down to fit beside its sibling; the rail wraps
+     instead when there is genuinely no room. */
+  flex: 0 0 auto;
   max-width: calc(100vw - 2rem);
   padding: 8px;
   box-sizing: border-box;

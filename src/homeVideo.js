@@ -24,6 +24,8 @@ import { DEFAULT_VIDEO_URL, parseYoutubeUrl } from './homeVideoModeration.js';
 
 export const EVENT = 'gev:home-video';
 export const STORAGE_KEY = 'gev:home-video:v1';
+/** The root id of the player the GEV tool drives when several are mounted. */
+export const PRIMARY_ROOT_ID = 'gev-home-video';
 export const API_BASE = '/api/home-video';
 
 /** Small and medium float in the title bar; large is the Fullscreen API. */
@@ -52,15 +54,27 @@ export function normalizeSize(value) {
 }
 
 /**
+ * Each player keeps its own size. The primary keeps the original bare key so an
+ * existing stored preference is not orphaned.
+ *
+ * @param {string} [rootId]
+ * @returns {string}
+ */
+export function storageKeyFor(rootId = PRIMARY_ROOT_ID) {
+  return rootId === PRIMARY_ROOT_ID ? STORAGE_KEY : `${STORAGE_KEY}:${rootId}`;
+}
+
+/**
  * Fullscreen is a transient mode, not a stored preference -- restoring a page
  * straight into fullscreen is not something a browser will do anyway.
  *
  * @param {Storage} [storage]
+ * @param {string} [key]
  * @returns {string}
  */
-export function readSize(storage = safeStorage()) {
+export function readSize(storage = safeStorage(), key = STORAGE_KEY) {
   try {
-    const raw = storage?.getItem(STORAGE_KEY);
+    const raw = storage?.getItem(key);
     const size = normalizeSize(JSON.parse(raw || '{}')?.size);
     return size === 'lg' ? DEFAULT_SIZE : size;
   } catch {
@@ -71,11 +85,12 @@ export function readSize(storage = safeStorage()) {
 /**
  * @param {string} size
  * @param {Storage} [storage]
+ * @param {string} [key]
  */
-export function writeSize(size, storage = safeStorage()) {
+export function writeSize(size, storage = safeStorage(), key = STORAGE_KEY) {
   if (!FLOAT_SIZES.includes(size)) return;
   try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify({ size }));
+    storage?.setItem(key, JSON.stringify({ size }));
   } catch { /* storage blocked; the player still works */ }
 }
 
@@ -126,9 +141,6 @@ export function embedUrlFor(ref, options = {}) {
   return url.toString();
 }
 
-/** The root id of the player the GEV tool drives when several are mounted. */
-export const PRIMARY_ROOT_ID = 'gev-home-video';
-
 /**
  * Live controllers keyed by root id. Keyed rather than a single slot because
  * `main.js` mounts on both the normal and WebGL-fallback paths: re-mounting the
@@ -165,7 +177,7 @@ const byId = (doc, id) => doc.getElementById(id);
 /**
  * Child element ids are derived from the root id, so a second player needs no
  * new naming scheme: `gev-home-video` + `-mount` is exactly today's markup, and
- * `gev-home-video-2` + `-mount` is the duplicate's.
+ * `gev-split-view` + `-mount` is the split view's.
  *
  * @param {string} rootId
  * @param {string} part
@@ -208,7 +220,8 @@ export function initHomeVideo(doc = globalThis.document, options = {}) {
   const sizeButtons = [...root.querySelectorAll('[data-home-video-size]')];
 
   const win = doc.defaultView || globalThis;
-  let size = readSize();
+  const storageKey = storageKeyFor(rootId);
+  let size = readSize(safeStorage(), storageKey);
   let previousFloatSize = size;
   let config = { defaultVideoUrl: DEFAULT_VIDEO_URL, defaultPlaylistUrl: '', licenseCheckAvailable: false };
   let nowPlaying = null;
@@ -417,7 +430,7 @@ export function initHomeVideo(doc = globalThis.document, options = {}) {
     } else {
       if (doc.fullscreenElement === root) await doc.exitFullscreen?.().catch(() => {});
       size = wanted;
-      writeSize(size);
+      writeSize(size, safeStorage(), storageKey);
     }
     renderSize();
   };

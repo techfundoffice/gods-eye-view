@@ -4,6 +4,7 @@ import {
   DEFAULT_SIZE,
   FLOAT_SIZES,
   PRIMARY_ROOT_ID,
+  storageKeyFor,
   SIZES,
   STORAGE_KEY,
   embedUrlFor,
@@ -125,13 +126,13 @@ test('child ids derive from the root id, matching the shipped markup', () => {
   assert.deepEqual(asked, [PRIMARY_ROOT_ID]);
 
   const second = lookupSpy();
-  initHomeVideo(second.doc, { rootId: 'gev-home-video-2' });
-  assert.deepEqual(second.asked, ['gev-home-video-2']);
+  initHomeVideo(second.doc, { rootId: 'gev-split-view' });
+  assert.deepEqual(second.asked, ['gev-split-view']);
 });
 
 test('a missing root is a no-op for any player, not just the primary', () => {
   assert.equal(initHomeVideo({ getElementById: () => null }), null);
-  assert.equal(initHomeVideo({ getElementById: () => null }, { rootId: 'gev-home-video-2' }), null);
+  assert.equal(initHomeVideo({ getElementById: () => null }, { rootId: 'gev-split-view' }), null);
 });
 
 test('PRIMARY_ROOT_ID is the id the shipped markup and the GEV tool agree on', () => {
@@ -142,4 +143,17 @@ test('the GEV tool reports honestly when no primary player is mounted', async ()
   const result = await requestHomeVideo({ action: 'play', url: 'https://youtu.be/aqz-KE-bpKQ' });
   assert.equal(result.ok, false);
   assert.match(result.error, /not on this page/);
+});
+
+test('each player persists its own size', () => {
+  // The primary keeps the bare key so an existing preference is not orphaned.
+  assert.equal(storageKeyFor(), STORAGE_KEY);
+  assert.equal(storageKeyFor(PRIMARY_ROOT_ID), STORAGE_KEY);
+  assert.equal(storageKeyFor('gev-split-view'), `${STORAGE_KEY}:gev-split-view`);
+
+  const storage = fakeStorage();
+  writeSize('md', storage, storageKeyFor('gev-split-view'));
+  // Resizing the second player must not move the first.
+  assert.equal(readSize(storage, storageKeyFor()), DEFAULT_SIZE);
+  assert.equal(readSize(storage, storageKeyFor('gev-split-view')), 'md');
 });
