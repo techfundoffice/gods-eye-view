@@ -18573,6 +18573,7 @@ body #left-panel-stack #scene-shot-list {
 #youtube-comments-panel #hermes-agent-card {
   display: flex !important;
   flex-direction: column !important;
+  gap: 12px !important;
   visibility: visible !important;
   opacity: 1 !important;
   position: relative !important;
@@ -18584,30 +18585,47 @@ body #left-panel-stack #scene-shot-list {
   max-height: min(46dvh, 24rem) !important;
   margin: 0 !important;
   padding: .45rem .5rem !important;
-  overflow: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
   box-sizing: border-box !important;
 }
 
 #youtube-comments-panel #hermes-agent-card .hermes-agent-header {
-  gap: .4rem !important;
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 4px !important;
   padding-bottom: .3rem !important;
 }
 
 #youtube-comments-panel #hermes-agent-card .hermes-agent-header h2 {
   margin: 0 !important;
+  padding-left: 12px !important;
   font-size: 10px !important;
 }
 
 #youtube-comments-panel #hermes-agent-card .hermes-agent-pulse {
+  position: absolute !important;
+  top: 2px !important;
+  left: 0 !important;
   width: 7px !important;
   height: 7px !important;
   flex: 0 0 auto !important;
 }
 
+#youtube-comments-panel #hermes-agent-card .youtube-hermes-mode,
+#youtube-comments-panel #hermes-agent-card #hermes-agent-status {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  text-align: left !important;
+}
+
 #youtube-comments-panel #hermes-agent-card .youtube-hermes-status {
   display: grid !important;
   visibility: visible !important;
-  padding: .4rem .15rem .25rem !important;
+  padding: 0 .15rem !important;
   gap: .2rem !important;
   font-size: 9px !important;
 }
@@ -18618,24 +18636,67 @@ body #left-panel-stack #scene-shot-list {
 
 #youtube-comments-panel #hermes-agent-card .youtube-hermes-detail {
   margin-top: 0 !important;
-  padding-top: .25rem !important;
+  padding-top: 0 !important;
 }
 
 #youtube-comments-panel #hermes-agent-card .hermes-agent-mind {
-  gap: 4px !important;
-  margin: 6px 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
 }
 
 #youtube-comments-panel #hermes-agent-card .hermes-agent-mind div {
+  width: 100% !important;
+  min-width: 0 !important;
   padding: 5px !important;
+  box-sizing: border-box !important;
 }
 
 #youtube-comments-panel #hermes-agent-card .hermes-agent-details {
-  display: grid !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-details div {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-details dt,
+#youtube-comments-panel #hermes-agent-card .hermes-agent-details dd,
+#youtube-comments-panel #hermes-agent-card #hermes-agent-lessons {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
 }
 
 #youtube-comments-panel #hermes-agent-card .hermes-agent-controls {
-  margin-top: 7px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin-top: 0 !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-controls button {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
 }
 
 @media (max-width: 760px), (max-height: 720px) {

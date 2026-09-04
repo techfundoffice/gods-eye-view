@@ -597,6 +597,45 @@ test('full Hermes details stay open inside Live Comments with live-turn states',
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
+test('Hermes diagnostics and controls use the required single-column order', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  const orderedIds = [
+    'hermes-agent-title',
+    'youtube-hermes-mode',
+    'hermes-agent-status',
+    'hermes-agent-seeing',
+    'hermes-agent-practicing',
+    'hermes-agent-attempting',
+    'hermes-agent-observing',
+    'hermes-agent-learning',
+    'hermes-agent-provider',
+    'hermes-agent-capabilities',
+    'hermes-agent-failure',
+    'hermes-agent-lessons',
+  ];
+  for (let index = 1; index < orderedIds.length; index += 1) {
+    assert.ok(
+      html.indexOf(`id="${orderedIds[index - 1]}"`) < html.indexOf(`id="${orderedIds[index]}"`),
+      `${orderedIds[index - 1]} should precede ${orderedIds[index]}`,
+    );
+  }
+  const orderedControls = ['pause-training', 'resume-training', 'hermes-agent-inspect', 'clear-learning', 'rollback-learning'];
+  const controlPositions = orderedControls.map((control) => (
+    control === 'hermes-agent-inspect'
+      ? html.indexOf(`id="${control}"`)
+      : html.indexOf(`data-hermes-action="${control}"`)
+  ));
+  assert.deepEqual(controlPositions, [...controlPositions].sort((a, b) => a - b));
+  assert.match(css, /#youtube-comments-panel #hermes-agent-card \{[\s\S]*?flex-direction: column !important;[\s\S]*?gap: 12px !important;/);
+  assert.match(css, /#youtube-comments-panel #hermes-agent-card \.hermes-agent-header \{[\s\S]*?flex-direction: column !important;/);
+  assert.match(css, /#youtube-comments-panel #hermes-agent-card \.hermes-agent-mind \{[\s\S]*?flex-direction: column !important;/);
+  assert.match(css, /#youtube-comments-panel #hermes-agent-card \.hermes-agent-details div \{[\s\S]*?flex-direction: column !important;/);
+  assert.match(css, /#youtube-comments-panel #hermes-agent-card \.hermes-agent-controls \{[\s\S]*?flex-direction: column !important;/);
+  assert.match(css, /#youtube-comments-panel #hermes-agent-card \.hermes-agent-controls button \{[\s\S]*?width: 100% !important;/);
+  assert.match(css, /#youtube-comments-panel #hermes-agent-card #hermes-agent-lessons \{[\s\S]*?overflow-wrap: anywhere !important;[\s\S]*?white-space: normal !important;/);
+});
+
 test('follow-up countdown displays the complete 30-second reply window', () => {
   assert.equal(formatFollowUpCountdown(30_000), '0:30');
   assert.equal(formatFollowUpCountdown(30_001), '0:31');
