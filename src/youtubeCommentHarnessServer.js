@@ -15,6 +15,7 @@ import {
   toolIsolationState,
   validateHarnessInterpretation,
 } from './youtubeCommentHarness.js';
+import { runHermesBoxChat } from './hermesBoxChatServer.js';
 
 const MAX_BODY_BYTES = 12_000;
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
@@ -144,6 +145,29 @@ export function createYoutubeCommentHarnessMiddleware({
         }),
       });
     }
+    if (req.method === 'POST' && path === '/hermes') {
+      const earlyBody = await readBody(req).catch(() => ({}));
+      if (String(earlyBody?.action || '').trim() === 'box-chat') {
+        const result = await runHermesBoxChat({
+          text: earlyBody?.text || earlyBody?.message || earlyBody?.prompt,
+          conversationId: earlyBody?.conversationId,
+          author: earlyBody?.author || earlyBody?.authorHandle,
+          source: earlyBody?.source || 'composer',
+          hermesController,
+        });
+        if (!result.ok) return send(res, result.status || 503, { ok: false, error: result.error });
+        return send(res, 200, {
+          ok: true,
+          reply: result.reply,
+          source: result.source,
+          conversationId: result.conversationId,
+          ...(result.hermesFallbackReason ? { hermesFallbackReason: result.hermesFallbackReason } : {}),
+        });
+      }
+      // Non-box-chat POSTs continue through admin auth below; body already consumed,
+      // so stash it for the admin POST /hermes handler.
+      req.__gevHermesBody = earlyBody;
+    }
     const admin = await authorizeAdminRequest(req);
     if (!admin) {
       return send(res, 401, {
@@ -151,7 +175,7 @@ export function createYoutubeCommentHarnessMiddleware({
       });
     }
     if (req.method === 'POST' && path === '/hermes') {
-      const body = await readBody(req).catch(() => ({}));
+      const body = req.__gevHermesBody || await readBody(req).catch(() => ({}));
       const action = String(body?.action || '').trim();
       if (action === 'select' && hermesController?.select) {
         return send(res, 200, await hermesController.select(body.harness || 'hermes'));

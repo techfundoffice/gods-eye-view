@@ -17083,9 +17083,8 @@ body {
   display: grid !important;
   grid-template-rows:
     max-content
-    22rem
-    26rem
-    max-content !important;
+    18rem
+    22rem !important;
   gap: 0.55rem !important;
   flex: 1 1 auto !important;
   min-height: 0 !important;
@@ -18589,9 +18588,8 @@ body #left-panel-stack #scene-shot-list {
 #admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
   grid-template-rows:
     max-content
-    22rem
-    26rem
-    max-content !important;
+    18rem
+    22rem !important;
   min-height: 0 !important;
   max-height: none !important;
 }
@@ -18792,9 +18790,8 @@ body #left-panel-stack #scene-shot-list {
   max-height: none !important;
   grid-template-rows:
     max-content
-    22rem
-    26rem
-    max-content !important;
+    18rem
+    22rem !important;
   overflow-x: hidden !important;
   overflow-y: visible !important;
 }
@@ -19845,3 +19842,265 @@ body.ui-clean-view .gev-home-video-rail {
 .youtube-chat-activity:not([data-state='idle']) .youtube-chat-starters {
   display: none !important;
 }
+
+/* === GEV_HERMES_BOX_CHAT_V1 ===
+   Hermes conversation box inside #hermes-agent-card (east rail ~16–19rem).
+   Dark empty-state, gold accents #ffd24a, scrollable thread, compact composer. */
+#youtube-comments-panel #hermes-agent-card #hermes-box-chat,
+#hermes-box-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0.4rem 0.35rem 0.45rem;
+  border: 1px solid rgba(255, 210, 74, 0.22);
+  border-radius: 12px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 210, 74, 0.08), transparent 55%),
+    rgba(6, 10, 14, 0.92);
+  box-sizing: border-box;
+}
+
+#hermes-box-chat[data-empty="false"] #hermes-box-empty {
+  display: none !important;
+}
+
+#hermes-box-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.25rem 0.35rem;
+  text-align: center;
+}
+
+#hermes-box-empty .hermes-box-mark {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  color: #111;
+  background: #ffd24a;
+  font: 800 12px/1 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 18px rgba(255, 210, 74, 0.35);
+}
+
+#hermes-box-empty .hermes-box-headline {
+  margin: 0;
+  color: #fff6d4;
+  font: 700 12px/1.25 var(--font-sans, system-ui, sans-serif);
+}
+
+#hermes-box-empty .hermes-box-subline {
+  margin: 0;
+  color: rgba(255, 246, 212, 0.68);
+  font: 500 9px/1.35 var(--font-sans, system-ui, sans-serif);
+}
+
+#hermes-box-starters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+#hermes-box-starters .hermes-box-starter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid rgba(255, 210, 74, 0.28);
+  border-radius: 999px;
+  color: #ffe9a3;
+  background: rgba(255, 210, 74, 0.06);
+  font: 600 9px/1.25 var(--font-sans, system-ui, sans-serif);
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+#hermes-box-starters .hermes-box-starter:hover,
+#hermes-box-starters .hermes-box-starter:focus-visible {
+  border-color: rgba(255, 210, 74, 0.55);
+  background: rgba(255, 210, 74, 0.14);
+  outline: none;
+}
+
+#hermes-box-starters .hermes-box-starter .material-symbols-outlined {
+  font-size: 14px;
+  color: #ffd24a;
+  flex: 0 0 auto;
+}
+
+#hermes-box-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 100%;
+  max-height: 14rem;
+  margin: 0;
+  padding: 0.1rem 0.1rem 0.2rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+#hermes-box-thread[hidden] {
+  display: none !important;
+}
+
+.hermes-box-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.hermes-box-msg-who {
+  color: rgba(255, 210, 74, 0.72);
+  font: 700 8px/1 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hermes-box-msg-body {
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  color: #f4f7fb;
+  font: 500 10px/1.4 var(--font-sans, system-ui, sans-serif);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.hermes-box-msg-user .hermes-box-msg-body {
+  align-self: flex-end;
+  background: rgba(255, 210, 74, 0.16);
+  border: 1px solid rgba(255, 210, 74, 0.28);
+  color: #fff4c8;
+}
+
+.hermes-box-msg-assistant .hermes-box-msg-body {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hermes-box-typing .hermes-box-msg-body {
+  color: rgba(255, 246, 212, 0.7);
+  font-style: italic;
+}
+
+#hermes-box-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 0;
+}
+
+#hermes-box-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.1rem;
+  max-height: 4.5rem;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgba(255, 210, 74, 0.28);
+  border-radius: 999px;
+  color: #fff6d4;
+  background: rgba(0, 0, 0, 0.35);
+  font: 500 10px/1.35 var(--font-sans, system-ui, sans-serif);
+  resize: none;
+}
+
+#hermes-box-input::placeholder {
+  color: rgba(255, 246, 212, 0.45);
+}
+
+#hermes-box-input:focus {
+  outline: none;
+  border-color: rgba(255, 210, 74, 0.65);
+  box-shadow: 0 0 0 2px rgba(255, 210, 74, 0.15);
+}
+
+#hermes-box-send {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2.05rem;
+  height: 2.05rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  color: #1a1400;
+  background: #ffd24a;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(255, 210, 74, 0.35);
+}
+
+#hermes-box-send:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+#hermes-box-send .material-symbols-outlined {
+  font-size: 16px;
+  line-height: 1;
+}
+
+#hermes-agent-card .hermes-box-diagnostics {
+  margin: 0.15rem 0 0;
+  border-top: 1px solid rgba(255, 210, 74, 0.12);
+  padding-top: 0.25rem;
+}
+
+#hermes-agent-card .hermes-box-diagnostics > summary {
+  cursor: pointer;
+  color: rgba(255, 210, 74, 0.78);
+  font: 700 8px/1.4 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.14em;
+  list-style: none;
+}
+
+#hermes-agent-card .hermes-box-diagnostics > summary::-webkit-details-marker {
+  display: none;
+}
+
+#hermes-agent-card .youtube-hermes-status,
+#hermes-agent-card .youtube-hermes-detail {
+  font-size: 9px !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
+  grid-template-rows:
+    max-content
+    18rem
+    22rem !important;
+}
+
+#youtube-comments-panel .youtube-chat-cards {
+  grid-template-rows:
+    max-content
+    18rem
+    22rem !important;
+}
+
+/* Diagnostics now live inside the Hermes card — hide any leftover clone. */
+#youtube-comments-panel > .youtube-chat-cards > .hermes-agent-diagnostics:not(.hermes-box-diagnostics-body) {
+  display: none !important;
+}
+/* === /GEV_HERMES_BOX_CHAT_V1 === */

@@ -60,6 +60,7 @@ import {
 import { initWebGLFallback } from './webglFallback.js';
 import { isTransientCesiumWorkerImportError } from './cesiumWorkerRecovery.js';
 import { captureHermesViewContext, initHermesAgentCard } from './hermesAgentCard.js';
+import { initHermesBoxChat } from './hermesBoxChat.js';
 
 /**
  * GPU capability gate — evaluated at module scope, before ANY startup side
@@ -199,6 +200,8 @@ const adminConsole = initAdminConsole();
 const nextchat = initNextchat({ commandRegistry: PUBLIC_COMMAND_REGISTRY });
 
 const hermesAgentCard = initHermesAgentCard();
+const hermesBoxChat = initHermesBoxChat();
+void hermesBoxChat;
 const youtubeHomepageInteraction = initYoutubeHomepageInteraction({
   nextchat,
   getViewContext: async () => {

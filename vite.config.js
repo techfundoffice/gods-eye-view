@@ -55,6 +55,7 @@ import { createYoutubeProxyMiddleware } from './src/youtubeProxy.js';
 import { autoGoLiveEnabled, createYoutubeOAuthMiddleware } from './src/youtubeOAuth.js';
 import { createYoutubeViewAgentMiddleware } from './src/youtubeViewAgentServer.js';
 import { createYoutubeCommentHarnessMiddleware } from './src/youtubeCommentHarnessServer.js';
+import { createHermesBoxChatMiddleware } from './src/hermesBoxChatServer.js';
 import { createYoutubeLiveMiddleware } from './src/youtubeLiveServer.js';
 import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChatServer.js';
 import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatServer.js';
@@ -7605,6 +7606,9 @@ export function youtubeProxy({
   const viewAgentMiddleware = createYoutubeViewAgentMiddleware({
     authorizeRequest: oauth.authorizeRequest,
   });
+  const hermesBoxChatMiddleware = createHermesBoxChatMiddleware({
+    hermesController: sharedHermesHarness(),
+  });
   const commentHarnessMiddleware = createYoutubeCommentHarnessMiddleware({
     configured: commentHarnessConfigured,
     harness,
@@ -7790,6 +7794,7 @@ export function youtubeProxy({
     middlewares.use('/api/youtube/homepage-chat', homepageChatMiddleware);
     middlewares.use('/api/youtube-view-agent', viewAgentMiddleware);
     middlewares.use('/api/youtube-comment-harness', commentHarnessMiddleware);
+    middlewares.use('/api/hermes', hermesBoxChatMiddleware);
     middlewares.use('/api/youtube', middleware);
   }
   return {

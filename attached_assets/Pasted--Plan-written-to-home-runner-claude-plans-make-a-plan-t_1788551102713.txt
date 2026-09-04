@@ -1,0 +1,56 @@
+● Plan written to /home/runner/.claude/plans/make-a-plan-to-memoized-aho.md. The short version:
+
+  A square PiP overlay on the split view, driven by ADMIN config. Player 1 is untouched.
+
+  - src/homeVideoModeration.js — config grows a splitView block (enabled, layout, secondFeedUrl, corner, sizePct), normalised with the playable() helper
+    already there. Defaults to off, since an overlay with no URL set would just be a black square.
+  - src/homeVideoServer.js — snapshot() carries splitView; no new route. The second-feed URL clears the same royalty-free gate as viewer recommendations,
+    enforced at save time so the operator learns immediately instead of the broadcast silently showing nothing.
+  - src/homeVideo.js — mounts a second, muted iframe inside the existing frame; sets data-corner and --gev-pip-size so CSS does the positioning, not JS
+    pixel math.
+  - style.css — extends the existing GEV_HOME_VIDEO_V1 block. Square, percentage width so it scales with S/M/fullscreen for free, YouTube-native #3f3f3f
+    border to match the chrome already there.
+  - src/adminPlugins/home-video.js — a SPLIT VIEW section with the five controls, validating the URL client-side before save the way the DEFAULT VIDEO field
+    already does.
+  - Tests across all four files, plus CURRENT-STATE.md and CHANGELOG.md.
+
+  No markup change — the PiP iframe is created by JS inside the frame that already exists, which also keeps me out of index.html, where the Replit agent
+  keeps committing.
+
+  The Remotion point is worth repeating because it's structural, not stylistic: a YouTube embed is a cross-origin iframe, and browsers won't let anything
+  read its pixels into a canvas. No library in any framework can composite a YouTube player that way. Remotion would only fit later, for pre-rendered MP4
+  assets like intros or lower-thirds.
+
+  Say the word and I'll build it.
+
+✻ Worked for 2m 36s · done 7:29 PM · 11 shells still running
+
+※ recap: You're building a home-page video feature; two identical YouTube players now sit side by side, and the split view is ready for its 
+  picture-in-picture mode. I've written the plan for that PiP overlay plus its ADMIN controls, and it's waiting on your go-ahead to build.
+
+❯ my vision is to use the youtube API to find the highest viewed channel of the day and feed that into player 2 with the faceless commentator commenting on 
+  that highest viewed channel. using a faceless youtube feeder like fal.ai or higgins or google studio live, so that player 2 is commenting on a video      
+  using all AI, ask yourself a bunch of questions on how to get me there                                                                                    
+  
+● This is a big one. Let me establish what the app already has before I ask you anything.
+
+● 2 background agents launched (↓ to manage)
+   ├ Map audio and TTS infrastructure
+   └ Map server-side jobs and YouTube API access
+     
+● While those map the codebase, here are the questions I worked through, and what I could answer myself.
+
+  Answered — no input needed
+
+  1. "Highest viewed channel of the day" — no such endpoint exists. YouTube has no daily channel view chart. The supported call is
+     videos.list?chart=mostPopular&regionCode=XX (trending), 1 quota unit. A channel can be derived from the top trending video's channelId.
+  2. Can the AI watch the embed? No. Cross-origin iframe pixels are unreadable — same wall Remotion hits.
+  3. Can any of your three services watch it? Only Google. Gemini accepts a YouTube URL directly as video input and genuinely analyses it. fal.ai and 
+     Higgsfield are generation services — they make images/video/voice, they cannot analyse someone else's YouTube video. So they'd be the mouth, never the
+     eyes.
+  4. Should we download the video to analyse it? No — yt-dlp against YouTube is a ToS violation. Gemini's URL input is the sanctioned path.
+  5. Is commentary itself legal? Commentary/criticism over an official embed is fine. We embed, we don't rehost.
+  6. Quota? Trending is 1 unit/call. Irrelevant. Gemini video analysis is the real cost — needs caching and a sane cadence, not per page load.
+  7. Where does it run? Server-side job (keys stay server-side per AGENTS.md), page polls — same shape as the existing comment-ingest worker.
+
+  Four I can't answer for you

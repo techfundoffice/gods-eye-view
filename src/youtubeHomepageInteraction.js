@@ -758,6 +758,18 @@ export function createYoutubeHomepageInteraction({
         actionable,
       });
       while (liveComments.length > MAX_PANEL_COMMENTS) liveComments.pop();
+      // #AI tags also route into the Hermes desk conversation box (non-fly unless actionable).
+      if (/#AI\b/i.test(String(message.text || ''))) {
+        const hermesBox = globalThis.__gevHermesBox;
+        const prompt = safeText(message.text, 500).replace(/^\s*#AI\b[:\s-]*/i, '').trim()
+          || safeText(message.text, 500);
+        if (hermesBox && typeof hermesBox.ask === 'function' && prompt) {
+          void hermesBox.ask(prompt, {
+            source: 'youtube-#AI',
+            author: safeText(message.authorHandle || message.author, 80),
+          });
+        }
+      }
       await applyMessageActions(message);
     }
     renderLiveCommentsPanel({ active: true, title: broadcastTitle, videoId });

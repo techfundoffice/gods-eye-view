@@ -131,18 +131,78 @@
         </div>
         <div id="youtube-comments-video" class="youtube-summary">NO VIDEO SELECTED</div>
         <div class="youtube-chat-cards">
-          <section id="hermes-agent-card" class="youtube-chat-card youtube-hermes-card hermes-inline-card" data-state="idle" aria-labelledby="hermes-agent-title">
+          <section id="hermes-agent-card" class="youtube-chat-card youtube-hermes-card hermes-inline-card" data-state="idle" data-chat-state="idle" aria-labelledby="hermes-agent-title">
             <header class="youtube-chat-card-header hermes-agent-header">
               <span class="hermes-agent-pulse" aria-hidden="true"></span>
-              <h2 id="hermes-agent-title" class="youtube-chat-col-title">HERMES AGENT</h2>
-              <span id="youtube-hermes-mode" class="youtube-hermes-mode">TRAINING</span>
+              <h2 id="hermes-agent-title" class="youtube-chat-col-title">HERMES</h2>
+              <span id="youtube-hermes-mode" class="youtube-hermes-mode">DESK</span>
               <span id="hermes-agent-status" role="status" aria-live="polite">CONNECTING</span>
             </header>
+            <div id="hermes-box-chat" class="hermes-box-chat" data-empty="true" aria-label="Hermes conversation">
+              <div id="hermes-box-empty" class="hermes-box-empty">
+                <span class="hermes-box-mark" aria-hidden="true">H</span>
+                <p class="hermes-box-headline">What can I help with?</p>
+                <p class="hermes-box-subline">Ask Hermes about the globe, what's on screen, or plan a flyover.</p>
+                <ul id="hermes-box-starters" class="hermes-box-starters" role="list" aria-label="Hermes starter prompts">
+                  <li>
+                    <button type="button" class="hermes-box-starter" data-hermes-starter="What can I control on this globe?">
+                      <span class="material-symbols-outlined" aria-hidden="true">public</span>
+                      <span>What can I control on this globe?</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button type="button" class="hermes-box-starter" data-hermes-starter="What's on screen right now?">
+                      <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                      <span>What's on screen right now?</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button type="button" class="hermes-box-starter" data-hermes-starter="Help me plan a flyover">
+                      <span class="material-symbols-outlined" aria-hidden="true">flight</span>
+                      <span>Help me plan a flyover</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+              <ol id="hermes-box-thread" class="hermes-box-thread" aria-live="polite" hidden></ol>
+              <form id="hermes-box-composer" class="hermes-box-composer" autocomplete="off" onsubmit="return false;">
+                <textarea id="hermes-box-input" class="hermes-box-input" rows="1" placeholder="Message Hermes..." maxlength="1500" aria-label="Message Hermes"></textarea>
+                <button id="hermes-box-send" class="hermes-box-send" type="button" aria-label="Send message to Hermes">
+                  <span class="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
+                </button>
+              </form>
+            </div>
             <div id="youtube-hermes-status" class="youtube-hermes-status" role="status" aria-live="polite">
-              <strong>Hi, I’m Hermes.</strong>
-              <span>Thanks for watching me train myself. I’m kind of lonely—can you please chat with me here?</span>
+              <strong>Hi, I'm Hermes.</strong>
+              <span>Chat with me above — or tag a live comment with #AI.</span>
             </div>
             <div id="youtube-hermes-detail" class="youtube-hermes-detail">NO VIEWER TURN ACTIVE · EXPLORING THE INTERFACE</div>
+            <details class="hermes-box-diagnostics">
+              <summary>TRAINING · DIAGNOSTICS · CONTROLS</summary>
+              <div class="hermes-agent-diagnostics hermes-box-diagnostics-body" aria-label="Hermes Agent diagnostics and controls">
+                <div class="hermes-agent-mind">
+                  <div><span>SEEING</span><strong id="hermes-agent-seeing">Waiting for live interface</strong></div>
+                  <div><span>INTERPRETING</span><strong id="hermes-agent-practicing">Training idle</strong></div>
+                  <div><span>ATTEMPTING</span><strong id="hermes-agent-attempting">No active attempt</strong></div>
+                  <div><span>OBSERVING</span><strong id="hermes-agent-observing">Waiting for an observed result</strong></div>
+                  <div><span>LEARNING</span><strong id="hermes-agent-learning">No new lesson</strong></div>
+                </div>
+                <dl class="hermes-agent-details">
+                  <div><dt>PROVIDER / MODEL</dt><dd id="hermes-agent-provider">Unavailable</dd></div>
+                  <div><dt>CAPABILITIES</dt><dd id="hermes-agent-capabilities">No capabilities reported</dd></div>
+                  <div class="is-failure"><dt>LATEST FAILURE</dt><dd id="hermes-agent-failure">None reported</dd></div>
+                  <div><dt>SAVED LESSONS</dt><dd id="hermes-agent-lessons">No saved lessons reported</dd></div>
+                </dl>
+                <div class="hermes-agent-controls" aria-label="Hermes Agent controls">
+                  <button type="button" data-hermes-action="pause-training">PAUSE</button>
+                  <button type="button" data-hermes-action="resume-training">RESUME</button>
+                  <button id="hermes-agent-inspect" type="button">INSPECT</button>
+                  <button type="button" data-hermes-action="clear-learning">CLEAR</button>
+                  <button type="button" data-hermes-action="rollback-learning">ROLLBACK</button>
+                </div>
+                <pre id="hermes-agent-inspection" hidden></pre>
+              </div>
+            </details>
           </section>
           <section class="youtube-chat-card youtube-progress-card" aria-labelledby="youtube-progress-title">
             <div class="youtube-chat-card-header">
@@ -158,29 +218,6 @@
             </div>
             <div id="youtube-comments-status" class="youtube-comments-status" role="status" aria-live="polite">CONNECT YOUTUBE TO LOAD COMMENTS</div>
             <ol id="youtube-comments-list" class="youtube-feed-list youtube-comments-list"></ol>
-          </section>
-          <section class="youtube-chat-card youtube-hermes-card hermes-agent-diagnostics" aria-label="Hermes Agent diagnostics and controls">
-            <div class="hermes-agent-mind">
-              <div><span>SEEING</span><strong id="hermes-agent-seeing">Waiting for live interface</strong></div>
-              <div><span>INTERPRETING</span><strong id="hermes-agent-practicing">Training idle</strong></div>
-              <div><span>ATTEMPTING</span><strong id="hermes-agent-attempting">No active attempt</strong></div>
-              <div><span>OBSERVING</span><strong id="hermes-agent-observing">Waiting for an observed result</strong></div>
-              <div><span>LEARNING</span><strong id="hermes-agent-learning">No new lesson</strong></div>
-            </div>
-            <dl class="hermes-agent-details">
-              <div><dt>PROVIDER / MODEL</dt><dd id="hermes-agent-provider">Unavailable</dd></div>
-              <div><dt>CAPABILITIES</dt><dd id="hermes-agent-capabilities">No capabilities reported</dd></div>
-              <div class="is-failure"><dt>LATEST FAILURE</dt><dd id="hermes-agent-failure">None reported</dd></div>
-              <div><dt>SAVED LESSONS</dt><dd id="hermes-agent-lessons">No saved lessons reported</dd></div>
-            </dl>
-            <div class="hermes-agent-controls" aria-label="Hermes Agent controls">
-              <button type="button" data-hermes-action="pause-training">PAUSE</button>
-              <button type="button" data-hermes-action="resume-training">RESUME</button>
-              <button id="hermes-agent-inspect" type="button">INSPECT</button>
-              <button type="button" data-hermes-action="clear-learning">CLEAR</button>
-              <button type="button" data-hermes-action="rollback-learning">ROLLBACK</button>
-            </div>
-            <pre id="hermes-agent-inspection" hidden></pre>
           </section>
         </div>
         <div class="youtube-comments-actions" hidden>
