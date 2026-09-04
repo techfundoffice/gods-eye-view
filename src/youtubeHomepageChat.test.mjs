@@ -638,12 +638,21 @@ test('Hermes diagnostics follow all live comments in the required single-column 
   assert.match(css, /#youtube-comments-panel \.hermes-agent-diagnostics #hermes-agent-lessons \{[\s\S]*?overflow-wrap: anywhere !important;[\s\S]*?white-space: normal !important;/);
 });
 
-test('expanded comment lanes keep Hermes diagnostics below the initial watcher viewport', () => {
+test('the Youtube Chat rail keeps fixed lane geometry instead of responsive tracks', () => {
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  // The rail is a fixed-geometry broadcast surface: lane heights are absolute
+  // rem so the composition is identical on every window and stream size.
+  // Viewport-relative tracks (42dvh/50dvh) reflowed the lanes and let card
+  // content spill into the neighbouring track, which read as overlapping text.
   assert.match(
     css,
-    /#admin-stamp-stack #youtube-comments-panel \.youtube-chat-cards \{[\s\S]*?minmax\(14rem, 42dvh\)[\s\S]*?minmax\(18rem, 50dvh\)[\s\S]*?overflow-y: auto !important;/,
+    /#admin-stamp-stack #youtube-comments-panel \.youtube-chat-cards \{[\s\S]*?grid-template-rows:[\s\S]*?max-content[\s\S]*?22rem[\s\S]*?26rem[\s\S]*?max-content !important;[\s\S]*?overflow-y: auto !important;/,
   );
+  const railGrid = css.match(
+    /#admin-stamp-stack #youtube-comments-panel \.youtube-chat-cards \{[\s\S]*?grid-template-rows:([\s\S]*?)!important;/,
+  );
+  assert.ok(railGrid, 'rail grid rule is present');
+  assert.doesNotMatch(railGrid[1], /dvh|vh|vw/, 'rail lanes must not be viewport-sized');
   assert.match(
     css,
     /#admin-stamp-stack #youtube-comments-panel \.youtube-progress-card,[\s\S]*?#admin-stamp-stack #youtube-comments-panel \.youtube-all-comments-card \{[\s\S]*?min-height: 0 !important;/,

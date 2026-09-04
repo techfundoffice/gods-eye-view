@@ -575,7 +575,27 @@
   </div>
 
   <div id="left-panel-stack">
-  <div id="left-nav-autoscroll-bar" class="left-nav-autoscroll-bar">
+    <nav id="left-yt-chrome" class="left-yt-chrome" aria-label="YouTube-style quick actions">
+    <button id="left-yt-ask" class="left-yt-ask" type="button" title="Ask YouTube">
+      <span class="material-symbols-outlined left-yt-ask-icon" aria-hidden="true">auto_awesome</span>
+      <span class="left-yt-ask-label">Ask YouTube</span>
+    </button>
+    <button id="left-yt-search" class="left-yt-icon-btn" type="button" title="Search location" aria-label="Search">
+      <span class="material-symbols-outlined" aria-hidden="true">search</span>
+    </button>
+    <button id="left-yt-mic" class="left-yt-icon-btn" type="button" title="Voice" aria-label="Microphone">
+      <span class="material-symbols-outlined" aria-hidden="true">mic</span>
+    </button>
+    <button id="left-yt-create" class="left-yt-create" type="button" title="Create">
+      <span class="material-symbols-outlined" aria-hidden="true">add</span>
+      <span class="left-yt-create-label">Create</span>
+    </button>
+    <button id="left-yt-bell" class="left-yt-bell" type="button" title="Notifications" aria-label="Notifications">
+      <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+      <span id="left-yt-bell-badge" class="left-yt-bell-badge">5</span>
+    </button>
+  </nav>
+<div id="left-nav-autoscroll-bar" class="left-nav-autoscroll-bar">
     <label class="left-nav-autoscroll-label" for="left-nav-autoscroll">
       <input id="left-nav-autoscroll" type="checkbox" role="switch" aria-checked="true" checked />
       <span class="left-nav-autoscroll-text">Click Here For Auto Scroll</span>

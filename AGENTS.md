@@ -14,10 +14,11 @@ Human setup and product docs: [README.md](README.md), [CONTRIBUTING.md](CONTRIBU
 | `./scripts/dev-fresh.sh` | macOS: clear Vite cache, pull keys from Keychain |
 | `npm run build` | Production Vite build |
 | `npm test` | Node unit tests (`src/**/*.test.mjs`) |
+| `node --test <file>` | Run a single unit test file |
 | `npm run test:track` | Tracking invariants against a **running** app at `:4173` |
 | `node scripts/qa-<name>.mjs --url http://localhost:4173` | Headless visual/runtime harnesses |
 
-Node **24.14.x or 26.x**. PR bar: `build`, `test`, and `test:track` all green.
+Node **>=24.14.0 <25 or >=26 <27**. PR bar: `build`, `test`, and `test:track` all green.
 
 ## Architecture
 
@@ -82,7 +83,8 @@ Durable layer enablement is written only for origin `user` / `voice` / `tool`. R
 
 ## Testing
 
-- `npm test` discovers every `src/**/*.test.mjs`. Two allocation probes (`focusAllocations`, `worldOverlayAllocation`) run serialized with `--expose-gc` and **only on Node 24**; other runtimes skip them.
+- `npm test` runs `node scripts/run-unit-tests.mjs`, discovering every `src/**/*.test.mjs`. Two allocation probes (`focusAllocations`, `worldOverlayAllocation`) run serialized with `--expose-gc` and **only on Node 24**; other runtimes skip them.
+- Single test runs: `node --test src/<file>.test.mjs`.
 - `npm run test:track` needs the app already serving at `http://localhost:4173`. It shims live feeds; do not point it at production.
 - Visual / GPU sign-off is the `scripts/qa-*.mjs` family. They never start the server. Headless SwiftShader pixels are CI evidence only; real-GPU `--headful` is the visual bar. Do not judge a screenshot unless the report says `tilesSettled: true`.
 - UI / middleware changes: follow `.claude/skills/verify/SKILL.md` (this box's Chromium path, WebGL gate, ADMIN console). Do not leave `.gev-drive.mjs` (or similar) in the tree.
@@ -109,7 +111,7 @@ Do not vendor datasets you cannot redistribute; fetch at runtime.
 
 Copy `.env.example` → `.env` (gitignored). Required for the photoreal globe: `GOOGLE_MAPS_API_KEY` (Map Tiles API). Everything else is optional and must degrade honestly.
 
-Replit preview uses `HOST=0.0.0.0 PORT=5000 npm run dev`. Local default is `:4173`.
+Replit preview uses `HOST=0.0.0.0 PORT=5000 npm run dev` (or `npm run dev:replit`). Local default is `:4173`.
 
 ## First-run launcher (`src/firstRunExperience.js`)
 

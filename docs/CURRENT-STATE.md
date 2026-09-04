@@ -1,6 +1,25 @@
 # Cloud Computer AI.com Current State
 
-Updated: September 3, 2026
+Updated: September 4, 2026
+
+> **2026-09-04 — the YouTube Chat rail is fixed geometry, not responsive.**
+> `.youtube-chat-cards` is a **four**-track grid — Hermes readout, LIVE
+> COMMENTS IN PROGRESS, ALL LIVE COMMENTS, Hermes diagnostics — sized
+> `max-content / 22rem / 26rem / max-content`. The rail holds one composition
+> at every window and stream size; the `@media (max-height: 720px)` and
+> `@media (max-width: 760px), (max-height: 720px)` track overrides are gone
+> and the `dvh` lane caps are replaced with absolute rem. Three earlier bugs
+> caused the overlapping, unreadable rail: a **three**-track template against
+> four cards dropped the diagnostics card into an unsized implicit row;
+> `auto` outer tracks collapsed to ~55px while the Hermes cards needed 147px
+> and 564px; and blanket `min-height: 0` + `overflow: hidden` on
+> `.youtube-chat-card` made every card report a min-content height of 0, so
+> its track could not grow. The two feed lanes stay clipped scroll containers
+> on purpose; the two Hermes cards are `min-height: min-content` /
+> `overflow: visible` because they carry prose. Do not reintroduce `dvh`/`vh`
+> lane sizing, a media query on this rail, or `auto` outer tracks —
+> `src/youtubeHomepageChat.test.mjs` pins the fixed geometry and asserts no
+> viewport units appear in the track list.
 
 > **2026-09-03 — YouTube Hermes skill lists every view-safe GEV tool.**
 > `skills/gods-eye-view/SKILL.md` (`1.1.0`) is the comment-operator brief for

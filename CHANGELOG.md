@@ -3,6 +3,23 @@
 This changelog records public product changes. For the authoritative description
 of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md).
 
+## [Unreleased] — 2026-09-04
+
+### Fixed
+
+- The YouTube Chat rail no longer overlaps itself. The HERMES AGENT header and
+  status, LIVE COMMENTS IN PROGRESS, ALL LIVE COMMENTS, and the Hermes
+  diagnostics block each occupy their own readable space. The lane grid
+  declared three tracks for four cards, and card content was being clipped to a
+  zero-height track, which pushed headings and messages on top of each other.
+
+### Changed
+
+- The YouTube Chat rail is now fixed geometry: lane heights are absolute rem
+  and the rail renders one identical composition at every window and stream
+  size. The responsive media-query overrides and viewport-relative (`dvh`) lane
+  caps on this panel were removed.
+
 ## [Unreleased] — 2026-09-03
 
 ### Changed

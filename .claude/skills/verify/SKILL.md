@@ -29,12 +29,29 @@ until curl -s -o /dev/null -m 2 http://127.0.0.1:4207/; do sleep 1; done
 ## Browser
 
 `puppeteer` is a devDependency but its bundled Chrome **will not run here** —
-it is missing `libglib-2.0.so.0`. Use the Nix chromium instead:
+it is missing `libglib-2.0.so.0`. Use the box chromium instead:
 
 ```bash
-CHROME=/nix/store/5afrhwm7zqn1vb7p5z1mc2rkh2grsfgz-ungoogled-chromium-138.0.7204.100/bin/chromium
-$CHROME --version    # confirm the path still resolves; the hash changes across image updates
+CHROME=/repl/tools/bin/chromium
+$CHROME --version    # stable wrapper path; prefer it over a /nix/store hash
 ```
+
+This stable wrapper survives image updates. Do **not** glob `/nix/store/*chromium*`
+to find a binary — that scan walks the whole store and can hang for minutes
+before returning, which looks like the app is wedged when nothing is wrong.
+
+`npm run test:track` and the `scripts/qa-*.mjs` harnesses resolve Chrome through
+puppeteer, so they fail at launch with "Could not find Chrome" unless you point
+them at that binary explicitly:
+
+```bash
+PUPPETEER_EXECUTABLE_PATH=/repl/tools/bin/chromium npm run test:track
+```
+
+It then boots and passes the init checks, but the independent-GLB capability
+probe can still time out (`Runtime.callFunctionOn timed out`) under SwiftShader.
+That is a headless-GPU limit, not an app regression — confirm against a baseline
+before blaming a change.
 
 Launch flags that work headless on this box:
 

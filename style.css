@@ -17073,15 +17073,24 @@ body {
   padding-left: 0.55rem !important;
 }
 
-/* Stable two-lane Youtube Chat: active exchanges above, complete feed below. */
+/* Stable Youtube Chat lanes: Hermes readout, active exchanges, complete feed,
+   Hermes diagnostics. Four cards, so four tracks — a three-track template put
+   the diagnostics card in an unsized implicit row and crushed it.
+   Fixed rem geometry, not viewport-relative: the rail must look identical at
+   every window size. The Hermes tracks are content-sized because they carry
+   prose that has to stay readable. */
 #youtube-comments-panel .youtube-chat-cards {
   display: grid !important;
-  grid-template-rows: minmax(8rem, 1.25fr) minmax(13rem, 2fr) minmax(16rem, 3fr) !important;
+  grid-template-rows:
+    max-content
+    22rem
+    26rem
+    max-content !important;
   gap: 0.55rem !important;
   flex: 1 1 auto !important;
-  min-height: 30rem !important;
-  max-height: calc(100dvh - 7.5rem) !important;
-  overflow: hidden !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
 }
 
 /* Hermes is a separate, honest operator readout: the state is derived from
@@ -17161,6 +17170,17 @@ body {
   border: 1px solid rgba(126, 240, 255, 0.24) !important;
   border-radius: 0.45rem !important;
   background: rgba(2, 12, 20, 0.76) !important;
+}
+
+/* The two feed lanes are scroll containers on purpose: they hold an unbounded
+   comment list and must clip. The Hermes cards are not — they hold prose
+   (header, status sentence, viewer-turn detail, diagnostics) that has to stay
+   readable. `min-height: 0` + `overflow: hidden` makes a box report a
+   min-content height of 0, which collapses its `auto` grid track and lets the
+   clipped content read as overlapping. Let the Hermes cards size to content. */
+#admin-stamp-stack #youtube-comments-panel .youtube-hermes-card {
+  min-height: min-content !important;
+  overflow: visible !important;
 }
 
 #admin-stamp-stack #youtube-comments-panel .youtube-progress-card {
@@ -17274,12 +17294,9 @@ body {
   text-align: center !important;
 }
 
-@media (max-height: 720px) {
-  #admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
-    grid-template-rows: minmax(7rem, 1fr) minmax(9rem, 1.6fr) minmax(12rem, 2.4fr) !important;
-    min-height: 29rem !important;
-  }
-}
+/* No media query for the rail: it is fixed-geometry on every viewport.
+   The @media (max-height: 720px) override that reflowed these tracks was
+   removed — a broadcast rail must not change shape with window size. */
 
 
 /* LIVE Breaking News ticker MOVEd to the very top of the page. */
@@ -18565,9 +18582,13 @@ body #left-panel-stack #scene-shot-list {
 /* Full Hermes diagnostics are permanently open in the first Live Comments
    lane. This card is never a fixed overlay, separate rail, or disclosure. */
 #admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
-  grid-template-rows: auto minmax(8rem, 2fr) minmax(10rem, 3fr) auto !important;
+  grid-template-rows:
+    max-content
+    22rem
+    26rem
+    max-content !important;
   min-height: 0 !important;
-  max-height: calc(100dvh - var(--gev-top-chrome-height, 4rem) - .5rem) !important;
+  max-height: none !important;
 }
 
 #youtube-comments-panel #hermes-agent-card {
@@ -18582,7 +18603,7 @@ body #left-panel-stack #scene-shot-list {
   min-width: 0 !important;
   min-height: 0 !important;
   max-width: 100% !important;
-  max-height: min(46dvh, 24rem) !important;
+  max-height: none !important;
   margin: 0 !important;
   padding: .45rem .5rem !important;
   overflow-x: hidden !important;
@@ -18711,11 +18732,8 @@ body #left-panel-stack #scene-shot-list {
   box-sizing: border-box !important;
 }
 
-@media (max-width: 760px), (max-height: 720px) {
-  #youtube-comments-panel .youtube-chat-cards {
-    grid-template-rows: auto minmax(7rem, 2fr) minmax(9rem, 3fr) auto !important;
-  }
-}
+/* Intentionally no responsive override for .youtube-chat-cards here: the rail
+   holds one fixed composition at every width and height. */
 
 /* The complete Youtube/Hermes rail occupies the full right edge. Do not
    subtract unrelated dock heights or clip the rail/card contents. */
@@ -18753,16 +18771,21 @@ body #left-panel-stack #scene-shot-list {
   max-height: 4.25rem !important;
 }
 
+/* The rail is a fixed-geometry broadcast surface, not a responsive panel.
+   Lane heights are absolute rem so the composition is identical on every
+   window and stream size; viewport units (dvh) previously reflowed the lanes
+   and let content spill into the neighbouring track. Do not reintroduce
+   dvh/vh sizing or a media query here — see docs/CURRENT-STATE.md. */
 #admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   height: auto !important;
   max-height: none !important;
   grid-template-rows:
-    auto
-    minmax(14rem, 42dvh)
-    minmax(18rem, 50dvh)
-    auto !important;
+    max-content
+    22rem
+    26rem
+    max-content !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
   overscroll-behavior: contain !important;
@@ -18780,4 +18803,157 @@ body #left-panel-stack #scene-shot-list {
 #admin-stamp-stack #youtube-comments-panel #hermes-agent-card {
   max-height: none !important;
   overflow: visible !important;
+}\n
+
+
+/* === GEV_LEFT_YT_CHROME_V1 ===
+   YouTube-style top chrome toolbar — sticky tippy-top of #left-panel-stack.
+   order:-30 (more negative than #left-nav-autoscroll-bar at -20).
+   Do not place on globe / Youtube Chat rail / command dock. */
+#left-yt-chrome,
+nav.left-yt-chrome {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 9 !important;
+  flex: 0 0 auto !important;
+  order: -30 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.35rem !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 0 0.35rem !important;
+  padding: 0.28rem 0.3rem !important;
+  border: none !important;
+  background: transparent !important;
+  pointer-events: auto !important;
+}
+
+#left-panel-stack > #left-yt-chrome {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+  pointer-events: auto !important;
+}
+
+#left-yt-chrome .left-yt-ask,
+#left-yt-chrome .left-yt-create,
+#left-yt-chrome .left-yt-icon-btn,
+#left-yt-chrome .left-yt-bell {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  cursor: pointer;
+  color: #f1f1f1;
+  background: #272727;
+  font-family: inherit;
+  line-height: 1;
+  pointer-events: auto !important;
+  transition: background 0.15s ease, filter 0.15s ease;
+}
+
+#left-yt-chrome .left-yt-ask:hover,
+#left-yt-chrome .left-yt-create:hover,
+#left-yt-chrome .left-yt-icon-btn:hover,
+#left-yt-chrome .left-yt-bell:hover {
+  background: #3f3f3f;
+  filter: brightness(1.05);
+}
+
+#left-yt-chrome .left-yt-ask:focus-visible,
+#left-yt-chrome .left-yt-create:focus-visible,
+#left-yt-chrome .left-yt-icon-btn:focus-visible,
+#left-yt-chrome .left-yt-bell:focus-visible {
+  outline: 2px solid rgba(62, 166, 255, 0.85);
+  outline-offset: 2px;
+}
+
+#left-yt-chrome .left-yt-ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 2rem;
+  padding: 0 0.7rem 0 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+#left-yt-chrome .left-yt-ask-icon {
+  font-size: 1.05rem !important;
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 auto;
+  color: #fff;
+}
+
+#left-yt-chrome .left-yt-ask-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#left-yt-chrome .left-yt-icon-btn,
+#left-yt-chrome .left-yt-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 999px;
+}
+
+#left-yt-chrome .left-yt-icon-btn .material-symbols-outlined,
+#left-yt-chrome .left-yt-bell .material-symbols-outlined,
+#left-yt-chrome .left-yt-create .material-symbols-outlined {
+  font-size: 1.15rem !important;
+  width: 1.15rem;
+  height: 1.15rem;
+  color: #fff;
+}
+
+#left-yt-chrome .left-yt-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex: 0 0 auto;
+  height: 2rem;
+  padding: 0 0.65rem 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#left-yt-chrome .left-yt-bell-badge {
+  position: absolute;
+  top: -0.15rem;
+  right: -0.15rem;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.22rem;
+  border-radius: 999px;
+  background: #cc0000;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1rem;
+  text-align: center;
+  box-sizing: border-box;
+  pointer-events: none;
+  box-shadow: 0 0 0 1.5px #0f0f0f;
+}
+
+#left-yt-chrome .left-yt-bell-badge[hidden],
+#left-yt-chrome .left-yt-bell-badge.is-empty {
+  display: none !important;
 }
