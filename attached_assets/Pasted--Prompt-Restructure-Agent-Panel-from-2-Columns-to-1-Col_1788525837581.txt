@@ -1,0 +1,30 @@
+# Prompt: Restructure Agent Panel from 2 Columns to 1 Column
+
+Restructure my agent status panel (the "HERMES AGENT" sidebar in the YouTube Chat / Cloud Computer AI Live Stream UI) from a 2-column layout to a single-column layout. Do NOT remove, rename, or reword any content — only change the layout structure. Keep the existing dark terminal aesthetic exactly as-is (black/near-black backgrounds, cyan headers, yellow highlights, green status, red failure text, monospace font).
+
+## Layout rules
+
+1. **One column, top to bottom.** Replace every side-by-side pair or grid with a vertical stack. The panel becomes a single flex column (`display: flex; flex-direction: column; gap: 12px`).
+
+2. **Agent status bar** (HERMES AGENT / RESPONDING / HERMES RUNNING): currently three items in one row — stack them vertically inside one card, in that order.
+
+3. **Status cards** (SEEING, INTERPRETING, ATTEMPTING, OBSERVING, LEARNING): currently a 2-column grid — make each card full-width and stack them in this order:
+   - SEEING — "Live interface and bounded globe frame"
+   - INTERPRETING — "Training waiting"
+   - ATTEMPTING — "Ready for the next viewer turn"
+   - OBSERVING — "Waiting for the next observed result"
+   - LEARNING — "37 saved lessons · skill 0.0.37"
+   Each card keeps its small cyan uppercase label on top and its body text below.
+
+4. **Label/value rows** (PROVIDER / MODEL, CAPABILITIES, LATEST FAILURE, SAVED LESSONS): currently label in a left column, value in a right column — change to label ABOVE value, both full-width. The long SAVED LESSONS list becomes one full-width flowing block (this fixes the cramped narrow wrapping).
+
+5. **Buttons** (PAUSE, RESUME, INSPECT, CLEAR, ROLLBACK): currently in a row — stack them as full-width buttons, one per line, in that order.
+
+6. **Comment sections** (LIVE COMMENTS IN PROGRESS, ALL LIVE COMMENTS): already single-column — keep them as-is, full-width, at the bottom.
+
+## Constraints
+
+- Preserve ALL text content verbatim, including the full SAVED LESSONS list.
+- Preserve all colors, fonts, borders, and letter-spacing.
+- No horizontal scrolling; everything fits the panel width.
+- Use flex/grid with `gap` for spacing, not margins between siblings.
