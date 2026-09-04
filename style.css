@@ -18152,3 +18152,78 @@ body #left-panel-stack #scene-shot-list {
   max-height: none !important;
   overflow: visible !important;
 }
+
+
+/* === GEV_SETTINGS_SUMMARY_TICKER_V1 ===
+   SUMMARY OF CURRENT SETTINGS ticker sits under LIVE Breaking News.
+   North chrome grows so Cesium / left stack stay clear. */
+:root {
+  --settings-summary-ticker-height: 2rem;
+  --gev-top-chrome-height: calc(
+    var(--broadcast-legend-height, 2rem) +
+    var(--live-news-ticker-height, 2rem) +
+    var(--settings-summary-ticker-height)
+  );
+}
+
+#settings-summary-ticker,
+.settings-summary-ticker {
+  position: fixed !important;
+  top: calc(var(--broadcast-legend-height, 2rem) + var(--live-news-ticker-height, 2rem)) !important;
+  right: 0 !important;
+  bottom: auto !important;
+  left: 0 !important;
+  z-index: 1399 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.55rem !important;
+  min-height: var(--settings-summary-ticker-height) !important;
+  height: var(--settings-summary-ticker-height) !important;
+  padding: 0.28rem max(0.75rem, env(safe-area-inset-left)) 0.28rem max(0.75rem, env(safe-area-inset-right)) !important;
+  box-sizing: border-box !important;
+  background: rgba(2, 18, 28, 0.94) !important;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.35) !important;
+  color: #d7f7ff !important;
+  font: 700 0.68rem/1.2 var(--font-mono, ui-monospace, monospace) !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  pointer-events: none !important;
+}
+
+.settings-summary-ticker-label {
+  flex: 0 0 auto !important;
+  color: #7ef0ff !important;
+  white-space: nowrap !important;
+}
+
+.settings-summary-ticker-viewport {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.settings-summary-ticker-content {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+  min-width: max-content !important;
+  padding-left: 100% !important;
+  animation: settings-summary-ticker-scroll 48s linear infinite !important;
+  will-change: transform !important;
+  color: #e8fbff !important;
+  font-weight: 600 !important;
+}
+
+.settings-summary-ticker-content span {
+  white-space: nowrap !important;
+}
+
+@keyframes settings-summary-ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+#settings-summary-ticker:hover .settings-summary-ticker-content {
+  animation-play-state: paused !important;
+}
