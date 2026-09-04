@@ -5,6 +5,12 @@
  * @module leftYtChrome
  */
 
+import {
+  EVENT as ROYALTY_FREE_MUSIC_EVENT,
+  FALLBACK_URLS,
+  getPlaylistUrls,
+} from './royaltyFreeMusic.js';
+
 /**
  * @param {string} text
  */
@@ -48,22 +54,6 @@ function focusScroll(el) {
   return true;
 }
 
-/**
- * @param {Document} doc
- */
-
-/** Local SoundHelix demos (royalty-free sample beds served from /music). */
-const ROYALTY_FREE_MUSIC_URLS = [
-  "/music/soundhelix-1.mp3",
-  "/music/soundhelix-2.mp3",
-  "/music/soundhelix-3.mp3",
-];
-
-/**
- * @param {Document} doc
- * @returns {{ toggle: () => Promise<void>, stop: () => void, isPlaying: () => boolean }}
- */
-
 const MUSIC_SPEED_KEY = "gev:left-yt-music-speed";
 const MUSIC_SPEEDS = [0.5, 0.75, 0.85, 1, 1.25, 1.5];
 
@@ -96,6 +86,8 @@ function createRoyaltyFreeMusicPlayer(doc) {
   /** @type {HTMLAudioElement | null} */
   let audio = null;
   let trackIndex = 0;
+  /** @type {string[]} */
+  let playlistUrls = [...FALLBACK_URLS];
 
   const btn = () => doc.getElementById("left-yt-music");
   const icon = () => btn()?.querySelector(".material-symbols-outlined");
@@ -109,6 +101,18 @@ function createRoyaltyFreeMusicPlayer(doc) {
     if (ic) ic.textContent = playing ? "volume_up" : "volume_off";
   };
 
+  const refreshPlaylist = async () => {
+    try {
+      const urls = await getPlaylistUrls();
+      playlistUrls = Array.isArray(urls) && urls.length ? urls : [...FALLBACK_URLS];
+    } catch (err) {
+      console.warn("[left-yt-chrome] playlist resolve failed", err);
+      playlistUrls = [...FALLBACK_URLS];
+    }
+    if (trackIndex >= playlistUrls.length) trackIndex = 0;
+    return playlistUrls;
+  };
+
   const ensureAudio = () => {
     if (audio) return audio;
     audio = doc.createElement("audio");
@@ -120,9 +124,13 @@ function createRoyaltyFreeMusicPlayer(doc) {
     audio.style.display = "none";
     audio.dataset.gevRoyaltyFreeMusic = "true";
     audio.addEventListener("ended", () => {
-      trackIndex = (trackIndex + 1) % ROYALTY_FREE_MUSIC_URLS.length;
+      if (!playlistUrls.length) {
+        syncUi(false);
+        return;
+      }
+      trackIndex = (trackIndex + 1) % playlistUrls.length;
       if (!audio) return;
-      audio.src = ROYALTY_FREE_MUSIC_URLS[trackIndex];
+      audio.src = playlistUrls[trackIndex];
       audio.play().then(() => syncUi(true)).catch(() => syncUi(false));
     });
     audio.addEventListener("pause", () => {
@@ -132,6 +140,38 @@ function createRoyaltyFreeMusicPlayer(doc) {
     (doc.body || doc.documentElement).appendChild(audio);
     return audio;
   };
+
+  const onConfigChanged = () => {
+    void (async () => {
+      const wasPlaying = Boolean(audio && !audio.paused && !audio.ended);
+      await refreshPlaylist();
+      if (!audio) return;
+      if (!playlistUrls.length) {
+        try { audio.pause(); } catch { /* ignore */ }
+        syncUi(false);
+        softToast("Music beds disabled");
+        return;
+      }
+      if (wasPlaying) {
+        trackIndex = 0;
+        audio.src = playlistUrls[0];
+        try {
+          await audio.play();
+          syncUi(true);
+        } catch {
+          syncUi(false);
+        }
+      }
+      // If paused, updated list applies on next play / ended.
+    })();
+  };
+
+  try {
+    globalThis.document?.addEventListener?.(ROYALTY_FREE_MUSIC_EVENT, onConfigChanged);
+    globalThis.addEventListener?.(ROYALTY_FREE_MUSIC_EVENT, onConfigChanged);
+  } catch { /* ignore */ }
+
+  void refreshPlaylist();
 
   return {
     isPlaying() {
@@ -156,7 +196,15 @@ function createRoyaltyFreeMusicPlayer(doc) {
         softToast("Music paused");
         return;
       }
-      if (!a.src) a.src = ROYALTY_FREE_MUSIC_URLS[trackIndex];
+      await refreshPlaylist();
+      if (!playlistUrls.length) {
+        syncUi(false);
+        softToast("No music beds enabled — check ADMIN → Royalty-Free Music");
+        return;
+      }
+      if (trackIndex >= playlistUrls.length) trackIndex = 0;
+      // Always bind to the resolved playlist entry so ADMIN Save takes effect.
+      a.src = playlistUrls[trackIndex];
       try {
         await a.play();
         syncUi(true);
@@ -168,6 +216,10 @@ function createRoyaltyFreeMusicPlayer(doc) {
       }
     },
     stop() {
+      try {
+        globalThis.document?.removeEventListener?.(ROYALTY_FREE_MUSIC_EVENT, onConfigChanged);
+        globalThis.removeEventListener?.(ROYALTY_FREE_MUSIC_EVENT, onConfigChanged);
+      } catch { /* ignore */ }
       try { audio?.pause?.(); } catch { /* ignore */ }
       try { audio?.remove?.(); } catch { /* ignore */ }
       audio = null;

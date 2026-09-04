@@ -34,6 +34,8 @@
   "scripts": {
     "dev": "vite",
     "dev:secure": "./scripts/dev-secure.sh",
+    "hermes:dashboard": "bash scripts/hermes-dashboard-replit.sh",
+    "hermes:dashboard:status": "HERMES_HOME=$PWD/.hermes ./bin/hermes dashboard --status",
     "opensky:import": "./scripts/opensky-import-client.sh",
     "build": "vite build",
     "preview": "vite preview",

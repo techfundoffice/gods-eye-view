@@ -22,5 +22,11 @@
     "label": "Youtube AI Comment Harness",
     "description": "Read YouTube comments into NextChat and apply validated #Task globe views.",
     "module": "./youtube-ai-comment-harness.js"
+  },
+  {
+    "id": "royalty-free-music",
+    "label": "Royalty-Free Music",
+    "description": "Select beds for the left-nav speaker (#left-yt-music)",
+    "module": "./royalty-free-music.js"
   }
 ]

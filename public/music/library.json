@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "attribution": "SoundHelix demo MP3s (https://www.soundhelix.com/) — local copies under /music",
+  "tracks": [
+    {"id": "soundhelix-1", "title": "SoundHelix Song 1", "url": "/music/soundhelix-1.mp3", "source": "SoundHelix"},
+    {"id": "soundhelix-2", "title": "SoundHelix Song 2", "url": "/music/soundhelix-2.mp3", "source": "SoundHelix"},
+    {"id": "soundhelix-3", "title": "SoundHelix Song 3", "url": "/music/soundhelix-3.mp3", "source": "SoundHelix"}
+  ],
+  "defaultActiveIds": ["soundhelix-1", "soundhelix-2", "soundhelix-3"]
+}

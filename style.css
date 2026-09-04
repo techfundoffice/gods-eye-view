@@ -19012,3 +19012,130 @@ nav.left-yt-chrome {
   background: #1a1a1a;
   color: #fff;
 }
+
+/* === GEV_ADMIN_RF_MUSIC_V1 === */
+.admin-rf-music {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 42rem;
+}
+.admin-rf-music-title {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+.admin-rf-music-lead,
+.admin-rf-music-attribution,
+.admin-rf-music-note,
+.admin-rf-music-message,
+.admin-rf-music-empty {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+  letter-spacing: 0.2px;
+  color: var(--text-secondary);
+}
+.admin-rf-music-attribution {
+  color: var(--accent);
+  opacity: 0.9;
+}
+.admin-rf-music-enable {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  letter-spacing: 0.4px;
+  text-transform: none;
+  font-size: 11px !important;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.admin-rf-music-enable input {
+  width: auto;
+  margin: 0;
+}
+.admin-rf-music-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  max-height: 28vh;
+  overflow: auto;
+}
+.admin-rf-music-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.admin-rf-music-track input {
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+.admin-rf-music-track-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-rf-music-track-detail {
+  font-size: 10px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+.admin-rf-music-subtitle {
+  margin: 4px 0 0;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.admin-rf-music-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.admin-rf-music-add-row .admin-field {
+  flex: 1 1 14rem;
+}
+.admin-rf-music-custom-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-rf-music-custom-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.admin-rf-music-custom-url {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+.admin-rf-music-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-rf-music-message.warn {
+  color: #ff7272;
+}
+.admin-rf-music-message[hidden] { display: none; }
