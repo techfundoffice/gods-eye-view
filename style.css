@@ -18967,3 +18967,48 @@ nav.left-yt-chrome {
 #left-yt-chrome .left-yt-music[aria-pressed="true"] .material-symbols-outlined {
   color: #9eecff !important;
 }
+
+/* === GEV_LEFT_YT_MUSIC_SPEED_V1 === */
+#left-yt-chrome .left-yt-speed {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.2rem !important;
+  flex: 0 0 auto !important;
+  height: 2rem !important;
+  padding: 0 0.35rem 0 0.4rem !important;
+  border-radius: 999px !important;
+  background: #272727 !important;
+  color: #f1f1f1 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+#left-yt-chrome .left-yt-speed-label {
+  font-size: 0.58rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  opacity: 0.75 !important;
+}
+#left-yt-chrome #left-yt-music-speed {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: none !important;
+  background: transparent !important;
+  color: #fff !important;
+  font-size: 0.72rem !important;
+  font-weight: 650 !important;
+  padding: 0 0.15rem 0 0 !important;
+  margin: 0 !important;
+  height: 1.6rem !important;
+  cursor: pointer !important;
+  outline: none !important;
+}
+#left-yt-chrome #left-yt-music-speed:focus-visible {
+  outline: 2px solid rgba(62, 166, 255, 0.85) !important;
+  outline-offset: 1px !important;
+  border-radius: 0.25rem !important;
+}
+#left-yt-chrome #left-yt-music-speed option {
+  background: #1a1a1a;
+  color: #fff;
+}

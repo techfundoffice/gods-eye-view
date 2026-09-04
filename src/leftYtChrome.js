@@ -63,6 +63,35 @@ const ROYALTY_FREE_MUSIC_URLS = [
  * @param {Document} doc
  * @returns {{ toggle: () => Promise<void>, stop: () => void, isPlaying: () => boolean }}
  */
+
+const MUSIC_SPEED_KEY = "gev:left-yt-music-speed";
+const MUSIC_SPEEDS = [0.5, 0.75, 0.85, 1, 1.25, 1.5];
+
+/**
+ * @param {Document} doc
+ * @returns {number}
+ */
+function readSpeed(doc) {
+  const sel = doc.getElementById("left-yt-music-speed");
+  let raw = sel?.value;
+  if (raw == null || raw === "") {
+    try { raw = globalThis.sessionStorage?.getItem(MUSIC_SPEED_KEY); } catch { /* ignore */ }
+  }
+  const n = Number.parseFloat(String(raw ?? "1"));
+  if (MUSIC_SPEEDS.includes(n)) return n;
+  return 1;
+}
+
+/**
+ * @param {Document} doc
+ * @param {number} rate
+ */
+function writeSpeed(doc, rate) {
+  const sel = doc.getElementById("left-yt-music-speed");
+  if (sel) sel.value = String(rate);
+  try { globalThis.sessionStorage?.setItem(MUSIC_SPEED_KEY, String(rate)); } catch { /* ignore */ }
+}
+
 function createRoyaltyFreeMusicPlayer(doc) {
   /** @type {HTMLAudioElement | null} */
   let audio = null;
@@ -85,6 +114,8 @@ function createRoyaltyFreeMusicPlayer(doc) {
     audio = doc.createElement("audio");
     audio.id = "left-yt-music-audio";
     audio.preload = "none";
+    audio.playbackRate = readSpeed(doc);
+    audio.preservesPitch = true;
     audio.loop = false;
     audio.style.display = "none";
     audio.dataset.gevRoyaltyFreeMusic = "true";
@@ -106,8 +137,19 @@ function createRoyaltyFreeMusicPlayer(doc) {
     isPlaying() {
       return Boolean(audio && !audio.paused && !audio.ended);
     },
+    setRate(rate) {
+      const n = Number.parseFloat(String(rate));
+      const speed = MUSIC_SPEEDS.includes(n) ? n : 1;
+      writeSpeed(doc, speed);
+      if (audio) {
+        audio.playbackRate = speed;
+        audio.preservesPitch = true;
+      }
+    },
     async toggle() {
       const a = ensureAudio();
+      a.playbackRate = readSpeed(doc);
+      a.preservesPitch = true;
       if (!a.paused && !a.ended) {
         a.pause();
         syncUi(false);
@@ -254,6 +296,20 @@ export function initLeftYtChrome(doc = globalThis.document) {
   bell?.addEventListener('click', onBell);
   const onMusic = () => { musicPlayer.toggle(); };
   music?.addEventListener('click', onMusic);
+  const speedSel = doc.getElementById('left-yt-music-speed');
+  if (speedSel) {
+    try {
+      const saved = readSpeed(doc);
+      speedSel.value = String(saved);
+      musicPlayer.setRate(saved);
+    } catch { /* ignore */ }
+  }
+  const onMusicSpeed = () => {
+    const rate = Number.parseFloat(String(speedSel?.value || '1')) || 1;
+    musicPlayer.setRate(rate);
+    softToast(`Music speed ${rate}x`);
+  };
+  speedSel?.addEventListener('change', onMusicSpeed);
 
   syncBellBadge(doc);
   let observer = null;
@@ -275,6 +331,7 @@ export function initLeftYtChrome(doc = globalThis.document) {
       create?.removeEventListener('click', onCreate);
       bell?.removeEventListener('click', onBell);
       music?.removeEventListener('click', onMusic);
+      speedSel?.removeEventListener('change', onMusicSpeed);
       try { musicPlayer.stop(); } catch { /* ignore */ }
       try { observer?.disconnect?.(); } catch { /* ignore */ }
     },
