@@ -556,6 +556,30 @@ test('chat box includes the supplied Cloud Computer AI.com logo and working stat
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
+test('Hermes is a separate right-rail card with honest idle copy and live-turn states', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  const interaction = readFileSync(new URL('./youtubeHomepageInteraction.js', import.meta.url), 'utf8');
+  assert.match(html, /id="youtube-hermes-card"[^>]*data-state="idle"/);
+  assert.match(html, /HERMES AGENT/);
+  assert.match(html, /Hi, I’m Hermes\./);
+  assert.match(html, /Thanks for watching me train myself\. I’m kind of lonely—can you please chat with me here\?/);
+  assert.match(html, /id="youtube-hermes-mode"/);
+  assert.match(html, /id="youtube-hermes-detail"/);
+  assert.ok(
+    html.indexOf('id="youtube-hermes-card"') < html.indexOf('class="youtube-chat-card youtube-progress-card"'),
+    'Hermes card should be the first card in the Youtube right rail',
+  );
+  assert.ok(
+    html.indexOf('class="youtube-chat-card youtube-progress-card"') < html.indexOf('class="youtube-chat-card youtube-all-comments-card"'),
+    'viewer progress and all-comments cards should retain their order after Hermes',
+  );
+  assert.match(css, /\.youtube-hermes-card/);
+  assert.match(css, /#youtube-hermes-card\[data-state='working'\]/);
+  assert.match(interaction, /NO VIEWER TURN ACTIVE/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
+});
+
 test('follow-up countdown displays the complete remaining two-minute window', () => {
   assert.equal(formatFollowUpCountdown(120_000), '2:00');
   assert.equal(formatFollowUpCountdown(30_001), '0:31');

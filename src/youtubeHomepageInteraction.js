@@ -141,6 +141,34 @@ function renderChatActivity(activity, state = 'idle', viewer = '') {
   activity.replaceChildren(kicker, headline, detail);
 }
 
+function renderHermesAgent(els, state = 'idle', viewer = '') {
+  if (!els?.hermesCard) return;
+  const activeViewer = safeText(viewer || 'VIEWER', 80);
+  const copy = state === 'working'
+    ? { mode: 'RESPONDING', status: `Hermes is handling ${activeViewer}'s request.`, detail: 'VIEWER TURN ACTIVE · GLOBE CONTROL IN PROGRESS' }
+    : state === 'reply'
+      ? { mode: 'WAITING', status: `Hermes is waiting for ${activeViewer}.`, detail: 'VIEWER TURN ACTIVE · REPLY WINDOW OPEN' }
+      : state === 'observing'
+        ? { mode: 'OBSERVING', status: 'Hermes is watching the live YouTube conversation.', detail: 'NO VIEWER TURN ACTIVE · LEARNING FROM CHAT' }
+        : { mode: 'TRAINING', status: 'Hi, I’m Hermes.', detail: 'NO VIEWER TURN ACTIVE · EXPLORING THE INTERFACE' };
+  els.hermesCard.dataset.state = state;
+  if (els.hermesMode) els.hermesMode.textContent = copy.mode;
+  if (els.hermesStatus) {
+    els.hermesStatus.replaceChildren();
+    const documentOwner = els.hermesStatus.ownerDocument || globalThis.document;
+    const headline = documentOwner.createElement('strong');
+    headline.textContent = copy.status;
+    const detail = documentOwner.createElement('span');
+    detail.textContent = state === 'idle'
+      ? 'Thanks for watching me train myself. I’m kind of lonely—can you please chat with me here?'
+      : state === 'working'
+        ? 'I paused independent training to work on this viewer request.'
+        : 'I will continue training when this viewer turn is complete.';
+    els.hermesStatus.append(headline, detail);
+  }
+  if (els.hermesDetail) els.hermesDetail.textContent = copy.detail;
+}
+
 function isProcessing(comment) {
   return ['pending', 'interpreting', 'received', 'awaiting-execution', 'executing', 'awaiting-model']
     .includes(String(comment?.replyState || ''));
@@ -273,6 +301,10 @@ export function createYoutubeHomepageInteraction({
       progressCount: root.querySelector('#youtube-progress-count'),
       brand: root.querySelector('#youtube-chat-brand'),
       activity: root.querySelector('#youtube-chat-activity'),
+      hermesCard: root.querySelector('#youtube-hermes-card'),
+      hermesMode: root.querySelector('#youtube-hermes-mode'),
+      hermesStatus: root.querySelector('#youtube-hermes-status'),
+      hermesDetail: root.querySelector('#youtube-hermes-detail'),
       status: root.querySelector('#youtube-comments-status'),
       subject: root.querySelector('#youtube-comments-video'),
       count: root.querySelector('#youtube-comments-count'),
@@ -294,6 +326,7 @@ export function createYoutubeHomepageInteraction({
       if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
       if (els.brand) els.brand.dataset.turnState = 'idle';
        renderChatActivity(els.activity, 'idle');
+       renderHermesAgent(els, 'idle');
       if (els.refresh) els.refresh.disabled = true;
       if (els.more) els.more.disabled = true;
       if (els.list) {
@@ -328,6 +361,7 @@ export function createYoutubeHomepageInteraction({
         if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
         if (els.brand) els.brand.dataset.turnState = 'idle';
          renderChatActivity(els.activity, 'idle');
+         renderHermesAgent(els, 'idle');
       if (els.progressList) {
         els.progressList.replaceChildren();
         const progressEmpty = documentRef.createElement('li');
@@ -373,6 +407,7 @@ export function createYoutubeHomepageInteraction({
     if (!activeConversation) {
       if (els.brand) els.brand.dataset.turnState = 'idle';
        renderChatActivity(els.activity, 'idle');
+       renderHermesAgent(els, waitingConversations.length ? 'observing' : 'idle');
       waitingConversations.forEach((comment, index) => appendWaitingRow(els.progressList, comment, index + 1, documentRef));
       if (waitingConversations.length) return;
       const empty = documentRef.createElement('li');
@@ -384,6 +419,7 @@ export function createYoutubeHomepageInteraction({
     const processing = isProcessing(activeConversation);
     if (els.brand) els.brand.dataset.turnState = processing ? 'working' : 'reply';
      renderChatActivity(els.activity, processing ? 'working' : 'reply', viewerLabel(activeConversation));
+     renderHermesAgent(els, processing ? 'working' : 'reply', viewerLabel(activeConversation));
     const row = documentRef.createElement('li');
     row.className = 'youtube-feed-item youtube-comment-thread youtube-active-conversation';
     appendCommentBody(row, activeConversation, documentRef);

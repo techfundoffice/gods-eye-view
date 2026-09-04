@@ -17034,12 +17034,72 @@ body {
 /* Stable two-lane Youtube Chat: active exchanges above, complete feed below. */
 #admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
   display: grid !important;
-  grid-template-rows: minmax(13rem, 2fr) minmax(16rem, 3fr) !important;
+  grid-template-rows: minmax(8rem, 1.25fr) minmax(13rem, 2fr) minmax(16rem, 3fr) !important;
   gap: 0.55rem !important;
   flex: 1 1 auto !important;
   min-height: 30rem !important;
   max-height: calc(100dvh - 7.5rem) !important;
   overflow: hidden !important;
+}
+
+/* Hermes is a separate, honest operator readout: the state is derived from
+   the live YouTube turn above, never from an implied background learner. */
+#admin-stamp-stack #youtube-comments-panel .youtube-hermes-card {
+  border-color: rgba(166, 132, 255, 0.34) !important;
+  background: linear-gradient(135deg, rgba(16, 13, 31, 0.92), rgba(3, 16, 26, 0.86)) !important;
+}
+
+.youtube-hermes-mode {
+  color: #c9b8ff;
+  font: 800 9px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+}
+
+.youtube-hermes-status {
+  display: grid;
+  gap: 0.38rem;
+  padding: 0.65rem 0.15rem 0.45rem;
+  color: #f5fdff;
+  font: 500 11px/1.35 var(--font-sans);
+}
+
+.youtube-hermes-status strong {
+  color: #d7caff;
+  font: 800 12px/1.25 var(--font-mono);
+}
+
+.youtube-hermes-status span {
+  color: rgba(232, 234, 237, 0.72);
+}
+
+.youtube-hermes-detail {
+  margin-top: auto;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(166, 132, 255, 0.18);
+  color: rgba(201, 184, 255, 0.82);
+  font: 700 8px/1.35 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+#youtube-hermes-card[data-state='working'] {
+  border-color: rgba(255, 210, 74, 0.48) !important;
+}
+
+#youtube-hermes-card[data-state='working'] .youtube-hermes-mode,
+#youtube-hermes-card[data-state='working'] .youtube-hermes-status strong {
+  color: #ffd24a;
+}
+
+#youtube-hermes-card[data-state='reply'] {
+  border-color: rgba(126, 240, 255, 0.42) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #youtube-hermes-card,
+  #youtube-hermes-card * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 #admin-stamp-stack #youtube-comments-panel .youtube-chat-card {
@@ -17166,8 +17226,8 @@ body {
 
 @media (max-height: 720px) {
   #admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
-    grid-template-rows: minmax(10rem, 2fr) minmax(12rem, 3fr) !important;
-    min-height: 23rem !important;
+    grid-template-rows: minmax(7rem, 1fr) minmax(9rem, 1.6fr) minmax(12rem, 2.4fr) !important;
+    min-height: 29rem !important;
   }
 }
 
