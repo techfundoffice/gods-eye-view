@@ -255,6 +255,9 @@ async function init() {
     try { initImageLibrary(document); } catch (err) { console.warn('[image-library]', err); }
     try { initLeftYtChrome(document); } catch (err) { console.warn('[left-yt-chrome]', err); }
     try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
+    // Second view of the same stream, muted so the two copies do not echo.
+    try { initHomeVideo(document, { rootId: 'gev-home-video-2', muted: true, primary: false }); }
+    catch (err) { console.warn('[home-video-2]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
     try { viewer?.destroy?.(); } catch (destroyError) {
       console.warn('[Init] Partial viewer cleanup failed:', destroyError);
@@ -700,6 +703,9 @@ async function init() {
     try { initImageLibrary(document); } catch (err) { console.warn('[image-library]', err); }
     try { initLeftYtChrome(document); } catch (err) { console.warn('[left-yt-chrome]', err); }
     try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
+    // Second view of the same stream, muted so the two copies do not echo.
+    try { initHomeVideo(document, { rootId: 'gev-home-video-2', muted: true, primary: false }); }
+    catch (err) { console.warn('[home-video-2]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
 
   } catch (error) {

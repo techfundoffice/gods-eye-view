@@ -108,6 +108,32 @@ function displayViewerLabel(value) {
   return `${label.slice(0, 27).trimEnd()}…`;
 }
 
+/** Ensure a public @handle for the brand greeting. */
+function formatAtHandle(value) {
+  const raw = safeText(value || 'Username', 80).replace(/^@+/, '').trim();
+  return `@${raw || 'Username'}`;
+}
+
+/** Newest live comment author → @handle (fallback @Username). */
+function latestCommentHandle(comments) {
+  if (!Array.isArray(comments) || !comments.length) return '@Username';
+  let best = comments[0];
+  let bestTs = Date.parse(best?.publishedAt) || 0;
+  for (let i = 1; i < comments.length; i += 1) {
+    const row = comments[i];
+    const ts = Date.parse(row?.publishedAt) || 0;
+    if (ts >= bestTs) {
+      best = row;
+      bestTs = ts;
+    }
+  }
+  return formatAtHandle(best?.authorHandle || best?.author || 'Username');
+}
+
+function helloHeadline(viewer) {
+  return `Hello ${formatAtHandle(viewer || 'Username')}, How can I help you today?`;
+}
+
 /**
  * The status sits in a streamed 720p composition, where a single all-caps
  * sentence loses the important information. Keep the state and the person in
@@ -121,13 +147,13 @@ function renderChatActivity(activity, state = 'idle', viewer = '') {
     ? { kicker: 'CAMERA CONTROL IN PROGRESS', headline: visibleViewer, detail: 'DIRECTING THE GLOBE' }
     : state === 'reply'
       ? { kicker: 'AWAITING REPLY', headline: visibleViewer, detail: 'YOUR TURN IN CHAT' }
-      : { kicker: 'LIVE CAMERA DESK', headline: 'NOW TAKING REQUESTS', detail: 'WAITING FOR THE NEXT VIEWER REQUEST' };
+      : { kicker: 'LIVE CAMERA DESK', headline: helloHeadline(viewer || 'Username'), detail: 'WAITING FOR THE NEXT VIEWER REQUEST' };
   activity.dataset.state = state;
   activity.setAttribute('aria-label', state === 'working'
     ? `Working on ${fullViewer}'s request`
     : state === 'reply'
       ? `Waiting for ${fullViewer}'s reply`
-      : 'Waiting for the next viewer request');
+      : `Greeting ${formatAtHandle(viewer || 'Username')}`);
   const kicker = activity.ownerDocument.createElement('span');
   kicker.className = 'youtube-chat-activity-kicker';
   kicker.textContent = copy.kicker;
@@ -335,7 +361,7 @@ export function createYoutubeHomepageInteraction({
       if (els.progressCount) els.progressCount.textContent = '0';
       if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
       if (els.brand) els.brand.dataset.turnState = 'idle';
-       renderChatActivity(els.activity, 'idle');
+       renderChatActivity(els.activity, 'idle', latestCommentHandle(liveComments));
        renderHermesAgent(els, 'idle');
       if (els.refresh) els.refresh.disabled = true;
       if (els.more) els.more.disabled = true;
@@ -370,7 +396,7 @@ export function createYoutubeHomepageInteraction({
       if (els.progressCount) els.progressCount.textContent = '0';
         if (els.progressStatus) els.progressStatus.textContent = 'NO ACTIVE VIEWER · 0 WAITING';
         if (els.brand) els.brand.dataset.turnState = 'idle';
-         renderChatActivity(els.activity, 'idle');
+         renderChatActivity(els.activity, 'idle', latestCommentHandle(liveComments));
          renderHermesAgent(els, 'idle');
       if (els.progressList) {
         els.progressList.replaceChildren();
@@ -416,7 +442,7 @@ export function createYoutubeHomepageInteraction({
     }
     if (!activeConversation) {
       if (els.brand) els.brand.dataset.turnState = 'idle';
-       renderChatActivity(els.activity, 'idle');
+       renderChatActivity(els.activity, 'idle', latestCommentHandle(liveComments));
        const waitingForTraining = waitingConversations.some((comment) => /finishes its current training task/i.test(String(comment?.replyReason || '')));
        renderHermesAgent(
          els,

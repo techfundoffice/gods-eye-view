@@ -8,9 +8,12 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 ### Added
 
 - A YouTube player on the home page, directly under the tagline. It autoplays
-  the ADMIN-configured default (muted, because browsers block autoplay with
-  sound) and offers small, medium, and fullscreen. The look-at readout below it
-  moves down as the player grows rather than being covered.
+  the ADMIN-configured default **with sound** and offers small, medium, and
+  fullscreen. The look-at readout below it moves down as the player grows rather
+  than being covered. Because no browser will autoplay audio outright, playback
+  starts muted and the player is unmuted immediately over the YouTube IFrame
+  API; if a browser still holds the sound back, the first click or keypress on
+  the page releases it.
 - A dropdown under the player always lists the ADMIN default video and playlist
   with their URLs, whatever is currently playing; picking one plays it.
 - Viewers can recommend a video, either by pasting a URL under the player or by

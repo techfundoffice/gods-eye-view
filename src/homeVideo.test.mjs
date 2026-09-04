@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_SIZE,
   FLOAT_SIZES,
+  PRIMARY_ROOT_ID,
   SIZES,
   STORAGE_KEY,
   embedUrlFor,
@@ -57,12 +58,15 @@ test('size persistence fails open when storage is unavailable', () => {
   assert.equal(readSize(null), DEFAULT_SIZE);
 });
 
-test('embedUrlFor always autoplays muted from the nocookie origin', () => {
+test('embedUrlFor autoplays from the nocookie origin, muted only to get started', () => {
   const url = new URL(embedUrlFor({ kind: 'video', id: DEFAULT_VIDEO_ID }));
   assert.equal(url.origin, 'https://www.youtube-nocookie.com');
   assert.equal(url.pathname, `/embed/${DEFAULT_VIDEO_ID}`);
   assert.equal(url.searchParams.get('autoplay'), '1');
-  // Autoplay with sound is blocked by browsers, so muted is not optional.
+  // The video is meant to play WITH sound. It still has to start muted because
+  // browsers refuse to autoplay audio at all; the module unmutes over the
+  // IFrame API once the player is ready, which is why enablejsapi is required
+  // rather than merely useful.
   assert.equal(url.searchParams.get('mute'), '1');
   assert.equal(url.searchParams.get('enablejsapi'), '1');
   assert.equal(url.searchParams.get('rel'), '0');
@@ -99,6 +103,42 @@ test('embedUrlFor pins the origin when one is given', () => {
 
 test('initHomeVideo is a no-op without markup, and the tool reports that honestly', async () => {
   assert.equal(initHomeVideo({ getElementById: () => null }), null);
+  const result = await requestHomeVideo({ action: 'play', url: 'https://youtu.be/aqz-KE-bpKQ' });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /not on this page/);
+});
+
+/**
+ * A document stub that records which ids were asked for, which is how the
+ * derived-id scheme is checked without a DOM.
+ */
+function lookupSpy() {
+  const asked = [];
+  return { doc: { getElementById: (id) => { asked.push(id); return null; } }, asked };
+}
+
+test('child ids derive from the root id, matching the shipped markup', () => {
+  const { doc, asked } = lookupSpy();
+  initHomeVideo(doc);
+  assert.equal(asked[0], PRIMARY_ROOT_ID, 'the root is looked up first');
+  // A missing root short-circuits, so only the root is requested.
+  assert.deepEqual(asked, [PRIMARY_ROOT_ID]);
+
+  const second = lookupSpy();
+  initHomeVideo(second.doc, { rootId: 'gev-home-video-2' });
+  assert.deepEqual(second.asked, ['gev-home-video-2']);
+});
+
+test('a missing root is a no-op for any player, not just the primary', () => {
+  assert.equal(initHomeVideo({ getElementById: () => null }), null);
+  assert.equal(initHomeVideo({ getElementById: () => null }, { rootId: 'gev-home-video-2' }), null);
+});
+
+test('PRIMARY_ROOT_ID is the id the shipped markup and the GEV tool agree on', () => {
+  assert.equal(PRIMARY_ROOT_ID, 'gev-home-video');
+});
+
+test('the GEV tool reports honestly when no primary player is mounted', async () => {
   const result = await requestHomeVideo({ action: 'play', url: 'https://youtu.be/aqz-KE-bpKQ' });
   assert.equal(result.ok, false);
   assert.match(result.error, /not on this page/);

@@ -19359,7 +19359,8 @@ nav.left-yt-chrome {
   justify-content: center !important;
 }
 
-#gev-home-video {
+/* The rail owns the grid slot; the players sit side by side inside it. */
+.gev-home-video-rail {
   grid-column: 1 / -1 !important;
   grid-row: 3 !important;
   /* #title-bar is pointer-events:none; this surface takes input, exactly as
@@ -19370,11 +19371,23 @@ nav.left-yt-chrome {
      (z 220). This value only orders it against the title's own children. */
   z-index: 1;
   display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  /* Two Medium players are ~1128px; wrapping beats overflowing a narrow window. */
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100vw - 1.5rem);
+  margin: 0.35rem auto 0;
+}
+
+.gev-home-video {
+  position: relative;
+  display: flex;
   flex-direction: column;
   gap: 6px;
   width: var(--gev-home-video-sm);
   max-width: calc(100vw - 2rem);
-  margin: 0.35rem auto 0;
   padding: 8px;
   box-sizing: border-box;
   border: 1px solid var(--glass-border);
@@ -19386,11 +19399,12 @@ nav.left-yt-chrome {
   transition: width var(--transition-smooth);
 }
 
-#gev-home-video[data-size="md"] { width: var(--gev-home-video-md); }
+.gev-home-video[data-size="md"] { width: var(--gev-home-video-md); }
 
 /* Fullscreen: the browser owns the box, so drop the floating chrome. */
-#gev-home-video[data-size="lg"] {
+.gev-home-video[data-size="lg"] {
   width: 100%;
+  flex: 1 1 100%;
   max-width: none;
   margin: 0;
   border: 0;
@@ -19399,7 +19413,7 @@ nav.left-yt-chrome {
   justify-content: center;
 }
 
-#gev-home-video .gev-home-video-frame {
+.gev-home-video .gev-home-video-frame {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -19407,12 +19421,12 @@ nav.left-yt-chrome {
   border-radius: var(--btn-radius);
   background: #000;
 }
-#gev-home-video[data-size="lg"] .gev-home-video-frame {
+.gev-home-video[data-size="lg"] .gev-home-video-frame {
   border-radius: 0;
   max-height: 100vh;
 }
-#gev-home-video .gev-home-video-mount,
-#gev-home-video .gev-home-video-iframe {
+.gev-home-video .gev-home-video-mount,
+.gev-home-video .gev-home-video-iframe {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -19422,21 +19436,21 @@ nav.left-yt-chrome {
 }
 
 /* Everything below the frame is operator/viewer chrome, not the video. */
-#gev-home-video[data-size="lg"] .gev-home-video-bar,
-#gev-home-video[data-size="lg"] .gev-home-video-recommend,
-#gev-home-video[data-size="lg"] .gev-home-video-now,
-#gev-home-video[data-size="lg"] .gev-home-video-queue,
-#gev-home-video[data-size="lg"] .gev-home-video-hint {
+.gev-home-video[data-size="lg"] .gev-home-video-bar,
+.gev-home-video[data-size="lg"] .gev-home-video-recommend,
+.gev-home-video[data-size="lg"] .gev-home-video-now,
+.gev-home-video[data-size="lg"] .gev-home-video-queue,
+.gev-home-video[data-size="lg"] .gev-home-video-hint {
   display: none;
 }
 
-#gev-home-video .gev-home-video-bar {
+.gev-home-video .gev-home-video-bar {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-#gev-home-video .gev-home-video-source {
+.gev-home-video .gev-home-video-source {
   flex: 1;
   min-width: 0;
   padding: 5px 7px;
@@ -19449,25 +19463,25 @@ nav.left-yt-chrome {
   border-radius: var(--btn-radius);
   text-overflow: ellipsis;
 }
-#gev-home-video .gev-home-video-source:disabled { opacity: 0.55; }
+.gev-home-video .gev-home-video-source:disabled { opacity: 0.55; }
 
-#gev-home-video .gev-home-video-sizes {
+.gev-home-video .gev-home-video-sizes {
   display: flex;
   gap: 4px;
   flex: 0 0 auto;
 }
-#gev-home-video .gev-home-video-sizes .scene-btn {
+.gev-home-video .gev-home-video-sizes .scene-btn {
   flex: 0 0 auto;
   min-width: 28px;
   padding: 5px 7px;
 }
-#gev-home-video .gev-home-video-sizes .scene-btn[aria-pressed="true"] {
+.gev-home-video .gev-home-video-sizes .scene-btn[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);
   background: rgba(0, 212, 255, 0.14);
 }
 
-#gev-home-video .gev-home-video-recommend {
+.gev-home-video .gev-home-video-recommend {
   display: flex;
   gap: 6px;
 }
@@ -19476,7 +19490,7 @@ nav.left-yt-chrome {
    applies to inputs; the colour and background are set here rather than
    inherited because `.admin-field input` targets a wrapper this input is not
    inside. */
-#gev-home-video .gev-home-video-url {
+.gev-home-video .gev-home-video-url {
   flex: 1;
   min-width: 0;
   display: block;
@@ -19489,7 +19503,7 @@ nav.left-yt-chrome {
   border: 1px solid #3f3f3f;
   border-radius: var(--btn-radius);
 }
-#gev-home-video .gev-home-video-url::placeholder {
+.gev-home-video .gev-home-video-url::placeholder {
   /* !important is required, not stylistic: the global high-contrast HUD rule
      `::placeholder { color: #7eefff !important }` (~line 13037) would otherwise
      paint this placeholder cyan regardless of specificity. */
@@ -19497,39 +19511,39 @@ nav.left-yt-chrome {
   /* Firefox dims placeholders by default; this keeps the words white. */
   opacity: 1 !important;
 }
-#gev-home-video .gev-home-video-url:focus {
+.gev-home-video .gev-home-video-url:focus {
   outline: none;
   border-color: #f1f1f1;
 }
-#gev-home-video .gev-home-video-recommend .scene-btn { flex: 0 0 auto; min-width: 54px; }
+.gev-home-video .gev-home-video-recommend .scene-btn { flex: 0 0 auto; min-width: 54px; }
 /* .scene-btn:hover turns text accent-cyan; PLAY sits in this panel, so it is
    overridden to YouTube grey. Deliberately NOT applied to .gev-home-video-sizes. */
-#gev-home-video .gev-home-video-recommend .scene-btn:hover:not(:disabled) {
+.gev-home-video .gev-home-video-recommend .scene-btn:hover:not(:disabled) {
   color: #f1f1f1;
   border-color: #3f3f3f;
   background: #3f3f3f;
 }
 
-#gev-home-video .gev-home-video-status,
-#gev-home-video .gev-home-video-now,
-#gev-home-video .gev-home-video-hint {
+.gev-home-video .gev-home-video-status,
+.gev-home-video .gev-home-video-now,
+.gev-home-video .gev-home-video-hint {
   margin: 0;
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.6px;
   color: #f1f1f1;
 }
-#gev-home-video .gev-home-video-status:empty { display: none; }
-#gev-home-video .gev-home-video-now:empty { display: none; }
-#gev-home-video .gev-home-video-status[data-tone="ok"] { color: #f1f1f1; }
+.gev-home-video .gev-home-video-status:empty { display: none; }
+.gev-home-video .gev-home-video-now:empty { display: none; }
+.gev-home-video .gev-home-video-status[data-tone="ok"] { color: #f1f1f1; }
 /* Refusals keep a colour: a rejected video has to read as a problem. */
-#gev-home-video .gev-home-video-status[data-tone="warn"] { color: #ff7272; }
-#gev-home-video .gev-home-video-hint code {
+.gev-home-video .gev-home-video-status[data-tone="warn"] { color: #ff7272; }
+.gev-home-video .gev-home-video-hint code {
   font-family: var(--font-mono);
   color: #f1f1f1;
 }
 
-#gev-home-video .gev-home-video-queue {
+.gev-home-video .gev-home-video-queue {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -19539,7 +19553,7 @@ nav.left-yt-chrome {
   max-height: 96px;
   overflow-y: auto;
 }
-#gev-home-video .gev-home-video-queue-item {
+.gev-home-video .gev-home-video-queue-item {
   font-family: var(--font-mono);
   font-size: 9px;
   color: #f1f1f1;
@@ -19556,10 +19570,10 @@ nav.left-yt-chrome {
 }
 
 /* The exclusive full-screen surfaces own the page; the player yields. */
-body.cockpit-mode #gev-home-video,
-body.scene-playback-mode #gev-home-video,
-body.recording-mode #gev-home-video,
-body.ui-clean-view #gev-home-video {
+body.cockpit-mode .gev-home-video-rail,
+body.scene-playback-mode .gev-home-video-rail,
+body.recording-mode .gev-home-video-rail,
+body.ui-clean-view .gev-home-video-rail {
   display: none !important;
 }
 
@@ -19751,4 +19765,18 @@ body.ui-clean-view #gev-home-video {
   margin-inline: auto !important;
   object-fit: contain !important;
   object-position: center center !important;
+}
+
+/* === GEV_YT_CHAT_HELLO_HEADLINE_V1 === */
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-activity-headline,
+.youtube-chat-activity-headline {
+  font-size: 0.78rem !important;
+  font-weight: 650 !important;
+  line-height: 1.25 !important;
+  text-transform: none !important;
+  letter-spacing: 0.01em !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  color: #ffd24a !important;
+  -webkit-text-fill-color: #ffd24a !important;
 }

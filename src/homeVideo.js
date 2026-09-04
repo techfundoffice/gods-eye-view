@@ -1,9 +1,17 @@
 /**
  * Home-page YouTube player: the small embed under the title bar.
  *
- * Autoplays the ADMIN-configured default (muted, because every browser blocks
- * autoplay with sound), offers small / medium / fullscreen, and shows the
- * shared now-playing + queue that viewer recommendations feed.
+ * Autoplays the ADMIN-configured default with sound, offers small / medium /
+ * fullscreen, and shows the shared now-playing + queue that viewer
+ * recommendations feed.
+ *
+ * Getting audio requires a two-step start. Every browser refuses to autoplay a
+ * video with sound, so the embed starts muted -- that is the only way playback
+ * begins at all -- and the player is then unmuted through the IFrame API as
+ * soon as it reports ready. Where the browser still withholds audio (an
+ * ordinary visitor with no autoplay permission for the site) the first click or
+ * keypress anywhere on the page unmutes it. A capture browser launched with
+ * `--autoplay-policy=no-user-gesture-required` gets sound immediately.
  *
  * Nothing here decides whether a recommendation is allowed. The player only
  * renders what the server already moderated; the gate lives in
@@ -28,8 +36,11 @@ const YOUTUBE_EMBED_ORIGIN = 'https://www.youtube-nocookie.com';
 /** Exact origins the embed may speak from. A substring test would let
  *  `https://youtube.evil.test` drive the queue. */
 const PLAYER_MESSAGE_ORIGINS = new Set([YOUTUBE_EMBED_ORIGIN, 'https://www.youtube.com']);
-/** YouTube player state 0 = ENDED. */
+/** YouTube player states. */
 const PLAYER_STATE_ENDED = 0;
+const PLAYER_STATE_PLAYING = 1;
+/** Full volume once the player accepts the unmute. */
+const UNMUTED_VOLUME = 100;
 
 /**
  * @param {unknown} value
@@ -98,7 +109,9 @@ export function embedUrlFor(ref, options = {}) {
   const params = url.searchParams;
   if (kind === 'playlist') params.set('list', id);
   params.set('autoplay', '1');
-  // Autoplay with sound is blocked everywhere; muted is the only way it starts.
+  // Starts muted ONLY so autoplay is permitted -- every browser blocks autoplay
+  // with sound outright. The player is unmuted over the IFrame API the moment it
+  // reports ready; see `unmutePlayer` below.
   params.set('mute', '1');
   params.set('playsinline', '1');
   params.set('rel', '0');
@@ -113,11 +126,26 @@ export function embedUrlFor(ref, options = {}) {
   return url.toString();
 }
 
-/** Module-scoped so `requestHomeVideo` can reach the live player from gevActions. */
+/** The root id of the player the GEV tool drives when several are mounted. */
+export const PRIMARY_ROOT_ID = 'gev-home-video';
+
+/**
+ * Live controllers keyed by root id. Keyed rather than a single slot because
+ * `main.js` mounts on both the normal and WebGL-fallback paths: re-mounting the
+ * SAME root must replace it, while a second player must be left alone.
+ *
+ * @type {Map<string, object>}
+ */
+const mounted = new Map();
+
+/** The primary controller, which is what `requestHomeVideo` reaches. */
 let active = null;
 
 /**
  * Drive the player from outside the DOM module (the GEV action runner).
+ *
+ * Always targets the primary player; a secondary player is a view, not a
+ * command target.
  *
  * @param {{ action: string, url?: string }} detail
  * @returns {Promise<object>} `{ ok, ... }` shaped for a GEV tool result
@@ -135,26 +163,48 @@ export async function requestHomeVideo(detail) {
 const byId = (doc, id) => doc.getElementById(id);
 
 /**
- * Mount the home-page video player.
+ * Child element ids are derived from the root id, so a second player needs no
+ * new naming scheme: `gev-home-video` + `-mount` is exactly today's markup, and
+ * `gev-home-video-2` + `-mount` is the duplicate's.
  *
- * Safe to call twice (main.js calls it on both the normal and WebGL-fallback
- * paths); the second call tears the first one down first.
+ * @param {string} rootId
+ * @param {string} part
+ * @returns {string}
+ */
+const childId = (rootId, part) => `${rootId}-${part}`;
+
+/**
+ * Mount a home-page video player.
+ *
+ * Safe to call twice for the same root (main.js calls it on both the normal and
+ * WebGL-fallback paths); the second call replaces that root's controller only.
  *
  * @param {Document} [doc]
+ * @param {object} [options]
+ * @param {string} [options.rootId] Which player to mount.
+ * @param {boolean} [options.muted] Leave this player silent (a second copy of
+ *   the same stream would otherwise echo).
+ * @param {boolean} [options.primary] Whether the GEV tool targets this one.
  * @returns {{ stop: () => void }|null} null when the markup is absent
  */
-export function initHomeVideo(doc = globalThis.document) {
-  const root = byId(doc, 'gev-home-video');
-  if (!root) return null;
-  if (active) active.stop();
+export function initHomeVideo(doc = globalThis.document, options = {}) {
+  const {
+    rootId = PRIMARY_ROOT_ID,
+    muted = false,
+    primary = rootId === PRIMARY_ROOT_ID,
+  } = options;
 
-  const mount = byId(doc, 'gev-home-video-mount');
-  const sourceSelect = byId(doc, 'gev-home-video-source');
-  const form = byId(doc, 'gev-home-video-recommend');
-  const urlInput = byId(doc, 'gev-home-video-url');
-  const statusEl = byId(doc, 'gev-home-video-status');
-  const nowEl = byId(doc, 'gev-home-video-now');
-  const queueEl = byId(doc, 'gev-home-video-queue');
+  const root = byId(doc, rootId);
+  if (!root) return null;
+  mounted.get(rootId)?.stop();
+
+  const mount = byId(doc, childId(rootId, 'mount'));
+  const sourceSelect = byId(doc, childId(rootId, 'source'));
+  const form = byId(doc, childId(rootId, 'recommend'));
+  const urlInput = byId(doc, childId(rootId, 'url'));
+  const statusEl = byId(doc, childId(rootId, 'status'));
+  const nowEl = byId(doc, childId(rootId, 'now'));
+  const queueEl = byId(doc, childId(rootId, 'queue'));
   const sizeButtons = [...root.querySelectorAll('[data-home-video-size]')];
 
   const win = doc.defaultView || globalThis;
@@ -165,6 +215,7 @@ export function initHomeVideo(doc = globalThis.document) {
   let queue = [];
   let currentSrc = '';
   let iframe = null;
+  let unmuteAttempted = false;
   let refreshTimer = 0;
   let stopped = false;
 
@@ -175,8 +226,11 @@ export function initHomeVideo(doc = globalThis.document) {
   };
 
   /** Publish the player height so #hud-center-cluster can sit clear of it. */
+  // Measured on the rail, not this player: with two side by side both would
+  // otherwise write --gev-home-video-height and the shorter one could win.
+  const measured = () => root.closest?.('.gev-home-video-rail') || root;
   const publishHeight = () => {
-    const height = size === 'lg' ? 0 : root.getBoundingClientRect().height;
+    const height = size === 'lg' ? 0 : measured().getBoundingClientRect().height;
     doc.documentElement.style.setProperty('--gev-home-video-height', `${Math.round(height)}px`);
   };
 
@@ -196,6 +250,7 @@ export function initHomeVideo(doc = globalThis.document) {
     if (!src || !mount) return false;
     if (src === currentSrc) return true;
     currentSrc = src;
+    unmuteAttempted = false;
 
     const frame = doc.createElement('iframe');
     frame.className = 'gev-home-video-iframe';
@@ -215,12 +270,34 @@ export function initHomeVideo(doc = globalThis.document) {
    * channel, so the queue can advance without loading YouTube's API script.
    */
   function subscribeToPlayer() {
+    postToPlayer({ event: 'listening', id: 'gev-home-video', channel: 'widget' });
+  }
+
+  /**
+   * @param {object} message
+   */
+  function postToPlayer(message) {
     try {
-      iframe?.contentWindow?.postMessage(
-        JSON.stringify({ event: 'listening', id: 'gev-home-video', channel: 'widget' }),
-        YOUTUBE_EMBED_ORIGIN,
-      );
-    } catch { /* cross-origin timing; the queue still advances on refresh */ }
+      iframe?.contentWindow?.postMessage(JSON.stringify(message), YOUTUBE_EMBED_ORIGIN);
+    } catch { /* cross-origin timing; state still reconciles on the next refresh */ }
+  }
+
+  /**
+   * Turn the sound on. The embed can only autoplay while muted, so this runs as
+   * soon as the player is ready and again on the first user gesture, which is
+   * what a browser withholding audio is waiting for.
+   *
+   * Attempted once per loaded video: a viewer who mutes from YouTube's own
+   * controls must stay muted.
+   */
+  function unmutePlayer() {
+    // A muted player is a deliberate second view of the same stream; unmuting
+    // it would double the audio a fraction of a second out of phase.
+    if (muted) return;
+    if (unmuteAttempted) return;
+    unmuteAttempted = true;
+    postToPlayer({ event: 'command', func: 'unMute', args: [] });
+    postToPlayer({ event: 'command', func: 'setVolume', args: [UNMUTED_VOLUME] });
   }
 
   const onMessage = (event) => {
@@ -231,8 +308,14 @@ export function initHomeVideo(doc = globalThis.document) {
     } catch {
       return;
     }
+    // The player only accepts commands once it is ready.
+    if (payload?.event === 'onReady') return void unmutePlayer();
     if (payload?.event !== 'onStateChange') return;
-    if (Number(payload.info) === PLAYER_STATE_ENDED) advance();
+    const state = Number(payload.info);
+    // onReady can be missed if the listening handshake lands late; PLAYING is
+    // the backstop.
+    if (state === PLAYER_STATE_PLAYING) unmutePlayer();
+    if (state === PLAYER_STATE_ENDED) advance();
   };
 
   /** Current video finished: take the next queued item, else fall back home. */
@@ -385,12 +468,20 @@ export function initHomeVideo(doc = globalThis.document) {
     ? new win.ResizeObserver(publishHeight)
     : null;
 
+  // A browser that withheld audio on autoplay will grant it after any user
+  // gesture. Capture phase so it still fires for clicks the page handles.
+  const onFirstGesture = () => unmutePlayer();
+  const gestureOptions = { once: true, capture: true };
+  doc.addEventListener('pointerdown', onFirstGesture, gestureOptions);
+  doc.addEventListener('keydown', onFirstGesture, gestureOptions);
+
   root.addEventListener('click', onSizeClick);
   form?.addEventListener('submit', onSubmit);
   sourceSelect?.addEventListener('change', onSourceChange);
   doc.addEventListener('fullscreenchange', onFullscreenChange);
   win.addEventListener('message', onMessage);
   resizeObserver?.observe(root);
+  if (measured() !== root) resizeObserver?.observe(measured());
 
   renderSize();
   // Paint the seed default immediately so the player is never a blank box while
@@ -432,6 +523,8 @@ export function initHomeVideo(doc = globalThis.document) {
     stop() {
       stopped = true;
       win.clearInterval(refreshTimer);
+      doc.removeEventListener('pointerdown', onFirstGesture, gestureOptions);
+      doc.removeEventListener('keydown', onFirstGesture, gestureOptions);
       root.removeEventListener('click', onSizeClick);
       form?.removeEventListener('submit', onSubmit);
       sourceSelect?.removeEventListener('change', onSourceChange);
@@ -440,9 +533,11 @@ export function initHomeVideo(doc = globalThis.document) {
       resizeObserver?.disconnect();
       iframe?.removeEventListener('load', subscribeToPlayer);
       doc.documentElement.style.removeProperty('--gev-home-video-height');
+      if (mounted.get(rootId) === controller) mounted.delete(rootId);
       if (active === controller) active = null;
     },
   };
-  active = controller;
+  mounted.set(rootId, controller);
+  if (primary) active = controller;
   return { stop: () => controller.stop() };
 }

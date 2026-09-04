@@ -35,29 +35,55 @@
          tagline without measuring anything. ADMIN owns the default video and
          playlist; viewer recommendations are moderated server-side before they
          ever reach this markup. -->
-    <section id="gev-home-video" class="gev-home-video" data-size="sm" aria-label="Home video player">
-      <div class="gev-home-video-frame">
-        <div id="gev-home-video-mount" class="gev-home-video-mount"></div>
-      </div>
-      <div class="gev-home-video-bar">
-        <select id="gev-home-video-source" class="gev-home-video-source" aria-label="ADMIN video sources" disabled></select>
-        <div class="gev-home-video-sizes" role="group" aria-label="Player size">
-          <button class="scene-btn" type="button" data-home-video-size="sm" aria-pressed="true" title="Small">S</button>
-          <button class="scene-btn" type="button" data-home-video-size="md" aria-pressed="false" title="Medium">M</button>
-          <button class="scene-btn" type="button" data-home-video-size="lg" aria-pressed="false" title="Fullscreen">L</button>
+    <div class="gev-home-video-rail">
+      <section id="gev-home-video" class="gev-home-video" data-size="sm" aria-label="Home video player">
+        <div class="gev-home-video-frame">
+          <div id="gev-home-video-mount" class="gev-home-video-mount"></div>
         </div>
-      </div>
-      <form id="gev-home-video-recommend" class="gev-home-video-recommend">
-        <input id="gev-home-video-url" class="gev-home-video-url" type="url" inputmode="url"
-          maxlength="300" autocomplete="off" aria-label="Recommend a royalty-free YouTube video"
-          placeholder="Paste a royalty-free YouTube video URL…" />
-        <button class="scene-btn" type="submit">PLAY</button>
-      </form>
-      <p id="gev-home-video-status" class="gev-home-video-status" role="status" aria-live="polite"></p>
-      <p id="gev-home-video-now" class="gev-home-video-now"></p>
-      <ol id="gev-home-video-queue" class="gev-home-video-queue" aria-label="Up next" hidden></ol>
-      <p class="gev-home-video-hint">or comment <code>/youtube-channel &lt;url&gt;</code> on the live stream</p>
-    </section>
+        <div class="gev-home-video-bar">
+          <select id="gev-home-video-source" class="gev-home-video-source" aria-label="ADMIN video sources" disabled></select>
+          <div class="gev-home-video-sizes" role="group" aria-label="Player size">
+            <button class="scene-btn" type="button" data-home-video-size="sm" aria-pressed="true" title="Small">S</button>
+            <button class="scene-btn" type="button" data-home-video-size="md" aria-pressed="false" title="Medium">M</button>
+            <button class="scene-btn" type="button" data-home-video-size="lg" aria-pressed="false" title="Fullscreen">L</button>
+          </div>
+        </div>
+        <form id="gev-home-video-recommend" class="gev-home-video-recommend">
+          <input id="gev-home-video-url" class="gev-home-video-url" type="url" inputmode="url"
+            maxlength="300" autocomplete="off" aria-label="Recommend a royalty-free YouTube video"
+            placeholder="Paste a royalty-free YouTube video URL…" />
+          <button class="scene-btn" type="submit">PLAY</button>
+        </form>
+        <p id="gev-home-video-status" class="gev-home-video-status" role="status" aria-live="polite"></p>
+        <p id="gev-home-video-now" class="gev-home-video-now"></p>
+        <ol id="gev-home-video-queue" class="gev-home-video-queue" aria-label="Up next" hidden></ol>
+        <p class="gev-home-video-hint">or comment <code>/youtube-channel &lt;url&gt;</code> on the live stream</p>
+      </section>
+
+      <section id="gev-home-video-2" class="gev-home-video" data-size="sm" aria-label="Home video player, second view">
+        <div class="gev-home-video-frame">
+          <div id="gev-home-video-2-mount" class="gev-home-video-mount"></div>
+        </div>
+        <div class="gev-home-video-bar">
+          <select id="gev-home-video-2-source" class="gev-home-video-source" aria-label="ADMIN video sources" disabled></select>
+          <div class="gev-home-video-sizes" role="group" aria-label="Player size">
+            <button class="scene-btn" type="button" data-home-video-size="sm" aria-pressed="true" title="Small">S</button>
+            <button class="scene-btn" type="button" data-home-video-size="md" aria-pressed="false" title="Medium">M</button>
+            <button class="scene-btn" type="button" data-home-video-size="lg" aria-pressed="false" title="Fullscreen">L</button>
+          </div>
+        </div>
+        <form id="gev-home-video-2-recommend" class="gev-home-video-recommend">
+          <input id="gev-home-video-2-url" class="gev-home-video-url" type="url" inputmode="url"
+            maxlength="300" autocomplete="off" aria-label="Recommend a royalty-free YouTube video"
+            placeholder="Paste a royalty-free YouTube video URL…" />
+          <button class="scene-btn" type="submit">PLAY</button>
+        </form>
+        <p id="gev-home-video-2-status" class="gev-home-video-status" role="status" aria-live="polite"></p>
+        <p id="gev-home-video-2-now" class="gev-home-video-now"></p>
+        <ol id="gev-home-video-2-queue" class="gev-home-video-queue" aria-label="Up next" hidden></ol>
+        <p class="gev-home-video-hint">or comment <code>/youtube-channel &lt;url&gt;</code> on the live stream</p>
+      </section>
+    </div>
   </div>
 
   <!-- Style indicator -->
@@ -81,11 +107,11 @@
       <div class="youtube-comments-panel-inner">
         <div id="youtube-chat-brand" class="youtube-chat-brand" data-turn-state="idle">
           <img class="youtube-chat-brand-logo"
-            src="/public/cloud-computer-logo-dark.png?v=cyan3"
+            src="/public/cloud-computer-logo-dark.png?v=yellow5"
             alt="Cloud Computer AI.com">
           <div id="youtube-chat-activity" class="youtube-chat-activity" data-state="idle" role="status" aria-live="polite">
             <span class="youtube-chat-activity-kicker">LIVE CAMERA DESK</span>
-            <strong class="youtube-chat-activity-headline">NOW TAKING REQUESTS</strong>
+            <strong class="youtube-chat-activity-headline">Hello @Username, How can I help you today?</strong>
             <span class="youtube-chat-activity-detail">WAITING FOR THE NEXT VIEWER REQUEST</span>
           </div>
         </div>

@@ -2615,7 +2615,7 @@ this file.
 ### Home video player (`#gev-home-video`, `src/homeVideo.js`)
 
 - A YouTube embed sits in row 3 of `#title-bar`, directly under the tagline, spanning both title columns. It is authored in `index.html` inside `#title-bar`, so it needs no height measurement; `_placeRecStampUnderAdmin()` in `src/hud.js` does not touch it.
-- Autoplays on load from `https://www.youtube-nocookie.com`, **muted** and looping. Muted is not a preference — every current browser blocks autoplay with sound. The viewer can unmute from YouTube's own controls.
+- Autoplays on load from `https://www.youtube-nocookie.com`, **with sound**, looping. Getting audio takes two steps: the embed starts muted because every browser refuses to autoplay with sound outright, then `unmutePlayer()` sends `unMute` + `setVolume(100)` over the `enablejsapi` postMessage channel as soon as the player reports `onReady` (with `PLAYING` as a backstop if the listening handshake lands late). If a browser still withholds audio, the first `pointerdown`/`keydown` anywhere on the page unmutes it. The attempt is made **once per loaded video**, so a viewer who mutes from YouTube's own controls stays muted.
 - Sizes: `S` 320 px and `M` 560 px float in the title bar (16:9, clamped to `100vw - 2rem`); `L` calls `requestFullscreen()` on the player. `S`/`M` persist in `gev:home-video:v1`; `lg` is transient and is never stored or restored.
 - The player publishes its rendered height as `--gev-home-video-height`, and `#hud-center-cluster` adds that to its top offset, so the look-at readout slides clear instead of being covered. In fullscreen the variable is `0`.
 - Hides under `cockpit-mode`, `scene-playback-mode`, `recording-mode`, and `ui-clean-view` rather than adding a fifth exclusive class.
