@@ -176,27 +176,7 @@ function renderChatActivity(activity, state = 'idle', viewer = '', onStarter = n
   detail.className = 'youtube-chat-activity-detail';
   detail.textContent = copy.detail;
   const nodes = [kicker, detail];
-  if (idle) {
-    const starters = doc.createElement('div');
-    starters.className = 'youtube-chat-starters';
-    starters.setAttribute('role', 'list');
-    starters.setAttribute('aria-label', 'Suggested questions');
-    for (const prompt of GEV_IDLE_STARTER_PROMPTS) {
-      const btn = doc.createElement('button');
-      btn.type = 'button';
-      btn.className = 'youtube-chat-starter';
-      btn.setAttribute('role', 'listitem');
-      btn.dataset.prompt = prompt;
-      btn.textContent = prompt;
-      btn.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (typeof onStarter === 'function') onStarter(prompt);
-      });
-      starters.append(btn);
-    }
-    nodes.push(starters);
-  }
+  // Gemini starter chips removed per user.
   activity.replaceChildren(...nodes);
 }
 

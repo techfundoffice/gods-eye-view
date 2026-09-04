@@ -20442,3 +20442,179 @@ body.ui-clean-view .gev-home-video-rail {
 }
 /* === /GEV_NO_PAD_ABOVE_CLOUD_LOGO_V1 === */
 
+/* === GEV_YT_CHAT_NO_STARTERS_V1 === */
+.youtube-chat-starters,
+.youtube-chat-starter {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+}
+/* === /GEV_YT_CHAT_NO_STARTERS_V1 === */
+
+/* === GEV_NO_TOP_LINE_ABOVE_CLOUD_LOGO_V1 === */
+/* Kill the thin horizontal rule above the Cloud Computer / Hermes box. */
+#youtube-comments-panel .youtube-chat-brand,
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand {
+  border: 0 !important;
+  border-bottom: 0 !important;
+  border-top: 0 !important;
+  box-shadow: none !important;
+}
+#youtube-comments-panel .youtube-chat-cards,
+#youtube-comments-panel #hermes-agent-card,
+#youtube-comments-panel .youtube-hermes-card {
+  border-top: 0 !important;
+  box-shadow: none !important;
+}
+#youtube-comments-panel .youtube-comments-panel-inner > .panel-header,
+#youtube-comments-panel .youtube-comments-panel-inner::before,
+#youtube-comments-panel .youtube-comments-panel-inner::after {
+  border-top: 0 !important;
+}
+/* If brand strip is empty of logo/headline, collapse leftover rule space */
+#youtube-chat-brand:not(:has(img.youtube-chat-brand-logo)):not(:has(.hermes-box-brand-logo)) {
+  border: 0 !important;
+  min-height: 0 !important;
+}
+/* === /GEV_NO_TOP_LINE_ABOVE_CLOUD_LOGO_V1 === */
+
+/* === GEV_NO_PAD_ABOVE_CLOUD_LOGO_V2 === */
+/* Aggressive collapse of empty brand + rail gaps above Cloud Computer / Hermes. */
+#admin-stamp-stack {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+#admin-stamp-stack #youtube-comments-panel,
+#admin-stamp-stack #youtube-comments-panel.panel-collapsible,
+#youtube-comments-panel .youtube-comments-panel-inner {
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 0 !important;
+}
+/* Brand strip is empty after logo MOVE + chip/ask removals — collapse it */
+#youtube-comments-panel #youtube-chat-brand,
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand {
+  display: none !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+}
+#youtube-comments-panel .youtube-chat-cards {
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0.35rem !important;
+}
+#youtube-comments-panel #hermes-agent-card,
+#youtube-comments-panel .youtube-hermes-card.hermes-inline-card {
+  margin: 0 !important;
+  padding: 0 !important;
+  border-top: 0 !important;
+}
+#hermes-box-chat,
+#youtube-comments-panel #hermes-agent-card #hermes-box-chat {
+  margin: 0 !important;
+  padding: 0 0.35rem 0.35rem !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+#hermes-box-empty {
+  padding: 0 0.15rem 0.25rem !important;
+  margin: 0 !important;
+  gap: 0.2rem !important;
+}
+#hermes-box-logo-slot {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+#hermes-box-logo-slot .youtube-chat-brand-logo,
+#hermes-box-logo-slot .hermes-box-brand-logo {
+  margin: 0 auto !important;
+  max-height: 4.25rem !important;
+}
+#hermes-box-empty .hermes-box-headline {
+  margin-top: 0.15rem !important;
+}
+/* === /GEV_NO_PAD_ABOVE_CLOUD_LOGO_V2 === */
+
+/* === GEV_HERMES_BOX_GROK_UX_V1 === */
+/* Grok Bot-style: logo top, scrolling thread, sticky composer, You right / Hermes left. */
+#hermes-box-chat.hermes-box-chat--grok,
+#youtube-comments-panel #hermes-box-chat.hermes-box-chat--grok {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 16rem !important;
+  max-height: min(42vh, 22rem) !important;
+  padding: 0.25rem 0.35rem 0.4rem !important;
+  gap: 0.35rem !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-empty {
+  flex: 0 0 auto !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-thread {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  gap: 0.55rem !important;
+  min-height: 6rem !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding: 0.15rem 0.1rem 0.35rem !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-thread[hidden] {
+  display: flex !important;
+}
+#hermes-box-chat.hermes-box-chat--grok .hermes-box-msg-user {
+  align-items: flex-end !important;
+}
+#hermes-box-chat.hermes-box-chat--grok .hermes-box-msg-assistant {
+  align-items: flex-start !important;
+}
+#hermes-box-chat.hermes-box-chat--grok .hermes-box-msg-user .hermes-box-msg-body {
+  max-width: 92% !important;
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(255, 210, 74, 0.55) !important;
+  color: #e8c56a !important;
+}
+#hermes-box-chat.hermes-box-chat--grok .hermes-box-msg-assistant .hermes-box-msg-body {
+  max-width: 96% !important;
+  border-radius: 12px !important;
+  background: rgba(28, 32, 40, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #f2f4f8 !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-composer {
+  flex: 0 0 auto !important;
+  position: sticky !important;
+  bottom: 0 !important;
+  margin-top: auto !important;
+  padding-top: 0.2rem !important;
+  background: linear-gradient(to top, rgba(6, 10, 14, 0.98), rgba(6, 10, 14, 0.85)) !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-input {
+  border-radius: 999px !important;
+  border-color: rgba(255, 210, 74, 0.45) !important;
+  color: #dffcff !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-input::placeholder {
+  color: rgba(0, 212, 255, 0.55) !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-send {
+  box-shadow: 0 0 18px rgba(255, 210, 74, 0.45) !important;
+}
+/* Give Hermes card more vertical room for Grok-like chat */
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-cards,
+#youtube-comments-panel .youtube-chat-cards {
+  grid-template-rows:
+    minmax(16rem, 1.15fr)
+    max-content
+    minmax(14rem, 1fr) !important;
+}
+/* === /GEV_HERMES_BOX_GROK_UX_V1 === */
+

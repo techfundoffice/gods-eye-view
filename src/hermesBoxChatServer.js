@@ -16,7 +16,7 @@ export const MAX_BOX_CHAT_TEXT = 1500;
 export const MAX_BOX_CHAT_REPLY = 1200;
 
 const MAX_BODY_BYTES = 8_000;
-const RATE_WINDOW_MS = 8_000;
+const RATE_WINDOW_MS = 2_500;
 
 const BOX_SYSTEM = `You are Hermes, the Cloud Computer AI.com / God's Eye View (GEV) desk agent on a live globe HUD.
 Be conversational, concise, and helpful. You may mention globe commands viewers can use (fly to places, toggle layers, CCTV, radio, styles).
