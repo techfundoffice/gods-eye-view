@@ -59,4 +59,8 @@ GEV_AUTO_GO_LIVE = "true"
 YOUTUBE_INGEST_URL = "rtmp://a.rtmp.youtube.com/live2"
 YOUTUBE_CHANNEL_HANDLE = "cloudcomputerai"
 
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
+
 
