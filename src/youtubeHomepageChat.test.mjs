@@ -638,6 +638,18 @@ test('Hermes diagnostics follow all live comments in the required single-column 
   assert.match(css, /#youtube-comments-panel \.hermes-agent-diagnostics #hermes-agent-lessons \{[\s\S]*?overflow-wrap: anywhere !important;[\s\S]*?white-space: normal !important;/);
 });
 
+test('expanded comment lanes keep Hermes diagnostics below the initial watcher viewport', () => {
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(
+    css,
+    /#admin-stamp-stack #youtube-comments-panel \.youtube-chat-cards \{[\s\S]*?minmax\(14rem, 42dvh\)[\s\S]*?minmax\(18rem, 50dvh\)[\s\S]*?overflow-y: auto !important;/,
+  );
+  assert.match(
+    css,
+    /#admin-stamp-stack #youtube-comments-panel \.youtube-progress-card,[\s\S]*?#admin-stamp-stack #youtube-comments-panel \.youtube-all-comments-card \{[\s\S]*?min-height: 0 !important;/,
+  );
+});
+
 test('follow-up countdown displays the complete 30-second reply window', () => {
   assert.equal(formatFollowUpCountdown(30_000), '0:30');
   assert.equal(formatFollowUpCountdown(30_001), '0:31');

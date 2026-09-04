@@ -18758,8 +18758,19 @@ body #left-panel-stack #scene-shot-list {
   min-height: 0 !important;
   height: auto !important;
   max-height: none !important;
-  grid-template-rows: auto minmax(5rem, 1fr) minmax(7rem, 1.35fr) !important;
-  overflow: visible !important;
+  grid-template-rows:
+    auto
+    minmax(14rem, 42dvh)
+    minmax(18rem, 50dvh)
+    auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-progress-card,
+#admin-stamp-stack #youtube-comments-panel .youtube-all-comments-card {
+  min-height: 0 !important;
 }
 
 #admin-stamp-stack #youtube-comments-panel #hermes-agent-card {
