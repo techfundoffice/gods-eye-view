@@ -144,7 +144,6 @@ let hermesHarnessSingleton = null;
 function sharedHermesHarness() {
   if (!hermesHarnessSingleton) {
     hermesHarnessSingleton = createHermesHarnessController();
-    void hermesHarnessSingleton.loadPreferred().then(() => hermesHarnessSingleton.startHermes());
   }
   return hermesHarnessSingleton;
 }
@@ -7805,6 +7804,9 @@ function adminConsoleApi() {
     store: sharedAdminStore(),
     commandRuntime: sharedPublicCommandRuntime(),
     getHermesStatus: () => sharedHermesHarness().status(),
+    onMcpServer: (mcp) => {
+      void sharedHermesHarness().initializeMcpServer(mcp);
+    },
     getGevBinding: () => {
       const snap = sharedLiveCommentIngest().snapshot() || {};
       const live = snap.active === true && snap.status === 'live' && Boolean(snap.videoId);

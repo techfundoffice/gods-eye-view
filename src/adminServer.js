@@ -189,6 +189,7 @@ export function createAdminMiddleware({
   commandRuntime = null,
   getGevBinding = () => ({}),
   getHermesStatus = () => ({}),
+  onMcpServer = null,
 } = {}) {
   const mcp = createAdminMcpServer({
     builder,
@@ -201,6 +202,9 @@ export function createAdminMiddleware({
       return commandRuntime.enqueueTool({ name, args, source: 'mcp' }, binding);
     },
   });
+  // Hermes receives this exact in-process server only for initialize/list.
+  // It never gets an external MCP credential or a second server instance.
+  onMcpServer?.(mcp);
 
   /**
    * @param {object} req

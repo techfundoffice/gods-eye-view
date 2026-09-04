@@ -11,7 +11,6 @@ import {
   HERMES_PROFILE_NAME,
   HERMES_SKILL_ID,
   HERMES_SKILL_VERSION,
-  compareSkillToViewSafeCatalog,
   viewSafeToolsFrom,
 } from './hermesViewSafeCatalog.js';
 import { redactSecrets } from './hermesStdioBridge.js';
@@ -27,6 +26,7 @@ import {
   resolveHermesBin,
 } from './nousHermesCliInterpreter.js';
 import { openRouterApiKey } from './openrouterFreeClient.js';
+import { isGevFunctionEnabled } from './gevFunctionToggles.js';
 
 export const HERMES_HARNESS_ID = 'hermes';
 export const OPENROUTER_HARNESS_ID = 'openrouter';
@@ -77,6 +77,7 @@ export function createHermesHarnessController({
   openrouterInterpret = createPublicResponsesInterpreter(),
   hermesCommand = resolveHermesBin(process.env.HERMES_BIN),
   hermesModel = process.env.HERMES_MODEL || HERMES_GROK_MODEL,
+  isFunctionEnabled = isGevFunctionEnabled,
 } = {}) {
   let preferred = HERMES_HARNESS_ID;
   let model = hermesModel;
@@ -87,10 +88,97 @@ export function createHermesHarnessController({
   let bridge = null;
   let hermesInterpret = null;
   let started = false;
+  let preferenceRevision = 0;
+  let mcp = null;
+  let discoveredTools = [];
+  let initialization = null;
+  let mcpHealth = {
+    connected: false,
+    serverName: '',
+    protocolVersion: '',
+    discoveredCount: 0,
+    exposedCount: 0,
+    executionTransport: 'youtube-public-coordinator',
+    latestMcpError: 'MCP server is not connected',
+  };
+  let liveTools = [];
+
+  function refreshEnabledTools() {
+    if (!mcpHealth.connected || !discoveredTools.length) {
+      liveTools = [];
+      mcpHealth = { ...mcpHealth, exposedCount: 0 };
+      return liveTools;
+    }
+    liveTools = viewSafeToolsFrom(discoveredTools).filter((tool) => isFunctionEnabled(tool.name));
+    mcpHealth = { ...mcpHealth, exposedCount: liveTools.length };
+    return liveTools;
+  }
+
+  function mcpFailure(message) {
+    const latestMcpError = redactSecrets(String(message || 'MCP discovery failed'));
+    mcpHealth = { ...mcpHealth, connected: false, latestMcpError };
+    discoveredTools = [];
+    liveTools = [];
+    return latestMcpError;
+  }
+
+  async function connectMcpServer(server) {
+    mcp = server;
+    if (!server || typeof server.handle !== 'function') {
+      mcpFailure('MCP server is unavailable or malformed');
+      return status();
+    }
+    try {
+      const initialized = await server.handle({
+        jsonrpc: '2.0', id: 'hermes-initialize', method: 'initialize',
+        params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'hermes-youtube', version: '1.0.0' } },
+      });
+      const init = initialized?.result;
+      if (initialized?.error || !init || typeof init.protocolVersion !== 'string'
+        || !init.serverInfo || typeof init.serverInfo.name !== 'string') {
+        throw new Error(initialized?.error?.message || 'Malformed MCP initialize response');
+      }
+      const listed = await server.handle({ jsonrpc: '2.0', id: 'hermes-tools-list', method: 'tools/list' });
+      const discovered = listed?.result?.tools;
+      if (listed?.error || !Array.isArray(discovered)
+        || discovered.some((tool) => !tool || typeof tool.name !== 'string' || typeof tool.description !== 'string')) {
+        throw new Error(listed?.error?.message || 'Malformed MCP tools/list response');
+      }
+      if (!discovered.length) throw new Error('MCP tools/list returned an empty catalog');
+      discoveredTools = discovered;
+      mcpHealth = {
+        connected: true,
+        serverName: init.serverInfo.name,
+        protocolVersion: init.protocolVersion,
+        discoveredCount: discovered.length,
+        exposedCount: 0,
+        executionTransport: 'youtube-public-coordinator',
+        latestMcpError: '',
+      };
+      refreshEnabledTools();
+    } catch (error) {
+      mcpFailure(error?.message || 'MCP discovery failed');
+    }
+    return status();
+  }
+
+  function initializeMcpServer(server) {
+    initialization = (async () => {
+      await loadPreferred();
+      const snapshot = await connectMcpServer(server);
+      if (snapshot.mcpConnected && snapshot.preferred === HERMES_HARNESS_ID) {
+        return startHermes();
+      }
+      return snapshot;
+    })();
+    return initialization;
+  }
 
   async function loadPreferred() {
+    const revision = preferenceRevision;
     try {
       const raw = JSON.parse(await fs.readFile(settingsPath, 'utf8'));
+      if (revision !== preferenceRevision) return;
       if (raw?.preferred === OPENROUTER_HARNESS_ID || raw?.preferred === HERMES_HARNESS_ID) {
         preferred = raw.preferred;
       }
@@ -112,16 +200,11 @@ export function createHermesHarnessController({
 
   async function preflight() {
     skill = await readHermesSkill(skillPath);
-    const tools = viewSafeToolsFrom();
+    const tools = refreshEnabledTools();
     const reasons = [];
     if (!skill.ok) reasons.push(`GEV skill missing (${skill.reason || 'unreadable'})`);
     if (!tools.length) reasons.push('View-safe GEV catalog is empty');
-    if (skill.ok) {
-      const compared = compareSkillToViewSafeCatalog(skill.text, tools);
-      if (compared.missingFromSkill.length) {
-        reasons.push(`GEV skill missing tools: ${compared.missingFromSkill.join(', ')}`);
-      }
-    }
+    if (!mcpHealth.connected) reasons.push(`MCP discovery unavailable (${mcpHealth.latestMcpError || 'not connected'})`);
     if (preferred === HERMES_HARNESS_ID && !resolveHermesBin(hermesCommand)) {
       reasons.push('Hermes CLI is not installed in the persistent workspace; run scripts/install-hermes.sh');
     }
@@ -135,7 +218,9 @@ export function createHermesHarnessController({
   }
 
   async function startHermes() {
+    const revision = preferenceRevision;
     const check = await preflight();
+    if (revision !== preferenceRevision || preferred !== HERMES_HARNESS_ID) return status();
     if (!check.ok) {
       started = false;
       active = preferred;
@@ -154,6 +239,7 @@ export function createHermesHarnessController({
           ...(apiKey ? { OPENROUTER_API_KEY: apiKey } : {}),
           HERMES_HOME: path.join(process.cwd(), '.hermes'),
         },
+        toolDefinitions: () => refreshEnabledTools(),
       });
       bridge = {
         start() {},
@@ -185,10 +271,15 @@ export function createHermesHarnessController({
   }
 
   async function select(next) {
+    preferenceRevision += 1;
     if (next === OPENROUTER_HARNESS_ID) {
       preferred = OPENROUTER_HARNESS_ID;
       active = OPENROUTER_HARNESS_ID;
       fallbackReason = '';
+      bridge?.stop('operator-openrouter');
+      bridge = null;
+      hermesInterpret = null;
+      started = false;
       await savePreferred();
       return status();
     }
@@ -198,6 +289,8 @@ export function createHermesHarnessController({
   }
 
   async function interpret(input, opts) {
+    if (initialization) await initialization;
+    refreshEnabledTools();
     if (active === HERMES_HARNESS_ID && typeof hermesInterpret === 'function') {
       try {
         return await hermesInterpret(input, opts);
@@ -212,6 +305,7 @@ export function createHermesHarnessController({
   }
 
   function status() {
+    if (mcpHealth.connected) refreshEnabledTools();
     const health = bridge?.status?.() || { running: false, pendingTurns: 0, lastError: '' };
     return redactedHermesStatus({
       preferred,
@@ -225,7 +319,15 @@ export function createHermesHarnessController({
       fallbackReason: redactSecrets(fallbackReason),
       lastError: redactSecrets(lastError || health.lastError),
       pendingTurns: health.pendingTurns || 0,
-      toolCount: viewSafeToolsFrom().length,
+      toolCount: liveTools.length,
+      mcpConnected: mcpHealth.connected,
+      mcpServerName: mcpHealth.serverName,
+      mcpProtocolVersion: mcpHealth.protocolVersion,
+      mcpDiscoveredCount: mcpHealth.discoveredCount,
+      mcpExposedCount: mcpHealth.exposedCount,
+      mcpExecutionTransport: mcpHealth.executionTransport,
+      latestMcpError: mcpHealth.latestMcpError,
+      mcp: { ...mcpHealth },
       model,
       provider: 'x-ai',
       cli: Boolean(resolveHermesBin(hermesCommand)),
@@ -238,6 +340,8 @@ export function createHermesHarnessController({
 
   return {
     loadPreferred,
+    connectMcpServer,
+    initializeMcpServer,
     preflight,
     startHermes,
     stopHermes,

@@ -77,7 +77,12 @@ test('Hermes has no default wall-clock timeout and receives the configured provi
 
 
 test('Hermes can call any GEV capability, not only fly_to_location', () => {
-  const prompt = buildHermesChatPrompt({ comment: 'turn on flights', viewer: '@ada' });
+  const prompt = buildHermesChatPrompt({ comment: 'turn on flights', viewer: '@ada' }, [
+    { name: 'set_layer_visibility', description: 'Toggle layers' },
+    { name: 'set_visual_style', description: 'Set style' },
+    { name: 'control_cockpit', description: 'Control cockpit' },
+    { name: 'run_view_preset', description: 'Run preset' },
+  ]);
   assert.match(prompt, /set_layer_visibility/);
   assert.match(prompt, /set_visual_style/);
   assert.match(prompt, /control_cockpit/);
@@ -87,4 +92,13 @@ test('Hermes can call any GEV capability, not only fly_to_location', () => {
   assert.equal(out.kind, 'tool-call');
   assert.equal(out.call.name, 'set_layer_visibility');
   assert.equal(out.call.arguments.layerId, 'flights');
+});
+
+test('Hermes prompt takes its catalog from discovered MCP definitions', () => {
+  const prompt = buildHermesChatPrompt(
+    { viewer: 'viewer', comment: 'show flights' },
+    [{ name: 'set_layer_visibility', description: 'Toggle a visible layer.' }],
+  );
+  assert.match(prompt, /set_layer_visibility: Toggle a visible layer/);
+  assert.doesNotMatch(prompt, /fly_to_location:/);
 });

@@ -8,9 +8,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PUBLIC_GEV_TOOL_NAMES, validatePublicToolCall } from './youtubePublicCommandPolicy.js';
-import { isGevFunctionEnabled } from './gevFunctionToggles.js';
-import { GEV_FUNCTION_DOCS } from './gevApi.js';
+import { validatePublicToolCall } from './youtubePublicCommandPolicy.js';
 
 export const HERMES_RUNTIME_VERSION = '0.21.0';
 export const HERMES_RUNTIME_TAG = 'v2026.8.31';
@@ -79,11 +77,14 @@ function extractJson(raw) {
   return '';
 }
 
-export function gevCapabilityList() {
-  return PUBLIC_GEV_TOOL_NAMES.filter((name) => isGevFunctionEnabled(name)).map((name) => `- ${name}: ${GEV_FUNCTION_DOCS[name] || name}`).join('\n');
+export function gevCapabilityList(toolDefinitions = []) {
+  return (Array.isArray(toolDefinitions) ? toolDefinitions : [])
+    .filter((tool) => tool && typeof tool.name === 'string')
+    .map((tool) => `- ${tool.name}: ${String(tool.description || tool.name)}`)
+    .join('\n');
 }
 
-export function buildHermesChatPrompt(input = {}) {
+export function buildHermesChatPrompt(input = {}, toolDefinitions = []) {
   const viewer = String(input.viewer || input.authorHandle || 'viewer').trim() || 'viewer';
   const comment = String(input.comment || '').trim();
   const view = input.viewContext && typeof input.viewContext === 'object'
@@ -100,7 +101,7 @@ export function buildHermesChatPrompt(input = {}) {
 You have EVERY Cloud Computer AI.com capability below. Do not limit yourself to fly_to_location. Pick the function that actually does what the viewer asked: camera, layers, HUD, style, cockpit, tracking, CCTV, radio, annotations, presets, analysis, ISS, routing.
 
 Capabilities:
-${gevCapabilityList()}
+${gevCapabilityList(toolDefinitions)}
 
 Viewer ${viewer} wrote in YouTube chat: ${JSON.stringify(comment)}
 Current globe view: ${view}${prior}${toolResult}
@@ -139,13 +140,17 @@ export function createNousHermesCliInterpreter({
   spawnImpl = spawn,
   timeoutMs = 0,
   env = process.env,
+  toolDefinitions = [],
 } = {}) {
   return async function interpret(input = {}) {
     const command = resolveHermesBin(bin);
     if (!command) {
       return { ok: false, kind: 'invalid', reason: 'Hermes CLI is not installed' };
     }
-    const prompt = buildHermesChatPrompt(input);
+    const currentDefinitions = typeof toolDefinitions === 'function'
+      ? toolDefinitions()
+      : toolDefinitions;
+    const prompt = buildHermesChatPrompt(input, currentDefinitions);
     const sessionName = safeSessionName(input.conversationId);
     const args = [
       'chat',

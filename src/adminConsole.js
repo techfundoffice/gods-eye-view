@@ -1882,8 +1882,12 @@ export class AdminConsoleController {
       owner.textContent = `YouTube owner · connected: ${connected} · Hermes admin emails: ${emails} · handles: ${handles}`;
     }
     if (hermes) {
+      const mcpHealth = hermesStatus.mcp || {};
+      const mcpDetail = mcpHealth.connected
+        ? ` · MCP ${mcpHealth.serverName || 'connected'} ${mcpHealth.protocolVersion || ''} · ${mcpHealth.exposedCount || 0}/${mcpHealth.discoveredCount || 0} exposed`
+        : ` · MCP unavailable${mcpHealth.latestMcpError ? `: ${mcpHealth.latestMcpError}` : ''}`;
       hermes.textContent = this.state.gevApiLoaded
-        ? `Hermes · ${hermesStatus.cli ? 'CLI installed' : 'CLI missing'} · ${hermesStatus.bin || 'no bin'} · model ${hermesStatus.model || control.openrouter?.model || 'unset'} · harness ${hermesStatus.active || hermesStatus.preferred || 'hermes'} · MCP ${control.mcpEnabled ? 'on' : 'off'}`
+        ? `Hermes · ${hermesStatus.cli ? 'CLI installed' : 'CLI missing'} · ${hermesStatus.bin || 'no bin'} · model ${hermesStatus.model || control.openrouter?.model || 'unset'} · harness ${hermesStatus.active || hermesStatus.preferred || 'hermes'} · MCP ${control.mcpEnabled ? 'on' : 'off'}${mcpDetail}`
         : 'Hermes status loading…';
     }
     if (curl) curl.textContent = docs?.curl || '';

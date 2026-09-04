@@ -10,3 +10,4 @@
 - [Single control view](single-control-view.md) — use one horizontal bottom-control layout; do not add a fold/mobile alternate unless the user reopens that scope.
 - [Persistent Hermes runtime](persistent-hermes-runtime.md) — keep Hermes under workspace storage, exclude it from Vite watches, and never resolve it from the disposable home overlay.
 - [View restore precedence](view-restore-precedence.md) — explicit share URLs outrank local snapshots; clean reloads restore locally before the LA/Google 3D default.
+- [Hermes MCP boundary](hermes-mcp-boundary.md) — discover Hermes tools from the live MCP server, but execute viewer actions through the leased public-command pipeline.
