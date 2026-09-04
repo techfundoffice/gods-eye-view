@@ -7,6 +7,7 @@ import {
   PUBLIC_EXECUTOR_HEADER,
 } from './youtubePublicCommandRuntime.js';
 import { VIEWER_REPLY_WINDOW_MS } from './youtubeViewerTurnPolicy.js';
+import { createHermesTrainingViewerGate } from './hermesTrainingViewerGate.js';
 
 function executorRequest({ method = 'GET', url = '/executor/lease', credential, remoteAddress = '127.0.0.1', host = '127.0.0.1:5000', headers = {}, body = null } = {}) {
   const req = new EventEmitter();
@@ -79,7 +80,7 @@ test('executor lease is redeemed only once by compare-and-set', async () => {
 test('aborted idle practice cancels its exact queued command', async () => {
   const ledger = createInMemoryPublicCommandLedger();
   const runtime = createYoutubePublicCommandRuntime({ ledger });
-  await runtime.rotateExecutor();
+  const session = await runtime.rotateExecutor();
   const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
   const queued = await runtime.enqueueTool({
     name: 'get_current_view_state',
@@ -231,23 +232,52 @@ test('visible viewer result rejects a stale nonce without changing the lease', a
   assert.equal((await ledger.list())[0].state, 'executing');
 });
 
-test('viewer work invalidates queued idle practice before registration', async () => {
+test('viewer work queues behind active training without invalidating its practice command', async () => {
   const ledger = createInMemoryPublicCommandLedger();
-  const runtime = createYoutubePublicCommandRuntime({ ledger });
-  await runtime.rotateExecutor();
+  const turnGate = createHermesTrainingViewerGate();
+  const finishTraining = turnGate.tryBeginTraining();
+  let interpretations = 0;
+  const runtime = createYoutubePublicCommandRuntime({
+    ledger,
+    turnGate,
+    interpret: async () => {
+      interpretations += 1;
+      return { ok: true, kind: 'complete', text: 'Training finished; viewer handled.' };
+    },
+  });
+  const session = await runtime.rotateExecutor();
   const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
   const practice = await runtime.enqueueTool(
     { name: 'zoom_to_globe', args: {}, source: 'idle-practice' },
     binding,
   );
   assert.equal(practice.ok, true);
-  await runtime.registerMessage(
+  const first = await runtime.registerMessage(
     { id: 'viewer-comment', text: '/gods-eye-view', author: 'viewer' },
     binding,
   );
+  const second = await runtime.registerMessage(
+    { id: 'viewer-comment-2', text: '/gods-eye-view', author: 'viewer two' },
+    binding,
+  );
   const rows = await ledger.list();
-  assert.equal(rows.find((row) => row.id === practice.command.id).state, 'cancelled');
-  assert.equal(rows.some((row) => row.commentId === 'viewer-comment'), true);
+  assert.equal(rows.find((row) => row.id === practice.command.id).state, 'awaiting-execution');
+  assert.equal(first.record.state, 'received');
+  assert.equal(second.record.state, 'received');
+  assert.match(first.record.reason, /finishes its current training task/i);
+  assert.equal(interpretations, 0);
+  assert.equal(await runtime.nextViewerLease(binding), null);
+
+  const trainingLease = await invoke(runtime.middleware({ getBinding: () => binding }), {
+    credential: session.credential,
+  });
+  assert.equal(trainingLease.body.lease.commandId, practice.command.id);
+  finishTraining();
+  assert.equal(await runtime.nextViewerLease(binding), null);
+  assert.equal(interpretations, 1);
+  const after = await ledger.list();
+  assert.equal(after.find((row) => row.commentId === 'viewer-comment').state, 'succeeded');
+  assert.equal(after.find((row) => row.commentId === 'viewer-comment-2').state, 'received');
 });
 
 test('executor rejects a result from an old capture epoch', async () => {

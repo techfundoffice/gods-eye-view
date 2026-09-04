@@ -9,6 +9,7 @@ import { createGeneratedSkillManager, validateGeneratedSkill } from './hermesGen
 import { createHermesTrainingControl } from './hermesTrainingControl.js';
 import { createYoutubeCommentHarnessMiddleware } from './youtubeCommentHarnessServer.js';
 import { createYoutubePublicCommandRuntime } from './youtubePublicCommandRuntime.js';
+import { createHermesTrainingViewerGate } from './hermesTrainingViewerGate.js';
 
 function invoke(middleware, { body = {}, method = 'POST', url = '/hermes' } = {}) {
   return new Promise((resolve, reject) => {
@@ -62,6 +63,51 @@ test('idle training is single-flight and viewer activity waits for the current t
   assert.equal(b.ok, true);
   assert.equal(training.status().preemptions, 0);
   training.stop();
+});
+
+test('training timeout aborts cooperatively and waits for cleanup before becoming idle', async () => {
+  let cleanupFinished = false;
+  const training = createIdleTrainingCoordinator({
+    idleMs: 0,
+    minIntervalMs: 0,
+    maxRunMs: 5,
+    train: ({ signal }) => new Promise((resolve) => {
+      signal.addEventListener('abort', () => {
+        setTimeout(() => {
+          cleanupFinished = true;
+          resolve({ cleanedUp: true });
+        }, 5);
+      }, { once: true });
+    }),
+  });
+  training.start();
+  const result = await training.trigger();
+  assert.equal(cleanupFinished, true);
+  assert.equal(result.ok, false);
+  assert.equal(result.cancelled, true);
+  assert.match(result.error, /time limit exceeded/i);
+  assert.equal(training.status().active, false);
+  training.stop();
+});
+
+test('training and viewer transitions cannot pass the shared admission gate together', async () => {
+  const gate = createHermesTrainingViewerGate();
+  const finishTraining = gate.tryBeginTraining();
+  assert.equal(typeof finishTraining, 'function');
+  assert.equal((await gate.tryViewerTransition(async () => 'viewer')).entered, false);
+  finishTraining();
+
+  let releaseViewer;
+  const viewer = gate.tryViewerTransition(() => new Promise((resolve) => { releaseViewer = resolve; }));
+  await Promise.resolve();
+  assert.equal(gate.tryBeginTraining(), null);
+  releaseViewer('done');
+  assert.deepEqual(await viewer, { entered: true, value: 'done' });
+
+  const nextTraining = gate.tryBeginTraining();
+  assert.equal(typeof nextTraining, 'function');
+  nextTraining();
+  assert.deepEqual(gate.status(), { training: false, viewerTransitions: 0 });
 });
 
 test('lesson store rejects sensitive data and atomically versions clear/rollback', async () => {

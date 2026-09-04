@@ -289,15 +289,13 @@ export function createYoutubeHomepageChatMiddleware({
         commandsEnabled: live,
         liveChatId,
       };
-      const commands = await commandRuntime?.statuses?.(lastBinding) || [];
       const items = live
         ? (snap.items || []).map((item) => publicMessage(item, snap.videoId, now, { commandsEnabled: true })).filter(Boolean)
         : [];
       if (live && items.length) {
-        for (const item of items) {
-          void Promise.resolve(commandRuntime?.registerMessage?.(item, lastBinding)).catch(() => {});
-        }
+        await Promise.allSettled(items.map((item) => commandRuntime?.registerMessage?.(item, lastBinding)));
       }
+      const commands = await commandRuntime?.statuses?.(lastBinding) || [];
       void Promise.resolve(commandRuntime?.deliverReplies?.(lastBinding)).catch(() => {});
       sendJson(res, 200, publicFeedBody(snap, {
         items,
@@ -361,9 +359,7 @@ export function createYoutubeHomepageChatMiddleware({
         .filter(Boolean);
       const binding = lastBinding;
       if (items.length) {
-        for (const item of items) {
-          void Promise.resolve(commandRuntime?.registerMessage?.(item, binding)).catch(() => {});
-        }
+        await Promise.allSettled(items.map((item) => commandRuntime?.registerMessage?.(item, binding)));
       }
       const commands = await commandRuntime?.statuses?.(binding) || [];
       void Promise.resolve(commandRuntime?.deliverReplies?.(binding)).catch(() => {});

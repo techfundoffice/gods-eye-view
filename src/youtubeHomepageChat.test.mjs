@@ -591,6 +591,9 @@ test('full Hermes details stay open inside Live Comments with live-turn states',
   assert.doesNotMatch(css, /youtube-hermes-card[\s\S]{0,300}166,\s*132,\s*255/);
   assert.match(css, /#hermes-agent-card\[data-state='working'\]/);
   assert.match(interaction, /NO VIEWER TURN ACTIVE/);
+  assert.match(interaction, /Hermes is finishing the current training task\./);
+  assert.match(interaction, /I’ll reply to your comment as soon as I finish the current task I’m executing\./);
+  assert.match(interaction, /VIEWER COMMENT QUEUED · TRAINING TASK IN PROGRESS/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 

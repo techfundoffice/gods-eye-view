@@ -12,3 +12,4 @@
 - [View restore precedence](view-restore-precedence.md) — explicit share URLs outrank local snapshots; clean reloads restore locally before the LA/Google 3D default.
 - [Hermes MCP boundary](hermes-mcp-boundary.md) — discover Hermes tools from the live MCP server, but execute viewer actions through the leased public-command pipeline.
 - [Capture-only agent transport](capture-only-agent-transport.md) — multimodal lease routes must align capture credentials, caller identity, cancellation, and media body budgets.
+- [Hermes training priority](hermes-training-priority.md) — finish an active bounded training task before releasing immediately queued viewer comments.

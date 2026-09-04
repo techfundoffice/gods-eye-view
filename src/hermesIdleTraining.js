@@ -76,6 +76,9 @@ export function createIdleTrainingCoordinator({
         // execution/observation/learning transaction to settle. This prevents a
         // viewer lease from racing a lesson or generated-skill commit.
         const value = await train({ signal: controller.signal, reason, startedAt, deadline: startedAt + maxRunMs });
+        if (controller.signal.aborted) {
+          throw controller.signal.reason || new Error('Training time limit exceeded');
+        }
         lastResult = value == null ? null : structuredClone(value);
         lastError = '';
         return { started: true, ok: true, result: lastResult };

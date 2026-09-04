@@ -61,6 +61,7 @@ import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatSe
 import { createYoutubePublicCommandRuntime } from './src/youtubePublicCommandRuntime.js';
 import { createHermesHarnessController } from './src/hermesHarnessController.js';
 import { createHermesTrainingRuntime } from './src/hermesTrainingRuntime.js';
+import { createHermesTrainingViewerGate } from './src/hermesTrainingViewerGate.js';
 import { createYoutubeLiveChatPoster } from './src/hermesYoutubeReply.js';
 import { createLiveCommentIngestWorker } from './src/youtubeLiveCommentIngest.js';
 import { createLiveStreamController } from './src/liveStream.js';
@@ -143,6 +144,7 @@ function sharedAdminAuth() {
 }
 
 let hermesHarnessSingleton = null;
+const hermesTrainingViewerGate = createHermesTrainingViewerGate();
 function sharedHermesHarness() {
   if (!hermesHarnessSingleton) {
     hermesHarnessSingleton = createHermesHarnessController();
@@ -162,6 +164,7 @@ function sharedPublicCommandRuntime() {
       },
       onViewerActivity: () => hermesTrainingControlSingleton?.viewerActivity('viewer activity'),
       isTrainingActive: () => hermesTrainingControlSingleton?.isTraining() === true,
+      turnGate: hermesTrainingViewerGate,
     });
     void publicCommandRuntimeSingleton.rotateExecutor();
   }
@@ -7938,6 +7941,7 @@ function sharedHermesTrainingControl() {
       commandRuntime: runtime,
       getBinding: sharedGevBinding,
       hasPendingViewer: () => runtime.hasPendingViewer(sharedGevBinding()),
+      turnGate: hermesTrainingViewerGate,
     });
   }
   return hermesTrainingControlSingleton;

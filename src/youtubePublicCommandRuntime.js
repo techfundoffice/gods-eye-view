@@ -93,6 +93,7 @@ export function createYoutubePublicCommandRuntime({
   youtubePoster = null,
   onViewerActivity = null,
   isTrainingActive = async () => false,
+  turnGate = null,
 } = {}) {
   const coordinator = createYoutubePublicCommandCoordinator({ ledger, interpret, now });
   let executor = null;
@@ -179,19 +180,26 @@ export function createYoutubePublicCommandRuntime({
     if (!existing) {
       try { await onViewerActivity?.('viewer message'); } catch { /* control hooks must not affect commands */ }
     }
-    let trainingActive = false;
-    try { trainingActive = await isTrainingActive() === true; } catch { /* status hooks never block ingest */ }
-    const result = await coordinator.register({
-      commentId,
-      text: message?.text,
-      author: { displayName: message?.author, handle: message?.authorHandle },
-      authorHandle: message?.authorHandle,
-      agentMode: message?.agentMode,
-      deferAgent: message?.deferAgent === true || trainingActive,
-      deferReason: trainingActive
-        ? 'Queued while Hermes finishes its current training task'
-        : '',
-    }, bindingWithExecutor(binding));
+    const register = (trainingActive) => coordinator.register({
+        commentId,
+        text: message?.text,
+        author: { displayName: message?.author, handle: message?.authorHandle },
+        authorHandle: message?.authorHandle,
+        agentMode: message?.agentMode,
+        deferAgent: message?.deferAgent === true || trainingActive,
+        deferReason: trainingActive
+          ? 'Queued while Hermes finishes its current training task'
+          : '',
+      }, bindingWithExecutor(binding));
+    let result;
+    if (turnGate) {
+      const attempt = await turnGate.tryViewerTransition(() => register(false));
+      result = attempt.entered ? attempt.value : await register(true);
+    } else {
+      let trainingActive = false;
+      try { trainingActive = await isTrainingActive() === true; } catch { /* status hooks never block ingest */ }
+      result = await register(trainingActive);
+    }
     await notifyReplyWindow(result.record);
     return result;
   }
@@ -307,13 +315,18 @@ export function createYoutubePublicCommandRuntime({
     return count;
   }
 
-  async function nextLease(binding = {}) {
+  async function nextLease(binding = {}, gateHeld = false) {
     await reconcileBinding(binding);
     const target = bindingWithExecutor(binding);
     if (!target.commandsEnabled) return null;
+    const trainingActive = turnGate
+      ? turnGate.status().training
+      : await Promise.resolve(isTrainingActive()).catch(() => false) === true;
     const rows = await ledger.list();
-    let trainingActive = false;
-    try { trainingActive = await isTrainingActive() === true; } catch { /* lease remains available */ }
+    if (!trainingActive && turnGate && !gateHeld) {
+      const attempt = await turnGate.tryViewerTransition(() => nextLease(binding, true));
+      return attempt.entered ? attempt.value : null;
+    }
     let record = rows.find((row) => row.state === 'awaiting-execution'
       && row.videoId === target.videoId
       && row.generation === target.generation
@@ -357,13 +370,16 @@ export function createYoutubePublicCommandRuntime({
     };
   }
 
-  async function nextViewerLease(binding = {}, viewContext = {}) {
+  async function nextViewerLease(binding = {}, viewContext = {}, gateHeld = false) {
     await reconcileBinding(binding);
     const target = bindingWithExecutor(binding);
     if (!target.commandsEnabled) return null;
-    try {
-      if (await isTrainingActive() === true) return null;
-    } catch { /* training status failures must not permanently block viewers */ }
+    if (turnGate && !gateHeld) {
+      const attempt = await turnGate.tryViewerTransition(() => nextViewerLease(binding, viewContext, true));
+      return attempt.entered ? attempt.value : null;
+    }
+    try { if (await isTrainingActive() === true) return null; }
+    catch { /* training status failures must not permanently block viewers */ }
     const rows = await ledger.list();
     let record = rows.find((row) => row.state === 'awaiting-execution'
       && row.videoId === target.videoId
@@ -548,6 +564,9 @@ export function createYoutubePublicCommandRuntime({
     statuses,
     waitForObservedExecution,
     hasPendingViewer,
+    isTrainingActive: async () => turnGate
+      ? turnGate.status().training === true
+      : await isTrainingActive() === true,
     cancelIdleWork,
     reconcileBinding,
     nextViewerLease,

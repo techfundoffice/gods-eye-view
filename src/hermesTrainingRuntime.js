@@ -29,6 +29,7 @@ export function createHermesTrainingRuntime({
   commandRuntime,
   getBinding,
   hasPendingViewer = async () => false,
+  turnGate = null,
   now = Date.now,
   autoStart = true,
 } = {}) {
@@ -49,46 +50,52 @@ export function createHermesTrainingRuntime({
   const training = createIdleTrainingCoordinator({
     now,
     train: async ({ signal, startedAt }) => {
-      const binding = getBinding() || {};
-      if (!binding.commandsEnabled || !binding.videoId) throw new Error('Practice unavailable: live browser is offline');
-      if (await hasPendingViewer()) throw new Error('Practice unavailable: viewer work is pending');
-      const enabledNames = new Set(viewSafeToolsFrom().map((tool) => tool.name));
-      const available = PRACTICE_ACTIONS.filter((item) => enabledNames.has(item.name) && isGevFunctionEnabled(item.name));
-      const action = available.length ? available[practiceIndex++ % available.length] : null;
-      if (!action) throw new Error('Practice unavailable: no enabled view-safe action');
-      const queued = await commandRuntime.enqueueTool({ ...action, source: 'idle-practice' }, binding);
-      if (!queued.ok) throw new Error(queued.error?.message || 'Practice action was not queued');
-      const observed = await commandRuntime.waitForObservedExecution(queued.command.id, binding, { signal });
-      if (!observed.ok) throw new Error(observed.reason || 'Practice action was not observed in browser');
-      const lesson = await lessons.add({
-        summary: `Observed view-safe practice: ${action.name}`,
-        action: action.name,
-        arguments: action.args,
-        preconditions: ['Verified live broadcast', 'No viewer work pending', 'Control enabled in ADMIN'],
-        outcome: String(observed.result?.label || observed.result?.action || 'browser applied').slice(0, 160),
-        modelRequirements: ['toolCalling'],
-        trainingRunId: `training-${startedAt}`,
-        recordedAt: now(),
-      });
-      const current = await skills.inspect();
-      const candidate = {
-        name: 'hermes-generated-view-skill',
-        version: nextPatchVersion(current.active?.version),
-        instructions: 'Operate only enabled view-safe live-interface controls. Inspect the observed result before recording success.',
-        rules: [
-          'Finish the current practice task before beginning queued viewer work.',
-          'Use the executable schema from the current generated catalog.',
-          'Record a procedure only after a browser result is observed.',
-        ],
-        examples: [{ tool: action.name, arguments: action.args, observed: true }],
-        tools: [...new Set([...(current.active?.tools || []), action.name])],
-      };
-      const skillDecision = await skills.propose(candidate, {
-        rationale: `Validated idle practice ${action.name}`,
-        cases: [{ tool: action.name, arguments: action.args, observed: true }],
-      });
-      if (!skillDecision.accepted) throw new Error(skillDecision.reasons?.join('; ') || 'Generated skill replay was rejected');
-      return { action: action.name, observed: true, lessonRevision: lesson.revision, skillRevision: skillDecision.revision };
+      const releaseTraining = turnGate?.tryBeginTraining?.();
+      if (turnGate && !releaseTraining) throw new Error('Practice unavailable: viewer transition is in progress');
+      try {
+        const binding = getBinding() || {};
+        if (!binding.commandsEnabled || !binding.videoId) throw new Error('Practice unavailable: live browser is offline');
+        if (await hasPendingViewer()) throw new Error('Practice unavailable: viewer work is pending');
+        const enabledNames = new Set(viewSafeToolsFrom().map((tool) => tool.name));
+        const available = PRACTICE_ACTIONS.filter((item) => enabledNames.has(item.name) && isGevFunctionEnabled(item.name));
+        const action = available.length ? available[practiceIndex++ % available.length] : null;
+        if (!action) throw new Error('Practice unavailable: no enabled view-safe action');
+        const queued = await commandRuntime.enqueueTool({ ...action, source: 'idle-practice' }, binding);
+        if (!queued.ok) throw new Error(queued.error?.message || 'Practice action was not queued');
+        const observed = await commandRuntime.waitForObservedExecution(queued.command.id, binding, { signal });
+        if (!observed.ok) throw new Error(observed.reason || 'Practice action was not observed in browser');
+        const lesson = await lessons.add({
+          summary: `Observed view-safe practice: ${action.name}`,
+          action: action.name,
+          arguments: action.args,
+          preconditions: ['Verified live broadcast', 'No viewer work pending', 'Control enabled in ADMIN'],
+          outcome: String(observed.result?.label || observed.result?.action || 'browser applied').slice(0, 160),
+          modelRequirements: ['toolCalling'],
+          trainingRunId: `training-${startedAt}`,
+          recordedAt: now(),
+        });
+        const current = await skills.inspect();
+        const candidate = {
+          name: 'hermes-generated-view-skill',
+          version: nextPatchVersion(current.active?.version),
+          instructions: 'Operate only enabled view-safe live-interface controls. Inspect the observed result before recording success.',
+          rules: [
+            'Finish the current practice task before beginning queued viewer work.',
+            'Use the executable schema from the current generated catalog.',
+            'Record a procedure only after a browser result is observed.',
+          ],
+          examples: [{ tool: action.name, arguments: action.args, observed: true }],
+          tools: [...new Set([...(current.active?.tools || []), action.name])],
+        };
+        const skillDecision = await skills.propose(candidate, {
+          rationale: `Validated idle practice ${action.name}`,
+          cases: [{ tool: action.name, arguments: action.args, observed: true }],
+        });
+        if (!skillDecision.accepted) throw new Error(skillDecision.reasons?.join('; ') || 'Generated skill replay was rejected');
+        return { action: action.name, observed: true, lessonRevision: lesson.revision, skillRevision: skillDecision.revision };
+      } finally {
+        releaseTraining?.();
+      }
     },
   });
   const control = createHermesTrainingControl({ training, lessons, skills });
