@@ -52,11 +52,11 @@ function focusScroll(el) {
  * @param {Document} doc
  */
 
-/** Mixkit royalty-free preview beds (https://mixkit.co/free-stock-music/). */
+/** Local SoundHelix demos (royalty-free sample beds served from /music). */
 const ROYALTY_FREE_MUSIC_URLS = [
-  "https://assets.mixkit.co/music/preview/mixkit-tech-house-vibes-130.mp3",
-  "https://assets.mixkit.co/music/preview/mixkit-hip-hop-02-738.mp3",
-  "https://assets.mixkit.co/music/preview/mixkit-driving-ambition-32.mp3",
+  "/music/soundhelix-1.mp3",
+  "/music/soundhelix-2.mp3",
+  "/music/soundhelix-3.mp3",
 ];
 
 /**
@@ -86,7 +86,6 @@ function createRoyaltyFreeMusicPlayer(doc) {
     audio.id = "left-yt-music-audio";
     audio.preload = "none";
     audio.loop = false;
-    audio.crossOrigin = "anonymous";
     audio.style.display = "none";
     audio.dataset.gevRoyaltyFreeMusic = "true";
     audio.addEventListener("ended", () => {
@@ -122,7 +121,7 @@ function createRoyaltyFreeMusicPlayer(doc) {
         softToast("Royalty-free music playing");
       } catch (err) {
         syncUi(false);
-        softToast("Music blocked — click again after interacting with the page");
+        softToast("Music failed to start — try again");
         console.warn("[left-yt-chrome] music play failed", err);
       }
     },
