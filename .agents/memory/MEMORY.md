@@ -13,3 +13,4 @@
 - [Hermes MCP boundary](hermes-mcp-boundary.md) — discover Hermes tools from the live MCP server, but execute viewer actions through the leased public-command pipeline.
 - [Capture-only agent transport](capture-only-agent-transport.md) — multimodal lease routes must align capture credentials, caller identity, cancellation, and media body budgets.
 - [Hermes training priority](hermes-training-priority.md) — finish an active bounded training task before releasing immediately queued viewer comments.
+- [Hermes WebUI coexistence](hermes-webui-coexistence.md) — reuse the pinned Agent install, but coordinate WebUI turns outside the YouTube-only admission gate.
