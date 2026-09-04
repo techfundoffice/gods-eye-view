@@ -18957,3 +18957,13 @@ nav.left-yt-chrome {
 #left-yt-chrome .left-yt-bell-badge.is-empty {
   display: none !important;
 }
+
+/* === GEV_LEFT_YT_MUSIC_V1 === */
+#left-yt-chrome .left-yt-music[aria-pressed="true"] {
+  border-color: rgba(80, 220, 255, 0.75) !important;
+  box-shadow: 0 0 12px rgba(0, 200, 255, 0.35) !important;
+  color: #9eecff !important;
+}
+#left-yt-chrome .left-yt-music[aria-pressed="true"] .material-symbols-outlined {
+  color: #9eecff !important;
+}

@@ -1,6 +1,6 @@
 /**
  * Left-column YouTube-style top chrome toolbar.
- * Wires Ask / Search / Mic / Create / Bell to existing GEV surfaces (best-effort).
+ * Wires Ask / Search / Mic / Music / Create / Bell to existing GEV surfaces (best-effort).
  *
  * @module leftYtChrome
  */
@@ -51,6 +51,90 @@ function focusScroll(el) {
 /**
  * @param {Document} doc
  */
+
+/** Mixkit royalty-free preview beds (https://mixkit.co/free-stock-music/). */
+const ROYALTY_FREE_MUSIC_URLS = [
+  "https://assets.mixkit.co/music/preview/mixkit-tech-house-vibes-130.mp3",
+  "https://assets.mixkit.co/music/preview/mixkit-hip-hop-02-738.mp3",
+  "https://assets.mixkit.co/music/preview/mixkit-driving-ambition-32.mp3",
+];
+
+/**
+ * @param {Document} doc
+ * @returns {{ toggle: () => Promise<void>, stop: () => void, isPlaying: () => boolean }}
+ */
+function createRoyaltyFreeMusicPlayer(doc) {
+  /** @type {HTMLAudioElement | null} */
+  let audio = null;
+  let trackIndex = 0;
+
+  const btn = () => doc.getElementById("left-yt-music");
+  const icon = () => btn()?.querySelector(".material-symbols-outlined");
+
+  const syncUi = (playing) => {
+    const b = btn();
+    if (!b) return;
+    b.setAttribute("aria-pressed", playing ? "true" : "false");
+    b.title = playing ? "Pause royalty-free music" : "Play royalty-free music";
+    const ic = icon();
+    if (ic) ic.textContent = playing ? "volume_up" : "volume_off";
+  };
+
+  const ensureAudio = () => {
+    if (audio) return audio;
+    audio = doc.createElement("audio");
+    audio.id = "left-yt-music-audio";
+    audio.preload = "none";
+    audio.loop = false;
+    audio.crossOrigin = "anonymous";
+    audio.style.display = "none";
+    audio.dataset.gevRoyaltyFreeMusic = "true";
+    audio.addEventListener("ended", () => {
+      trackIndex = (trackIndex + 1) % ROYALTY_FREE_MUSIC_URLS.length;
+      if (!audio) return;
+      audio.src = ROYALTY_FREE_MUSIC_URLS[trackIndex];
+      audio.play().then(() => syncUi(true)).catch(() => syncUi(false));
+    });
+    audio.addEventListener("pause", () => {
+      if (audio && !audio.ended) syncUi(false);
+    });
+    audio.addEventListener("play", () => syncUi(true));
+    (doc.body || doc.documentElement).appendChild(audio);
+    return audio;
+  };
+
+  return {
+    isPlaying() {
+      return Boolean(audio && !audio.paused && !audio.ended);
+    },
+    async toggle() {
+      const a = ensureAudio();
+      if (!a.paused && !a.ended) {
+        a.pause();
+        syncUi(false);
+        softToast("Music paused");
+        return;
+      }
+      if (!a.src) a.src = ROYALTY_FREE_MUSIC_URLS[trackIndex];
+      try {
+        await a.play();
+        syncUi(true);
+        softToast("Royalty-free music playing");
+      } catch (err) {
+        syncUi(false);
+        softToast("Music blocked — click again after interacting with the page");
+        console.warn("[left-yt-chrome] music play failed", err);
+      }
+    },
+    stop() {
+      try { audio?.pause?.(); } catch { /* ignore */ }
+      try { audio?.remove?.(); } catch { /* ignore */ }
+      audio = null;
+      syncUi(false);
+    },
+  };
+}
+
 function syncBellBadge(doc) {
   const badge = doc.getElementById('left-yt-bell-badge');
   const countEl = doc.getElementById('youtube-comments-count');
@@ -81,6 +165,12 @@ export function initLeftYtChrome(doc = globalThis.document) {
   const mic = doc.getElementById('left-yt-mic');
   const create = doc.getElementById('left-yt-create');
   const bell = doc.getElementById('left-yt-bell');
+  const music = doc.getElementById('left-yt-music');
+  const musicPlayer = createRoyaltyFreeMusicPlayer(doc);
+  try {
+    const ic = music?.querySelector('.material-symbols-outlined');
+    if (ic) ic.textContent = 'volume_off';
+  } catch { /* ignore */ }
 
   const onAsk = () => {
     const comments = doc.getElementById('youtube-comments-panel');
@@ -163,6 +253,8 @@ export function initLeftYtChrome(doc = globalThis.document) {
   mic?.addEventListener('click', onMic);
   create?.addEventListener('click', onCreate);
   bell?.addEventListener('click', onBell);
+  const onMusic = () => { musicPlayer.toggle(); };
+  music?.addEventListener('click', onMusic);
 
   syncBellBadge(doc);
   let observer = null;
@@ -183,6 +275,8 @@ export function initLeftYtChrome(doc = globalThis.document) {
       mic?.removeEventListener('click', onMic);
       create?.removeEventListener('click', onCreate);
       bell?.removeEventListener('click', onBell);
+      music?.removeEventListener('click', onMusic);
+      try { musicPlayer.stop(); } catch { /* ignore */ }
       try { observer?.disconnect?.(); } catch { /* ignore */ }
     },
   };
