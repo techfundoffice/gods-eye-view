@@ -20104,3 +20104,341 @@ body.ui-clean-view .gev-home-video-rail {
   display: none !important;
 }
 /* === /GEV_HERMES_BOX_CHAT_V1 === */
+
+/* === GEV_HIDE_YT_COMMENTS_VIDEO_TITLE_V1 === */
+/* Remove the broadcast title strip (e.g. CLOUD COMPUTER AI.COM · LIVE) under Youtube Chat header. */
+#youtube-comments-panel #youtube-comments-video,
+#admin-stamp-stack #youtube-comments-panel #youtube-comments-video,
+#youtube-comments-video.youtube-summary {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+/* === /GEV_HIDE_YT_COMMENTS_VIDEO_TITLE_V1 === */
+
+/* === GEV_YT_CHAT_BRAND_LOGO_STATIC_V1 === */
+/* Keep the Cloud Computer brand logo still — no pulse/scale while working. */
+.youtube-chat-brand-logo,
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand-logo,
+.youtube-chat-brand[data-turn-state=working] .youtube-chat-brand-logo,
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand[data-turn-state=working] .youtube-chat-brand-logo,
+#hermes-box-chat .hermes-box-mark,
+#hermes-box-chat img {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+  filter: none !important;
+}
+/* === /GEV_YT_CHAT_BRAND_LOGO_STATIC_V1 === */
+
+/* === GEV_HIDE_CENTER_TITLE_TAGLINE_V1 === */
+/* Remove CLOUD COMPUTER AI.COM + flying-it tagline from the center header.
+   Keep #top-center-actions and home-video rail. */
+#title-bar > h1,
+#title-bar > .subtitle,
+#title-bar > .title-glow,
+#title-bar .title-logo {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+/* Icons-only center cluster after title text is gone */
+#title-bar {
+  grid-template-columns: auto !important;
+  grid-template-rows: auto auto !important;
+}
+#title-bar > #top-center-actions {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+}
+#title-bar > .gev-home-video-rail {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+}
+/* Also hide any title-logo that was MOVEd into the left nav */
+#left-panel-stack > .title-logo,
+#left-panel-stack > .brand-logo {
+  display: none !important;
+}
+/* === /GEV_HIDE_CENTER_TITLE_TAGLINE_V1 === */
+
+/* === GEV_TOP_ACTIONS_IN_LEFT_NAV_V1 === */
+/* MOVE #top-center-actions into #left-panel-stack tippy-top, flush left. */
+#left-panel-stack > #top-center-actions {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  margin: 0 0 0.35rem 0 !important;
+  padding: 0.15rem 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.35rem !important;
+  z-index: 5 !important;
+  pointer-events: auto !important;
+  grid-column: auto !important;
+  grid-row: auto !important;
+}
+#title-bar > #top-center-actions {
+  position: relative !important;
+  transform: none !important;
+}
+/* === /GEV_TOP_ACTIONS_IN_LEFT_NAV_V1 === */
+
+/* === GEV_LEFT_NAV_NO_TOP_PAD_V1 === */
+/* Kill the empty black gap above Ask YouTube — left nav sits flush under tickers. */
+#left-panel-stack {
+  top: var(--gev-top-chrome-height, 4rem) !important;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  gap: 0.35rem !important;
+}
+#left-panel-stack > #top-center-actions {
+  order: -40 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+}
+#left-panel-stack > #left-yt-chrome,
+#left-panel-stack > nav.left-yt-chrome {
+  order: -30 !important;
+  margin-top: 0 !important;
+  padding-top: 0.2rem !important;
+}
+/* Hidden title logos must not reserve tippy-top space */
+#left-panel-stack > .title-logo,
+#left-panel-stack > .brand-logo {
+  display: none !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+/* === /GEV_LEFT_NAV_NO_TOP_PAD_V1 === */
+
+/* === GEV_HERMES_BOX_LOGO_MOVE_V1 === */
+/* Brand logo MOVEd into Hermes empty state (replaces gold H mark). */
+#hermes-box-empty .hermes-box-mark {
+  display: none !important;
+}
+#hermes-box-logo-slot,
+#hermes-box-empty .hermes-box-logo-slot {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin: 0 0 0.15rem !important;
+  padding: 0 !important;
+}
+#hermes-box-logo-slot .youtube-chat-brand-logo,
+#hermes-box-logo-slot .hermes-box-brand-logo,
+#hermes-box-empty img.youtube-chat-brand-logo {
+  display: block !important;
+  width: auto !important;
+  max-width: 72% !important;
+  max-height: 4.5rem !important;
+  height: auto !important;
+  object-fit: contain !important;
+  margin: 0 auto !important;
+  animation: none !important;
+  transform: none !important;
+  filter: none !important;
+}
+/* Brand strip no longer owns the logo after the MOVE */
+#youtube-chat-brand:not(:has(.youtube-chat-brand-logo)) {
+  gap: 0.25rem;
+}
+/* === /GEV_HERMES_BOX_LOGO_MOVE_V1 === */
+
+/* === GEV_YT_CHAT_HEADER_IN_WINDOW_V1 === */
+/* Youtube Chat title + count live on the live-comments card (not above Hermes). */
+#youtube-comments-panel .youtube-all-comments-card > .youtube-chat-window-header,
+#youtube-comments-panel .youtube-all-comments-card > .panel-header.youtube-chat-window-header {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  width: 100% !important;
+  margin: 0 0 0.25rem !important;
+  padding: 0.15rem 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  position: relative !important;
+  inset: auto !important;
+}
+#youtube-comments-panel .youtube-all-comments-card > .youtube-chat-window-header .panel-title,
+#youtube-comments-panel #youtube-all-comments-title.panel-title {
+  flex: 0 1 auto !important;
+  margin: 0 !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  font-size: 0.72rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+#youtube-comments-panel .youtube-all-comments-card > .youtube-chat-window-header #youtube-comments-count {
+  color: #ffd24a !important;
+  -webkit-text-fill-color: #ffd24a !important;
+  font-weight: 700 !important;
+}
+#youtube-comments-panel > .youtube-comments-panel-inner > .panel-header:not(.youtube-chat-window-header) {
+  display: none !important;
+}
+/* === /GEV_YT_CHAT_HEADER_IN_WINDOW_V1 === */\n
+/* === GEV_HERMES_CHANNEL_STATUS_LABEL_V1 === */
+#hermes-agent-title,
+#youtube-comments-panel #hermes-agent-title {
+  text-transform: none !important;
+  letter-spacing: 0.01em !important;
+  font-size: 0.68rem !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+#youtube-hermes-mode,
+#hermes-agent-status {
+  text-transform: none !important;
+}
+/* === /GEV_HERMES_CHANNEL_STATUS_LABEL_V1 === */
+\n
+
+/* === GEV_YT_CHAT_NO_HANDLE_GREETING_V1 === */
+/* No Hello @handle in brand greeting — ask line only. */
+.youtube-chat-hello-line:not(.youtube-chat-hello-ask) {
+  display: none !important;
+}
+/* === /GEV_YT_CHAT_NO_HANDLE_GREETING_V1 === */
+
+/* === GEV_NO_HANDLE_NO_DUP_STATUS_V1 === */
+#youtube-hermes-mode:empty,
+#youtube-hermes-mode[hidden],
+#hermes-agent-status:empty {
+  display: none !important;
+}
+#youtube-comments-panel #hermes-agent-card .hermes-agent-header {
+  flex-wrap: wrap !important;
+}
+#youtube-comments-panel #hermes-agent-card #hermes-agent-title {
+  flex: 1 1 auto !important;
+  max-width: 100% !important;
+}
+/* Brand strip: never show a lone @handle as the idle/working headline */
+.youtube-chat-activity-headline:is(:not(:has(.youtube-chat-hello-ask))) {
+  /* working/reply plain text ok */
+}
+/* === /GEV_NO_HANDLE_NO_DUP_STATUS_V1 === */
+
+/* === GEV_BRAND_NO_WORKING_LABEL_V1 === */
+.youtube-chat-activity[data-state='working'] .youtube-chat-activity-headline,
+.youtube-chat-activity[data-state='reply'] .youtube-chat-activity-headline {
+  /* still shows ask line via JS; never a Working… stub */
+}
+/* === /GEV_BRAND_NO_WORKING_LABEL_V1 === */
+
+/* === GEV_YT_CHAT_NO_ASK_HEADLINE_V1 === */
+#youtube-chat-activity .youtube-chat-activity-headline,
+.youtube-chat-activity-headline,
+.youtube-chat-hello-ask,
+.youtube-chat-hello-line {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 0 !important;
+  overflow: hidden !important;
+}
+/* === /GEV_YT_CHAT_NO_ASK_HEADLINE_V1 === */
+
+/* === GEV_CHANNEL_STATUS_ON_YT_CHAT_V1 === */
+/* Channel Responding status MOVEd onto the Youtube Chat live-comments window. */
+#youtube-comments-panel .youtube-all-comments-card > .youtube-chat-channel-status,
+#youtube-comments-panel .youtube-chat-channel-status.hermes-agent-header {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  width: 100% !important;
+  margin: 0 0 0.35rem !important;
+  padding: 0.25rem 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+#youtube-comments-panel .youtube-chat-channel-status #hermes-agent-title {
+  margin: 0 !important;
+  color: #ffd24a !important;
+  -webkit-text-fill-color: #ffd24a !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  letter-spacing: 0.01em !important;
+}
+#hermes-agent-card > .hermes-agent-header {
+  display: none !important;
+}
+/* === /GEV_CHANNEL_STATUS_ON_YT_CHAT_V1 === */
+
+/* === GEV_NO_PAD_ABOVE_CLOUD_LOGO_V1 === */
+/* Flush Cloud Computer logo — no empty pad above it in the east rail. */
+#admin-stamp-stack {
+  padding-top: 0 !important;
+}
+#admin-stamp-stack #youtube-comments-panel,
+#youtube-comments-panel .youtube-comments-panel-inner {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+#youtube-comments-panel .youtube-chat-brand {
+  padding-top: 0 !important;
+  padding-bottom: 0.25rem !important;
+  margin-top: 0 !important;
+  gap: 0.25rem !important;
+}
+#hermes-agent-card,
+#youtube-comments-panel #hermes-agent-card {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+#hermes-box-chat,
+#youtube-comments-panel #hermes-agent-card #hermes-box-chat {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+#hermes-box-empty {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  gap: 0.25rem !important;
+}
+#hermes-box-logo-slot,
+#hermes-box-empty .hermes-box-logo-slot {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+#hermes-box-logo-slot .youtube-chat-brand-logo,
+#hermes-box-logo-slot .hermes-box-brand-logo {
+  margin-top: 0 !important;
+}
+/* === /GEV_NO_PAD_ABOVE_CLOUD_LOGO_V1 === */
+

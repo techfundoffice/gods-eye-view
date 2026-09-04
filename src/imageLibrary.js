@@ -92,7 +92,7 @@ export function applyBrandLogo(doc = globalThis.document, config = readConfig())
   if (!doc?.querySelectorAll) return;
   const url = String(config?.brandLogoUrl || DEFAULT_BRAND_LOGO_URL).trim() || DEFAULT_BRAND_LOGO_URL;
   const imgs = doc.querySelectorAll(
-    "#youtube-chat-brand .youtube-chat-brand-logo, img.youtube-chat-brand-logo",
+    "#youtube-chat-brand .youtube-chat-brand-logo, #hermes-box-logo-slot .youtube-chat-brand-logo, img.youtube-chat-brand-logo, img.hermes-box-brand-logo",
   );
   for (const img of imgs) {
     try {

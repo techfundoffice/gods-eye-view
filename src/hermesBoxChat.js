@@ -35,6 +35,17 @@ export function initHermesBoxChat({
   const sendBtn = documentRef?.getElementById?.('hermes-box-send');
   if (!root || !chat || !thread || !input || !sendBtn) return null;
 
+  // MOVE (do not clone) the Cloud Computer brand logo onto the Hermes empty-state mark.
+  try {
+    const slot = documentRef.getElementById('hermes-box-logo-slot') || empty;
+    const logo = documentRef.querySelector('#youtube-chat-brand .youtube-chat-brand-logo, img.youtube-chat-brand-logo');
+    if (slot && logo && logo.parentElement !== slot) {
+      slot.appendChild(logo);
+      logo.classList.add('hermes-box-brand-logo');
+    }
+    documentRef.querySelectorAll?.('.hermes-box-mark')?.forEach((el) => el.remove());
+  } catch { /* ignore */ }
+
   let busy = false;
   let typingEl = null;
 

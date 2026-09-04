@@ -438,10 +438,10 @@ export class IntelHUD {
     if (leftNav && logo && logo.parentElement !== leftNav) {
       leftNav.insertBefore(logo, leftNav.firstChild);
     }
-    const title = document.getElementById("title-bar");
+    // MOVE globe action circles into the left nav (not center title-bar).
     const actionsCluster = document.getElementById("top-center-actions");
-    if (title && actionsCluster && actionsCluster.parentElement !== title) {
-      title.appendChild(actionsCluster);
+    if (leftNav && actionsCluster && actionsCluster.parentElement !== leftNav) {
+      leftNav.insertBefore(actionsCluster, leftNav.firstChild);
     }
     const voice = document.getElementById("gev-voice-control");
     if (actionsCluster && voice && voice.parentElement !== actionsCluster) {

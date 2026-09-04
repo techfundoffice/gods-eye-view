@@ -155,39 +155,27 @@ function renderChatActivity(activity, state = 'idle', viewer = '', onStarter = n
   const fullViewer = safeText(viewer || 'VIEWER', 80);
   const visibleViewer = displayViewerLabel(fullViewer);
   const idle = state !== 'working' && state !== 'reply';
-  const copy = state === 'working'
-    ? { kicker: 'CAMERA CONTROL IN PROGRESS', headline: visibleViewer, detail: 'DIRECTING THE GLOBE' }
-    : state === 'reply'
-      ? { kicker: 'AWAITING REPLY', headline: visibleViewer, detail: 'YOUR TURN IN CHAT' }
-      : { kicker: 'LIVE CAMERA DESK', headline: helloHeadline(viewer || 'Username'), detail: 'WAITING FOR THE NEXT VIEWER REQUEST' };
+  // Brand strip stays ask-only. Hermes header owns live status — no Working… placeholder.
+  const copy = {
+    kicker: 'LIVE CAMERA DESK',
+    headline: helloSubline(),
+    detail: 'WAITING FOR THE NEXT VIEWER REQUEST',
+  };
   activity.dataset.state = state;
   activity.setAttribute('aria-label', state === 'working'
-    ? `Working on ${fullViewer}'s request`
+    ? 'Working on a viewer request'
     : state === 'reply'
-      ? `Waiting for ${fullViewer}'s reply`
-      : `Greeting ${formatAtHandle(viewer || 'Username')}`);
+      ? 'Waiting for a viewer reply'
+      : 'How can I help you today?');
   const doc = activity.ownerDocument;
   const kicker = doc.createElement('span');
   kicker.className = 'youtube-chat-activity-kicker';
   kicker.textContent = copy.kicker;
-  const headline = doc.createElement('strong');
-  headline.className = 'youtube-chat-activity-headline';
-  if (idle) {
-    const line1 = doc.createElement('span');
-    line1.className = 'youtube-chat-hello-line';
-    line1.textContent = copy.headline;
-    const line2 = doc.createElement('span');
-    line2.className = 'youtube-chat-hello-line youtube-chat-hello-ask';
-    line2.textContent = helloSubline();
-    headline.append(line1, line2);
-  } else {
-    headline.textContent = copy.headline;
-  }
-  if (fullViewer !== visibleViewer) headline.title = fullViewer;
+  // Ask headline removed per user — starters only under the brand logo/Hermes.
   const detail = doc.createElement('span');
   detail.className = 'youtube-chat-activity-detail';
   detail.textContent = copy.detail;
-  const nodes = [kicker, headline, detail];
+  const nodes = [kicker, detail];
   if (idle) {
     const starters = doc.createElement('div');
     starters.className = 'youtube-chat-starters';
@@ -215,17 +203,25 @@ function renderChatActivity(activity, state = 'idle', viewer = '', onStarter = n
 function renderHermesAgent(els, state = 'idle', viewer = '') {
   if (!els?.hermesCard) return;
   const activeViewer = safeText(viewer || 'VIEWER', 80);
+  const channelLabel = 'youtube.com/@cloudcomputer Responding';
   const copy = state === 'working'
-    ? { mode: 'RESPONDING', status: `Hermes is handling ${activeViewer}'s request.`, detail: 'VIEWER TURN ACTIVE · GLOBE CONTROL IN PROGRESS' }
+    ? { mode: '', status: channelLabel, detail: 'VIEWER TURN ACTIVE · GLOBE CONTROL IN PROGRESS' }
     : state === 'reply'
-      ? { mode: 'WAITING', status: `Hermes is waiting for ${activeViewer}.`, detail: 'VIEWER TURN ACTIVE · REPLY WINDOW OPEN' }
+      ? { mode: '', status: channelLabel, detail: 'VIEWER TURN ACTIVE · REPLY WINDOW OPEN' }
       : state === 'finishing'
-        ? { mode: 'TRAINING', status: 'Hermes is finishing the current training task.', detail: 'VIEWER COMMENT QUEUED · TRAINING TASK IN PROGRESS' }
+        ? { mode: '', status: channelLabel, detail: 'VIEWER COMMENT QUEUED · TRAINING TASK IN PROGRESS' }
       : state === 'observing'
-        ? { mode: 'OBSERVING', status: 'Hermes is watching the live YouTube conversation.', detail: 'NO VIEWER TURN ACTIVE · LEARNING FROM CHAT' }
-        : { mode: 'TRAINING', status: 'Hi, I’m Hermes.', detail: 'NO VIEWER TURN ACTIVE · EXPLORING THE INTERFACE' };
+        ? { mode: '', status: channelLabel, detail: 'NO VIEWER TURN ACTIVE · LEARNING FROM CHAT' }
+        : { mode: '', status: channelLabel, detail: 'NO VIEWER TURN ACTIVE · EXPLORING THE INTERFACE' };
   els.hermesCard.dataset.state = state;
-  if (els.hermesMode) els.hermesMode.textContent = copy.mode;
+  const titleEl = els.hermesTitle
+    || els.hermesCard?.querySelector?.('#hermes-agent-title')
+    || globalThis.document?.getElementById?.('hermes-agent-title');
+  if (titleEl) titleEl.textContent = channelLabel;
+  if (els.hermesMode) {
+    els.hermesMode.textContent = '';
+    els.hermesMode.hidden = true;
+  }
   if (els.hermesStatus) {
     els.hermesStatus.replaceChildren();
     const documentOwner = els.hermesStatus.ownerDocument || globalThis.document;
@@ -383,6 +379,7 @@ export function createYoutubeHomepageInteraction({
       brand: root.querySelector('#youtube-chat-brand'),
       activity: root.querySelector('#youtube-chat-activity'),
       hermesCard: root.querySelector('#hermes-agent-card'),
+      hermesTitle: root.querySelector('#hermes-agent-title'),
       hermesMode: root.querySelector('#youtube-hermes-mode'),
       hermesStatus: root.querySelector('#youtube-hermes-status'),
       hermesDetail: root.querySelector('#youtube-hermes-detail'),

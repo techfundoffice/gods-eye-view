@@ -283,7 +283,7 @@ export function initHomeVideo(doc = globalThis.document, options = {}) {
    * channel, so the queue can advance without loading YouTube's API script.
    */
   function subscribeToPlayer() {
-    postToPlayer({ event: 'listening', id: 'gev-home-video', channel: 'widget' });
+    postToPlayer({ event: 'listening', id: rootId, channel: 'widget' });
   }
 
   /**
@@ -315,6 +315,10 @@ export function initHomeVideo(doc = globalThis.document, options = {}) {
 
   const onMessage = (event) => {
     if (!PLAYER_MESSAGE_ORIGINS.has(event.origin)) return;
+    // Every player on the page listens on the same window, so a message has to
+    // be matched to the frame that sent it. Without this the split view would
+    // advance its queue and unmute itself off the other player's events.
+    if (!iframe || event.source !== iframe.contentWindow) return;
     let payload;
     try {
       payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;

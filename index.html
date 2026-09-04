@@ -111,10 +111,6 @@
             alt="Cloud Computer AI.com">
           <div id="youtube-chat-activity" class="youtube-chat-activity" data-state="idle" role="status" aria-live="polite">
             <span class="youtube-chat-activity-kicker">LIVE CAMERA DESK</span>
-            <strong class="youtube-chat-activity-headline">
-              <span class="youtube-chat-hello-line">Hello @Username</span>
-              <span class="youtube-chat-hello-line youtube-chat-hello-ask">How can I help you today?</span>
-            </strong>
             <span class="youtube-chat-activity-detail">WAITING FOR THE NEXT VIEWER REQUEST</span>
             <div class="youtube-chat-starters" role="list" aria-label="Suggested questions">
               <button type="button" class="youtube-chat-starter" role="listitem" data-prompt="Summarize takeaways from a page">Summarize takeaways from a page</button>
@@ -123,24 +119,13 @@
             </div>
           </div>
         </div>
-        <div class="panel-header">
-          <span class="panel-title">Youtube Chat</span>
-          <span id="youtube-comments-count" class="youtube-comments-count" title="Loaded comment threads">0</span>
-          <span class="panel-divider"></span>
-          <button class="panel-collapse-btn" data-collapse-target="youtube-comments-panel" title="Collapse panel">◀</button>
-        </div>
         <div id="youtube-comments-video" class="youtube-summary">NO VIDEO SELECTED</div>
         <div class="youtube-chat-cards">
           <section id="hermes-agent-card" class="youtube-chat-card youtube-hermes-card hermes-inline-card" data-state="idle" data-chat-state="idle" aria-labelledby="hermes-agent-title">
-            <header class="youtube-chat-card-header hermes-agent-header">
-              <span class="hermes-agent-pulse" aria-hidden="true"></span>
-              <h2 id="hermes-agent-title" class="youtube-chat-col-title">HERMES</h2>
-              <span id="youtube-hermes-mode" class="youtube-hermes-mode">DESK</span>
-              <span id="hermes-agent-status" role="status" aria-live="polite">CONNECTING</span>
-            </header>
             <div id="hermes-box-chat" class="hermes-box-chat" data-empty="true" aria-label="Hermes conversation">
               <div id="hermes-box-empty" class="hermes-box-empty">
-                <span class="hermes-box-mark" aria-hidden="true">H</span>
+                <!-- Cloud Computer logo MOVEs here from #youtube-chat-brand (no clone) -->
+                <div id="hermes-box-logo-slot" class="hermes-box-logo-slot" aria-hidden="false"></div>
                 <p class="hermes-box-headline">What can I help with?</p>
                 <p class="hermes-box-subline">Ask Hermes about the globe, what's on screen, or plan a flyover.</p>
                 <ul id="hermes-box-starters" class="hermes-box-starters" role="list" aria-label="Hermes starter prompts">
@@ -213,9 +198,18 @@
             <ol id="youtube-progress-list" class="youtube-feed-list youtube-comments-list youtube-conversation-list"></ol>
           </section>
           <section class="youtube-chat-card youtube-all-comments-card" aria-labelledby="youtube-all-comments-title">
-            <div class="youtube-chat-card-header">
-              <span id="youtube-all-comments-title" class="youtube-chat-col-title">All Live Comments</span>
+            <div class="panel-header youtube-chat-window-header" data-youtube-chat-window-header="1">
+              <span id="youtube-all-comments-title" class="panel-title">Youtube Chat</span>
+              <span id="youtube-comments-count" class="youtube-comments-count" title="Loaded comment threads">0</span>
+              <span class="panel-divider"></span>
+              <button class="panel-collapse-btn" data-collapse-target="youtube-comments-panel" title="Collapse panel">◀</button>
             </div>
+            <header class="youtube-chat-card-header hermes-agent-header youtube-chat-channel-status" data-moved-channel-status="1">
+              <span class="hermes-agent-pulse" aria-hidden="true"></span>
+              <h2 id="hermes-agent-title" class="youtube-chat-col-title">youtube.com/@cloudcomputer Responding</h2>
+              <span id="youtube-hermes-mode" class="youtube-hermes-mode" hidden></span>
+              <span id="hermes-agent-status" role="status" aria-live="polite"></span>
+            </header>
             <div id="youtube-comments-status" class="youtube-comments-status" role="status" aria-live="polite">CONNECT YOUTUBE TO LOAD COMMENTS</div>
             <ol id="youtube-comments-list" class="youtube-feed-list youtube-comments-list"></ol>
           </section>

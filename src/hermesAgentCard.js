@@ -300,7 +300,8 @@ export function initHermesAgentCard({
       const element = get(id);
       if (element) element.textContent = value;
     }
-    setMessage(harness.running ? 'HERMES RUNNING' : harness.ready ? 'HERMES READY' : 'HERMES OFFLINE', harness.running ? 'ok' : '');
+    // Title already shows channel status; keep #hermes-agent-status quiet to avoid duplicate lines.
+    setMessage('', harness.running || harness.ready ? 'ok' : '');
   };
 
   const request = async (action = null, details = {}) => {
