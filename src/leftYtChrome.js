@@ -149,6 +149,7 @@ function createRoyaltyFreeMusicPlayer(doc) {
     void (async () => {
       const wasPlaying = Boolean(audio && !audio.paused && !audio.ended);
       await refreshPlaylist();
+      syncTrackSelect();
       if (!audio) return;
       if (!playlistUrls.length) {
         try { audio.pause(); } catch { /* ignore */ }
@@ -170,14 +171,6 @@ function createRoyaltyFreeMusicPlayer(doc) {
     })();
   };
 
-  try {
-    globalThis.document?.addEventListener?.(ROYALTY_FREE_MUSIC_EVENT, onConfigChanged);
-    globalThis.addEventListener?.(ROYALTY_FREE_MUSIC_EVENT, onConfigChanged);
-  } catch { /* ignore */ }
-
-  void refreshPlaylist();
-
-
   const syncTrackSelect = () => {
     const sel = doc.getElementById("left-yt-music-track");
     if (!sel) return;
@@ -190,10 +183,22 @@ function createRoyaltyFreeMusicPlayer(doc) {
     sel.innerHTML = opts.length
       ? opts.join("")
       : '<option value="">No tracks</option>';
-    if (current) sel.value = current;
+    if (current) {
+      try { sel.value = current; } catch { /* ignore */ }
+    }
   };
 
+  try {
+    globalThis.document?.addEventListener?.(ROYALTY_FREE_MUSIC_EVENT, onConfigChanged);
+    globalThis.addEventListener?.(ROYALTY_FREE_MUSIC_EVENT, onConfigChanged);
+  } catch { /* ignore */ }
+
+  // Immediate fallback so TRK never stays on HTML "Loading…"
+  syncTrackSelect();
+  void refreshPlaylist().then(() => syncTrackSelect());
+
   return {
+    syncTrackSelect,
     isPlaying() {
       return Boolean(audio && !audio.paused && !audio.ended);
     },
@@ -255,6 +260,7 @@ function createRoyaltyFreeMusicPlayer(doc) {
       try {
         await a.play();
         syncUi(true);
+        syncTrackSelect();
         softToast("Royalty-free music playing");
       } catch (err) {
         syncUi(false);
@@ -307,6 +313,7 @@ export function initLeftYtChrome(doc = globalThis.document) {
   const bell = doc.getElementById('left-yt-bell');
   const music = doc.getElementById('left-yt-music');
   const musicPlayer = createRoyaltyFreeMusicPlayer(doc);
+  try { musicPlayer.syncTrackSelect?.(); } catch { /* ignore */ }
   try {
     const ic = music?.querySelector('.material-symbols-outlined');
     if (ic) ic.textContent = 'volume_off';
