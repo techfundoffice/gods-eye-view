@@ -6,6 +6,7 @@ import {
   createYoutubePublicCommandRuntime,
   PUBLIC_EXECUTOR_HEADER,
 } from './youtubePublicCommandRuntime.js';
+import { VIEWER_REPLY_WINDOW_MS } from './youtubeViewerTurnPolicy.js';
 
 function executorRequest({ method = 'GET', url = '/executor/lease', credential, remoteAddress = '127.0.0.1', host = '127.0.0.1:5000', headers = {}, body = null } = {}) {
   const req = new EventEmitter();
@@ -75,6 +76,61 @@ test('executor lease is redeemed only once by compare-and-set', async () => {
   assert.equal((await ledger.list())[0].state, 'executing');
 });
 
+test('aborted idle practice cancels its exact queued command', async () => {
+  const ledger = createInMemoryPublicCommandLedger();
+  const runtime = createYoutubePublicCommandRuntime({ ledger });
+  await runtime.rotateExecutor();
+  const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
+  const queued = await runtime.enqueueTool({
+    name: 'get_current_view_state',
+    args: {},
+    source: 'idle-practice',
+  }, binding);
+  const controller = new AbortController();
+  controller.abort(new Error('Viewer work preempted idle practice'));
+  const observed = await runtime.waitForObservedExecution(
+    queued.command.id,
+    binding,
+    { signal: controller.signal, pollMs: 1 },
+  );
+  assert.equal(observed.ok, false);
+  assert.equal(observed.reason, 'Viewer work preempted idle practice');
+  const record = await ledger.get(queued.command.id);
+  assert.equal(record.state, 'cancelled');
+  assert.equal(record.reason, 'Viewer work preempted idle practice');
+});
+
+test('a leased idle practice becomes invalid as soon as viewer work preempts it', async () => {
+  const ledger = createInMemoryPublicCommandLedger();
+  const runtime = createYoutubePublicCommandRuntime({ ledger });
+  const session = await runtime.rotateExecutor();
+  const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
+  await runtime.enqueueTool({
+    name: 'get_current_view_state',
+    args: {},
+    source: 'idle-practice',
+  }, binding);
+  const middleware = runtime.middleware({ getBinding: () => binding });
+  const leased = await invoke(middleware, { credential: session.credential });
+  assert.equal(
+    await runtime.isExecutorLeaseActive(
+      leased.body.lease.commandId,
+      leased.body.lease.captureEpoch,
+      binding,
+    ),
+    true,
+  );
+  await runtime.cancelIdleWork('Viewer work preempted idle practice');
+  assert.equal(
+    await runtime.isExecutorLeaseActive(
+      leased.body.lease.commandId,
+      leased.body.lease.captureEpoch,
+      binding,
+    ),
+    false,
+  );
+});
+
 test('visible viewer lease runs the AI tool and continues to a final reply', async () => {
   const ledger = createInMemoryPublicCommandLedger();
   const interpreted = [];
@@ -96,7 +152,7 @@ test('visible viewer lease runs the AI tool and continues to a final reply', asy
       };
     },
   });
-  await runtime.rotateExecutor();
+  const session = await runtime.rotateExecutor();
   const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
   await runtime.registerMessage({
     id: 'comment',
@@ -108,39 +164,41 @@ test('visible viewer lease runs the AI tool and continues to a final reply', asy
   assert.equal(interpreted.length, 0);
   const middleware = runtime.middleware({ getBinding: () => binding });
 
+  const viewContext = {
+    camera: { heading: 90 },
+    layers: ['aircraft'],
+    screenshot: { dataUrl: `data:image/webp;base64,${'a'.repeat(12_000)}` },
+  };
   const lease = await invoke(middleware, {
     method: 'POST',
     url: '/agent/lease',
-    remoteAddress: '10.0.0.5',
-    host: 'app.example.replit.dev',
-    body: { viewContext: { camera: { heading: 90 }, layers: ['aircraft'] } },
+    credential: session.credential,
+    body: { viewContext },
   });
   assert.equal(lease.statusCode, 200);
   assert.equal(lease.body.lease.tool.name, 'run_view_preset');
-  assert.deepEqual(interpreted[0].viewContext, {
-    camera: { heading: 90 },
-    layers: ['aircraft'],
-  });
+  assert.deepEqual(interpreted[0].viewContext, viewContext);
 
+  const resultViewContext = {
+    camera: { heading: 120 },
+    layers: ['aircraft', 'flights'],
+    screenshot: { dataUrl: `data:image/webp;base64,${'b'.repeat(12_000)}` },
+  };
   const result = await invoke(middleware, {
     method: 'POST',
     url: '/agent/result',
-    remoteAddress: '10.0.0.5',
-    host: 'app.example.replit.dev',
+    credential: session.credential,
     body: {
       commandId: lease.body.lease.commandId,
       nonce: lease.body.lease.nonce,
       result: { ok: true, action: 'run_view_preset', preset: '/live-contacts' },
-      viewContext: { camera: { heading: 120 }, layers: ['aircraft', 'flights'] },
+      viewContext: resultViewContext,
     },
   });
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.record.state, 'succeeded');
   assert.equal(result.body.record.answer, 'Live Contacts is active. What next?');
-  assert.deepEqual(interpreted[1].viewContext, {
-    camera: { heading: 120 },
-    layers: ['aircraft', 'flights'],
-  });
+  assert.deepEqual(interpreted[1].viewContext, resultViewContext);
 });
 
 test('visible viewer result rejects a stale nonce without changing the lease', async () => {
@@ -153,14 +211,15 @@ test('visible viewer result rejects a stale nonce without changing the lease', a
       call: { name: 'zoom_to_globe', arguments: {}, responseId: 'response', callId: 'call' },
     }),
   });
-  await runtime.rotateExecutor();
+  const session = await runtime.rotateExecutor();
   const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
   await runtime.registerMessage({ id: 'comment', text: '/gods-eye-view', author: 'viewer' }, binding);
   const middleware = runtime.middleware({ getBinding: () => binding });
-  const lease = await invoke(middleware, { url: '/agent/lease' });
+  const lease = await invoke(middleware, { url: '/agent/lease', credential: session.credential });
   const result = await invoke(middleware, {
     method: 'POST',
     url: '/agent/result',
+    credential: session.credential,
     body: {
       commandId: lease.body.lease.commandId,
       nonce: 'wrong',
@@ -170,6 +229,25 @@ test('visible viewer result rejects a stale nonce without changing the lease', a
   assert.equal(result.statusCode, 409);
   assert.equal(result.body.reason, 'nonce');
   assert.equal((await ledger.list())[0].state, 'executing');
+});
+
+test('viewer work invalidates queued idle practice before registration', async () => {
+  const ledger = createInMemoryPublicCommandLedger();
+  const runtime = createYoutubePublicCommandRuntime({ ledger });
+  await runtime.rotateExecutor();
+  const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
+  const practice = await runtime.enqueueTool(
+    { name: 'zoom_to_globe', args: {}, source: 'idle-practice' },
+    binding,
+  );
+  assert.equal(practice.ok, true);
+  await runtime.registerMessage(
+    { id: 'viewer-comment', text: '/gods-eye-view', author: 'viewer' },
+    binding,
+  );
+  const rows = await ledger.list();
+  assert.equal(rows.find((row) => row.id === practice.command.id).state, 'cancelled');
+  assert.equal(rows.some((row) => row.commentId === 'viewer-comment'), true);
 });
 
 test('executor rejects a result from an old capture epoch', async () => {
@@ -262,8 +340,10 @@ test('video or generation changes cancel old nonterminal records', async () => {
 test('same YouTube message id is deduplicated across replacement broadcasts', async () => {
   const ledger = createInMemoryPublicCommandLedger();
   let calls = 0;
+  let viewerActivity = 0;
   const runtime = createYoutubePublicCommandRuntime({
     ledger,
+    onViewerActivity: () => { viewerActivity += 1; },
     interpret: async () => {
       calls += 1;
       return { ok: true, kind: 'complete', text: 'Handled once.' };
@@ -279,5 +359,38 @@ test('same YouTube message id is deduplicated across replacement broadcasts', as
     { commandsEnabled: true, videoId: 'video-b', generation: 2 },
   );
   assert.equal(calls, 1);
+  assert.equal(viewerActivity, 2, 'the new message and its reply window each reset training once');
   assert.equal((await ledger.list()).length, 1);
+});
+
+test('terminal viewer comment blocks training for 30 seconds after Hermes replies, then is set aside', async () => {
+  let currentTime = 1_000;
+  const activity = [];
+  const ledger = createInMemoryPublicCommandLedger({ now: () => currentTime });
+  const runtime = createYoutubePublicCommandRuntime({
+    ledger,
+    now: () => currentTime,
+    onViewerActivity: (reason) => activity.push(reason),
+    interpret: async () => ({ ok: true, kind: 'complete', text: 'Hawaii is ready.' }),
+  });
+  await runtime.rotateExecutor();
+  const binding = { commandsEnabled: true, videoId: 'video', generation: 1 };
+  const registered = await runtime.registerMessage({
+    id: 'hawaii',
+    text: 'Show me Hawaii',
+    author: 'Viewer',
+    authorHandle: '@viewer',
+    agentMode: 'execute',
+  }, binding);
+
+  assert.equal(registered.record.state, 'succeeded');
+  assert.deepEqual(activity, ['viewer message', 'viewer reply window']);
+  assert.equal(await runtime.hasPendingViewer(binding), true);
+
+  currentTime += VIEWER_REPLY_WINDOW_MS - 1;
+  assert.equal(await runtime.hasPendingViewer(binding), true);
+
+  currentTime += 1;
+  assert.equal(await runtime.hasPendingViewer(binding), false);
+  assert.equal((await ledger.get(registered.record.id)).state, 'succeeded');
 });

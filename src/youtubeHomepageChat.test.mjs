@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 
@@ -15,6 +16,11 @@ import {
   memoryPollDelay,
 } from './youtubeHomepageInteraction.js';
 import { PUBLIC_HELP_REPLY } from './youtubePublicCommandPolicy.js';
+import { createInMemoryPublicCommandLedger } from './youtubePublicCommandLedger.js';
+import {
+  createYoutubePublicCommandRuntime,
+  PUBLIC_EXECUTOR_HEADER,
+} from './youtubePublicCommandRuntime.js';
 
 function invoke(middleware, url = '/feed') {
   return new Promise((resolve, reject) => {
@@ -120,7 +126,7 @@ test('homepage feed starts the AI for every live comment and exposes normalized 
     publishedAt: '2026-08-31T22:30:00.000Z',
     source: 'youtube',
     agentMode: 'execute',
-    deferAgent: false,
+    deferAgent: true,
     actions: [],
   });
   const serialized = JSON.stringify(response.body);
@@ -466,8 +472,8 @@ test('visible Youtube conversation renders viewer request first with one countdo
   assert.equal(exchange.children[0].textContent, '@viewerhandle · 14:00 UTC');
   assert.equal(exchange.children[1].textContent, 'Navigate to Ensenada, Mexico');
   assert.equal(exchange.children[2].className, 'youtube-agent-reply');
-  assert.equal(exchange.children[2].children[0].className, 'youtube-followup-countdown');
-  assert.equal(exchange.children[2].children[0].children[0].textContent, '2:00');
+  assert.equal(exchange.children[2].children[0].className, 'youtube-followup-countdown is-urgent');
+  assert.equal(exchange.children[2].children[0].children[0].textContent, '0:30');
   assert.equal(exchange.children[2].children[0].children[1].textContent, 'TIME LEFT TO REPLY');
   assert.equal(exchange.children[2].children[1].textContent, "@viewerhandle'S TURN");
   assert.equal(exchange.children[2].children[2].textContent, 'CLOUD COMPUTER AI.COM REPLY · 14:01 UTC');
@@ -500,8 +506,8 @@ test('visible Youtube conversation renders viewer request first with one countdo
     id: 'cmd-queued-1',
     command: 'viewer-request',
     state: 'received',
-    reason: 'Queued until @viewerhandle replies (120s window)',
-    holdUntil: currentTime + 120_000,
+    reason: 'Queued until @viewerhandle replies (30s window)',
+    holdUntil: currentTime + 30_000,
     viewer: 'Queued Viewer',
     authorHandle: '@queued',
     commentId: 'queued-1',
@@ -519,7 +525,7 @@ test('visible Youtube conversation renders viewer request first with one countdo
   assert.equal(progressList.children[1].children[1].textContent, '@queued');
   assert.equal(progressList.children[1].children[2].textContent, 'Navigate to Tokyo');
 
-  currentTime += 120_001;
+  currentTime += 30_001;
   interaction.publishCommandStatuses([{
     id: 'cmd-queued-1',
     command: 'viewer-request',
@@ -556,19 +562,25 @@ test('chat box includes the supplied Cloud Computer AI.com logo and working stat
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
-test('Hermes is a separate right-rail card with honest idle copy and live-turn states', () => {
+test('full Hermes details stay open inside Live Comments with live-turn states', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
   const interaction = readFileSync(new URL('./youtubeHomepageInteraction.js', import.meta.url), 'utf8');
-  assert.match(html, /id="youtube-hermes-card"[^>]*data-state="idle"/);
+  assert.match(html, /id="hermes-agent-card"[^>]*data-state="idle"/);
   assert.match(html, /HERMES AGENT/);
   assert.match(html, /Hi, I’m Hermes\./);
   assert.match(html, /Thanks for watching me train myself\. I’m kind of lonely—can you please chat with me here\?/);
   assert.match(html, /id="youtube-hermes-mode"/);
   assert.match(html, /id="youtube-hermes-detail"/);
+  assert.match(html, /id="hermes-agent-seeing"/);
+  assert.match(html, /id="hermes-agent-observing"/);
+  assert.match(html, /id="hermes-agent-capabilities"/);
+  assert.match(html, /data-hermes-action="rollback-learning"/);
+  assert.doesNotMatch(html, /<aside id="hermes-agent-card"/);
+  assert.doesNotMatch(html, /hermes-agent-expand|FULL DETAILS/);
   assert.ok(
-    html.indexOf('id="youtube-hermes-card"') < html.indexOf('class="youtube-chat-card youtube-progress-card"'),
-    'Hermes card should be the first card in the Youtube right rail',
+    html.indexOf('id="hermes-agent-card"') < html.indexOf('class="youtube-chat-card youtube-progress-card"'),
+    'Hermes details should be the first card inside Live Comments',
   );
   assert.ok(
     html.indexOf('class="youtube-chat-card youtube-progress-card"') < html.indexOf('class="youtube-chat-card youtube-all-comments-card"'),
@@ -577,13 +589,13 @@ test('Hermes is a separate right-rail card with honest idle copy and live-turn s
   assert.match(css, /\.youtube-hermes-card/);
   assert.match(css, /\.youtube-hermes-card[\s\S]*background:\s*rgba\(2,\s*12,\s*20,\s*0\.76\)/);
   assert.doesNotMatch(css, /youtube-hermes-card[\s\S]{0,300}166,\s*132,\s*255/);
-  assert.match(css, /#youtube-hermes-card\[data-state='working'\]/);
+  assert.match(css, /#hermes-agent-card\[data-state='working'\]/);
   assert.match(interaction, /NO VIEWER TURN ACTIVE/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
-test('follow-up countdown displays the complete remaining two-minute window', () => {
-  assert.equal(formatFollowUpCountdown(120_000), '2:00');
+test('follow-up countdown displays the complete 30-second reply window', () => {
+  assert.equal(formatFollowUpCountdown(30_000), '0:30');
   assert.equal(formatFollowUpCountdown(30_001), '0:31');
   assert.equal(formatFollowUpCountdown(0), '0:00');
 });
@@ -798,6 +810,9 @@ test('visible live page executes an AI tool lease and posts its result', async (
           },
         };
       }
+      if (url.includes('/agent/valid')) {
+        return { ok: true, async json() { return { active: true }; } };
+      }
       if (url.includes('/agent/result')) {
         complete(JSON.parse(options.body));
         return { ok: true, async json() { return { ok: true }; } };
@@ -821,6 +836,7 @@ test('visible live page executes an AI tool lease and posts its result', async (
     },
   });
 
+  globalThis.__GEV_CAPTURE_EXECUTOR__ = true;
   interaction.start();
   const result = await done;
   assert.deepEqual(calls, [{
@@ -841,6 +857,180 @@ test('visible live page executes an AI tool lease and posts its result', async (
   assert.equal(requests.filter(({ url }) => url.includes('/agent/lease')).length, 1);
   assert.equal(requests.filter(({ url }) => url.includes('/agent/result')).length, 1);
   interaction.stop();
+  delete globalThis.__GEV_CAPTURE_EXECUTOR__;
+});
+
+test('trusted capture page drains idle practice through the executor transport', async () => {
+  const calls = [];
+  let leaseRequests = 0;
+  let postedResult = null;
+  let complete;
+  const done = new Promise((resolve) => { complete = resolve; });
+  const interaction = createYoutubeHomepageInteraction({
+    fetchImpl: async (url, options = {}) => {
+      if (url.includes('/feed')) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              active: true,
+              status: 'live',
+              videoId: 'vid',
+              generation: 1,
+              commandsEnabled: true,
+              items: [],
+              commands: [],
+            };
+          },
+        };
+      }
+      if (url.includes('/agent/lease')) {
+        return { ok: true, async json() { return { lease: null }; } };
+      }
+      if (url.includes('/executor/lease')) {
+        leaseRequests += 1;
+        return {
+          ok: true,
+          async json() {
+            return {
+              lease: {
+                commandId: 'practice-1',
+                captureEpoch: 'epoch-1',
+                videoId: 'vid',
+                generation: 1,
+                tool: { name: 'get_current_view_state', arguments: {} },
+              },
+            };
+          },
+        };
+      }
+      if (url.includes('/executor/valid')) {
+        return { ok: true, async json() { return { active: true }; } };
+      }
+      if (url.includes('/executor/result')) {
+        postedResult = JSON.parse(options.body);
+        complete(postedResult);
+        return { ok: true, async json() { return { ok: true }; } };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+    runner: async (action, args) => {
+      calls.push({ action, args });
+      return { ok: true, action };
+    },
+    nextchat: {
+      publishViewerMessage() {},
+      updateAgentReply() {},
+      setHarnessStatus() {},
+    },
+    documentRef: null,
+    clock: {
+      setTimeout() { return 1; },
+      clearTimeout() {},
+    },
+  });
+
+  globalThis.__GEV_CAPTURE_EXECUTOR__ = true;
+  interaction.start();
+  const result = await done;
+  interaction.stop();
+  delete globalThis.__GEV_CAPTURE_EXECUTOR__;
+
+  assert.deepEqual(calls, [{ action: 'get_current_view_state', args: {} }]);
+  assert.deepEqual(result, {
+    commandId: 'practice-1',
+    captureEpoch: 'epoch-1',
+    result: { ok: true, action: 'get_current_view_state' },
+  });
+});
+
+test('trusted capture page aborts an idle action when its lease is preempted', async () => {
+  let leaseRequests = 0;
+  let validityChecks = 0;
+  let resultPosts = 0;
+  let complete;
+  const done = new Promise((resolve) => { complete = resolve; });
+  const interaction = createYoutubeHomepageInteraction({
+    fetchImpl: async (url) => {
+      if (url.includes('/feed')) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              active: true,
+              status: 'live',
+              videoId: 'vid',
+              generation: 1,
+              commandsEnabled: true,
+              items: [],
+              commands: [],
+            };
+          },
+        };
+      }
+      if (url.includes('/agent/lease')) {
+        return { ok: true, async json() { return { lease: null }; } };
+      }
+      if (url.includes('/executor/lease')) {
+        leaseRequests += 1;
+        return {
+          ok: true,
+          async json() {
+            return {
+              lease: leaseRequests === 1
+                ? {
+                  commandId: 'practice-preempt',
+                  captureEpoch: 'epoch-1',
+                  videoId: 'vid',
+                  generation: 1,
+                  tool: { name: 'zoom_to_globe', arguments: {} },
+                }
+                : null,
+            };
+          },
+        };
+      }
+      if (url.includes('/executor/valid')) {
+        validityChecks += 1;
+        return { ok: true, async json() { return { active: validityChecks === 1 }; } };
+      }
+      if (url.includes('/executor/result')) {
+        resultPosts += 1;
+        return { ok: false, async json() { return { error: { kind: 'cancelled' } }; } };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+    runner: async (_action, _args, control) => new Promise((resolve, reject) => {
+      control.signal.addEventListener('abort', () => {
+        complete(control.signal.reason?.message || 'aborted');
+        reject(control.signal.reason);
+      }, { once: true });
+    }),
+    nextchat: {
+      publishViewerMessage() {},
+      updateAgentReply() {},
+      setHarnessStatus() {},
+    },
+    documentRef: null,
+    clock: {
+      setTimeout(callback, delay) {
+        if (delay === 50) queueMicrotask(callback);
+        return 1;
+      },
+      clearTimeout() {},
+    },
+  });
+
+  globalThis.__GEV_CAPTURE_EXECUTOR__ = true;
+  interaction.start();
+  const result = await done;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  interaction.stop();
+  delete globalThis.__GEV_CAPTURE_EXECUTOR__;
+
+  assert.equal(result, 'Idle practice was preempted');
+  assert.equal(validityChecks, 2);
+  assert.equal(resultPosts, 1);
 });
 
 test('with commandRuntime, /help becomes a succeeded command with commentId', async () => {
@@ -910,6 +1100,73 @@ test('with commandRuntime, every live chat item is registered not only the lates
   const response = await invoke(middleware, '/feed');
   assert.equal(response.status, 200);
   assert.deepEqual(registered, ['chat-a', 'chat-b']);
+});
+
+test('homepage comments reach Hermes with capture context before the first tool selection', async () => {
+  const interpreted = [];
+  const runtime = createYoutubePublicCommandRuntime({
+    ledger: createInMemoryPublicCommandLedger(),
+    interpret: async (input) => {
+      interpreted.push(input);
+      return {
+        ok: true,
+        kind: 'tool',
+        call: {
+          name: 'fly_to_location',
+          arguments: { query: 'Tokyo' },
+          responseId: 'response',
+          callId: 'call',
+        },
+      };
+    },
+  });
+  const session = await runtime.rotateExecutor();
+  const identity = liveIdentity();
+  const homepage = createYoutubeHomepageChatMiddleware({
+    discoverActive: async () => identity,
+    listChat: async () => ({
+      items: [{
+        id: 'chat-context',
+        snippet: { displayMessage: 'Take me to Tokyo', publishedAt: '2026-09-01T00:00:00.000Z' },
+        authorDetails: { displayName: 'Viewer' },
+      }],
+      nextPageToken: '',
+      pollingIntervalMillis: 5000,
+    }),
+    commandRuntime: runtime,
+  });
+  await invoke(homepage, '/feed');
+  assert.equal(interpreted.length, 0);
+
+  const binding = { commandsEnabled: true, videoId: identity.videoId, generation: identity.generation };
+  const agent = runtime.middleware({ getBinding: () => binding });
+  const req = new EventEmitter();
+  req.method = 'POST';
+  req.url = '/agent/lease';
+  req.socket = { remoteAddress: '127.0.0.1' };
+  req.headers = {
+    host: '127.0.0.1:5000',
+    'content-type': 'application/json',
+    [PUBLIC_EXECUTOR_HEADER]: session.credential,
+  };
+  const res = {
+    statusCode: 0,
+    setHeader() {},
+    end(value) { this.body = JSON.parse(value); },
+  };
+  const viewContext = {
+    camera: { latitude: 35.68, longitude: 139.76 },
+    controls: [{ id: 'style-thermal', label: 'Thermal', disabled: false }],
+    screenshot: { dataUrl: `data:image/webp;base64,${'a'.repeat(12_000)}` },
+  };
+  const pending = agent(req, res);
+  req.emit('data', Buffer.from(JSON.stringify({ viewContext })));
+  req.emit('end');
+  await pending;
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.lease.tool.name, 'fly_to_location');
+  assert.deepEqual(interpreted[0].viewContext, viewContext);
 });
 
 test('vite homepage middleware is constructed with commandRuntime', () => {

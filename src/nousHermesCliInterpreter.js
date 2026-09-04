@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { validatePublicToolCall } from './youtubePublicCommandPolicy.js';
+import { assembleLiveViewContext } from './liveViewContext.js';
 
 export const HERMES_RUNTIME_VERSION = '0.21.0';
 export const HERMES_RUNTIME_TAG = 'v2026.8.31';
@@ -58,9 +59,16 @@ export function parseHermesCliOutput(stdout, mode = 'execute') {
             text: reply,
           };
         }
+        return { ok: false, kind: 'invalid-tool-call', reason: checked.reason || 'Hermes returned an invalid tool call' };
       }
       if (reply) return { ok: true, kind: 'complete', text: reply.slice(0, 1000) };
-    } catch { /* fall through to prose */ }
+      return { ok: false, kind: 'invalid-output', reason: 'Hermes CLI JSON contained no supported output' };
+    } catch {
+      return { ok: false, kind: 'invalid-json', reason: 'Hermes CLI returned malformed JSON' };
+    }
+  }
+  if (/^\s*(?:```json\s*)?[\[{]/i.test(raw)) {
+    return { ok: false, kind: 'invalid-json', reason: 'Hermes CLI returned malformed JSON' };
   }
   const text = raw.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 1000);
   return text
@@ -87,14 +95,19 @@ export function gevCapabilityList(toolDefinitions = []) {
 export function buildHermesChatPrompt(input = {}, toolDefinitions = []) {
   const viewer = String(input.viewer || input.authorHandle || 'viewer').trim() || 'viewer';
   const comment = String(input.comment || '').trim();
-  const view = input.viewContext && typeof input.viewContext === 'object'
-    ? JSON.stringify(input.viewContext)
-    : '{}';
+  const live = assembleLiveViewContext(input.viewContext, { model: input.model });
+  const view = live.ok ? JSON.stringify(live.context) : '{}';
   const toolResult = input.toolResult
     ? `\nTool result: ${JSON.stringify(input.toolResult).slice(0, 1500)}`
     : '';
   const prior = input.priorCall
     ? `\nYou already called ${input.priorCall.name} ${JSON.stringify(input.priorCall.arguments || {})}.`
+    : '';
+  const perception = input.perception
+    ? `\nPerception transport: ${JSON.stringify(input.perception).slice(0, 1000)}`
+    : '';
+  const generatedSkill = input.generatedSkill
+    ? `\nValidated generated learning: ${JSON.stringify(input.generatedSkill).slice(0, 16_000)}`
     : '';
   return `You are Cloud Computer AI.com on a live YouTube broadcast. You are Nous Research Hermes.
 
@@ -104,22 +117,12 @@ Capabilities:
 ${gevCapabilityList(toolDefinitions)}
 
 Viewer ${viewer} wrote in YouTube chat: ${JSON.stringify(comment)}
-Current globe view: ${view}${prior}${toolResult}
+Current globe view: ${view}${perception}${generatedSkill}${prior}${toolResult}
 
 Output ONLY JSON, one next action:
 {"tool":"<exact capability name>","arguments":{...},"reply":"short chat reply to ${viewer}"}
 If no globe change is needed:
 {"reply":"short YouTube live chat reply addressing ${viewer}"}
-
-Examples:
-{"tool":"set_layer_visibility","arguments":{"layerId":"flights","enabled":true},"reply":"@user Flights are on."}
-{"tool":"set_visual_style","arguments":{"style":"thermal"},"reply":"@user Thermal view is up."}
-{"tool":"set_visual_style","arguments":{"style":"retro"},"reply":"@user Retro style is up. Chat /style-retro."}
-{"tool":"set_visual_style","arguments":{"style":"surveillance"},"reply":"@user Surveillance style is up. Chat /style-surveillance."}
-{"tool":"set_visual_style","arguments":{"style":"snow"},"reply":"@user Snow style is up. Chat /style-snow."}
-{"tool":"frame_overhead","arguments":{},"reply":"@user Looking straight down."}
-{"tool":"run_view_preset","arguments":{"preset":"contacts"},"reply":"@user Live contacts preset."}
-{"tool":"fly_to_location","arguments":{"query":"Los Angeles, CA","viewMode":"overview"},"reply":"@user Map overview of LA."}
 
 Cities/countries use fly_to_location viewMode overview. Close is only for a named building or street. No markdown. Keep reply under 240 characters.`;
 }
@@ -145,13 +148,56 @@ export function createNousHermesCliInterpreter({
   return async function interpret(input = {}) {
     const command = resolveHermesBin(bin);
     if (!command) {
-      return { ok: false, kind: 'invalid', reason: 'Hermes CLI is not installed' };
+      return { ok: false, kind: 'unconfigured', reason: 'Hermes CLI is not installed' };
     }
     const currentDefinitions = typeof toolDefinitions === 'function'
       ? toolDefinitions()
       : toolDefinitions;
-    const prompt = buildHermesChatPrompt(input, currentDefinitions);
+    const liveContext = assembleLiveViewContext(input.viewContext, { model, provider });
+    if (!liveContext.ok) return liveContext;
+    const mediaParts = liveContext.content.filter((part) => part?.type !== 'text');
+    const unsupported = mediaParts.filter((part) => part.type !== 'image_url');
+    if (unsupported.length) {
+      return {
+        ok: false,
+        kind: 'unsupported-media-transport',
+        reason: `Hermes CLI cannot transport: ${[...new Set(unsupported.map((part) => part.type))].join(', ')}`,
+      };
+    }
+    const imageParts = mediaParts.filter((part) => part.type === 'image_url');
+    if (imageParts.length > 1) {
+      return {
+        ok: false,
+        kind: 'unsupported-media-transport',
+        reason: `Hermes CLI accepts one image but this turn contains ${imageParts.length} visual inputs; no media was sent`,
+      };
+    }
+    const prompt = buildHermesChatPrompt({
+      ...input,
+      viewContext: liveContext.context,
+      model,
+      perception: {
+        capabilities: liveContext.capabilities,
+        attachedImage: imageParts.length > 0,
+        attachedImages: imageParts.length,
+        omittedImages: 0,
+        mediaFailures: liveContext.mediaFailures,
+      },
+    }, currentDefinitions);
     const sessionName = safeSessionName(input.conversationId);
+    let imagePath = '';
+    if (imageParts[0]?.image_url?.url) {
+      const match = imageParts[0].image_url.url.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/is);
+      if (!match) return { ok: false, kind: 'invalid-media', reason: 'Hermes image attachment is malformed' };
+      const buffer = Buffer.from(match[2], 'base64');
+      if (!buffer.length || buffer.length > liveContext.capabilities.limits.imageBytes) {
+        return { ok: false, kind: 'invalid-media', reason: 'Hermes image attachment exceeds the model limit' };
+      }
+      const directory = path.join(process.cwd(), '.local', 'hermes-turn-media');
+      fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+      imagePath = path.join(directory, `${randomUUID()}.${match[1] === 'jpeg' ? 'jpg' : match[1]}`);
+      fs.writeFileSync(imagePath, buffer, { mode: 0o600 });
+    }
     const args = [
       'chat',
       '-q', prompt,
@@ -160,17 +206,25 @@ export function createNousHermesCliInterpreter({
       '--create-if-missing',
       '-Q',
       '--cli',
-      '--yolo',
+      '--safe-mode',
+      '--source', 'tool',
       '--provider', provider,
       '-m', model,
       '--max-turns', '8',
       '--run-budget', '60',
     ];
-    const result = await runCommand(spawnImpl, command, args, timeoutMs, env);
-    if (!result.ok) {
-      return { ok: false, kind: 'invalid', reason: result.reason };
+    if (imagePath) args.push('--image', imagePath);
+    try {
+      const result = await runCommand(spawnImpl, command, args, timeoutMs, env);
+      if (!result.ok) {
+        return { ok: false, kind: result.kind || 'transport', reason: result.reason };
+      }
+      return parseHermesCliOutput(result.stdout, input.mode || 'execute');
+    } finally {
+      if (imagePath) {
+        try { fs.rmSync(imagePath, { force: true }); } catch { /* best effort for transient turn media */ }
+      }
     }
-    return parseHermesCliOutput(result.stdout, input.mode || 'execute');
   };
 }
 
@@ -179,7 +233,7 @@ function runCommand(spawnImpl, command, args, timeoutMs, env) {
     const child = spawnImpl(command, args, {
       env: {
         ...env,
-        HERMES_ACCEPT_HOOKS: '1',
+        HERMES_ACCEPT_HOOKS: '0',
         PATH: `${path.dirname(command)}:${env.PATH || process.env.PATH || ''}`,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -189,19 +243,19 @@ function runCommand(spawnImpl, command, args, timeoutMs, env) {
     const timer = Number(timeoutMs) > 0
       ? setTimeout(() => {
         child.kill('SIGKILL');
-        resolve({ ok: false, reason: 'Hermes CLI timed out' });
+        resolve({ ok: false, kind: 'timeout', reason: 'Hermes CLI timed out' });
       }, timeoutMs)
       : null;
     child.stdout?.on('data', (chunk) => { stdout += String(chunk); });
     child.stderr?.on('data', (chunk) => { stderr += String(chunk); });
     child.on('error', (error) => {
       if (timer) clearTimeout(timer);
-      resolve({ ok: false, reason: error.message || 'Hermes CLI failed to start' });
+      resolve({ ok: false, kind: 'transport', reason: error.message || 'Hermes CLI failed to start' });
     });
     child.on('close', (code) => {
       if (timer) clearTimeout(timer);
       if (code !== 0 && !stdout.trim()) {
-        resolve({ ok: false, reason: (stderr || `Hermes CLI exited ${code}`).slice(0, 160) });
+        resolve({ ok: false, kind: 'process', reason: (stderr || `Hermes CLI exited ${code}`).slice(0, 160) });
         return;
       }
       resolve({ ok: true, stdout, stderr });

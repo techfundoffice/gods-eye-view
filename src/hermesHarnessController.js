@@ -11,6 +11,7 @@ import {
   HERMES_PROFILE_NAME,
   HERMES_SKILL_ID,
   HERMES_SKILL_VERSION,
+  compareSkillToViewSafeCatalog,
   viewSafeToolsFrom,
 } from './hermesViewSafeCatalog.js';
 import { redactSecrets } from './hermesStdioBridge.js';
@@ -27,7 +28,7 @@ import {
 } from './nousHermesCliInterpreter.js';
 import { openRouterApiKey } from './openrouterFreeClient.js';
 import { isGevFunctionEnabled } from './gevFunctionToggles.js';
-
+import { resolveModelCapabilities } from './modelCapabilities.js';
 export const HERMES_HARNESS_ID = 'hermes';
 export const OPENROUTER_HARNESS_ID = 'openrouter';
 export const HERMES_GROK_MODEL = 'x-ai/grok-4.6';
@@ -329,7 +330,9 @@ export function createHermesHarnessController({
       latestMcpError: mcpHealth.latestMcpError,
       mcp: { ...mcpHealth },
       model,
-      provider: 'x-ai',
+      provider: 'openrouter',
+      modelVendor: model.split('/')[0] || '',
+      modelCapabilities: resolveModelCapabilities(model, 'openrouter'),
       cli: Boolean(resolveHermesBin(hermesCommand)),
       bin: resolveHermesBin(hermesCommand),
       runtimeVersion: HERMES_RUNTIME_VERSION,

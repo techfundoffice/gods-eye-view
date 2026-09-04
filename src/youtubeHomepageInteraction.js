@@ -30,7 +30,7 @@ function appendAgentCta(replyRow, comment, documentRef, currentTime) {
   const remaining = Number(comment.followUpExpiresAt || 0) - currentTime;
   cta.textContent = remaining > 0
     ? `REPLY TO ASK: ${(comment.followUpOptions || []).join(' · ')}`
-    : 'FOLLOW-UP WINDOW EXPIRED';
+    : 'TURN EXPIRED · COMMENT SET ASIDE';
   if (remaining > 0 && remaining <= 30_000) cta.classList?.add?.('youtube-agent-cta-urgent');
   replyRow.append(cta);
 }
@@ -301,7 +301,7 @@ export function createYoutubeHomepageInteraction({
       progressCount: root.querySelector('#youtube-progress-count'),
       brand: root.querySelector('#youtube-chat-brand'),
       activity: root.querySelector('#youtube-chat-activity'),
-      hermesCard: root.querySelector('#youtube-hermes-card'),
+      hermesCard: root.querySelector('#hermes-agent-card'),
       hermesMode: root.querySelector('#youtube-hermes-mode'),
       hermesStatus: root.querySelector('#youtube-hermes-status'),
       hermesDetail: root.querySelector('#youtube-hermes-detail'),
@@ -691,16 +691,54 @@ export function createYoutubeHomepageInteraction({
       if (!lease?.commandId || Number(lease.generation) !== generation || safeText(lease.videoId, 80) !== videoId) return;
       const tool = lease.tool || {};
       let result;
+      const actionAbort = new AbortController();
+      let validityTimer = null;
+      let monitorStopped = false;
+      const verifyLease = async () => {
+        try {
+          const check = await fetchImpl(
+            `/api/youtube/homepage-chat/executor/valid?commandId=${encodeURIComponent(lease.commandId)}&captureEpoch=${encodeURIComponent(lease.captureEpoch)}`,
+            {
+              method: 'GET',
+              headers: { Accept: 'application/json' },
+              credentials: 'same-origin',
+            },
+          );
+          const state = check.ok ? await check.json().catch(() => ({})) : {};
+          if (!check.ok || state.active !== true) {
+            actionAbort.abort(new Error('Idle practice was preempted'));
+            return false;
+          }
+          return true;
+        } catch {
+          actionAbort.abort(new Error('Could not verify the active practice lease'));
+          return false;
+        }
+      };
+      const monitorLease = async () => {
+        if (monitorStopped || actionAbort.signal.aborted) return;
+        await verifyLease();
+        if (!monitorStopped && !actionAbort.signal.aborted) {
+          validityTimer = clock.setTimeout(() => void monitorLease(), 50);
+        }
+      };
       try {
+        if (!await verifyLease()) throw actionAbort.signal.reason;
+        validityTimer = clock.setTimeout(() => void monitorLease(), 50);
         const output = await actionRunner(tool.name, tool.arguments || {}, {
+          signal: actionAbort.signal,
           isCurrent: () => !stopped
             && commandsEnabled
+            && !actionAbort.signal.aborted
             && Number(lease.generation) === generation
             && safeText(lease.videoId, 80) === videoId,
         });
         result = output && typeof output === 'object' ? output : { ok: true };
       } catch (error) {
         result = { ok: false, error: safeText(error?.message || 'GEV action failed', 160) };
+      } finally {
+        monitorStopped = true;
+        if (validityTimer != null) clock.clearTimeout(validityTimer);
       }
       await fetchImpl('/api/youtube/homepage-chat/executor/result', {
         method: 'POST',
@@ -722,7 +760,7 @@ export function createYoutubeHomepageInteraction({
       executorBusy
       || !commandsEnabled
       || !actionRunner
-      || globalThis.__GEV_CAPTURE_EXECUTOR__ === true
+      || globalThis.__GEV_CAPTURE_EXECUTOR__ !== true
     ) return;
     executorBusy = true;
     try {
@@ -738,16 +776,54 @@ export function createYoutubeHomepageInteraction({
       if (!lease?.commandId || Number(lease.generation) !== generation || safeText(lease.videoId, 80) !== videoId) return;
       const tool = lease.tool || {};
       let result;
+      const actionAbort = new AbortController();
+      let validityTimer = null;
+      let monitorStopped = false;
+      const verifyLease = async () => {
+        try {
+          const check = await fetchImpl(
+            `/api/youtube/homepage-chat/agent/valid?commandId=${encodeURIComponent(lease.commandId)}&nonce=${encodeURIComponent(lease.nonce)}`,
+            {
+              method: 'GET',
+              headers: { Accept: 'application/json' },
+              credentials: 'same-origin',
+            },
+          );
+          const state = check.ok ? await check.json().catch(() => ({})) : {};
+          if (!check.ok || state.active !== true) {
+            actionAbort.abort(new Error('Viewer work preempted this action'));
+            return false;
+          }
+          return true;
+        } catch {
+          actionAbort.abort(new Error('Could not verify the active viewer lease'));
+          return false;
+        }
+      };
+      const monitorLease = async () => {
+        if (monitorStopped || actionAbort.signal.aborted) return;
+        await verifyLease();
+        if (!monitorStopped && !actionAbort.signal.aborted) {
+          validityTimer = clock.setTimeout(() => void monitorLease(), 50);
+        }
+      };
       try {
+        if (!await verifyLease()) throw actionAbort.signal.reason;
+        validityTimer = clock.setTimeout(() => void monitorLease(), 50);
         const output = await actionRunner(tool.name, tool.arguments || {}, {
+          signal: actionAbort.signal,
           isCurrent: () => !stopped
             && commandsEnabled
+            && !actionAbort.signal.aborted
             && Number(lease.generation) === generation
             && safeText(lease.videoId, 80) === videoId,
         });
         result = output && typeof output === 'object' ? output : { ok: true };
       } catch (error) {
         result = { ok: false, error: safeText(error?.message || 'GEV action failed', 160) };
+      } finally {
+        monitorStopped = true;
+        if (validityTimer != null) clock.clearTimeout(validityTimer);
       }
       await fetchImpl('/api/youtube/homepage-chat/agent/result', {
         method: 'POST',

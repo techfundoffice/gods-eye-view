@@ -56,6 +56,7 @@ import {
 } from './webglCapability.js';
 import { initWebGLFallback } from './webglFallback.js';
 import { isTransientCesiumWorkerImportError } from './cesiumWorkerRecovery.js';
+import { captureHermesViewContext, initHermesAgentCard } from './hermesAgentCard.js';
 
 /**
  * GPU capability gate — evaluated at module scope, before ANY startup side
@@ -193,13 +194,19 @@ const adminConsole = initAdminConsole();
 // Chat chrome is in index.html; wiring mounts outside the WebGL gate so a
 // headless / no-GPU load still has the composer. Voice attaches after globe init.
 const nextchat = initNextchat({ commandRegistry: PUBLIC_COMMAND_REGISTRY });
+
+const hermesAgentCard = initHermesAgentCard();
 const youtubeHomepageInteraction = initYoutubeHomepageInteraction({
   nextchat,
   getViewContext: async () => {
     const runner = window.__godsEyeView?.voiceCommands?.runner;
-    if (typeof runner !== 'function') return {};
-    const state = await runner('get_current_view_state', {});
-    return state?.ok === false ? {} : state;
+    const actionState = typeof runner === 'function'
+      ? await runner('get_current_view_state', {}).catch(() => null)
+      : null;
+    return {
+      ...(actionState?.ok === false ? {} : actionState || {}),
+      ...await captureHermesViewContext(),
+    };
   },
 });
 const extensionBridge = initGevExtensionBridge({ nextchat });
@@ -672,6 +679,7 @@ async function init() {
       youtubeHomepageInteraction,
       adminConsole,
       extensionBridge,
+      hermesAgentCard,
       getRenderGovernorDiagnostics,
       requestRender: governorRequestRender,
     };
@@ -699,4 +707,3 @@ async function init() {
 }
 
 init();
-

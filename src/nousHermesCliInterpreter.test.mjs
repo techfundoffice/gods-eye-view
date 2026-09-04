@@ -75,6 +75,30 @@ test('Hermes has no default wall-clock timeout and receives the configured provi
   assert.equal(seenOptions.env.OPENROUTER_API_KEY, 'test-only');
 });
 
+test('Hermes CLI explicitly rejects multiple visual inputs instead of dropping them', async () => {
+  let spawned = false;
+  const interpret = createNousHermesCliInterpreter({
+    bin: process.execPath,
+    spawnImpl: () => {
+      spawned = true;
+      throw new Error('must not spawn');
+    },
+    model: 'x-ai/grok-4.6',
+  });
+  const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  const out = await interpret({
+    comment: 'compare the globe and camera',
+    viewContext: {
+      screenshot: pixel,
+      cctv: { image: pixel },
+    },
+  });
+  assert.equal(out.ok, false);
+  assert.equal(out.kind, 'unsupported-media-transport');
+  assert.match(out.reason, /contains 2 visual inputs/);
+  assert.equal(spawned, false);
+});
+
 
 test('Hermes can call any GEV capability, not only fly_to_location', () => {
   const prompt = buildHermesChatPrompt({ comment: 'turn on flights', viewer: '@ada' }, [
@@ -101,4 +125,23 @@ test('Hermes prompt takes its catalog from discovered MCP definitions', () => {
   );
   assert.match(prompt, /set_layer_visibility: Toggle a visible layer/);
   assert.doesNotMatch(prompt, /fly_to_location:/);
+});
+
+test('Hermes prompt consumes activated generated learning', () => {
+  const prompt = buildHermesChatPrompt(
+    {
+      comment: 'show traffic',
+      generatedSkill: {
+        name: 'hermes-generated-view-skill',
+        version: '1.0.1',
+        instructions: 'Inspect the observed result.',
+        rules: ['Viewer work preempts practice.'],
+        examples: [],
+        tools: ['set_layer_visibility'],
+      },
+    },
+    [{ name: 'set_layer_visibility', description: 'Toggle a visible layer.' }],
+  );
+  assert.match(prompt, /Validated generated learning/);
+  assert.match(prompt, /Inspect the observed result/);
 });

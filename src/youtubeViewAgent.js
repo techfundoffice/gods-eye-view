@@ -1,24 +1,8 @@
+import { isGevFunctionEnabled } from './gevFunctionToggles.js';
+import { validatePublicToolCall } from './youtubePublicCommandPolicy.js';
+
 export const VIEW_AGENT_MAX_COMMENT_LENGTH = 500;
 export const VIEW_AGENT_MIN_INTERVAL_MS = 4_000;
-
-const ACTIONS = new Set([
-  'fly_to_location',
-  'set_layer_visibility',
-  'set_visual_style',
-  'set_panel_open',
-  'zoom_to_globe',
-]);
-const STYLES = new Set(['normal', 'retro', 'surveillance', 'thermal', 'anime', 'noir', 'snow']);
-const PANELS = new Set([
-  'data-panel', 'location-bar', 'control-panel', 'cctv-panel',
-  'radio-panel', 'global-context-panel', 'scene-panel', 'pp-toggles',
-]);
-const LAYERS = new Set([
-  'flights', 'military', 'earthquakes', 'satellites', 'rocket-launches',
-  'traffic', 'cctv', 'radio', 'bikeshare', 'ais-live-vessels',
-  'local-datacenters', 'local-dams', 'telegeography-submarine-cables',
-  'local-firms', 'military-installations',
-]);
 
 function boundedText(value, max = VIEW_AGENT_MAX_COMMENT_LENGTH) {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
@@ -45,38 +29,26 @@ export function validateViewIntent(value) {
     return { ok: true, intent: { action: 'ignore', reason: boundedText(value.reason, 160) || 'No view request detected' } };
   }
   const action = boundedText(value.action, 40);
-  if (!ACTIONS.has(action)) return { ok: false, reason: 'Requested action is not allowed' };
   const args = value.args && typeof value.args === 'object' && !Array.isArray(value.args) ? value.args : {};
-  let safeArgs;
+  let safeArgs = args;
   if (action === 'fly_to_location') {
     const query = boundedText(args.query, 160);
     const latitude = Number(args.latitude);
     const longitude = Number(args.longitude);
-    if (query) safeArgs = { query, viewMode: 'overview' };
+    if (query) safeArgs = { query, viewMode: args.viewMode === 'close' ? 'close' : 'overview' };
     else if (Number.isFinite(latitude) && latitude >= -90 && latitude <= 90
       && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180) {
       safeArgs = { latitude, longitude, viewMode: 'overview' };
     } else return { ok: false, reason: 'Location request is missing a valid place or coordinates' };
-  } else if (action === 'set_layer_visibility') {
-    const layerId = boundedText(args.layerId, 80);
-    if (!LAYERS.has(layerId)) return { ok: false, reason: 'Requested layer is not allowed' };
-    safeArgs = { layerId, enabled: args.enabled !== false };
-  } else if (action === 'set_visual_style') {
-    const style = boundedText(args.style, 40);
-    if (!STYLES.has(style)) return { ok: false, reason: 'Requested style is not allowed' };
-    safeArgs = { style };
-  } else if (action === 'set_panel_open') {
-    const panelId = boundedText(args.panelId, 80);
-    if (!PANELS.has(panelId)) return { ok: false, reason: 'Requested panel is not allowed' };
-    safeArgs = { panelId, open: args.open !== false };
-  } else {
-    safeArgs = {};
   }
+  const checked = validatePublicToolCall('execute', action, safeArgs);
+  if (!checked.ok) return { ok: false, reason: checked.reason || 'Requested action is not allowed' };
+  if (!isGevFunctionEnabled(checked.name)) return { ok: false, reason: `${checked.name} is disabled in ADMIN` };
   return {
     ok: true,
     intent: {
       action,
-      args: safeArgs,
+      args: checked.arguments,
       reason: boundedText(value.reason, 160) || 'Viewer requested a frontend view change',
     },
   };

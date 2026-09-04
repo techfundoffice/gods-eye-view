@@ -5,6 +5,7 @@
  * drive them. The live send path is `voice.sendTextCommand` on the shipped
  * GevRealtimeController — not a mock transcript and not a parallel chat API.
  */
+import { VIEWER_REPLY_WINDOW_MS } from '../youtubeViewerTurnPolicy.js';
 
 export const NEXTCHAT_STORAGE_KEY = 'godsEyeView.nextchat.sessions.v1';
 export const NEXTCHAT_MAX_MESSAGES = 100;
@@ -14,7 +15,7 @@ export const NEXTCHAT_MAX_LIVE_COMMENTS = 7;
 export const NEXTCHAT_MAX_ACTIONS = 3;
 export const NEXTCHAT_MAX_PAIRED_ROWS = 3;
 export const NEXTCHAT_COMMENT_FULL_OPACITY_MS = 12000;
-export const FOLLOW_UP_WINDOW_MS = 120_000;
+export const FOLLOW_UP_WINDOW_MS = VIEWER_REPLY_WINDOW_MS;
 export const INTERPRETING_REPLY_TEXT = 'Interpreting request…';
 /** HUD-matching typewriter for GEV ACTIONS replies. */
 export const ACTION_REPLY_TYPE_STEP = 2;
@@ -1120,8 +1121,8 @@ export function renderPairedRows(containerEl, rows, { now = Date.now(), onNeedsA
       followUp.className = 'gev-nextchat-follow-up';
       const remaining = Number(row.followUpExpiresAt) - now;
       followUp.textContent = remaining > 0
-        ? `YOU HAVE 1 MINUTE TO ASK: ${(row.followUpOptions || []).join(' · ')}`
-        : 'FOLLOW-UP WINDOW EXPIRED';
+        ? `YOU HAVE 30 SECONDS TO ASK: ${(row.followUpOptions || []).join(' · ')}`
+        : 'TURN EXPIRED · COMMENT SET ASIDE';
       replyMsg.appendChild(followUp);
       if (remaining > 0 && typeof onNeedsAgeRefresh === 'function') onNeedsAgeRefresh(remaining);
     }

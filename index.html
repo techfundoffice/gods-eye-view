@@ -69,16 +69,39 @@
         </div>
         <div id="youtube-comments-video" class="youtube-summary">NO VIDEO SELECTED</div>
         <div class="youtube-chat-cards">
-          <section id="youtube-hermes-card" class="youtube-chat-card youtube-hermes-card" data-state="idle" aria-labelledby="youtube-hermes-title">
-            <div class="youtube-chat-card-header">
-              <span id="youtube-hermes-title" class="youtube-chat-col-title">HERMES AGENT</span>
+          <section id="hermes-agent-card" class="youtube-chat-card youtube-hermes-card hermes-inline-card" data-state="idle" aria-labelledby="hermes-agent-title">
+            <header class="youtube-chat-card-header hermes-agent-header">
+              <span class="hermes-agent-pulse" aria-hidden="true"></span>
+              <h2 id="hermes-agent-title" class="youtube-chat-col-title">HERMES AGENT</h2>
               <span id="youtube-hermes-mode" class="youtube-hermes-mode">TRAINING</span>
-            </div>
+              <span id="hermes-agent-status" role="status" aria-live="polite">CONNECTING</span>
+            </header>
             <div id="youtube-hermes-status" class="youtube-hermes-status" role="status" aria-live="polite">
               <strong>Hi, I’m Hermes.</strong>
               <span>Thanks for watching me train myself. I’m kind of lonely—can you please chat with me here?</span>
             </div>
             <div id="youtube-hermes-detail" class="youtube-hermes-detail">NO VIEWER TURN ACTIVE · EXPLORING THE INTERFACE</div>
+            <div class="hermes-agent-mind">
+              <div><span>SEEING</span><strong id="hermes-agent-seeing">Waiting for live interface</strong></div>
+              <div><span>INTERPRETING</span><strong id="hermes-agent-practicing">Training idle</strong></div>
+              <div><span>ATTEMPTING</span><strong id="hermes-agent-attempting">No active attempt</strong></div>
+              <div><span>OBSERVING</span><strong id="hermes-agent-observing">Waiting for an observed result</strong></div>
+              <div><span>LEARNING</span><strong id="hermes-agent-learning">No new lesson</strong></div>
+            </div>
+            <dl class="hermes-agent-details">
+              <div><dt>PROVIDER / MODEL</dt><dd id="hermes-agent-provider">Unavailable</dd></div>
+              <div><dt>CAPABILITIES</dt><dd id="hermes-agent-capabilities">No capabilities reported</dd></div>
+              <div class="is-failure"><dt>LATEST FAILURE</dt><dd id="hermes-agent-failure">None reported</dd></div>
+              <div><dt>SAVED LESSONS</dt><dd id="hermes-agent-lessons">No saved lessons reported</dd></div>
+            </dl>
+            <div class="hermes-agent-controls" aria-label="Hermes Agent controls">
+              <button type="button" data-hermes-action="pause-training">PAUSE</button>
+              <button type="button" data-hermes-action="resume-training">RESUME</button>
+              <button id="hermes-agent-inspect" type="button">INSPECT</button>
+              <button type="button" data-hermes-action="clear-learning">CLEAR</button>
+              <button type="button" data-hermes-action="rollback-learning">ROLLBACK</button>
+            </div>
+            <pre id="hermes-agent-inspection" hidden></pre>
           </section>
           <section class="youtube-chat-card youtube-progress-card" aria-labelledby="youtube-progress-title">
             <div class="youtube-chat-card-header">

@@ -98,12 +98,22 @@ export async function postOpenRouterChat({
     body.tool_choice = toolChoice;
     body.parallel_tool_calls = false;
   }
-  const response = await fetchImpl(OPENROUTER_CHAT_URL, {
-    method: 'POST',
-    signal,
-    headers: openRouterHeaders(apiKey),
-    body: JSON.stringify(body),
-  });
+  let response;
+  try {
+    response = await fetchImpl(OPENROUTER_CHAT_URL, {
+      method: 'POST',
+      signal,
+      headers: openRouterHeaders(apiKey),
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      status: 502,
+      payload: { error: error?.name === 'AbortError' ? 'OpenRouter request aborted' : 'OpenRouter transport failed' },
+      kind: error?.name === 'AbortError' ? 'aborted' : 'transport',
+    };
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const kind = response.status === 429 || response.status === 402 ? 'rate-limited' : 'provider';

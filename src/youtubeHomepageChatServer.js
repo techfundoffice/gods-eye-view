@@ -122,7 +122,7 @@ function publicMessage(raw, videoId, now, { commandsEnabled = false } = {}) {
     text: normalized.text,
     publishedAt: normalized.receivedAt,
     source: 'youtube',
-    ...(agentRequested ? { agentMode: 'execute', deferAgent: false } : {}),
+    ...(agentRequested ? { agentMode: 'execute', deferAgent: true } : {}),
     actions: [],
   };
 }

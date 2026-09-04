@@ -4,8 +4,6 @@ import {
   parsePublicCommand,
   toolsForPublicMode,
   validatePublicToolCall,
-  styleIdForPublicCommand,
-  shouldApplyGoogleEarthDefaultsForPublicMode,
 } from './youtubePublicCommandPolicy.js';
 import { isGevFunctionEnabled } from './gevFunctionToggles.js';
 import {
@@ -113,62 +111,9 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       await ledger.compareAndSet(record.id, 'awaiting-model', { state: 'interpreting' });
       record = await ledger.get(record.id);
     }
+    const identity = hostViewerIdentity({}, record);
     let output;
-    // Deterministic /style-* → set_visual_style (no model round-trip).
-    const styleId = styleIdForPublicCommand(record.command) || styleIdForPublicCommand(record.comment);
-    if (!continuation && (record.mode === 'visual-style' || styleId)) {
-      const id = styleId || styleIdForPublicCommand(String(record.comment || '').trim().split(/\s+/)[0]);
-      if (id) {
-        output = {
-          ok: true,
-          kind: 'tool',
-          call: {
-            name: 'set_visual_style',
-            arguments: { style: id },
-            responseId: `style-${id}`,
-            callId: `style-${id}`,
-          },
-          text: '',
-        };
-      }
-    }
-    // /default-view or new-host Google Earth look reset (not on follow-up continuation).
-    if (!output && !continuation && (
-      record.mode === 'default-view'
-      || record.command === '/default-view'
-      || (
-        !record.defaultsApplied
-        && shouldApplyGoogleEarthDefaultsForPublicMode(record.mode, record.command)
-      )
-    )) {
-      output = {
-        ok: true,
-        kind: 'tool',
-        call: {
-          name: 'apply_default_view',
-          arguments: {},
-          responseId: 'default-view',
-          callId: 'default-view',
-        },
-        text: '',
-      };
-    }
-    // DEFAULT_VIEW_COMPLETE: After /default-view tool ran, finish without another model turn.
-    if (
-      !output
-      && continuation
-      && (record.command === '/default-view' || record.mode === 'default-view')
-      && record.validatedTool?.name === 'apply_default_view'
-    ) {
-      output = {
-        ok: true,
-        kind: 'complete',
-        text: 'Default View is up — Google Earth look (Normal style, satellite/photoreal, tactical layers off).',
-      };
-    }
     try {
-      if (!output) {
-      const identity = hostViewerIdentity({}, record);
       output = await interpret({
         mode: record.mode, comment: record.comment, viewer: record.viewer,
         videoId: record.videoId, generation: record.generation, startedAt: now(),
@@ -183,7 +128,6 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
         } : {}),
         viewContext: viewContext && typeof viewContext === 'object' ? viewContext : {},
       });
-      }
     } catch (error) {
       if (error?.kind === 'rate-limited') {
         await ledger.compareAndSet(record.id, 'interpreting', {
@@ -199,6 +143,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       await ledger.compareAndSet(record.id, 'interpreting', { state: 'rejected', reason: bounded(output?.reason, 160), remainingTurns: turns });
     } else if (output.kind === 'complete') {
       await ledger.compareAndSet(record.id, 'interpreting', { state: 'succeeded', answer: bounded(output.text, 1000), remainingTurns: turns });
+      if (host.isOwner(identity)) host.touch();
     } else {
       const checked = validatePublicToolCall(record.mode, output.call?.name, output.call?.arguments);
       if (checked.ok && !isGevFunctionEnabled(checked.name)) {
@@ -208,7 +153,6 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       } else {
         await ledger.compareAndSet(record.id, 'interpreting', {
           state: 'awaiting-execution', nonce: id(), modelResponseId: output.call.responseId,
-          defaultsApplied: output.call?.name === 'apply_default_view' ? true : Boolean(record.defaultsApplied),
           functionCallId: output.call.callId, validatedTool: checked,
           remainingTurns: Math.max(1, turns), remainingTools: Math.max(0, record.remainingTools - 1),
         });
@@ -233,6 +177,15 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       });
       return { ok: false, reason: 'stale-or-invalid' };
     }
+    if (!record.modelResponseId || !record.functionCallId) {
+      await ledger.compareAndSet(record.id, 'executing', {
+        state: result?.ok === false ? 'failed' : 'succeeded',
+        reason: result?.ok === false ? bounded(result?.error || result?.reason || 'Execution failed', 160) : '',
+        nonce: null,
+        executionResult: structuredClone(result),
+      });
+      return { ok: result?.ok !== false, record: await ledger.get(record.id) };
+    }
     await ledger.compareAndSet(record.id, 'executing', { state: 'awaiting-model', nonce: null, executionResult: structuredClone(result) });
     return advance(record.id, binding, { responseId: record.modelResponseId, callId: record.functionCallId, result });
   }
@@ -254,6 +207,15 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
         reason: checked.ok ? 'Verified live binding changed' : 'Stored tool failed revalidation',
       });
       return { ok: false, reason: 'stale-or-invalid' };
+    }
+    if (!record.modelResponseId || !record.functionCallId) {
+      await ledger.compareAndSet(record.id, 'executing', {
+        state: result?.ok === false ? 'failed' : 'succeeded',
+        reason: result?.ok === false ? bounded(result?.error || result?.reason || 'Execution failed', 160) : '',
+        nonce: null,
+        executionResult: structuredClone(result),
+      });
+      return { ok: result?.ok !== false, record: await ledger.get(record.id) };
     }
     await ledger.compareAndSet(record.id, 'executing', {
       state: 'awaiting-model',

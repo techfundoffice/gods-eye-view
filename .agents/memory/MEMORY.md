@@ -7,7 +7,8 @@
 - [YouTube encoder clocking](youtube-encoder-clocking.md) — CDP JPEG ingest needs FFmpeg real-time pacing; resolve replacement broadcasts through the channel `/live` URL.
 - [Detached Vite port ownership](detached-vite-port.md) — a manually backgrounded dev server can outlive the managed workflow and claim port 5000.
 - [Admin password precedence](admin-password-precedence.md) — malformed hashes must fall back to a configured password instead of disabling ADMIN.
-- [Single control view](single-control-view.md) — use one horizontal bottom-control layout; do not add a fold/mobile alternate unless the user reopens that scope.
+- [Single control view](single-control-view.md) — keep one bottom-control layout; Hermes details belong inside Live Comments, never in a separate overlay.
 - [Persistent Hermes runtime](persistent-hermes-runtime.md) — keep Hermes under workspace storage, exclude it from Vite watches, and never resolve it from the disposable home overlay.
 - [View restore precedence](view-restore-precedence.md) — explicit share URLs outrank local snapshots; clean reloads restore locally before the LA/Google 3D default.
 - [Hermes MCP boundary](hermes-mcp-boundary.md) — discover Hermes tools from the live MCP server, but execute viewer actions through the leased public-command pipeline.
+- [Capture-only agent transport](capture-only-agent-transport.md) — multimodal lease routes must align capture credentials, caller identity, cancellation, and media body budgets.

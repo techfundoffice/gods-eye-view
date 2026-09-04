@@ -368,6 +368,21 @@ test('capture URLs are http(s) only and Replit public origin beats loopback', ()
   assert.equal(hints.hostResolverRules, 'MAP app.example.replit.dev 127.0.0.1');
   assert.equal(hints.loopbackUrl, 'http://127.0.0.1:5000/');
   assert.equal(hints.extraHeaders.Host, 'app.example.replit.dev');
+
+  const stableHost = 'a817ba63-1ea5-4a13-9272-1bd6626c553c-00-10itb3c1ns6wn.janeway.replit.dev';
+  const sessionHost = 'a817ba63-1ea5-4a13-9272-1bd6626c553c-00-10itb3c1ns6wn-tv9cg1f8.janeway.replit.dev';
+  const stableHints = chromiumCaptureHints(`https://${stableHost}/`, {
+    REPLIT_DEV_DOMAIN: sessionHost,
+    PORT: '5000',
+  });
+  assert.equal(stableHints.loopbackUrl, 'http://127.0.0.1:5000/');
+  assert.equal(
+    chromiumCaptureHints('https://unrelated-project.janeway.replit.dev/', {
+      REPLIT_DEV_DOMAIN: sessionHost,
+      PORT: '5000',
+    }).loopbackUrl,
+    null,
+  );
 });
 
 test('a failed capture probe never spawns ffmpeg or Chromium', async () => {
@@ -425,7 +440,7 @@ test('capture navigation waits for DOM, not network idle, then the globe canvas'
   assert.equal(calls[1][1], LIVE_CAPTURE_CANVAS_SELECTOR);
 });
 
-test('CDP executor credentials are injected only for exact loopback executor endpoints', async () => {
+test('CDP executor credentials are injected only for exact loopback executor and agent endpoints', async () => {
   const handlers = new Map();
   const page = {
     intercepted: false,
@@ -436,6 +451,10 @@ test('CDP executor credentials are injected only for exact loopback executor end
     credential: 'executor-secret',
     headerName: 'x-gev-capture-executor',
     routePrefix: '/api/youtube/homepage-chat/executor',
+    routePrefixes: [
+      '/api/youtube/homepage-chat/executor',
+      '/api/youtube/homepage-chat/agent',
+    ],
   }), true);
   assert.equal(page.intercepted, true);
 
@@ -453,6 +472,9 @@ test('CDP executor credentials are injected only for exact loopback executor end
     'http://127.0.0.1:5000/api/youtube/homepage-chat/executor/lease',
     'http://localhost:5000/api/youtube/homepage-chat/executor/result',
     'http://[::1]:5000/api/youtube/homepage-chat/executor/lease',
+    'http://127.0.0.1:5000/api/youtube/homepage-chat/agent/lease',
+    'http://localhost:5000/api/youtube/homepage-chat/agent/result',
+    'http://127.0.0.1:5000/api/youtube/homepage-chat/agent/valid?commandId=one&nonce=two',
   ]) {
     const calls = send(url);
     await new Promise((resolve) => setImmediate(resolve));
@@ -465,6 +487,7 @@ test('CDP executor credentials are injected only for exact loopback executor end
     'http://127.0.0.1:5000/api/youtube/homepage-chat/executor/assets/app.js',
     'http://127.0.0.1:5000/api/youtube/homepage-chat/executor-else/lease',
     'https://third-party.example/api/youtube/homepage-chat/executor/result',
+    'https://app.example.replit.dev/api/youtube/homepage-chat/agent/lease',
   ]) {
     const calls = send(url);
     await new Promise((resolve) => setImmediate(resolve));

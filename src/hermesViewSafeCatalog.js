@@ -66,10 +66,33 @@ export function isViewSafeTool(name) {
  * @returns {object[]}
  */
 export function viewSafeToolsFrom(definitions) {
+  const canonical = new Map(gevMcpToolDefinitions().map((tool) => [tool.name, tool]));
   const list = Array.isArray(definitions) && definitions.length
     ? definitions
-    : gevMcpToolDefinitions();
-  return list.filter((tool) => isViewSafeTool(tool?.name));
+    : [...canonical.values()];
+  return list.filter((tool) => {
+    const base = canonical.get(tool?.name);
+    const enabled = tool?._meta?.enabled ?? base?._meta?.enabled;
+    return isViewSafeTool(tool?.name) && enabled !== false;
+  }).map((tool) => {
+    const base = canonical.get(tool.name) || {};
+    return {
+      ...tool,
+      description: base.description || tool.description,
+      inputSchema: tool.inputSchema || tool.parameters || base.inputSchema,
+      annotations: { ...(base.annotations || {}), ...(tool.annotations || {}) },
+      _meta: {
+        ...(base._meta || {}),
+        ...(tool._meta || {}),
+        capability: 'view',
+        viewSafe: true,
+        availability: 'enabled',
+        authorizationScope: 'view-safe',
+        executableServerSide: true,
+        requiredInputs: [...((tool.inputSchema || tool.parameters || base.inputSchema)?.required || [])],
+      },
+    };
+  });
 }
 
 /**

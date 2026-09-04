@@ -60,6 +60,7 @@ import { createYoutubeInnerTubeChatMiddleware } from './src/youtubeInnerTubeChat
 import { createYoutubeHomepageChatMiddleware } from './src/youtubeHomepageChatServer.js';
 import { createYoutubePublicCommandRuntime } from './src/youtubePublicCommandRuntime.js';
 import { createHermesHarnessController } from './src/hermesHarnessController.js';
+import { createHermesTrainingRuntime } from './src/hermesTrainingRuntime.js';
 import { createYoutubeLiveChatPoster } from './src/hermesYoutubeReply.js';
 import { createLiveCommentIngestWorker } from './src/youtubeLiveCommentIngest.js';
 import { createLiveStreamController } from './src/liveStream.js';
@@ -89,6 +90,7 @@ let liveSessionSingleton = null;
 let replitAdminAuthSingleton = null;
 let publicCommandRuntimeSingleton = null;
 
+let hermesTrainingControlSingleton = null;
 /**
  * One OAuth middleware so ADMIN live-control and `/api/youtube` share sessions.
  * Created lazily after `loadAndApplyGevEnv` so client id/secret are present.
@@ -151,13 +153,29 @@ function sharedHermesHarness() {
 function sharedPublicCommandRuntime() {
   if (!publicCommandRuntimeSingleton) {
     publicCommandRuntimeSingleton = createYoutubePublicCommandRuntime({
-      interpret: (input, opts) => sharedHermesHarness().interpret(input, opts),
+      interpret: async (input, opts) => {
+        const learning = await sharedHermesTrainingControl().status();
+        return sharedHermesHarness().interpret({
+          ...input,
+          generatedSkill: learning.generatedSkill?.active || null,
+        }, opts);
+      },
+      onViewerActivity: () => hermesTrainingControlSingleton?.viewerActivity('viewer activity'),
     });
     void publicCommandRuntimeSingleton.rotateExecutor();
   }
   return publicCommandRuntimeSingleton;
 }
 
+function sharedGevBinding() {
+  const snap = sharedLiveCommentIngest().snapshot() || {};
+  const live = snap.active === true && snap.status === 'live' && Boolean(snap.videoId);
+  return {
+    videoId: live ? snap.videoId : '',
+    generation: Math.max(0, Number(snap.generation) || 0),
+    commandsEnabled: live,
+  };
+}
 function sharedLiveSession() {
   if (!liveSessionSingleton) {
     liveSessionSingleton = createLiveSessionController({
@@ -7589,6 +7607,7 @@ export function youtubeProxy({
     authorizeAdminRequest,
     authorizeRequest: oauth.authorizeRequest,
     hermesController: sharedHermesHarness(),
+    trainingControl: sharedHermesTrainingControl(),
   });
   const liveSession = sharedLiveSession();
   async function goLiveNow({ authorization, req = null, body = {} } = {}) {
@@ -7807,28 +7826,12 @@ function adminConsoleApi() {
     onMcpServer: (mcp) => {
       void sharedHermesHarness().initializeMcpServer(mcp);
     },
-    getGevBinding: () => {
-      const snap = sharedLiveCommentIngest().snapshot() || {};
-      const live = snap.active === true && snap.status === 'live' && Boolean(snap.videoId);
-      return {
-        videoId: live ? snap.videoId : '',
-        generation: Math.max(0, Number(snap.generation) || 0),
-        commandsEnabled: live,
-      };
-    },
+    getGevBinding: sharedGevBinding,
   });
   const gevApi = createGevApiMiddleware({
     auth: sharedAdminAuth(),
     commandRuntime: sharedPublicCommandRuntime(),
-    getBinding: () => {
-      const snap = sharedLiveCommentIngest().snapshot() || {};
-      const live = snap.active === true && snap.status === 'live' && Boolean(snap.videoId);
-      return {
-        videoId: live ? snap.videoId : '',
-        generation: Math.max(0, Number(snap.generation) || 0),
-        commandsEnabled: live,
-      };
-    },
+    getBinding: sharedGevBinding,
   });
   function install(middlewares) {
     middlewares.use('/api/admin', middleware);
@@ -7926,3 +7929,15 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
+
+function sharedHermesTrainingControl() {
+  if (!hermesTrainingControlSingleton) {
+    const runtime = sharedPublicCommandRuntime();
+    hermesTrainingControlSingleton = createHermesTrainingRuntime({
+      commandRuntime: runtime,
+      getBinding: sharedGevBinding,
+      hasPendingViewer: () => runtime.hasPendingViewer(sharedGevBinding()),
+    });
+  }
+  return hermesTrainingControlSingleton;
+}

@@ -18,11 +18,11 @@ const binding = {
   captureEpoch: 'epoch',
 };
 
-test('host ask names the viewer, the place, the views, and the two minute deadline', () => {
+test('host ask names the viewer, the place, the views, and the 30 second deadline', () => {
   const text = formatHostAsk({ handle: 'marcusmanagementservices488', place: 'Los Angeles, CA, USA' });
   assert.match(text, /@marcusmanagementservices488/);
   assert.match(text, /Los Angeles/);
-  assert.match(text, /120 seconds to reply/);
+  assert.match(text, /30 seconds to reply/);
   assert.match(text, /Downtown closer/);
   assert.match(text, /3D buildings/);
 });
@@ -41,7 +41,7 @@ test('ordinary chat does not claim or enter the viewer-control queue', () => {
   assert.equal(isHostActionableComment('turn on live flights'), true);
 });
 
-test('after a fly, only that username may continue; others queue until two minutes', async () => {
+test('after a fly, only that username may continue; others queue for 30 seconds', async () => {
   const clock = { t: 1_000 };
   const ledger = createInMemoryPublicCommandLedger({ now: () => clock.t });
   const coordinator = createYoutubePublicCommandCoordinator({
@@ -52,7 +52,7 @@ test('after a fly, only that username may continue; others queue until two minut
       ? {
         ok: true,
         kind: 'complete',
-        text: '@marcusmanagementservices488 Los Angeles is up. You have 120 seconds to reply.',
+        text: '@marcusmanagementservices488 Los Angeles is up. You have 30 seconds to reply.',
       }
       : {
         ok: true,
@@ -83,7 +83,7 @@ test('after a fly, only that username may continue; others queue until two minut
   });
   assert.equal(done.record.state, 'succeeded');
   assert.match(done.record.answer, /@marcusmanagementservices488/);
-  assert.match(done.record.answer, /120 seconds to reply/);
+  assert.match(done.record.answer, /30 seconds to reply/);
   assert.match(done.record.answer, /Los Angeles/);
 
   const other = await coordinator.register({

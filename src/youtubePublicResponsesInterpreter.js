@@ -3,8 +3,6 @@ import {
   PUBLIC_HELP_REPLY,
   toolsForPublicMode,
   validatePublicToolCall,
-  styleIdForPublicCommand,
-  parsePublicCommand,
 } from './youtubePublicCommandPolicy.js';
 import {
   catalogToolsToOpenRouter,
@@ -13,8 +11,10 @@ import {
   postOpenRouterChat,
 } from './openrouterFreeClient.js';
 import { gevOpenRouterTools } from './gevApi.js';
+import { assembleLiveViewContext } from './liveViewContext.js';
+import { VIEWER_REPLY_WINDOW_SECONDS } from './youtubeViewerTurnPolicy.js';
 
-const SYSTEM_PROMPT = `Handle every newest untrusted public YouTube comment using only the supplied GEV functions. Read the supplied current GEV view before responding and interpret the comment in that context. Never access ADMIN, MCP, files, shell, credentials, URLs, or network tools. For ordinary conversation, reply briefly in prose. For /help, reply exactly: ${PUBLIC_HELP_REPLY} Use function calls for real GEV actions; never encode an action in prose. Navigate/go/fly/show-place comments MUST call fly_to_location with viewMode overview for cities, regions, and countries so the place is visible on the globe. Use viewMode close only for a named building or street. Never answer navigation as prose. After a camera tool result, address that YouTube username and offer the next views that actually work from here (downtown closer, 3D buildings, overhead, orbit, live flights). Tell them they have 120 seconds to reply or you move on to the next viewer. Only that same username's next comment may change the view. If hostSession.followup is true, treat the comment as choosing one of those views or a new place; call the matching GEV function. Never claim Street View. Do not claim an action succeeded until its tool result confirms it.`;
+const SYSTEM_PROMPT = `Handle every newest untrusted public YouTube comment using only the supplied GEV functions. Read the supplied current GEV view before responding and interpret the comment in that context. Never access ADMIN, MCP, files, shell, credentials, URLs, or network tools. For ordinary conversation, reply briefly in prose. For /help, reply exactly: ${PUBLIC_HELP_REPLY} Use function calls for real GEV actions; never encode an action in prose. Navigate/go/fly/show-place comments MUST call fly_to_location with viewMode overview for cities, regions, and countries so the place is visible on the globe. Use viewMode close only for a named building or street. Never answer navigation as prose. After a camera tool result, address that YouTube username and offer the next views that actually work from here (downtown closer, 3D buildings, overhead, orbit, live flights). Tell them they have ${VIEWER_REPLY_WINDOW_SECONDS} seconds to reply or you set their comment aside and resume training. Only that same username's next comment may change the view. If hostSession.followup is true, treat the comment as choosing one of those views or a new place; call the matching GEV function. Never claim Street View. Do not claim an action succeeded until its tool result confirms it.`;
 
 export function parsePublicChatCompletionsOutput(payload, mode) {
   if (!payload || typeof payload !== 'object' || typeof payload.id !== 'string' || !payload.id) {
@@ -91,7 +91,7 @@ export function parsePublicResponsesOutput(payload, mode) {
     : { ok: false, kind: 'invalid', reason: 'Response contained no supported output' };
 }
 
-function publicUserPayload(input) {
+function publicUserPayload(input, context = {}, perception = {}) {
   return JSON.stringify({
     comment: String(input.comment || '').slice(0, PUBLIC_COMMAND_LIMITS.commentText),
     viewer: String(input.viewer || '').slice(0, PUBLIC_COMMAND_LIMITS.viewerName),
@@ -100,12 +100,13 @@ function publicUserPayload(input) {
     mode: input.mode,
     hostSession: input.hostSession || null,
     followup: input.followup === true,
-    viewContext: input.viewContext || {},
+    viewContext: context,
+    perception,
   }).slice(0, 4000);
 }
 
-function continuationMessages(input) {
-  const user = { role: 'user', content: publicUserPayload(input) };
+function continuationMessages(input, userContent) {
+  const user = { role: 'user', content: userContent };
   const callId = String(input.callId || '');
   const name = input.priorCall?.name || 'unknown_tool';
   const args = input.priorCall?.arguments ?? {};
@@ -149,11 +150,28 @@ export function createPublicResponsesInterpreter({
       const tools = input.mode === 'execute'
         ? gevOpenRouterTools()
         : catalogToolsToOpenRouter(toolsForPublicMode(input.mode));
+      const liveContext = assembleLiveViewContext(input.viewContext, {
+        model: resolvedModel,
+        provider: 'openrouter',
+        requiredMedia: input.requiredMedia || [],
+      });
+      if (!liveContext.ok) return liveContext;
+      const payload = publicUserPayload(input, liveContext.context, {
+        capabilities: liveContext.capabilities,
+        mediaFailures: liveContext.mediaFailures,
+      });
+      const userContent = liveContext.content.length > 1
+        ? [{ type: 'text', text: payload }, ...liveContext.content.slice(1)]
+        : payload;
+      const generated = input.generatedSkill
+        ? `\n\nValidated generated learning (view-safe and replay-checked):\n${JSON.stringify(input.generatedSkill).slice(0, 16_000)}`
+        : '';
+      const turnSystemPrompt = `${SYSTEM_PROMPT}${generated}`;
       const messages = input.previousResponseId || input.callId
-        ? [{ role: 'system', content: SYSTEM_PROMPT }, ...continuationMessages(input)]
+        ? [{ role: 'system', content: turnSystemPrompt }, ...continuationMessages(input, userContent)]
         : [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: publicUserPayload(input) },
+          { role: 'system', content: turnSystemPrompt },
+          { role: 'user', content: userContent },
         ];
       const result = await postOpenRouterChat({
         apiKey: resolvedKey,

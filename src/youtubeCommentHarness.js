@@ -246,8 +246,15 @@ export function validateHarnessInterpretation(value) {
   if (confidence < HARNESS_MIN_CONFIDENCE) {
     return { ok: false, ...rejectInterpretation('Confidence is too low', confidence) };
   }
+  const candidateIntent = value.intent && typeof value.intent === 'object' ? value.intent : {};
+  const candidateArgs = candidateIntent.args && typeof candidateIntent.args === 'object'
+    ? candidateIntent.args
+    : {};
   const checked = validateViewIntent({
-    ...(value.intent && typeof value.intent === 'object' ? value.intent : {}),
+    ...candidateIntent,
+    ...(candidateIntent.action === 'fly_to_location' && candidateArgs.viewMode == null
+      ? { args: { ...candidateArgs, viewMode: 'close' } }
+      : {}),
     reason,
   });
   if (!checked.ok) return { ok: false, ...rejectInterpretation(checked.reason, confidence) };

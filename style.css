@@ -1,3 +1,61 @@
+#hermes-agent-card {
+  position: fixed;
+  z-index: 1102;
+  top: 92px;
+  right: 18px;
+  width: min(390px, calc(100vw - 36px));
+  padding: 14px;
+  color: #dffcff;
+  background: linear-gradient(145deg, rgba(5, 19, 28, .96), rgba(4, 9, 15, .94));
+  border: 1px solid rgba(78, 226, 255, .42);
+  box-shadow: 0 0 28px rgba(0, 185, 255, .14), inset 0 0 24px rgba(24, 177, 221, .06);
+  font-family: "JetBrains Mono", monospace;
+}
+
+.hermes-agent-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(108, 224, 255, .2);
+  padding-bottom: 9px;
+}
+
+.hermes-agent-header h2 { margin: 1px 0 0; font-size: 17px; letter-spacing: .12em; }
+.hermes-agent-kicker { color: #58d8ff; font-size: 9px; letter-spacing: .2em; }
+.hermes-agent-pulse {
+  width: 10px; height: 10px; border-radius: 50%; background: #77838a;
+  box-shadow: 0 0 12px currentColor;
+}
+#hermes-agent-card[data-state="running"] .hermes-agent-pulse { color: #51f6a6; background: currentColor; }
+#hermes-agent-card[data-state="ready"] .hermes-agent-pulse { color: #ffd56b; background: currentColor; }
+#hermes-agent-status { margin-left: auto; color: #9eb1b9; font-size: 9px; text-align: right; }
+#hermes-agent-status[data-state="error"] { color: #ff7588; }
+#hermes-agent-status[data-state="ok"] { color: #51f6a6; }
+
+.hermes-agent-mind { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin: 10px 0; }
+.hermes-agent-mind div { min-width: 0; padding: 8px; background: rgba(23, 104, 130, .12); border-left: 2px solid #25c8ef; }
+.hermes-agent-mind span, .hermes-agent-details dt { display: block; color: #5ddaf8; font-size: 8px; letter-spacing: .15em; }
+.hermes-agent-mind strong { display: block; margin-top: 4px; font-size: 10px; line-height: 1.35; overflow-wrap: anywhere; }
+.hermes-agent-details { margin: 0; display: grid; gap: 5px; }
+.hermes-agent-details div { display: grid; grid-template-columns: 116px 1fr; gap: 8px; }
+.hermes-agent-details dd { margin: 0; color: #c4d3d8; font-size: 9px; overflow-wrap: anywhere; }
+.hermes-agent-details .is-failure dd:not(:empty) { color: #ff9aa8; }
+.hermes-agent-controls { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 11px; }
+.hermes-agent-controls button {
+  flex: 1 1 auto; padding: 6px 8px; color: #c8f7ff; background: rgba(21, 87, 108, .28);
+  border: 1px solid rgba(85, 214, 244, .4); font: 600 9px "JetBrains Mono", monospace; cursor: pointer;
+}
+.hermes-agent-controls button:hover { background: rgba(34, 162, 195, .3); }
+#hermes-agent-inspection {
+  max-height: 240px; margin: 10px 0 0; padding: 8px; overflow: auto; white-space: pre-wrap;
+  color: #a9d6df; background: #02070a; border: 1px solid rgba(84, 208, 238, .22); font-size: 8px;
+}
+
+@media (max-width: 760px) {
+  #hermes-agent-card { top: 74px; right: 8px; width: min(350px, calc(100vw - 16px)); }
+  .hermes-agent-details { display: none; }
+}
+
 /* ═══════════════════════════════════════════════
    CLOUD COMPUTER AI.COM — Dark Sci-Fi UI
    Apple meets Blade Runner
@@ -13824,8 +13882,8 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
   place-items: center;
   gap: 0.5rem;
   padding: 0.55rem 0.65rem 0.7rem;
-  border-bottom: 1px solid rgba(87, 191, 255, 0.45);
-  background: linear-gradient(145deg, rgba(246, 251, 255, 0.98), rgba(225, 242, 255, 0.98));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: #05080d;
 }
 
 .youtube-chat-brand-logo {
@@ -13836,56 +13894,40 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
 }
 
 .youtube-chat-activity {
-  --activity-ink: #06295b;
-  --activity-accent: #087de0;
-  position: relative;
-  display: grid;
-  width: min(100%, 21rem);
-  gap: 0.14rem;
-  padding: 0.56rem 0.75rem 0.62rem 0.95rem;
-  overflow: hidden;
-  color: var(--activity-ink);
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid color-mix(in srgb, var(--activity-accent) 42%, transparent);
-  border-left: 0.35rem solid var(--activity-accent);
-  border-radius: 0.45rem;
-  box-shadow: 0 0.3rem 0.8rem rgba(4, 38, 92, 0.1);
+  display: block;
+  width: 100%;
+  padding: 0.3rem 0;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   text-align: center;
-  transition: border-color 260ms ease, background-color 260ms ease, transform 260ms ease;
 }
 
 .youtube-chat-activity-kicker,
 .youtube-chat-activity-detail {
-  color: color-mix(in srgb, var(--activity-ink) 72%, white);
-  font-family: var(--font-mono);
-  font-size: clamp(0.58rem, 0.72vw, 0.68rem);
-  font-weight: 700;
-  letter-spacing: 0.105em;
-  line-height: 1.2;
+  display: none;
 }
 
 .youtube-chat-activity-headline {
   display: block;
   overflow-wrap: anywhere;
-  color: var(--activity-ink);
-  font-family: var(--font-mono);
-  font-size: clamp(0.98rem, 1.3vw, 1.18rem);
-  font-weight: 800;
-  letter-spacing: 0.015em;
-  line-height: 1.08;
-  text-wrap: balance;
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-shadow: none;
 }
 
 .youtube-chat-activity[data-state='working'] {
-  --activity-ink: #482600;
-  --activity-accent: #f09a13;
-  background: rgba(255, 245, 220, 0.94);
+  background: transparent;
 }
 
 .youtube-chat-activity[data-state='reply'] {
-  --activity-ink: #073c61;
-  --activity-accent: #00a6be;
-  background: rgba(220, 249, 252, 0.94);
+  background: transparent;
 }
 
 .youtube-chat-brand[data-turn-state='working'] .youtube-chat-brand-logo {
@@ -13894,7 +13936,7 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
 }
 
 .youtube-chat-brand[data-turn-state='working'] .youtube-chat-activity {
-  animation: youtube-activity-arrive 360ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  animation: none;
 }
 
 @keyframes youtube-activity-arrive {
@@ -14546,10 +14588,10 @@ body.cockpit-mode #admin-stamp-stack .hud-top-right {
 }
 
 
-/* ============================================================
+/* ------------------------------------------------------------
    Stamp-style Youtube Chat under ORB (no box, no chrome)
    + CONTEXT instrument strip (Contacts | Missions | Radio)
-   ============================================================ */
+   ------------------------------------------------------------ */
 
 #admin-stamp-stack #youtube-comments-panel,
 #admin-stamp-stack #youtube-comments-panel.panel-collapsible,
@@ -17032,7 +17074,7 @@ body {
 }
 
 /* Stable two-lane Youtube Chat: active exchanges above, complete feed below. */
-#admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
+#youtube-comments-panel .youtube-chat-cards {
   display: grid !important;
   grid-template-rows: minmax(8rem, 1.25fr) minmax(13rem, 2fr) minmax(16rem, 3fr) !important;
   gap: 0.55rem !important;
@@ -17086,25 +17128,25 @@ body {
   letter-spacing: 0.08em;
 }
 
-#youtube-hermes-card[data-state='working'] {
+#hermes-agent-card[data-state='working'] {
   border-color: rgba(255, 210, 74, 0.48) !important;
   border-left-color: #ffd24a !important;
   background: rgba(18, 15, 5, 0.8) !important;
 }
 
-#youtube-hermes-card[data-state='working'] .youtube-hermes-mode,
-#youtube-hermes-card[data-state='working'] .youtube-hermes-status strong {
+#hermes-agent-card[data-state='working'] .youtube-hermes-mode,
+#hermes-agent-card[data-state='working'] .youtube-hermes-status strong {
   color: #ffd24a;
 }
 
-#youtube-hermes-card[data-state='reply'] {
+#hermes-agent-card[data-state='reply'] {
   border-color: rgba(126, 240, 255, 0.42) !important;
   border-left-color: #7ef0ff !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #youtube-hermes-card,
-  #youtube-hermes-card * {
+  #hermes-agent-card,
+  #hermes-agent-card * {
     animation: none !important;
     transition: none !important;
   }
@@ -18518,4 +18560,136 @@ body #left-panel-stack #scene-shot-list {
   #left-panel-stack.left-nav-autoscroll-on {
     /* JS also no-ops motion; keep checkbox available. */
   }
+}
+
+/* Full Hermes diagnostics are permanently open in the first Live Comments
+   lane. This card is never a fixed overlay, separate rail, or disclosure. */
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
+  grid-template-rows: auto minmax(8rem, 2fr) minmax(10rem, 3fr) !important;
+  min-height: 0 !important;
+  max-height: calc(100dvh - var(--gev-top-chrome-height, 4rem) - .5rem) !important;
+}
+
+#youtube-comments-panel #hermes-agent-card {
+  display: flex !important;
+  flex-direction: column !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: min(46dvh, 24rem) !important;
+  margin: 0 !important;
+  padding: .45rem .5rem !important;
+  overflow: auto !important;
+  box-sizing: border-box !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-header {
+  gap: .4rem !important;
+  padding-bottom: .3rem !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-header h2 {
+  margin: 0 !important;
+  font-size: 10px !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-pulse {
+  width: 7px !important;
+  height: 7px !important;
+  flex: 0 0 auto !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .youtube-hermes-status {
+  display: grid !important;
+  visibility: visible !important;
+  padding: .4rem .15rem .25rem !important;
+  gap: .2rem !important;
+  font-size: 9px !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .youtube-hermes-status strong {
+  font-size: 10px !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .youtube-hermes-detail {
+  margin-top: 0 !important;
+  padding-top: .25rem !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-mind {
+  gap: 4px !important;
+  margin: 6px 0 !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-mind div {
+  padding: 5px !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-details {
+  display: grid !important;
+}
+
+#youtube-comments-panel #hermes-agent-card .hermes-agent-controls {
+  margin-top: 7px !important;
+}
+
+@media (max-width: 760px), (max-height: 720px) {
+  #youtube-comments-panel .youtube-chat-cards {
+    grid-template-rows: auto minmax(7rem, 2fr) minmax(9rem, 3fr) !important;
+  }
+}
+
+/* The complete Youtube/Hermes rail occupies the full right edge. Do not
+   subtract unrelated dock heights or clip the rail/card contents. */
+#admin-stamp-stack {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 19rem !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: visible !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel,
+#admin-stamp-stack #youtube-comments-panel.panel-collapsible,
+#admin-stamp-stack #youtube-comments-panel .youtube-comments-panel-inner {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: visible !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-comments-panel-inner {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand,
+#admin-stamp-stack #youtube-comments-panel .panel-header {
+  flex: 0 0 auto !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-brand-logo {
+  max-height: 4.25rem !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  grid-template-rows: auto minmax(5rem, 1fr) minmax(7rem, 1.35fr) !important;
+  overflow: visible !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card {
+  max-height: none !important;
+  overflow: visible !important;
 }

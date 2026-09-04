@@ -110,18 +110,24 @@ export function createYoutubeCommentHarnessMiddleware({
   authorizeRequest = async () => { throw Object.assign(new Error('YouTube sign-in required'), { status: 401 }); },
   interpretTask = createOpenAiCommentInterpreter(),
   hermesController = null,
+  trainingControl = null,
 } = {}) {
   const lastRequestBySession = new Map();
   const isolation = () => toolIsolationState(supportsToolIsolation, configured);
 
   return async function youtubeCommentHarnessMiddleware(req, res) {
     const path = pathOf(req);
-    const admin = await authorizeAdminRequest(req);
-    if (!admin) {
-      return send(res, 401, {
-        error: { kind: 'admin-authentication', message: 'Admin sign-in required' },
-      });
-    }
+    const responseWithLearning = (learning, extras = {}) => {
+      const harness = hermesController?.status?.() || {
+        preferred: 'hermes',
+        active: 'openrouter',
+        ready: false,
+        running: false,
+      };
+      return { harness, ...harness, learning, ...learning, ...extras };
+    };
+    // Safe status is visible on the live interface; every mutation below
+    // remains ADMIN-authorized.
     if (req.method === 'GET' && path === '/hermes') {
       const snapshot = hermesController?.status?.() || {
         preferred: 'hermes',
@@ -130,7 +136,19 @@ export function createYoutubeCommentHarnessMiddleware({
         running: false,
         fallbackReason: 'Hermes controller is not wired',
       };
-      return send(res, 200, snapshot);
+      const learning = trainingControl ? await trainingControl.status() : null;
+      return send(res, 200, {
+        ...(learning ? responseWithLearning(learning) : {
+          harness: snapshot,
+          ...snapshot,
+        }),
+      });
+    }
+    const admin = await authorizeAdminRequest(req);
+    if (!admin) {
+      return send(res, 401, {
+        error: { kind: 'admin-authentication', message: 'Admin sign-in required' },
+      });
     }
     if (req.method === 'POST' && path === '/hermes') {
       const body = await readBody(req).catch(() => ({}));
@@ -143,6 +161,79 @@ export function createYoutubeCommentHarnessMiddleware({
       }
       if (action === 'stop' && hermesController?.stopHermes) {
         return send(res, 200, hermesController.stopHermes('admin-stop'));
+      }
+      if (action.endsWith('-training') || action.endsWith('-learning') || action === 'train-now') {
+        if (!trainingControl) {
+          return send(res, 503, { error: { kind: 'unconfigured', message: 'Hermes learning control is not configured' } });
+        }
+      }
+      if (action === 'pause-training') {
+        trainingControl.stop('admin-pause');
+        const learning = await trainingControl.status();
+        return send(res, 200, responseWithLearning(learning));
+      }
+      if (action === 'resume-training') {
+        trainingControl.start();
+        const learning = await trainingControl.status();
+        return send(res, 200, responseWithLearning(learning));
+      }
+      if (action === 'train-now') {
+        const result = await trainingControl.trainNow();
+        const learning = await trainingControl.status();
+        return send(res, 200, responseWithLearning(learning, { result }));
+      }
+      if (action === 'inspect-learning') {
+        const learning = await trainingControl.status();
+        return send(res, 200, responseWithLearning(learning));
+      }
+      if (action === 'clear-learning') {
+        const before = await trainingControl.status();
+        let lessonsChanged = false;
+        try {
+          await trainingControl.clearLessons();
+          lessonsChanged = true;
+          await trainingControl.clearSkill();
+        } catch (error) {
+          if (lessonsChanged) {
+            try { await trainingControl.rollbackLessons(Number(before.lessons?.revision || 0)); }
+            catch (compensationError) {
+              throw new Error(`${error?.message || error}; lesson clear compensation failed: ${compensationError?.message || compensationError}`);
+            }
+          }
+          throw error;
+        }
+        const learning = await trainingControl.status();
+        return send(res, 200, responseWithLearning(learning));
+      }
+      if (action === 'rollback-learning') {
+        const target = String(body?.target || 'all');
+        const before = await trainingControl.status();
+        const requested = body?.revision == null ? null : Number(body.revision);
+        if (requested != null && (!Number.isInteger(requested) || requested < 0)) {
+          return send(res, 400, { error: { kind: 'invalid', message: 'Learning revision must be a non-negative integer' } });
+        }
+        const lessonRevision = requested ?? Math.max(0, Number(before.lessons?.revision || 0) - 1);
+        const skillRevision = requested ?? Math.max(0, Number(before.generatedSkill?.revision || 0) - 1);
+        let lessonsChanged = false;
+        try {
+          if ((target === 'lessons' || target === 'all') && Number(before.lessons?.revision) > 0) {
+            await trainingControl.rollbackLessons(lessonRevision);
+            lessonsChanged = true;
+          }
+          if ((target === 'skill' || target === 'all') && Number(before.generatedSkill?.revision) > 0) {
+            await trainingControl.rollbackSkill(skillRevision);
+          }
+        } catch (error) {
+          if (lessonsChanged) {
+            try { await trainingControl.rollbackLessons(Number(before.lessons.revision)); }
+            catch (compensationError) {
+              throw new Error(`${error?.message || error}; lesson rollback compensation failed: ${compensationError?.message || compensationError}`);
+            }
+          }
+          throw error;
+        }
+        const learning = await trainingControl.status();
+        return send(res, 200, responseWithLearning(learning));
       }
       return send(res, 400, { error: { kind: 'invalid', message: 'Unknown Hermes action' } });
     }

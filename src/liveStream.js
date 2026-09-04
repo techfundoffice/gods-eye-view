@@ -342,6 +342,34 @@ export function replitPublicOrigin(env = process.env) {
 }
 
 /**
+ * Replit may expose the same development app through both a stable project
+ * hostname and a session-suffixed variant. Treat only those two forms as the
+ * same local capture target; unrelated Replit projects must remain external.
+ *
+ * @param {string} candidateHost
+ * @param {string} currentHost
+ * @returns {boolean}
+ */
+function isSameReplitProjectHost(candidateHost, currentHost) {
+  const candidate = String(candidateHost || '').trim().toLowerCase();
+  const current = String(currentHost || '').trim().toLowerCase();
+  if (!candidate || !current) return false;
+  if (candidate === current) return true;
+  const candidateParts = candidate.split('.');
+  const currentParts = current.split('.');
+  if (candidateParts.length < 3 || currentParts.length < 3) return false;
+  const candidateSuffix = candidateParts.slice(1).join('.');
+  const currentSuffix = currentParts.slice(1).join('.');
+  if (candidateSuffix !== currentSuffix || !candidateSuffix.endsWith('.replit.dev')) return false;
+  const candidateLabel = candidateParts[0];
+  const currentLabel = currentParts[0];
+  const [shorter, longer] = candidateLabel.length <= currentLabel.length
+    ? [candidateLabel, currentLabel]
+    : [currentLabel, candidateLabel];
+  return shorter.length >= 16 && longer.startsWith(`${shorter}-`);
+}
+
+/**
  * Pick the URL Chromium should open.
  *
  * Priority: `LIVE_CAPTURE_URL` → operator-requested http(s) → request origin →
@@ -387,7 +415,7 @@ export function chromiumCaptureHints(captureUrl, env = process.env) {
   const publicHost = new URL(replitOrigin).hostname;
   const port = String(env.PORT || '5000').trim() || '5000';
   const local = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '::1';
-  if (parsed.hostname !== publicHost && !local) return empty;
+  if (!isSameReplitProjectHost(parsed.hostname, publicHost) && !local) return empty;
   return {
     hostResolverRules: `MAP ${publicHost} 127.0.0.1`,
     extraHeaders: { Host: publicHost },
@@ -613,8 +641,12 @@ export async function prepareCapturePage(page, options) {
 export async function installExecutorRequestAuthentication(page, session) {
   const credential = String(session?.credential || '');
   const headerName = String(session?.headerName || '');
-  const routePrefix = String(session?.routePrefix || '');
-  if (!credential || !headerName || !routePrefix
+  const routePrefixes = (Array.isArray(session?.routePrefixes)
+    ? session.routePrefixes
+    : [session?.routePrefix])
+    .map((value) => String(value || '').replace(/\/+$/, ''))
+    .filter(Boolean);
+  if (!credential || !headerName || !routePrefixes.length
     || typeof page?.setRequestInterception !== 'function'
     || typeof page?.on !== 'function') return false;
   await page.setRequestInterception(true);
@@ -623,9 +655,12 @@ export async function installExecutorRequestAuthentication(page, session) {
     try {
       const url = new URL(request.url());
       const hostname = url.hostname.replace(/^\[|\]$/g, '');
-      const prefix = routePrefix.replace(/\/+$/, '');
       inject = ['127.0.0.1', 'localhost', '::1'].includes(hostname)
-        && (url.pathname === `${prefix}/lease` || url.pathname === `${prefix}/result`);
+        && routePrefixes.some((prefix) => (
+          url.pathname === `${prefix}/lease`
+          || url.pathname === `${prefix}/result`
+          || url.pathname === `${prefix}/valid`
+        ));
     } catch {
       inject = false;
     }

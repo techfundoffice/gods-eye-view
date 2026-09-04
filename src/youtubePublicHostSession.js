@@ -1,7 +1,12 @@
 /** One live YouTube viewer owns the globe at a time. */
 
-export const HOST_FOLLOWUP_MS = 120_000;
-export const HOST_FOLLOWUP_SECONDS = 120;
+import {
+  VIEWER_REPLY_WINDOW_MS,
+  VIEWER_REPLY_WINDOW_SECONDS,
+} from './youtubeViewerTurnPolicy.js';
+
+export const HOST_FOLLOWUP_MS = VIEWER_REPLY_WINDOW_MS;
+export const HOST_FOLLOWUP_SECONDS = VIEWER_REPLY_WINDOW_SECONDS;
 export const HOST_VIEW_OPTIONS = 'Downtown closer · 3D buildings · overhead · orbit · live flights';
 
 const VIEW_CHOICE = /\b(?:downtown(?:\s+closer)?|closer|close(?:-?up)?|3d(?:\s+buildings)?|photorealistic|overhead|orbit|live\s+flights|flights|traffic|cctv)\b/i;
@@ -28,7 +33,7 @@ export function atHandle(handle) {
 export function formatHostAsk({ handle, place, seconds = HOST_FOLLOWUP_SECONDS } = {}) {
   const who = atHandle(handle);
   const where = bounded(place, 80) || 'this place';
-  return `${who} Map-style overview of ${where} is up. Want a different view? ${HOST_VIEW_OPTIONS}. You have ${seconds} seconds to reply or I move on to the next viewer.`;
+  return `${who} Map-style overview of ${where} is up. Want a different view? ${HOST_VIEW_OPTIONS}. You have ${seconds} seconds to reply. After that I set this comment aside and resume training unless another viewer is waiting.`;
 }
 
 export function formatHostFollowupAsk({ handle, place, summary, seconds = HOST_FOLLOWUP_SECONDS } = {}) {
@@ -36,7 +41,7 @@ export function formatHostFollowupAsk({ handle, place, summary, seconds = HOST_F
   const done = bounded(summary, 120) || 'Updated the view';
   const where = bounded(place, 80);
   const loc = where ? ` of ${where}` : '';
-  return `${who} ${done}${loc}. Anything else? ${HOST_VIEW_OPTIONS}. You have ${seconds} seconds to reply or I move on to the next viewer.`;
+  return `${who} ${done}${loc}. Anything else? ${HOST_VIEW_OPTIONS}. You have ${seconds} seconds to reply. After that I set this comment aside and resume training unless another viewer is waiting.`;
 }
 
 export function isViewChoiceComment(text) {

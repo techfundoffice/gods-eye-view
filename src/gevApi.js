@@ -81,7 +81,19 @@ export function listGevFunctions() {
       parameters,
       parameterKeys: Object.keys(parameters.properties || {}),
       enabled: enabled[name] !== false,
+      available: enabled[name] !== false,
+      availability: enabled[name] !== false ? 'enabled' : 'disabled-by-admin',
       youtubeChat: enabled[name] !== false,
+      capability: 'view',
+      viewSafe: true,
+      authorizationScope: 'view-safe',
+      executableServerSide: true,
+      requiredInputs: [...(parameters.required || [])],
+      annotations: {
+        readOnlyHint: name.startsWith('get_') || name === 'analyst_query' || name === 'next_iss_pass',
+        destructiveHint: false,
+        openWorldHint: false,
+      },
     };
   });
 }
@@ -94,6 +106,13 @@ export function gevMcpToolDefinitions() {
     name: fn.name,
     description: fn.description,
     inputSchema: fn.parameters,
+    annotations: fn.annotations,
+    _meta: {
+      capability: fn.capability,
+      viewSafe: fn.viewSafe,
+      enabled: fn.enabled,
+      youtubeChat: fn.youtubeChat,
+    },
   }));
 }
 
@@ -103,7 +122,7 @@ export function gevMcpToolDefinitions() {
  * @returns {object[]}
  */
 export function gevOpenRouterTools() {
-  return listGevFunctions().map((fn) => ({
+  return listGevFunctions().filter((fn) => fn.enabled && fn.viewSafe).map((fn) => ({
     type: 'function',
     function: {
       name: fn.name,

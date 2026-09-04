@@ -8,6 +8,8 @@
 import { randomUUID } from 'node:crypto';
 import { PUBLIC_COMMAND_LIMITS } from './youtubePublicCommandPolicy.js';
 import { viewSafeToolsFrom, validateViewSafeToolCall } from './hermesViewSafeCatalog.js';
+import { assembleLiveViewContext } from './liveViewContext.js';
+import { openRouterFreeModel } from './openrouterFreeClient.js';
 
 const bounded = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
 
@@ -18,6 +20,7 @@ const bounded = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007
 export function createHermesCommentInterpreter({
   bridge,
   tools = viewSafeToolsFrom(),
+  model = openRouterFreeModel(),
   id = randomUUID,
 } = {}) {
   if (!bridge || typeof bridge.request !== 'function') {
@@ -30,13 +33,24 @@ export function createHermesCommentInterpreter({
       throw Object.assign(new Error(live.lastError || 'Hermes is not running'), { kind: 'unconfigured' });
     }
     const turnId = bounded(input.previousResponseId || input.turnId || id(), 160);
+    const liveContext = assembleLiveViewContext(input.viewContext, { model });
+    if (!liveContext.ok) return liveContext;
     const frame = input.previousResponseId || input.callId
       ? {
         type: 'tool_result',
         turnId,
         callId: bounded(input.callId, 160),
         result: input.toolResult || {},
-        viewContext: input.viewContext || {},
+        viewContext: liveContext.context,
+        content: liveContext.content,
+        generatedSkill: input.generatedSkill || null,
+        perception: {
+          imageIncluded: liveContext.imageIncluded,
+          imageOmitted: liveContext.imageOmitted,
+          mediaFailures: liveContext.mediaFailures,
+          capabilities: liveContext.capabilities,
+          contentFormat: liveContext.capabilities.contentFormat,
+        },
       }
       : {
         type: 'turn',
@@ -44,7 +58,16 @@ export function createHermesCommentInterpreter({
         comment: bounded(input.comment, PUBLIC_COMMAND_LIMITS.commentText),
         viewer: bounded(input.viewer, PUBLIC_COMMAND_LIMITS.viewerName),
         videoId: bounded(input.videoId, 80),
-        viewContext: input.viewContext || {},
+        viewContext: liveContext.context,
+        content: liveContext.content,
+        generatedSkill: input.generatedSkill || null,
+        perception: {
+          imageIncluded: liveContext.imageIncluded,
+          imageOmitted: liveContext.imageOmitted,
+          mediaFailures: liveContext.mediaFailures,
+          capabilities: liveContext.capabilities,
+          contentFormat: liveContext.capabilities.contentFormat,
+        },
         tools: tools.map((tool) => ({
           name: tool.name,
           description: tool.description,
@@ -56,7 +79,11 @@ export function createHermesCommentInterpreter({
       return { ok: false, kind: 'invalid', reason: 'Hermes returned no frame' };
     }
     if (response.type === 'error') {
-      return { ok: false, kind: 'invalid', reason: bounded(response.message || response.reason, 160) };
+      return {
+        ok: false,
+        kind: bounded(response.kind, 40) || 'hermes-error',
+        reason: bounded(response.message || response.reason, 160) || 'Hermes returned an error',
+      };
     }
     if (response.type === 'tool_request') {
       const checked = validateViewSafeToolCall(response.name, response.arguments);
@@ -106,6 +133,8 @@ export function createHermesSkillAgent({
         comment: frame.comment,
         viewer: frame.viewer,
         viewContext: frame.viewContext,
+        content: frame.content,
+        generatedSkill: frame.generatedSkill || null,
         results: [],
       });
     }
@@ -117,6 +146,8 @@ export function createHermesSkillAgent({
         result: frame.result,
         viewContext: frame.viewContext,
       });
+      if (Array.isArray(frame.content)) session.content = frame.content;
+      if (frame.generatedSkill) session.generatedSkill = frame.generatedSkill;
     }
     const openAiTools = tools.map((tool) => ({
       type: 'function',
@@ -127,15 +158,30 @@ export function createHermesSkillAgent({
       },
     }));
     const messages = [
-      { role: 'system', content: skillText || HERMES_DEFAULT_SKILL },
+      {
+        role: 'system',
+        content: `${skillText || HERMES_DEFAULT_SKILL}${
+          session.generatedSkill
+            ? `\nValidated generated learning for this turn:\n${JSON.stringify(session.generatedSkill).slice(0, 16_000)}`
+            : ''
+        }`,
+      },
       {
         role: 'user',
-        content: JSON.stringify({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
           comment: session.comment,
           viewer: session.viewer,
           viewContext: session.viewContext,
           priorResults: session.results,
-        }).slice(0, 6000),
+            }).slice(0, 6000),
+          },
+          ...(Array.isArray(session.content)
+            ? session.content.filter((part) => part?.type !== 'text').slice(0, 8)
+            : []),
+        ],
       },
     ];
     const result = await postChat({
@@ -151,6 +197,9 @@ export function createHermesSkillAgent({
     }
     const message = result.payload?.choices?.[0]?.message;
     const toolCall = message?.tool_calls?.[0];
+    if (Array.isArray(message?.tool_calls) && message.tool_calls.length > 1) {
+      return { type: 'error', kind: 'invalid-model-output', turnId, message: 'Hermes returned multiple tool calls' };
+    }
     if (toolCall?.function?.name) {
       let args = {};
       try {
@@ -158,7 +207,7 @@ export function createHermesSkillAgent({
           ? JSON.parse(toolCall.function.arguments)
           : (toolCall.function.arguments || {});
       } catch {
-        args = {};
+        return { type: 'error', kind: 'invalid-model-output', turnId, message: 'Hermes tool arguments must be JSON' };
       }
       return {
         type: 'tool_request',
@@ -172,7 +221,7 @@ export function createHermesSkillAgent({
     return {
       type: 'final',
       turnId,
-      text: String(message?.content || '').trim() || 'Done.',
+      text: String(message?.content || '').trim(),
     };
   };
 }

@@ -61,14 +61,14 @@ test('Hermes starts on Grok only through the real CLI path', async () => {
     hermesCommand: fakeCli,
     settingsPath: path.join(dir, 'settings.json'),
     skillPath: path.join(process.cwd(), 'skills/gods-eye-view/SKILL.md'),
-    openrouterInterpret: async (...args) => { calls.push(args); return { ok: true, kind: 'complete', text: 'fallback' }; },
     openrouterInterpret: async () => ({ ok: true, kind: 'complete', text: 'should not run' }),
   });
   await controller.connectMcpServer(mcpServer());
   const started = await controller.startHermes();
   assert.equal(started.ready, true);
   assert.equal(started.model, 'x-ai/grok-4.6');
-  assert.equal(started.provider, 'x-ai');
+  assert.equal(started.provider, 'openrouter');
+  assert.equal(started.modelVendor, 'x-ai');
   assert.equal(started.cli, true);
   assert.equal(started.bin, fakeCli);
   assert.equal(started.runtimeVersion, '0.21.0');
