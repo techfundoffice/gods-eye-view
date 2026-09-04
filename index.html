@@ -427,6 +427,14 @@
       </button>
       <div id="control-panel-popover" class="dock-popover-content">
       <button class="dock-pin-btn" data-pin-target="control-panel" type="button" aria-label="Pin visual presets" aria-pressed="true" title="Keep visual presets open"><img src="/pin.svg" alt="" /></button>
+      <div class="default-view-row" role="group" aria-label="Default view">
+        <button id="default-view-btn" type="button" class="default-view-btn"
+          title="Google Earth default look: Normal style, satellite/photoreal, tactical layers off (keeps current place)"
+          aria-label="Apply Default View">
+          <span class="default-view-btn-label">Default View</span>
+          <span class="default-view-btn-hint">/default-view</span>
+        </button>
+      </div>
       <div id="style-buttons" class="button-grid">
         <button class="style-btn active" data-style="normal">
           <span class="btn-icon">◯</span>
@@ -531,6 +539,12 @@
   </div>
 
   <div id="left-panel-stack">
+  <div id="left-nav-autoscroll-bar" class="left-nav-autoscroll-bar">
+    <label class="left-nav-autoscroll-label" for="left-nav-autoscroll">
+      <input id="left-nav-autoscroll" type="checkbox" role="switch" aria-checked="true" checked />
+      <span class="left-nav-autoscroll-text">Click Here For Auto Scroll</span>
+    </label>
+  </div>
   <!-- Data Layer Toggle Panel -->
   <div id="data-panel" class="panel-collapsible active" data-panel-id="data-panel">
     <div class="panel-glow"></div>

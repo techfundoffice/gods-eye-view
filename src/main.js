@@ -28,6 +28,7 @@ import { initGevExtensionBridge } from './extensionBridge.js';
 import { PUBLIC_COMMAND_REGISTRY } from './youtubePublicCommandPolicy.js';
 import { MapStackController } from './mapStackController.js';
 import { startSettingsSummaryTicker } from './settingsSummaryTicker.js';
+import { initLeftNavAutoscroll } from './leftNavAutoscroll.js';
 import {
   googleEarthUnavailableReason,
   hasUsableGoogleMapsKey,
@@ -240,6 +241,7 @@ async function init() {
     if (startupFallbackShown) return;
     startupFallbackShown = true;
     clearStartupWatchdog();
+    try { initLeftNavAutoscroll(document); } catch (err) { console.warn('[left-nav-autoscroll]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
     try { viewer?.destroy?.(); } catch (destroyError) {
       console.warn('[Init] Partial viewer cleanup failed:', destroyError);
@@ -680,6 +682,7 @@ async function init() {
     extensionBridge?.setRunner(window.__godsEyeView.voiceCommands.runner);
     youtubePanel?.setActionRunner(window.__godsEyeView.voiceCommands.runner);
     clearStartupWatchdog();
+    try { initLeftNavAutoscroll(document); } catch (err) { console.warn('[left-nav-autoscroll]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
 
   } catch (error) {

@@ -18344,3 +18344,110 @@ body #left-panel-stack #scene-shot-list {
 #settings-summary-ticker:hover .settings-summary-ticker-content {
   animation-play-state: paused !important;
 }
+
+
+/* GEV_DEFAULT_VIEW_V1 — Default View control in Visual Presets */
+.default-view-row {
+  display: flex;
+  width: 100%;
+  margin: 0 0 0.45rem;
+  padding: 0 0.15rem;
+  box-sizing: border-box;
+}
+.default-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgba(120, 200, 255, 0.45);
+  border-radius: 0.4rem;
+  background: rgba(8, 24, 40, 0.75);
+  color: #e8f6ff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.default-view-btn:hover,
+.default-view-btn:focus-visible {
+  border-color: rgba(160, 220, 255, 0.85);
+  background: rgba(16, 48, 72, 0.9);
+  outline: none;
+}
+.default-view-btn:active {
+  transform: translateY(1px);
+}
+.default-view-btn-hint {
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgba(160, 210, 240, 0.75);
+}
+
+
+/* === GEV_LEFT_NAV_AUTOSCROLL_V1 ===
+   Tippy-top Auto Scroll checkbox (pinned) + yo-yo on #left-panel-stack. */
+#left-nav-autoscroll-bar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 8 !important;
+  flex: 0 0 auto !important;
+  order: -20 !important;
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 0 0.4rem !important;
+  padding: 0.4rem 0.55rem !important;
+  border: 1px solid rgba(120, 200, 255, 0.4) !important;
+  border-radius: 0.45rem !important;
+  background: rgba(4, 18, 28, 0.94) !important;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+}
+
+#left-panel-stack > #left-nav-autoscroll-bar {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
+.left-nav-autoscroll-label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+  width: 100% !important;
+  cursor: pointer !important;
+  color: #e8f6ff !important;
+  font-size: 0.78rem !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.02em !important;
+  user-select: none !important;
+}
+
+#left-nav-autoscroll {
+  width: 1.05rem !important;
+  height: 1.05rem !important;
+  accent-color: #4fc3f7 !important;
+  cursor: pointer !important;
+  flex: 0 0 auto !important;
+}
+
+.left-nav-autoscroll-text {
+  line-height: 1.2 !important;
+}
+
+#left-panel-stack.left-nav-autoscroll-on {
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #left-panel-stack.left-nav-autoscroll-on {
+    /* JS also no-ops motion; keep checkbox available. */
+  }
+}

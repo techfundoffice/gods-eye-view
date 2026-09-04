@@ -43,6 +43,7 @@ export const GEV_FUNCTION_DOCS = Object.freeze({
   analyst_query: 'Answer an analytical question from current GEV data.',
   next_iss_pass: 'Look up the next ISS pass for a place.',
   run_view_preset: 'Switch to a named view preset (contacts, space-missions, environmental, explore).',
+  apply_default_view: 'Apply Google Earth default look: Normal style, soft photoreal/satellite, tactical layers off (keeps current place).',
 });
 
 /**

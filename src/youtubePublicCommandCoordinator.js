@@ -5,6 +5,7 @@ import {
   toolsForPublicMode,
   validatePublicToolCall,
   styleIdForPublicCommand,
+  shouldApplyGoogleEarthDefaultsForPublicMode,
 } from './youtubePublicCommandPolicy.js';
 import { isGevFunctionEnabled } from './gevFunctionToggles.js';
 import {
@@ -131,6 +132,40 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
         };
       }
     }
+    // /default-view or new-host Google Earth look reset (not on follow-up continuation).
+    if (!output && !continuation && (
+      record.mode === 'default-view'
+      || record.command === '/default-view'
+      || (
+        !record.defaultsApplied
+        && shouldApplyGoogleEarthDefaultsForPublicMode(record.mode, record.command)
+      )
+    )) {
+      output = {
+        ok: true,
+        kind: 'tool',
+        call: {
+          name: 'apply_default_view',
+          arguments: {},
+          responseId: 'default-view',
+          callId: 'default-view',
+        },
+        text: '',
+      };
+    }
+    // DEFAULT_VIEW_COMPLETE: After /default-view tool ran, finish without another model turn.
+    if (
+      !output
+      && continuation
+      && (record.command === '/default-view' || record.mode === 'default-view')
+      && record.validatedTool?.name === 'apply_default_view'
+    ) {
+      output = {
+        ok: true,
+        kind: 'complete',
+        text: 'Default View is up — Google Earth look (Normal style, satellite/photoreal, tactical layers off).',
+      };
+    }
     try {
       if (!output) {
       const identity = hostViewerIdentity({}, record);
@@ -173,6 +208,7 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       } else {
         await ledger.compareAndSet(record.id, 'interpreting', {
           state: 'awaiting-execution', nonce: id(), modelResponseId: output.call.responseId,
+          defaultsApplied: output.call?.name === 'apply_default_view' ? true : Boolean(record.defaultsApplied),
           functionCallId: output.call.callId, validatedTool: checked,
           remainingTurns: Math.max(1, turns), remainingTools: Math.max(0, record.remainingTools - 1),
         });

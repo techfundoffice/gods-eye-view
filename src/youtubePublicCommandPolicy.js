@@ -127,6 +127,10 @@ const SCHEMAS = {
   run_view_preset: object({
     preset: enumeration('/live-contacts', '/space-missions', '/environmental', '/explore-manually'),
   }, { required: ['preset'] }),
+  apply_default_view: object({
+    // Google Earth look: Normal style, soft photoreal/satellite, tactical layers off.
+    // Does not yank camera to the Earth pearl.
+  }),
 };
 
 function deepFreeze(value) {
@@ -151,7 +155,7 @@ const Y_TOOLS = ['get_current_view_state', 'get_entity_context', 'analyst_query'
 const Z_TOOLS = ['fly_to_location', 'select_nearest_aircraft', 'adjust_camera_zoom', 'zoom_to_globe', 'move_camera', 'frame_overhead', 'fly_route', 'stop_tracking'];
 
 /** Exact GEV ACTIONS reply for `/help`. The space before the first comma is intentional. */
-export const PUBLIC_HELP_REPLY = 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow';
+export const PUBLIC_HELP_REPLY = 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow, /default-view';
 
 /** Slash command → first-run Mission Control choice. `/explore-manually` is required. */
 export const PUBLIC_VIEW_PRESETS = deepFreeze({
@@ -171,6 +175,7 @@ export const PUBLIC_COMMAND_REGISTRY = deepFreeze({
   '/y': { command: '/y', mode: 'analyze', description: 'Analyze or answer from GEV data', requiresText: true, enabled: true, tools: Y_TOOLS },
   '/z': { command: '/z', mode: 'navigate', description: 'Move or frame the camera', requiresText: true, enabled: true, tools: Z_TOOLS },
   '/gods-eye-view': { command: '/gods-eye-view', mode: 'whole-globe', description: 'Frame the whole globe', requiresText: false, enabled: true, tools: ['zoom_to_globe'] },
+  '/default-view': { command: '/default-view', mode: 'default-view', description: 'Google Earth default look (Normal, satellite, no tactical layers)', requiresText: false, enabled: true, tools: ['apply_default_view'] },
   '/style-normal': { command: '/style-normal', mode: 'visual-style', description: 'Normal visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'normal' },
   '/style-retro': { command: '/style-retro', mode: 'visual-style', description: 'Retro visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'retro' },
   '/style-surveillance': { command: '/style-surveillance', mode: 'visual-style', description: 'Surveillance visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'surveillance' },
@@ -247,4 +252,29 @@ export function styleIdForPublicCommand(command) {
   const id = match[1];
   const allowed = new Set(['normal', 'retro', 'surveillance', 'thermal', 'anime', 'noir', 'snow']);
   return allowed.has(id) ? id : null;
+}
+
+/** Modes that already own the look — skip auto Default View on new host. */
+const SKIP_GOOGLE_EARTH_DEFAULT_MODES = new Set([
+  'visual-style',
+  'default-view',
+  'live-contacts',
+  'space-missions',
+  'environmental',
+  'help',
+]);
+
+/**
+ * Whether a newly opened host session should apply Google Earth look defaults
+ * before interpreting the comment.
+ * @param {string|null|undefined} mode
+ * @param {string|null|undefined} command
+ * @returns {boolean}
+ */
+export function shouldApplyGoogleEarthDefaultsForPublicMode(mode, command) {
+  const m = String(mode || '').trim().toLowerCase();
+  const cmd = String(command || '').trim().toLowerCase();
+  if (cmd === '/default-view' || cmd.startsWith('/style-')) return false;
+  if (SKIP_GOOGLE_EARTH_DEFAULT_MODES.has(m)) return false;
+  return true;
 }

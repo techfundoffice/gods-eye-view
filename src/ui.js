@@ -2668,6 +2668,7 @@ export class StyleManager {
     this._initLocationBar();
     this._initShareButton();
     this._initClearSelectedLayersButton();
+    this._initDefaultViewButton();
     this._initResetGlobeButton();
     this._initHUDToggle();
     this._initModels3dToggle();
@@ -9852,6 +9853,18 @@ export class StyleManager {
   }
 
   /** Wire the persistent reset control to the same route used by voice. */
+
+  _initDefaultViewButton() {
+    this._defaultViewBtn = document.getElementById('default-view-btn');
+    if (!this._defaultViewBtn) return;
+    this._defaultViewHandler = () => {
+      this.applyGoogleEarthDefaultView?.().catch((error) => {
+        console.warn('[Default View]', error);
+      });
+    };
+    this._defaultViewBtn.addEventListener('click', this._defaultViewHandler);
+  }
+
   _initResetGlobeButton() {
     this._globeResetHandler = () => { this.resetToGlobeView(); };
     for (const button of [this._resetGlobeBtn, this._cockpitResetGlobeBtn]) {
@@ -9942,6 +9955,120 @@ export class StyleManager {
    * Repeated requests adopt the in-flight reset rather than cancelling it.
    * @returns {Promise<object>} Canonical reset result shared with voice.
    */
+
+  /**
+   * Google Earth default look for Visual Presets / public /default-view / new-host reset.
+   * Normal style, prefer photoreal (else leave stack), clear context + tactical layers.
+   * Keeps current camera target — does NOT call resetToGlobeView (Earth pearl).
+   * Soft north-up + nadir when Cesium camera is available.
+   * @returns {Promise<object>}
+   */
+  async applyGoogleEarthDefaultView() {
+    const out = {
+      ok: true,
+      action: 'apply_default_view',
+      style: 'normal',
+      mapStack: null,
+      contextCleared: false,
+      layersDisabled: [],
+      camera: null,
+    };
+    try {
+      this.setStyle?.('normal', { applyPreset: true, revealParameters: false });
+    } catch (error) {
+      out.ok = false;
+      out.error = error?.message || 'setStyle failed';
+      return out;
+    }
+
+    try {
+      if (typeof this.setContextMode === 'function') {
+        await this.setContextMode('off', { claimVisualAuthority: true });
+        out.contextCleared = true;
+      }
+    } catch (error) {
+      out.contextError = error?.message || 'setContextMode failed';
+    }
+
+    const dm = this._dataManager;
+    const tactical = [
+      'flights', 'ais-live-vessels', 'military', 'military-awareness',
+      'military-installations', 'satellites', 'earthquakes', 'local-firms',
+      'natural-hazards', 'cctv', 'rocket-launches', 'aviationapi',
+    ];
+    if (dm && typeof dm.setEnabled === 'function') {
+      for (const layerId of tactical) {
+        try {
+          if (!dm.layers?.has?.(layerId)) continue;
+          const enabled = dm.layers.get(layerId)?.enabled;
+          if (enabled) {
+            await dm.setEnabled(layerId, false, { origin: 'tool' });
+            out.layersDisabled.push(layerId);
+          }
+        } catch {
+          /* best-effort */
+        }
+      }
+    }
+
+    const stack = this.mapStackController;
+    if (stack && typeof stack.setStack === 'function') {
+      const active = stack.getActiveId?.() || null;
+      if (active !== 'photoreal') {
+        try {
+          const switched = await stack.setStack('photoreal', { silent: true });
+          if (switched !== false) {
+            out.mapStack = 'photoreal';
+          } else if (active !== 'bing-aerial') {
+            try {
+              await stack.setStack('bing-aerial', { silent: true });
+              out.mapStack = 'bing-aerial';
+            } catch {
+              out.mapStack = active;
+            }
+          } else {
+            out.mapStack = active;
+          }
+        } catch {
+          out.mapStack = active;
+        }
+      } else {
+        out.mapStack = 'photoreal';
+      }
+    }
+
+    try {
+      const viewer = this.viewer;
+      const Cesium = globalThis.Cesium;
+      const cam = viewer?.camera;
+      if (cam && Cesium?.HeadingPitchRange && Cesium?.Cartesian3 && Cesium?.Matrix4) {
+        const canvas = viewer.canvas;
+        const center = cam.pickEllipsoid?.(
+          new Cesium.Cartesian2(
+            Math.floor((canvas?.clientWidth || 800) / 2),
+            Math.floor((canvas?.clientHeight || 600) / 2),
+          ),
+          viewer.scene?.globe?.ellipsoid,
+        ) || null;
+        if (center) {
+          const dist = Cesium.Cartesian3.distance(cam.positionWC, center);
+          if (Number.isFinite(dist) && dist > 100) {
+            cam.lookAt(
+              center,
+              new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-90), dist),
+            );
+            cam.lookAtTransform(Cesium.Matrix4.IDENTITY);
+            out.camera = { headingDeg: 0, pitchDeg: -90, rangeM: Math.round(dist) };
+          }
+        }
+      }
+    } catch (error) {
+      out.cameraError = error?.message || 'camera nudge failed';
+    }
+
+    return out;
+  }
+
   resetToGlobeView() {
     if (this._globeResetPromise) return this._globeResetPromise;
     this._stampNavigation();

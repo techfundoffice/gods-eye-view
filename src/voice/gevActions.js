@@ -931,6 +931,16 @@ export function createGevActionRunner({ viewer, styleManager, dataManager, scene
       return frameOverhead(viewer, dataManager, styleManager, args);
     }
 
+    if (name === 'apply_default_view') {
+      if (typeof styleManager?.applyGoogleEarthDefaultView === 'function') {
+        const result = await styleManager.applyGoogleEarthDefaultView();
+        return { ok: result?.ok !== false, action: 'apply_default_view', ...result };
+      }
+      // Fallback: Normal style only.
+      styleManager?.setStyle?.('normal');
+      return { ok: true, action: 'apply_default_view', style: 'normal', degraded: true };
+    }
+
     if (name === 'annotate_map') {
       return annotateMap(annotations, args);
     }
