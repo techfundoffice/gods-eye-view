@@ -118,9 +118,68 @@
         <div class="youtube-chat-cards">
           <section id="hermes-agent-card" class="youtube-chat-card youtube-hermes-card hermes-inline-card" data-state="idle" data-chat-state="idle" aria-labelledby="hermes-agent-title">
             <div id="hermes-box-chat" class="hermes-box-chat" data-empty="true" aria-label="Hermes conversation">
-              <div id="hermes-box-empty" class="hermes-box-empty">
-                <!-- Cloud Computer logo MOVEs here from #youtube-chat-brand (no clone) -->
+              <!-- Cloud Computer logo stays at top even after first chat (MOVE target, no clone) -->
+              <div id="hermes-box-topbar" class="hermes-box-topbar">
                 <div id="hermes-box-logo-slot" class="hermes-box-logo-slot" aria-hidden="false"></div>
+                <div class="hermes-box-top-actions" role="group" aria-label="Hermes task controls">
+                  <button
+                    type="button"
+                    id="hermes-box-recent-tasks"
+                    class="hermes-box-top-action hermes-box-recent-tasks"
+                    title="Recent Tasks"
+                    aria-label="Recent Tasks"
+                    aria-haspopup="dialog"
+                    aria-expanded="false"
+                    aria-controls="hermes-box-recent-panel"
+                  >
+                    <svg class="hermes-box-recent-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                      <path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M3 12a9 9 0 1 0 9-9"/>
+                      <path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M3 4v5h5"/>
+                      <path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    id="hermes-box-new-task"
+                    class="hermes-box-top-action hermes-box-new-task"
+                    title="New Task"
+                    aria-label="New Task"
+                  >
+                    <svg class="hermes-box-new-task-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                      <path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                      <path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" d="M12 8v6"/>
+                      <path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" d="M9 11h6"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    id="hermes-box-settings"
+                    class="hermes-box-top-action hermes-box-settings"
+                    title="Settings"
+                    aria-label="Settings"
+                    aria-haspopup="dialog"
+                    aria-expanded="false"
+                    aria-controls="hermes-box-settings-panel"
+                  >
+                    <svg class="hermes-box-settings-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.85"/>
+                      <path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div id="hermes-box-recent-panel" class="hermes-box-recent-panel" hidden role="dialog" aria-label="Recent Tasks">
+                <div class="hermes-box-recent-head">Recent Tasks</div>
+                <ul id="hermes-box-recent-list" class="hermes-box-recent-list" role="list"></ul>
+                <p id="hermes-box-recent-empty" class="hermes-box-recent-empty">No recent tasks yet.</p>
+              </div>
+              <div id="hermes-box-settings-panel" class="hermes-box-settings-panel" hidden role="dialog" aria-label="Settings">
+                <div class="hermes-box-settings-head">Settings</div>
+                <button type="button" id="hermes-box-settings-diagnostics" class="hermes-box-settings-item">Open diagnostics</button>
+                <button type="button" id="hermes-box-settings-clear-recent" class="hermes-box-settings-item">Clear recent tasks</button>
+                <button type="button" id="hermes-box-settings-new-task" class="hermes-box-settings-item">New task</button>
+              </div>
+              <div id="hermes-box-empty" class="hermes-box-empty">
                 <p class="hermes-box-headline">What can I help with?</p>
                 <p class="hermes-box-subline">Ask Hermes about the globe, what's on screen, or plan a flyover.</p>
                 <ul id="hermes-box-starters" class="hermes-box-starters" role="list" aria-label="Hermes starter prompts">
@@ -145,11 +204,48 @@
                 </ul>
               </div>
               <ol id="hermes-box-thread" class="hermes-box-thread" aria-live="polite" hidden></ol>
-              <form id="hermes-box-composer" class="hermes-box-composer" autocomplete="off" onsubmit="return false;">
-                <textarea id="hermes-box-input" class="hermes-box-input" rows="1" placeholder="Message Hermes..." maxlength="1500" aria-label="Message Hermes"></textarea>
-                <button id="hermes-box-send" class="hermes-box-send" type="button" aria-label="Send message to Hermes">
-                  <span class="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
+              <div id="hermes-box-composer-tools" class="hermes-box-composer-tools">
+                <button
+                  type="button"
+                  id="hermes-box-copy-all"
+                  class="hermes-box-copy-all"
+                  title="Copy all"
+                  aria-label="Copy all"
+                >
+                  <svg class="hermes-box-copy-all-svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.9"/>
+                    <path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
                 </button>
+              </div>
+              <form id="hermes-box-composer" class="hermes-box-composer hermes-box-composer--native" autocomplete="off" onsubmit="return false;">
+                <textarea id="hermes-box-input" class="hermes-box-input" rows="1" placeholder="Message Hermes..." maxlength="1500" aria-label="Message Hermes"></textarea>
+                <div class="hermes-box-composer-bar" role="toolbar" aria-label="Hermes composer controls">
+                  <div class="hermes-box-composer-bar-left">
+                    <button type="button" id="hermes-box-attach" class="hermes-box-tool" title="Attach" aria-label="Attach">
+                      <span class="material-symbols-outlined" aria-hidden="true">attach_file</span>
+                    </button>
+                    <input id="hermes-box-attach-input" type="file" hidden multiple accept="image/*,.txt,.md,.json,.csv" />
+                    <button type="button" id="hermes-box-mic" class="hermes-box-tool" title="Voice" aria-label="Voice">
+                      <span class="material-symbols-outlined" aria-hidden="true">mic</span>
+                    </button>
+                    <button type="button" id="hermes-box-voice-mode" class="hermes-box-tool" title="Voice mode" aria-label="Voice mode" aria-pressed="false">
+                      <span class="material-symbols-outlined" aria-hidden="true">graphic_eq</span>
+                    </button>
+                    <button type="button" id="hermes-box-profile" class="hermes-box-tool is-active" title="Profile" aria-label="Profile" aria-pressed="true">
+                      <span class="material-symbols-outlined" aria-hidden="true">person</span>
+                    </button>
+                    <button type="button" id="hermes-box-files" class="hermes-box-tool" title="Files" aria-label="Files">
+                      <span class="material-symbols-outlined" aria-hidden="true">folder</span>
+                    </button>
+                    <button type="button" id="hermes-box-tune" class="hermes-box-tool" title="Settings" aria-label="Composer settings">
+                      <span class="material-symbols-outlined" aria-hidden="true">tune</span>
+                    </button>
+                  </div>
+                  <button id="hermes-box-send" class="hermes-box-send" type="button" aria-label="Send message to Hermes">
+                    <span class="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
+                  </button>
+                </div>
               </form>
             </div>
             <div id="youtube-hermes-status" class="youtube-hermes-status" role="status" aria-live="polite">
