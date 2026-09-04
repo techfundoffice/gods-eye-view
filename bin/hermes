@@ -9,6 +9,11 @@ else
   ROOT="/home/runner/workspace"
 fi
 export HERMES_HOME="${HERMES_HOME:-$ROOT/.hermes}"
+CERTIFI_CA="$HERMES_HOME/hermes-agent/venv/lib/python3.11/site-packages/certifi/cacert.pem"
+if [[ -f "$CERTIFI_CA" ]]; then
+  export SSL_CERT_FILE="${SSL_CERT_FILE:-$CERTIFI_CA}"
+  export REQUESTS_CA_BUNDLE="${REQUESTS_CA_BUNDLE:-$CERTIFI_CA}"
+fi
 BIN="$HERMES_HOME/hermes-agent/venv/bin/hermes"
 if [[ ! -x "$BIN" ]]; then
   echo "hermes: missing runtime at $BIN" >&2
