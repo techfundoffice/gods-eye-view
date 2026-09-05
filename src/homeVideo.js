@@ -26,8 +26,6 @@ export const EVENT = 'gev:home-video';
 export const STORAGE_KEY = 'gev:home-video:v1';
 /** The root id of the player the GEV tool drives when several are mounted. */
 export const PRIMARY_ROOT_ID = 'gev-home-video';
-/** The independent clone of the primary home video player. */
-export const SECONDARY_ROOT_ID = 'gev-video-player-2';
 export const API_BASE = '/api/home-video';
 
 /** Small and medium float in the title bar; large is the Fullscreen API. */
@@ -179,7 +177,7 @@ const byId = (doc, id) => doc.getElementById(id);
 /**
  * Child element ids are derived from the root id, so a second player needs no
  * new naming scheme: `gev-home-video` + `-mount` is exactly today's markup, and
- * `gev-video-player-2` + `-mount` is the secondary player's.
+ * `gev-split-view` + `-mount` is the split view's.
  *
  * @param {string} rootId
  * @param {string} part
