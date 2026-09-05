@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   PUBLIC_COMMAND_LIMITS,
   parsePublicCommand,
+  resolvePublicSlashTool,
   toolsForPublicMode,
   validatePublicToolCall,
 } from './youtubePublicCommandPolicy.js';
@@ -114,6 +115,35 @@ export function createYoutubePublicCommandCoordinator({ ledger, interpret, now =
       record = await ledger.get(record.id);
     }
     const identity = hostViewerIdentity({}, record);
+    // Deterministic left-nav / desk slashes skip the model.
+    if (!continuation) {
+      const resolved = resolvePublicSlashTool(record.comment);
+      if (resolved.ok && !resolved.tool) {
+        await ledger.compareAndSet(record.id, 'interpreting', {
+          state: 'succeeded',
+          answer: bounded(resolved.reply || '', 1000),
+          remainingTurns: Math.max(0, (record.remainingTurns || 1) - 1),
+        });
+        if (host.isOwner(identity)) host.touch();
+        return { ok: true, record: await ledger.get(record.id) };
+      }
+      if (resolved.ok && resolved.tool) {
+        const checked = validatePublicToolCall(record.mode || resolved.mode, resolved.tool.name, resolved.tool.arguments);
+        if (checked.ok && isGevFunctionEnabled(checked.name)) {
+          await ledger.compareAndSet(record.id, 'interpreting', {
+            state: 'awaiting-execution',
+            nonce: id(),
+            modelResponseId: null,
+            functionCallId: null,
+            validatedTool: checked,
+            answer: bounded(resolved.reply || '', 240),
+            remainingTurns: Math.max(1, (record.remainingTurns || 1) - 1),
+            remainingTools: Math.max(0, (record.remainingTools || 1) - 1),
+          });
+          return { ok: true, record: await ledger.get(record.id) };
+        }
+      }
+    }
     let output;
     try {
       output = await interpret({

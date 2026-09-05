@@ -163,7 +163,7 @@ const Y_TOOLS = ['get_current_view_state', 'get_entity_context', 'analyst_query'
 const Z_TOOLS = ['fly_to_location', 'select_nearest_aircraft', 'adjust_camera_zoom', 'zoom_to_globe', 'move_camera', 'frame_overhead', 'fly_route', 'stop_tracking'];
 
 /** Exact GEV ACTIONS reply for `/help`. The space before the first comma is intentional. */
-export const PUBLIC_HELP_REPLY = 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow, /default-view, /youtube-channel <url>';
+export const PUBLIC_HELP_REPLY = 'I can help you if you type /help, /fly <place>, /layer <name> on|off, /cctv on|off|next, /radio on|off|next, /scene list|play|stop|next, /live-contacts, /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow, /default-view, /gods-eye-view, /youtube-channel <url>';
 
 /** Slash command → first-run Mission Control choice. `/explore-manually` is required. */
 export const PUBLIC_VIEW_PRESETS = deepFreeze({
@@ -192,6 +192,14 @@ export const PUBLIC_COMMAND_REGISTRY = deepFreeze({
   '/style-anime': { command: '/style-anime', mode: 'visual-style', description: 'Anime visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'anime' },
   '/style-noir': { command: '/style-noir', mode: 'visual-style', description: 'Noir visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'noir' },
   '/style-snow': { command: '/style-snow', mode: 'visual-style', description: 'Snow visual style', requiresText: false, enabled: true, tools: ['set_visual_style'], style: 'snow' },
+  '/fly': { command: '/fly', mode: 'navigate', description: 'Fly to a place (LOCATION)', requiresText: true, enabled: true, tools: ['fly_to_location'] },
+  '/layer': { command: '/layer', mode: 'execute', description: 'Toggle a DATA LAYER on|off', requiresText: true, enabled: true, tools: ['set_layer_visibility'] },
+  '/cctv': { command: '/cctv', mode: 'execute', description: 'CCTV enable|disable|next|prev|nearest', requiresText: false, enabled: true, tools: ['control_cctv'] },
+  '/radio': { command: '/radio', mode: 'execute', description: 'Radio enable|disable|next|previous|status', requiresText: false, enabled: true, tools: ['control_radio'] },
+  '/scene': { command: '/scene', mode: 'execute', description: 'SCENES list|play|stop|next|status', requiresText: false, enabled: true, tools: ['control_scene'] },
+  '/scenes': { command: '/scenes', mode: 'execute', description: 'Alias for /scene', requiresText: false, enabled: true, tools: ['control_scene'] },
+  '/location': { command: '/location', mode: 'navigate', description: 'Alias for /fly', requiresText: true, enabled: true, tools: ['fly_to_location'] },
+  '/layers': { command: '/layers', mode: 'execute', description: 'Alias for /layer', requiresText: true, enabled: true, tools: ['set_layer_visibility'] },
 });
 
 export function publicCommandLegend() {
@@ -280,6 +288,128 @@ const SKIP_GOOGLE_EARTH_DEFAULT_MODES = new Set([
  * @param {string|null|undefined} command
  * @returns {boolean}
  */
+
+const LAYER_ALIASES = Object.freeze({
+  flight: 'flights', flights: 'flights', plane: 'flights', planes: 'flights',
+  military: 'military',
+  earthquake: 'earthquakes', earthquakes: 'earthquakes', quake: 'earthquakes',
+  hazard: 'natural-hazards', hazards: 'natural-hazards', 'natural-hazards': 'natural-hazards',
+  satellite: 'satellites', satellites: 'satellites',
+  rocket: 'rocket-launches', rockets: 'rocket-launches', 'rocket-launches': 'rocket-launches',
+  traffic: 'traffic',
+  cctv: 'cctv', camera: 'cctv', cameras: 'cctv',
+  radio: 'radio',
+  bike: 'bikeshare', bikeshare: 'bikeshare',
+  ship: 'ais-live-vessels', ships: 'ais-live-vessels', vessel: 'ais-live-vessels', vessels: 'ais-live-vessels', 'ais-live-vessels': 'ais-live-vessels',
+  datacenter: 'local-datacenters', datacenters: 'local-datacenters', 'local-datacenters': 'local-datacenters',
+  dam: 'local-dams', dams: 'local-dams', 'local-dams': 'local-dams',
+  cable: 'telegeography-submarine-cables', cables: 'telegeography-submarine-cables', 'telegeography-submarine-cables': 'telegeography-submarine-cables',
+  firm: 'local-firms', firms: 'local-firms', 'local-firms': 'local-firms',
+});
+
+/**
+ * Deterministic slash → GEV tool mapping for humans + Hermes.
+ * Unknown / free-text returns { ok: false } so chat/interpret can continue.
+ * @param {string} value
+ * @returns {{ ok: boolean, command?: string, mode?: string, tool?: { name: string, arguments: object }, reply?: string, reason?: string }}
+ */
+export function resolvePublicSlashTool(value) {
+  const parsed = parsePublicCommand(value);
+  if (!parsed.recognized) return { ok: false, reason: 'not-slash' };
+  if (!parsed.valid) return { ok: false, reason: parsed.reason || 'invalid', command: parsed.command, mode: parsed.mode };
+  const command = parsed.command;
+  const request = parsed.request || '';
+  const mode = parsed.mode;
+
+  if (command === '/help') {
+    return { ok: true, command, mode, tool: null, reply: PUBLIC_HELP_REPLY };
+  }
+
+  const style = styleIdForPublicCommand(command);
+  if (style) {
+    return { ok: true, command, mode, tool: { name: 'set_visual_style', arguments: { style } }, reply: `Style → ${style}` };
+  }
+  if (command === '/default-view') {
+    return { ok: true, command, mode, tool: { name: 'apply_default_view', arguments: {} }, reply: 'Default view' };
+  }
+  if (command === '/gods-eye-view') {
+    return { ok: true, command, mode, tool: { name: 'zoom_to_globe', arguments: {} }, reply: 'Whole globe' };
+  }
+  if (PUBLIC_VIEW_PRESETS[command]) {
+    return {
+      ok: true, command, mode,
+      tool: { name: 'run_view_preset', arguments: { preset: command } },
+      reply: `View preset → ${PUBLIC_VIEW_PRESETS[command]}`,
+    };
+  }
+  if (command === '/fly' || command === '/location') {
+    const query = request.replace(/[.?!]+$/, '').trim();
+    if (!query) return { ok: false, reason: 'request-required', command, mode };
+    return {
+      ok: true, command, mode,
+      tool: { name: 'fly_to_location', arguments: { query, viewMode: 'overview' } },
+      reply: `Flying to ${query}`,
+    };
+  }
+  if (command === '/layer' || command === '/layers') {
+    const parts = request.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!parts.length) return { ok: false, reason: 'request-required', command, mode };
+    let enabled = true;
+    let nameTok = parts[0];
+    if (parts.length >= 2 && /^(on|off|enable|disable|true|false)$/.test(parts[parts.length - 1])) {
+      const flag = parts.pop();
+      enabled = /^(on|enable|true)$/.test(flag);
+      nameTok = parts.join('-') || nameTok;
+    } else if (/^(on|off)$/.test(parts[0]) && parts[1]) {
+      enabled = parts[0] === 'on';
+      nameTok = parts.slice(1).join('-');
+    }
+    const layerId = LAYER_ALIASES[nameTok] || LAYER_ALIASES[nameTok.replace(/_/g, '-')] || null;
+    if (!layerId) return { ok: false, reason: `unknown-layer:${nameTok}`, command, mode };
+    return {
+      ok: true, command, mode,
+      tool: { name: 'set_layer_visibility', arguments: { layerId, enabled } },
+      reply: `${layerId} → ${enabled ? 'on' : 'off'}`,
+    };
+  }
+  if (command === '/cctv') {
+    const tok = (request.split(/\s+/)[0] || 'enable').toLowerCase();
+    const map = {
+      on: 'enable', enable: 'enable', off: 'disable', disable: 'disable',
+      next: 'next', prev: 'prev', previous: 'prev', nearest: 'nearest',
+      focus: 'focus', coverage: 'coverage',
+    };
+    const action = map[tok] || (request ? 'select' : 'enable');
+    const args = { action };
+    if (action === 'select') args.cameraQuery = request;
+    return { ok: true, command, mode, tool: { name: 'control_cctv', arguments: args }, reply: `CCTV ${action}` };
+  }
+  if (command === '/radio') {
+    const tok = (request.split(/\s+/)[0] || 'enable').toLowerCase();
+    const map = {
+      on: 'enable', enable: 'enable', off: 'disable', disable: 'disable',
+      play: 'play', pause: 'pause', stop: 'stop', resume: 'resume',
+      next: 'next', prev: 'previous', previous: 'previous', status: 'status',
+    };
+    const action = map[tok] || 'status';
+    return { ok: true, command, mode, tool: { name: 'control_radio', arguments: { action } }, reply: `Radio ${action}` };
+  }
+  if (command === '/scene' || command === '/scenes') {
+    const parts = request.split(/\s+/).filter(Boolean);
+    const tok = (parts[0] || 'list').toLowerCase();
+    const map = { list: 'list', play: 'play', stop: 'stop', next: 'next', status: 'status' };
+    const action = map[tok] || 'play';
+    const args = { action };
+    if (action === 'play' && parts.length) {
+      const id = (map[tok] ? parts.slice(1) : parts).join(' ').trim();
+      if (id) args.sceneId = id;
+    }
+    return { ok: true, command, mode, tool: { name: 'control_scene', arguments: args }, reply: `Scene ${action}` };
+  }
+  // Known slash but no deterministic tool (e.g. /x /y /z /youtube-channel) — leave to interpret.
+  return { ok: false, reason: 'needs-interpret', command, mode };
+}
+
 export function shouldApplyGoogleEarthDefaultsForPublicMode(mode, command) {
   const m = String(mode || '').trim().toLowerCase();
   const cmd = String(command || '').trim().toLowerCase();

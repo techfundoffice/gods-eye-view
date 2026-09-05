@@ -1,9 +1,11 @@
+import { resolvePublicSlashTool, PUBLIC_HELP_REPLY } from './youtubePublicCommandPolicy.js';
 /**
  * Hermes east-rail conversation box — Grok-Bot-style UX.
  * Sticky thread + composer, multi-turn session, parallel globe actions.
  *
  * @module hermesBoxChat
  */
+import { createHermesTaskLogoController } from './hermesTaskLogo.js';
 
 export const HERMES_BOX_CHAT_ENDPOINT = '/api/hermes/box-chat';
 export const HERMES_BOX_STORAGE_KEY = 'gev-hermes-box-thread-v1';
@@ -32,32 +34,56 @@ function saveThread(storage, rows) {
   try {
     storage?.setItem?.(HERMES_BOX_STORAGE_KEY, JSON.stringify((rows || []).slice(-40)));
   } catch { /* ignore */ }
+  const taskLogo = createHermesTaskLogoController({
+    documentRef,
+    windowRef,
+    fetchImpl,
+  });
 }
 
-/** Best-effort GEV action while Hermes replies (Grok-style: do the thing + talk). */
+/** Shared slash + best-effort natural language → GEV runner (humans + Hermes). */
 async function maybeRunGlobeAction(prompt, windowRef) {
   const runner = windowRef?.__godsEyeView?.voiceCommands?.runner;
   if (typeof runner !== 'function') return null;
-  const raw = String(prompt || '');
+  const raw = String(prompt || '').trim();
+
+  const slash = resolvePublicSlashTool(raw);
+  if (slash.ok) {
+    if (!slash.tool) {
+      return { ok: true, action: 'help', reply: slash.reply || PUBLIC_HELP_REPLY, source: 'slash' };
+    }
+    try {
+      const result = await runner(slash.tool.name, {
+        ...slash.tool.arguments,
+        ...(slash.tool.name === 'fly_to_location' ? { waitForArrival: true } : {}),
+      });
+      return {
+        ...(result && typeof result === 'object' ? result : { ok: true }),
+        reply: slash.reply,
+        source: 'slash',
+        command: slash.command,
+      };
+    } catch (error) {
+      return { ok: false, error: error?.message || 'slash action failed', command: slash.command, source: 'slash' };
+    }
+  }
+
+  // Soft NL fallback (non-slash)
   const nav = raw.match(
     /\b(?:navigate|fly|go|take\s+me|show|zoom|look)\s+(?:to\s+|me\s+to\s+|at\s+)?(.+?)(?:[.!?]|$)/i,
   );
-  if (nav?.[1]) {
+  if (nav?.[1] && !raw.startsWith('/')) {
     const query = text(nav[1], 160);
     if (query) {
       try {
-        return await runner('fly_to_location', {
-          query,
-          viewMode: 'overview',
-          waitForArrival: true,
-        });
+        return await runner('fly_to_location', { query, viewMode: 'overview', waitForArrival: true });
       } catch (error) {
         return { ok: false, error: error?.message || 'fly failed' };
       }
     }
   }
   const layerOn = raw.match(/\b(?:enable|show|turn on|open)\s+(earthquakes?|flights?|ships?|satellites?|traffic|cctv|weather|fires?)\b/i);
-  if (layerOn?.[1]) {
+  if (layerOn?.[1] && !raw.startsWith('/')) {
     const token = String(layerOn[1]).toLowerCase();
     const layerId = (
       /^earthquake/.test(token) ? 'earthquakes'
@@ -213,6 +239,7 @@ export function initHermesBoxChat({
     busy = false;
     sendBtn.disabled = false;
     root.dataset.chatState = 'idle';
+    taskLogo.clearConversation();
     if (input) {
       input.value = '';
       try { input.focus(); } catch { /* ignore */ }
@@ -467,9 +494,35 @@ export function initHermesBoxChat({
       ? `${prompt}\n\n(attached: ${pendingAttachments.map((a) => a.name).join(', ')})`
       : prompt;
     appendBubble('user', bubbleText, { author, source });
+    taskLogo.listening();
+    windowRef.setTimeout?.(() => taskLogo.setTask(prompt), 420);
     setBusy(true);
-    // Fire globe action in parallel (Grok does tools while chatting).
+    // Slash commands hit the shared GEV runner first (humans + Hermes).
+    const isSlash = prompt.trim().startsWith('/');
     const actionPromise = maybeRunGlobeAction(prompt, windowRef);
+    if (isSlash) {
+      try {
+        const actionResult = await actionPromise;
+        if (actionResult?.source === 'slash') {
+          if (actionResult.ok === false) {
+            const err = text(actionResult.error || actionResult.reason || 'Command failed', 200);
+            appendBubble('assistant', err, { source: 'slash-error' });
+            return { ok: false, error: err, actionResult };
+          }
+          const reply = text(
+            actionResult.reply
+              || (actionResult.action === 'help' ? 'Help' : 'Done.'),
+            800,
+          ) || 'Done.';
+          appendBubble('assistant', reply, { source: 'slash' });
+          clearAttachments();
+          speakReply(reply);
+          return { ok: true, reply, source: 'slash', actionResult };
+        }
+      } catch {
+        /* fall through to chat */
+      }
+    }
     try {
       const postBody = JSON.stringify({
         text: prompt,
@@ -508,10 +561,12 @@ export function initHermesBoxChat({
           const partial = `Done — I updated the globe view.\n(${err})`;
           appendBubble('assistant', partial, { source: 'partial' });
           clearAttachments();
-          speakReply(partial);
+          taskLogo.replying();
+          if (!speakReply(partial)) taskLogo.success();
           return { ok: true, reply: 'globe updated', source: 'action', actionResult };
         }
         appendBubble('assistant', err, { source: 'error' });
+        taskLogo.error();
         return { ok: false, error: err };
       }
       let reply = text(payload.reply, 2000) || '…';
@@ -521,7 +576,8 @@ export function initHermesBoxChat({
       }
       appendBubble('assistant', reply, { source: payload.source || 'hermes' });
       clearAttachments();
-      speakReply(reply);
+      taskLogo.replying();
+      if (!speakReply(reply)) taskLogo.success();
       return { ok: true, reply, source: payload.source, actionResult };
     } catch (error) {
       const raw = String(error?.message || 'Hermes box chat failed');
@@ -532,6 +588,7 @@ export function initHermesBoxChat({
         200,
       );
       appendBubble('assistant', err, { source: 'error' });
+      taskLogo.error();
       return { ok: false, error: err };
     } finally {
       setBusy(false);
@@ -575,18 +632,23 @@ export function initHermesBoxChat({
   let voiceModeOn = readVoiceMode();
 
   const speakReply = (replyText) => {
-    if (!voiceModeOn) return;
+    if (!voiceModeOn) return false;
     const utterText = String(replyText || '').trim();
-    if (!utterText) return;
+    if (!utterText) return false;
     try {
       const synth = windowRef?.speechSynthesis;
-      if (!synth || typeof windowRef.SpeechSynthesisUtterance !== 'function') return;
+      if (!synth || typeof windowRef.SpeechSynthesisUtterance !== 'function') return false;
       synth.cancel();
       const u = new windowRef.SpeechSynthesisUtterance(utterText.slice(0, 500));
       u.rate = 1.05;
       u.pitch = 1;
+      u.onend = () => taskLogo.success();
+      u.onerror = () => taskLogo.success();
       synth.speak(u);
-    } catch { /* ignore */ }
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const buildAttachmentContext = () => {

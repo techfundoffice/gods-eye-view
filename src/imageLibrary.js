@@ -96,6 +96,10 @@ export function applyBrandLogo(doc = globalThis.document, config = readConfig())
   );
   for (const img of imgs) {
     try {
+      if (img.dataset?.hermesTaskLogoManaged === "true") {
+        img.dataset.brandLogoFallback = url;
+        continue;
+      }
       if (img.getAttribute("src") !== url) img.setAttribute("src", url);
       if (!img.getAttribute("alt")) img.setAttribute("alt", "Cloud Computer AI.com");
     } catch {

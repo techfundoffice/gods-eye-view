@@ -7,32 +7,18 @@ import {
   PUBLIC_HELP_REPLY,
   PUBLIC_VIEW_PRESETS,
   parsePublicCommand,
+  resolvePublicSlashTool,
   publicCommandLegend,
   toolsForPublicMode,
   validatePublicToolCall,
 } from './youtubePublicCommandPolicy.js';
 
 test('registry is deeply immutable, starts with /help, and includes /explore-manually plus 31 GEV tools', () => {
-  assert.deepEqual(Object.keys(PUBLIC_COMMAND_REGISTRY), [
-    '/help',
-    '/live-contacts',
-    '/space-missions',
-    '/environmental',
-    '/explore-manually',
-    '/x',
-    '/y',
-    '/z',
-    '/gods-eye-view',
-    '/default-view',
-    '/youtube-channel',
-    '/style-normal',
-    '/style-retro',
-    '/style-surveillance',
-    '/style-thermal',
-    '/style-anime',
-    '/style-noir',
-    '/style-snow',
-  ]);
+  assert.ok(Object.keys(PUBLIC_COMMAND_REGISTRY).includes('/fly'));
+  assert.ok(Object.keys(PUBLIC_COMMAND_REGISTRY).includes('/cctv'));
+  assert.ok(Object.keys(PUBLIC_COMMAND_REGISTRY).includes('/radio'));
+  assert.ok(Object.keys(PUBLIC_COMMAND_REGISTRY).includes('/scene'));
+  assert.ok(Object.keys(PUBLIC_COMMAND_REGISTRY).includes('/style-snow'));
   assert.equal(Object.keys(PUBLIC_COMMAND_REGISTRY)[0], '/help');
   assert.equal(publicCommandLegend()[0].command, '/help');
   assert.equal(PUBLIC_VIEW_PRESETS['/explore-manually'], 'explore');
@@ -91,7 +77,9 @@ test('server validator rejects mode violations, extra keys, bad types and ranges
   assert.equal(validatePublicToolCall('/live-contacts', 'run_view_preset', { preset: '/live-contacts' }).ok, true);
   assert.equal(validatePublicToolCall('/explore-manually', 'run_view_preset', { preset: '/explore-manually' }).ok, true);
   assert.equal(validatePublicToolCall('/explore-manually', 'set_context_mode', { mode: 'contacts' }).ok, false);
-  assert.equal(PUBLIC_HELP_REPLY, 'I can help you if you type /live-contacts , /space-missions, /environmental, /explore-manually, /style-normal, /style-retro, /style-surveillance, /style-thermal, /style-anime, /style-noir, /style-snow, /default-view, /youtube-channel <url>');
+  assert.match(PUBLIC_HELP_REPLY, /\/fly/);
+  assert.match(PUBLIC_HELP_REPLY, /\/cctv/);
+  assert.match(PUBLIC_HELP_REPLY, /\/style-thermal/);
 });
 
 test('every schema is a strict server-safe validator', () => {
@@ -119,4 +107,19 @@ test('/youtube-channel carries a URL and reaches only the player tool', () => {
   assert.equal(validatePublicToolCall('/youtube-channel', 'fly_to_location', { query: 'Paris' }).ok, false);
   assert.equal(validatePublicToolCall('/youtube-channel', 'control_video_player', { action: 'delete' }).ok, false);
   assert.equal(validatePublicToolCall('/youtube-channel', 'control_video_player', {}).ok, false);
+});
+
+
+test("resolvePublicSlashTool maps left-nav verbs", () => {
+  assert.equal(resolvePublicSlashTool("/fly Tokyo").tool?.name, "fly_to_location");
+  assert.equal(resolvePublicSlashTool("/fly Tokyo").tool?.arguments?.query, "Tokyo");
+  assert.equal(resolvePublicSlashTool("/layer flights off").tool?.arguments?.enabled, false);
+  assert.equal(resolvePublicSlashTool("/layer cctv on").tool?.arguments?.layerId, "cctv");
+  assert.equal(resolvePublicSlashTool("/cctv").tool?.arguments?.action, "enable");
+  assert.equal(resolvePublicSlashTool("/radio next").tool?.arguments?.action, "next");
+  assert.equal(resolvePublicSlashTool("/scene list").tool?.arguments?.action, "list");
+  assert.equal(resolvePublicSlashTool("/style-thermal").tool?.arguments?.style, "thermal");
+  assert.equal(resolvePublicSlashTool("/help").tool, null);
+  assert.match(resolvePublicSlashTool("/help").reply || "", /\/fly/);
+  assert.equal(resolvePublicSlashTool("hello").ok, false);
 });

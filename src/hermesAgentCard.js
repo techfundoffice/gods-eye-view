@@ -1,3 +1,5 @@
+import { classifyHermesTask, HERMES_TASK_LOGO_EVENT } from './hermesTaskLogo.js';
+
 const HERMES_ENDPOINT = '/api/youtube-comment-harness/hermes';
 const MAX_CONTROLS = 80;
 const MAX_SCREENSHOT_CHARS = 120_000;
@@ -276,6 +278,15 @@ export function initHermesAgentCard({
         ? state.currentLearning
         : '';
     root.dataset.state = harness.running ? 'running' : harness.ready ? 'ready' : 'offline';
+    const rawTask = training.state === 'training'
+      ? training.currentPractice
+      : harness.currentTask;
+    documentRef?.dispatchEvent?.(new CustomEvent(HERMES_TASK_LOGO_EVENT, {
+      detail: {
+        system: harness.running || harness.ready ? 'idle' : 'offline',
+        taskCategory: rawTask ? classifyHermesTask(rawTask) : '',
+      },
+    }));
     const values = {
       'hermes-agent-seeing': state.seeing || state.observation || (harness.running ? 'Live interface and bounded globe frame' : 'Waiting for live interface'),
       'hermes-agent-practicing': state.practicing || training.currentPractice
@@ -327,7 +338,14 @@ export function initHermesAgentCard({
   };
 
   const refresh = async () => {
-    try { await request(); } catch (error) { setMessage(error?.message || 'Hermes status unavailable', 'error'); }
+    try {
+      await request();
+    } catch (error) {
+      setMessage(error?.message || 'Hermes status unavailable', 'error');
+      documentRef?.dispatchEvent?.(new CustomEvent(HERMES_TASK_LOGO_EVENT, {
+        detail: { system: 'offline', taskCategory: '' },
+      }));
+    }
   };
 
   panel.querySelectorAll?.('[data-hermes-action]')?.forEach((button) => {
