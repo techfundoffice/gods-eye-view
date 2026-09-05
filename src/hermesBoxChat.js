@@ -37,7 +37,7 @@ function saveThread(storage, rows) {
 }
 
 /** Shared slash + best-effort natural language → GEV runner (humans + Hermes). */
-async function maybeRunGlobeAction(prompt, windowRef, injectedRunner = null) {
+export async function maybeRunGlobeAction(prompt, windowRef, injectedRunner = null) {
   const runner = injectedRunner || windowRef?.__godsEyeView?.voiceCommands?.runner;
   if (typeof runner !== 'function') return null;
   const raw = String(prompt || '').trim();
