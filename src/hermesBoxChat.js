@@ -8,6 +8,7 @@
 export const HERMES_BOX_CHAT_ENDPOINT = '/api/hermes/box-chat';
 export const HERMES_BOX_STORAGE_KEY = 'gev-hermes-box-thread-v1';
 export const HERMES_BOX_TASKS_KEY = 'gev-hermes-box-tasks-v1';
+export const HERMES_BOX_VOICE_MODE_KEY = 'gev-hermes-box-voice-mode-v1';
 
 function text(value, max = 1500) {
   return String(value ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ').trim().slice(0, max);
@@ -143,6 +144,8 @@ export function initHermesBoxChat({
   const closeAllMenus = () => {
     closeRecent();
     closeSettings();
+    try { closeSpaces(); } catch { /* ignore */ }
+    try { closeProfile(); } catch { /* defined later */ }
   };
 
   const toggleSettings = () => {
@@ -459,22 +462,41 @@ export function initHermesBoxChat({
   async function ask(rawText, { source = 'composer', author = '' } = {}) {
     const prompt = stripAiTag(rawText);
     if (!prompt || busy) return null;
-    appendBubble('user', prompt, { author, source });
+    const attachmentContext = buildAttachmentContext();
+    const bubbleText = attachmentContext
+      ? `${prompt}\n\n(attached: ${pendingAttachments.map((a) => a.name).join(', ')})`
+      : prompt;
+    appendBubble('user', bubbleText, { author, source });
     setBusy(true);
     // Fire globe action in parallel (Grok does tools while chatting).
     const actionPromise = maybeRunGlobeAction(prompt, windowRef);
     try {
-      const response = await fetchImpl(endpoint, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: prompt,
-          conversationId,
-          source,
-          author: text(author, 80),
-        }),
+      const postBody = JSON.stringify({
+        text: prompt,
+        conversationId,
+        source,
+        author: text(author, 80),
+        attachmentContext,
+        workspacePath: activeWorkspacePath || undefined,
       });
+      let response;
+      try {
+        response = await fetchImpl(endpoint, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: postBody,
+        });
+      } catch (firstErr) {
+        // One quick retry — Replit preview sometimes drops the first long CLI attempt.
+        await new Promise((r) => windowRef.setTimeout(r, 350));
+        response = await fetchImpl(endpoint, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: postBody,
+        });
+      }
       const payload = await response.json().catch(() => ({}));
       let actionResult = null;
       try { actionResult = await actionPromise; } catch { /* ignore */ }
@@ -483,7 +505,10 @@ export function initHermesBoxChat({
         const err = text(payload?.error?.message || `Hermes unavailable (${response.status})`, 200);
         // If the globe action worked, still acknowledge it.
         if (actionResult?.ok !== false && actionResult?.ok) {
-          appendBubble('assistant', `Done — I updated the globe view.\n(${err})`, { source: 'partial' });
+          const partial = `Done — I updated the globe view.\n(${err})`;
+          appendBubble('assistant', partial, { source: 'partial' });
+          clearAttachments();
+          speakReply(partial);
           return { ok: true, reply: 'globe updated', source: 'action', actionResult };
         }
         appendBubble('assistant', err, { source: 'error' });
@@ -495,9 +520,17 @@ export function initHermesBoxChat({
         reply = `${reply}`;
       }
       appendBubble('assistant', reply, { source: payload.source || 'hermes' });
+      clearAttachments();
+      speakReply(reply);
       return { ok: true, reply, source: payload.source, actionResult };
     } catch (error) {
-      const err = text(error?.message || 'Hermes box chat failed', 200);
+      const raw = String(error?.message || 'Hermes box chat failed');
+      const err = text(
+        /failed to fetch|networkerror|load failed/i.test(raw)
+          ? 'Cloudy is unreachable right now — retry in a second (desk API timed out or dropped).'
+          : raw,
+        200,
+      );
       appendBubble('assistant', err, { source: 'error' });
       return { ok: false, error: err };
     } finally {
@@ -527,6 +560,347 @@ export function initHermesBoxChat({
     sendFromComposer();
   });
 
+  const pendingAttachments = [];
+  const chipsEl = documentRef.getElementById('hermes-box-attach-chips');
+  const profilePanel = documentRef.getElementById('hermes-box-profile-panel');
+  const VOICE_KEY = HERMES_BOX_VOICE_MODE_KEY;
+
+  const readVoiceMode = () => {
+    try { return storage?.getItem?.(VOICE_KEY) === '1'; } catch { return false; }
+  };
+  const writeVoiceMode = (on) => {
+    try { storage?.setItem?.(VOICE_KEY, on ? '1' : '0'); } catch { /* ignore */ }
+  };
+
+  let voiceModeOn = readVoiceMode();
+
+  const speakReply = (replyText) => {
+    if (!voiceModeOn) return;
+    const utterText = String(replyText || '').trim();
+    if (!utterText) return;
+    try {
+      const synth = windowRef?.speechSynthesis;
+      if (!synth || typeof windowRef.SpeechSynthesisUtterance !== 'function') return;
+      synth.cancel();
+      const u = new windowRef.SpeechSynthesisUtterance(utterText.slice(0, 500));
+      u.rate = 1.05;
+      u.pitch = 1;
+      synth.speak(u);
+    } catch { /* ignore */ }
+  };
+
+  const buildAttachmentContext = () => {
+    if (!pendingAttachments.length) return '';
+    const parts = [];
+    for (const item of pendingAttachments) {
+      if (item.kind === 'text' && item.text) {
+        parts.push(`File: ${item.name} (${item.mime || 'text'})\n${item.text}`);
+      } else {
+        parts.push(`File: ${item.name} (${item.mime || item.kind || 'binary'}, ${item.size || 0} bytes) — binary/image attached in UI; use filename context.`);
+      }
+    }
+    return parts.join('\n\n').slice(0, 6000);
+  };
+
+  const renderAttachChips = () => {
+    if (!chipsEl) return;
+    chipsEl.replaceChildren();
+    if (!pendingAttachments.length) {
+      chipsEl.hidden = true;
+      return;
+    }
+    chipsEl.hidden = false;
+    pendingAttachments.forEach((item, index) => {
+      const chip = documentRef.createElement('button');
+      chip.type = 'button';
+      chip.className = 'hermes-box-attach-chip';
+      chip.title = 'Remove attachment';
+      chip.textContent = item.name;
+      chip.addEventListener('click', () => {
+        pendingAttachments.splice(index, 1);
+        renderAttachChips();
+        refreshProfilePanel();
+      });
+      chipsEl.append(chip);
+    });
+  };
+
+  const clearAttachments = () => {
+    pendingAttachments.length = 0;
+    renderAttachChips();
+  };
+
+  const readFileAsAttachment = (file) => new Promise((resolve) => {
+    const mime = String(file.type || '');
+    const name = String(file.name || 'file');
+    const size = Number(file.size) || 0;
+    const isText = /^text\//.test(mime) || /\.(txt|md|markdown|json|csv|log|js|ts|css|html|xml|yml|yaml)$/i.test(name);
+    if (isText && size <= 120_000) {
+      const reader = new windowRef.FileReader();
+      reader.onload = () => {
+        resolve({
+          kind: 'text',
+          name,
+          mime: mime || 'text/plain',
+          size,
+          text: String(reader.result || '').slice(0, 8_000),
+        });
+      };
+      reader.onerror = () => resolve({ kind: 'binary', name, mime, size });
+      reader.readAsText(file);
+      return;
+    }
+    resolve({
+      kind: mime.startsWith('image/') ? 'image' : 'binary',
+      name,
+      mime: mime || 'application/octet-stream',
+      size,
+    });
+  });
+
+  const closeProfile = () => {
+    if (!profilePanel) return;
+    profilePanel.hidden = true;
+    documentRef.getElementById('hermes-box-profile')?.setAttribute('aria-expanded', 'false');
+  };
+
+  const refreshProfilePanel = async () => {
+    const statusEl = documentRef.getElementById('hermes-box-profile-status');
+    const modelEl = documentRef.getElementById('hermes-box-profile-model');
+    const capsEl = documentRef.getElementById('hermes-box-profile-caps');
+    const voiceEl = documentRef.getElementById('hermes-box-profile-voice');
+    const attachEl = documentRef.getElementById('hermes-box-profile-attach');
+    const fromDom = (id) => documentRef.getElementById(id)?.textContent?.trim() || '';
+    if (modelEl) modelEl.textContent = fromDom('hermes-agent-provider') || 'Unavailable';
+    if (capsEl) capsEl.textContent = fromDom('hermes-agent-capabilities') || 'No capabilities reported';
+    if (voiceEl) voiceEl.textContent = voiceModeOn ? 'On — speaks Hermes replies' : 'Off';
+    if (attachEl) {
+      attachEl.textContent = pendingAttachments.length
+        ? pendingAttachments.map((a) => a.name).join(', ')
+        : 'None';
+    }
+    if (statusEl) statusEl.textContent = root.dataset.state || root.dataset.chatState || 'idle';
+    try {
+      const res = await fetchImpl('/api/hermes/box-chat', { method: 'GET', credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      const payload = await res.json().catch(() => ({}));
+      if (statusEl && payload?.ok) {
+        statusEl.textContent = payload.ready ? 'Ready' : 'Degraded / fallback';
+      }
+    } catch {
+      if (statusEl && statusEl.textContent === 'idle') statusEl.textContent = 'Local UI only';
+    }
+    try {
+      const res = await fetchImpl('/api/youtube-comment-harness/hermes', { method: 'GET', credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      const payload = await res.json().catch(() => ({}));
+      const harness = payload?.harness || payload || {};
+      if (modelEl && (harness.provider || harness.model || harness.active)) {
+        modelEl.textContent = `${harness.provider || harness.active || harness.preferred || 'Hermes'}${harness.model ? ` · ${harness.model}` : ''}`;
+      }
+      if (capsEl && (harness.modelCapabilities || harness.toolCount != null)) {
+        capsEl.textContent = harness.modelCapabilities
+          ? String(harness.modelCapabilities).slice(0, 160)
+          : `${Number(harness.toolCount) || 0} tools`;
+      }
+      if (statusEl && (harness.running || harness.ready)) {
+        statusEl.textContent = harness.running ? 'Running' : 'Ready';
+      }
+    } catch { /* ignore */ }
+  };
+
+  const toggleProfile = async () => {
+    if (!profilePanel) return;
+    const open = profilePanel.hidden;
+    closeRecent();
+    closeSettings();
+    if (open) {
+      await refreshProfilePanel();
+      profilePanel.hidden = false;
+      documentRef.getElementById('hermes-box-profile')?.setAttribute('aria-expanded', 'true');
+    } else {
+      closeProfile();
+    }
+  };
+
+  const setVoiceMode = (on) => {
+    voiceModeOn = Boolean(on);
+    writeVoiceMode(voiceModeOn);
+    chat.dataset.voiceMode = voiceModeOn ? 'on' : 'off';
+    const voiceModeBtn = documentRef.getElementById('hermes-box-voice-mode');
+    if (voiceModeBtn) {
+      voiceModeBtn.setAttribute('aria-pressed', voiceModeOn ? 'true' : 'false');
+      voiceModeBtn.classList.toggle('is-active', voiceModeOn);
+    }
+    if (!voiceModeOn) {
+      try { windowRef?.speechSynthesis?.cancel?.(); } catch { /* ignore */ }
+    }
+    refreshProfilePanel();
+  };
+
+
+  const SPACES_ENDPOINT = '/api/hermes/workspace';
+  const WORKSPACE_KEY = 'gev-hermes-box-workspace-path';
+  const spacesPanel = documentRef.getElementById('hermes-box-spaces-panel');
+  const spacesList = documentRef.getElementById('hermes-box-spaces-list');
+  const spacesStatus = documentRef.getElementById('hermes-box-spaces-status');
+  let activeWorkspacePath = '';
+  try {
+    activeWorkspacePath = String(windowRef?.localStorage?.getItem(WORKSPACE_KEY) || '').trim();
+  } catch { /* ignore */ }
+
+  const setSpacesStatus = (msg, show = true) => {
+    if (!spacesStatus) return;
+    spacesStatus.textContent = msg || '';
+    spacesStatus.hidden = !show || !msg;
+  };
+
+  const closeSpaces = () => {
+    if (!spacesPanel) return;
+    spacesPanel.hidden = true;
+    documentRef.getElementById('hermes-box-files')?.setAttribute('aria-expanded', 'false');
+    if (spacesList) spacesList.hidden = true;
+  };
+
+  const refreshSpacesHeader = async () => {
+    const labelEl = documentRef.getElementById('hermes-box-spaces-home-label');
+    const pathEl = documentRef.getElementById('hermes-box-spaces-home-path');
+    try {
+      const res = await fetchImpl(SPACES_ENDPOINT, { method: 'GET', credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      const payload = await res.json().catch(() => ({}));
+      if (payload?.cwd) {
+        activeWorkspacePath = payload.cwd;
+        try { windowRef?.localStorage?.setItem(WORKSPACE_KEY, activeWorkspacePath); } catch { /* ignore */ }
+      }
+      if (labelEl) labelEl.textContent = payload?.homeLabel || 'Home';
+      if (pathEl) pathEl.textContent = activeWorkspacePath || payload?.cwd || '/home/runner/workspace';
+      return payload;
+    } catch {
+      if (pathEl) pathEl.textContent = activeWorkspacePath || '/home/runner/workspace';
+      return null;
+    }
+  };
+
+  const renderWorktreeList = (trees) => {
+    if (!spacesList) return;
+    spacesList.replaceChildren();
+    const rows = Array.isArray(trees) ? trees : [];
+    if (!rows.length) {
+      spacesList.hidden = true;
+      return;
+    }
+    spacesList.hidden = false;
+    for (const tree of rows) {
+      const li = documentRef.createElement('li');
+      const btn = documentRef.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hermes-box-settings-item hermes-box-spaces-path-btn';
+      const p = String(tree?.path || '').trim();
+      const branch = String(tree?.branch || '').trim();
+      btn.textContent = branch ? `${branch} — ${p}` : p;
+      btn.title = p;
+      btn.addEventListener('click', async () => {
+        await postSpacesAction('set-path', { path: p });
+      });
+      li.append(btn);
+      spacesList.append(li);
+    }
+  };
+
+  const postSpacesAction = async (action, extra = {}) => {
+    setSpacesStatus('Working…');
+    try {
+      const res = await fetchImpl(SPACES_ENDPOINT, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload?.ok === false) {
+        setSpacesStatus(payload?.error?.message || 'Workspace action failed');
+        return null;
+      }
+      if (payload?.cwd) {
+        activeWorkspacePath = payload.cwd;
+        try { windowRef?.localStorage?.setItem(WORKSPACE_KEY, activeWorkspacePath); } catch { /* ignore */ }
+      }
+      await refreshSpacesHeader();
+      if (Array.isArray(payload?.worktrees)) renderWorktreeList(payload.worktrees);
+      if (action === 'worktree' || action === 'new-worktree') {
+        startNewTask();
+        setSpacesStatus(`Worktree ready: ${payload?.cwd || ''}`);
+        closeSpaces();
+      } else if (action === 'set-path' || action === 'choose') {
+        setSpacesStatus(`Switched to ${payload?.cwd || ''}`);
+      } else if (action === 'manage' || action === 'list') {
+        setSpacesStatus(`${(payload?.worktrees || []).length} workspace(s)`);
+      } else if (action === 'home') {
+        setSpacesStatus(`Home: ${payload?.cwd || ''}`);
+      }
+      return payload;
+    } catch (error) {
+      setSpacesStatus(error?.message || 'Workspace request failed');
+      return null;
+    }
+  };
+
+  const toggleSpaces = async () => {
+    if (!spacesPanel) return;
+    const open = spacesPanel.hidden;
+    closeRecent();
+    closeSettings();
+    closeProfile();
+    if (open) {
+      spacesPanel.hidden = false;
+      documentRef.getElementById('hermes-box-files')?.setAttribute('aria-expanded', 'true');
+      setSpacesStatus('');
+      const payload = await refreshSpacesHeader();
+      if (payload?.worktrees) renderWorktreeList([]);
+    } else {
+      closeSpaces();
+    }
+  };
+
+  const wireSpacesPanel = () => {
+    documentRef.getElementById('hermes-box-spaces-home-label')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      void postSpacesAction('home');
+    });
+    documentRef.getElementById('hermes-box-spaces-home-path')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      void postSpacesAction('home');
+    });
+    documentRef.getElementById('hermes-box-spaces-worktree')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      void postSpacesAction('worktree');
+    });
+    documentRef.getElementById('hermes-box-spaces-choose')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      const current = activeWorkspacePath || '/home/runner/workspace';
+      const next = windowRef?.prompt?.('Workspace path', current);
+      if (next == null) return;
+      const trimmed = String(next).trim();
+      if (!trimmed) return;
+      void postSpacesAction('set-path', { path: trimmed });
+    });
+    documentRef.getElementById('hermes-box-spaces-manage')?.addEventListener('click', async (event) => {
+      event.preventDefault();
+      const payload = await postSpacesAction('manage');
+      if (payload?.worktrees) renderWorktreeList(payload.worktrees);
+    });
+  };
+  wireSpacesPanel();
+
+  // Outside click / Escape close spaces
+  documentRef.addEventListener('click', (event) => {
+    if (!spacesPanel || spacesPanel.hidden) return;
+    const t = event.target;
+    const filesBtnEl = documentRef.getElementById('hermes-box-files');
+    if (!spacesPanel.contains(t) && !filesBtnEl?.contains?.(t)) closeSpaces();
+  });
+  documentRef.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeSpaces();
+  });
+
   const wireComposerBar = () => {
     const attachBtn = documentRef.getElementById('hermes-box-attach');
     const attachInput = documentRef.getElementById('hermes-box-attach-input');
@@ -536,20 +910,54 @@ export function initHermesBoxChat({
     const filesBtn = documentRef.getElementById('hermes-box-files');
     const tuneBtn = documentRef.getElementById('hermes-box-tune');
 
+    const recordBtn = documentRef.getElementById('hermes-box-record-video');
+    const syncRecordBtn = () => {
+      const sm = windowRef?.__godsEyeView?.styleManager;
+      const on = Boolean(sm?._recordingMode || documentRef.body?.classList?.contains('recording-mode'));
+      if (!recordBtn) return;
+      recordBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      recordBtn.classList.toggle('is-active', on);
+      recordBtn.title = on ? 'Stop recording mode' : 'Record video';
+      recordBtn.setAttribute('aria-label', on ? 'Stop recording mode' : 'Record video');
+    };
+    recordBtn?.addEventListener('click', (event) => {
+      event.preventDefault();
+      const sm = windowRef?.__godsEyeView?.styleManager;
+      const on = Boolean(sm?._recordingMode || documentRef.body?.classList?.contains('recording-mode'));
+      const next = !on;
+      if (typeof sm?.setRecordingMode === 'function') {
+        sm.setRecordingMode(next);
+      } else {
+        documentRef.body?.classList?.toggle('recording-mode', next);
+      }
+      syncRecordBtn();
+    });
+    syncRecordBtn();
+
+    if (profileBtn) {
+      profileBtn.setAttribute('aria-haspopup', 'dialog');
+      profileBtn.setAttribute('aria-controls', 'hermes-box-profile-panel');
+      profileBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    setVoiceMode(voiceModeOn);
+
     attachBtn?.addEventListener('click', (event) => {
       event.preventDefault();
       attachInput?.click();
     });
-    attachInput?.addEventListener('change', () => {
+    attachInput?.addEventListener('change', async () => {
       const files = Array.from(attachInput.files || []);
       if (!files.length) return;
-      const names = files.map((f) => f.name).join(', ');
-      const note = `Attached: ${names}`;
-      if (input && !input.value.trim()) input.value = note;
-      else if (input) input.value = `${input.value.trim()}\n${note}`;
-      autosize();
-      try { input.focus(); } catch { /* ignore */ }
+      for (const file of files.slice(0, 6)) {
+        if (pendingAttachments.length >= 8) break;
+        const item = await readFileAsAttachment(file);
+        pendingAttachments.push(item);
+      }
+      renderAttachChips();
+      refreshProfilePanel();
       attachInput.value = '';
+      try { input.focus(); } catch { /* ignore */ }
     });
 
     micBtn?.addEventListener('click', (event) => {
@@ -563,33 +971,60 @@ export function initHermesBoxChat({
 
     voiceModeBtn?.addEventListener('click', (event) => {
       event.preventDefault();
-      const on = voiceModeBtn.getAttribute('aria-pressed') !== 'true';
-      voiceModeBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      voiceModeBtn.classList.toggle('is-active', on);
-      chat.dataset.voiceMode = on ? 'on' : 'off';
+      setVoiceMode(!voiceModeOn);
+      if (voiceModeOn) {
+        // Kick listening so voice mode is immediately useful.
+        micBtn?.click?.();
+      }
     });
 
     profileBtn?.addEventListener('click', (event) => {
       event.preventDefault();
-      profileBtn.classList.add('is-active');
-      profileBtn.setAttribute('aria-pressed', 'true');
-      try { input.focus(); } catch { /* ignore */ }
+      event.stopPropagation();
+      void toggleProfile();
     });
 
     filesBtn?.addEventListener('click', (event) => {
       event.preventDefault();
-      // Reuse Recent Tasks as the local files/history drawer for now.
-      if (typeof toggleRecent === 'function') toggleRecent();
-      else recentBtn?.click?.();
+      event.stopPropagation();
+      closeProfile();
+      void toggleSpaces();
     });
 
     tuneBtn?.addEventListener('click', (event) => {
       event.preventDefault();
+      closeProfile();
       if (typeof toggleSettings === 'function') toggleSettings();
       else settingsBtn?.click?.();
     });
+
+    documentRef.getElementById('hermes-box-profile-refresh')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      void refreshProfilePanel();
+    });
+    documentRef.getElementById('hermes-box-profile-diagnostics')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      closeProfile();
+      const details = root.querySelector('.hermes-box-diagnostics');
+      if (details) {
+        details.open = true;
+        try { details.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch { /* ignore */ }
+      }
+    });
   };
   wireComposerBar();
+
+  // Outside-click / Escape also closes profile.
+  documentRef.addEventListener('click', (event) => {
+    if (!profilePanel || profilePanel.hidden) return;
+    const t = event.target;
+    const profileBtn = documentRef.getElementById('hermes-box-profile');
+    if (!profilePanel.contains(t) && !profileBtn?.contains?.(t)) closeProfile();
+  });
+  documentRef.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeProfile();
+  });
+
 
   input.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;

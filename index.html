@@ -120,7 +120,9 @@
             <div id="hermes-box-chat" class="hermes-box-chat" data-empty="true" aria-label="Hermes conversation">
               <!-- Cloud Computer logo stays at top even after first chat (MOVE target, no clone) -->
               <div id="hermes-box-topbar" class="hermes-box-topbar">
-                <div id="hermes-box-logo-slot" class="hermes-box-logo-slot" aria-hidden="false"></div>
+                <div class="hermes-box-logo-row">
+                  <div id="hermes-box-logo-slot" class="hermes-box-logo-slot" aria-hidden="false"></div>
+                </div>
                 <div class="hermes-box-top-actions" role="group" aria-label="Hermes task controls">
                   <button
                     type="button"
@@ -153,6 +155,33 @@
                   </button>
                   <button
                     type="button"
+                    id="hermes-box-copy-all"
+                    class="hermes-box-top-action hermes-box-copy-all"
+                    title="Copy all"
+                    aria-label="Copy all"
+                  >
+                    <svg class="hermes-box-copy-all-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.85"/>
+                      <path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    id="hermes-box-profile"
+                    class="hermes-box-top-action hermes-box-profile"
+                    title="Profile"
+                    aria-label="Profile"
+                    aria-haspopup="dialog"
+                    aria-expanded="false"
+                    aria-controls="hermes-box-profile-panel"
+                  >
+                    <svg class="hermes-box-profile-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                      <path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                      <circle cx="12" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.85"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
                     id="hermes-box-settings"
                     class="hermes-box-top-action hermes-box-settings"
                     title="Settings"
@@ -179,6 +208,38 @@
                 <button type="button" id="hermes-box-settings-clear-recent" class="hermes-box-settings-item">Clear recent tasks</button>
                 <button type="button" id="hermes-box-settings-new-task" class="hermes-box-settings-item">New task</button>
               </div>
+              <div id="hermes-box-spaces-panel" class="hermes-box-spaces-panel hermes-box-settings-panel" hidden role="dialog" aria-label="Workspaces">
+                <div class="hermes-box-settings-head hermes-box-spaces-head">
+                  <div class="hermes-box-spaces-home-label" id="hermes-box-spaces-home-label">Home</div>
+                  <div class="hermes-box-spaces-home-path" id="hermes-box-spaces-home-path">/home/runner/workspace</div>
+                </div>
+                <button type="button" id="hermes-box-spaces-worktree" class="hermes-box-settings-item hermes-box-spaces-item" data-spaces-action="worktree">
+                  <span class="hermes-box-spaces-item-title">New conversation in worktree</span>
+                  <span class="hermes-box-spaces-item-desc">Create an isolated git worktree for this workspace.</span>
+                </button>
+                <button type="button" id="hermes-box-spaces-choose" class="hermes-box-settings-item hermes-box-spaces-item" data-spaces-action="choose">
+                  <span class="hermes-box-spaces-item-title">Choose workspace path</span>
+                  <span class="hermes-box-spaces-item-desc">Add a validated path and switch this conversation.</span>
+                </button>
+                <button type="button" id="hermes-box-spaces-manage" class="hermes-box-settings-item hermes-box-spaces-item" data-spaces-action="manage">
+                  <span class="hermes-box-spaces-item-title">Manage workspaces</span>
+                  <span class="hermes-box-spaces-item-desc">Open the Spaces panel.</span>
+                </button>
+                <ul id="hermes-box-spaces-list" class="hermes-box-spaces-list" hidden role="list"></ul>
+                <p id="hermes-box-spaces-status" class="hermes-box-spaces-status" hidden></p>
+              </div>
+              <div id="hermes-box-profile-panel" class="hermes-box-profile-panel" hidden role="dialog" aria-label="Profile">
+                <div class="hermes-box-profile-head">Hermes Profile</div>
+                <dl class="hermes-box-profile-dl">
+                  <div><dt>Status</dt><dd id="hermes-box-profile-status">—</dd></div>
+                  <div><dt>Provider / Model</dt><dd id="hermes-box-profile-model">—</dd></div>
+                  <div><dt>Capabilities</dt><dd id="hermes-box-profile-caps">—</dd></div>
+                  <div><dt>Voice mode</dt><dd id="hermes-box-profile-voice">Off</dd></div>
+                  <div><dt>Attachments</dt><dd id="hermes-box-profile-attach">None</dd></div>
+                </dl>
+                <button type="button" id="hermes-box-profile-refresh" class="hermes-box-settings-item">Refresh status</button>
+                <button type="button" id="hermes-box-profile-diagnostics" class="hermes-box-settings-item">Open diagnostics</button>
+              </div>
               <div id="hermes-box-empty" class="hermes-box-empty">
                 <p class="hermes-box-headline">What can I help with?</p>
                 <p class="hermes-box-subline">Ask Hermes about the globe, what's on screen, or plan a flyover.</p>
@@ -204,22 +265,9 @@
                 </ul>
               </div>
               <ol id="hermes-box-thread" class="hermes-box-thread" aria-live="polite" hidden></ol>
-              <div id="hermes-box-composer-tools" class="hermes-box-composer-tools">
-                <button
-                  type="button"
-                  id="hermes-box-copy-all"
-                  class="hermes-box-copy-all"
-                  title="Copy all"
-                  aria-label="Copy all"
-                >
-                  <svg class="hermes-box-copy-all-svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.9"/>
-                    <path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                  </svg>
-                </button>
-              </div>
+              <div id="hermes-box-attach-chips" class="hermes-box-attach-chips" hidden aria-label="Attached files"></div>
               <form id="hermes-box-composer" class="hermes-box-composer hermes-box-composer--native" autocomplete="off" onsubmit="return false;">
-                <textarea id="hermes-box-input" class="hermes-box-input" rows="1" placeholder="Message Hermes..." maxlength="1500" aria-label="Message Hermes"></textarea>
+                <textarea id="hermes-box-input" class="hermes-box-input" rows="1" placeholder="Message Cloudy..." maxlength="1500" aria-label="Message Cloudy"></textarea>
                 <div class="hermes-box-composer-bar" role="toolbar" aria-label="Hermes composer controls">
                   <div class="hermes-box-composer-bar-left">
                     <button type="button" id="hermes-box-attach" class="hermes-box-tool" title="Attach" aria-label="Attach">
@@ -232,10 +280,10 @@
                     <button type="button" id="hermes-box-voice-mode" class="hermes-box-tool" title="Voice mode" aria-label="Voice mode" aria-pressed="false">
                       <span class="material-symbols-outlined" aria-hidden="true">graphic_eq</span>
                     </button>
-                    <button type="button" id="hermes-box-profile" class="hermes-box-tool is-active" title="Profile" aria-label="Profile" aria-pressed="true">
-                      <span class="material-symbols-outlined" aria-hidden="true">person</span>
+                    <button type="button" id="hermes-box-record-video" class="hermes-box-tool" title="Record video" aria-label="Record video" aria-pressed="false">
+                      <span class="material-symbols-outlined" aria-hidden="true">videocam</span>
                     </button>
-                    <button type="button" id="hermes-box-files" class="hermes-box-tool" title="Files" aria-label="Files">
+                    <button type="button" id="hermes-box-files" class="hermes-box-tool" title="Workspaces" aria-label="Workspaces" aria-haspopup="dialog" aria-expanded="false" aria-controls="hermes-box-spaces-panel">
                       <span class="material-symbols-outlined" aria-hidden="true">folder</span>
                     </button>
                     <button type="button" id="hermes-box-tune" class="hermes-box-tool" title="Settings" aria-label="Composer settings">
@@ -243,7 +291,10 @@
                     </button>
                   </div>
                   <button id="hermes-box-send" class="hermes-box-send" type="button" aria-label="Send message to Hermes">
-                    <span class="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
+                    <svg class="hermes-box-send-svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                      <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5"/>
+                      <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12l7-7 7 7"/>
+                    </svg>
                   </button>
                 </div>
               </form>

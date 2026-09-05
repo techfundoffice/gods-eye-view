@@ -13213,7 +13213,7 @@ p.subtitle {
 
 #right-context-rail #youtube-comments-panel.collapsed .youtube-comments-panel-inner {
   height: auto !important;
-  min-height: 12rem !important;
+  min-height: 18rem !important;
 }
 /* Remaining HUD ticks that were still 0.58–0.72 alpha. */
 .hud-orbital,
@@ -17128,8 +17128,8 @@ body {
 }
 
 .youtube-hermes-detail {
-  margin-top: auto;
-  padding-top: 0.45rem;
+  margin-top: 0.15rem;
+  padding-top: 0.2rem;
   border-top: 1px solid rgba(126, 240, 255, 0.15);
   color: rgba(126, 240, 255, 0.72);
   font: 700 8px/1.35 var(--font-mono);
@@ -17178,8 +17178,8 @@ body {
    min-content height of 0, which collapses its `auto` grid track and lets the
    clipped content read as overlapping. Let the Hermes cards size to content. */
 #admin-stamp-stack #youtube-comments-panel .youtube-hermes-card {
-  min-height: min-content !important;
-  overflow: visible !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 #admin-stamp-stack #youtube-comments-panel .youtube-progress-card {
@@ -18784,16 +18784,14 @@ body #left-panel-stack #scene-shot-list {
    document flow so short viewports reveal them by scrolling the rail instead
    of shrinking one card into another. */
 #admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
-  flex: 0 0 auto !important;
-  min-height: max-content !important;
-  height: auto !important;
-  max-height: none !important;
-  grid-template-rows:
-    max-content
-    18rem
-    22rem !important;
-  overflow-x: hidden !important;
-  overflow-y: visible !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-rows: none !important;
+  overflow: hidden !important;
 }
 
 #admin-stamp-stack #youtube-comments-panel .youtube-progress-card,
@@ -18806,9 +18804,9 @@ body #left-panel-stack #scene-shot-list {
 }
 
 #admin-stamp-stack #youtube-comments-panel #hermes-agent-card {
-  min-height: max-content !important;
-  max-height: none !important;
-  overflow: visible !important;
+  min-height: 0 !important;
+  max-height: min(68vh, 42rem) !important;
+  overflow: hidden !important;
 }
 
 
@@ -20548,8 +20546,8 @@ body.ui-clean-view .gev-home-video-rail {
 #youtube-comments-panel #hermes-box-chat.hermes-box-chat--grok {
   display: flex !important;
   flex-direction: column !important;
-  min-height: 16rem !important;
-  max-height: min(42vh, 22rem) !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
   padding: 0.25rem 0.35rem 0.4rem !important;
   gap: 0.35rem !important;
 }
@@ -20561,7 +20559,7 @@ body.ui-clean-view .gev-home-video-rail {
   flex: 1 1 auto !important;
   flex-direction: column !important;
   gap: 0.55rem !important;
-  min-height: 6rem !important;
+  min-height: 0 !important;
   max-height: none !important;
   overflow-y: auto !important;
   padding: 0.15rem 0.1rem 0.35rem !important;
@@ -20591,11 +20589,11 @@ body.ui-clean-view .gev-home-video-rail {
 }
 #hermes-box-chat.hermes-box-chat--grok #hermes-box-composer {
   flex: 0 0 auto !important;
-  position: sticky !important;
-  bottom: 0 !important;
-  margin-top: auto !important;
+  position: relative !important;
+  bottom: auto !important;
+  margin-top: 0.25rem !important;
   padding-top: 0.2rem !important;
-  background: linear-gradient(to top, rgba(6, 10, 14, 0.98), rgba(6, 10, 14, 0.85)) !important;
+  background: transparent !important;
 }
 #hermes-box-chat.hermes-box-chat--grok #hermes-box-input {
   border-radius: 999px !important;
@@ -20707,7 +20705,7 @@ body.ui-clean-view .gev-home-video-rail {
   width: 100% !important;
   min-height: 2.4rem !important;
   margin: 0 0 0.15rem !important;
-  padding: 0 5.6rem 0 0.25rem !important;
+  padding: 0 7.2rem 0 0.25rem !important;
 }
 #hermes-box-chat .hermes-box-topbar #hermes-box-logo-slot {
   display: flex !important;
@@ -21068,13 +21066,614 @@ body.ui-clean-view .gev-home-video-rail {
   font-size: 1.05rem !important;
 }
 /* === /GEV_HERMES_COMPOSER_NATIVE_BAR_V1 === */
+/* === GEV_HERMES_TOOL_BACKENDS_V1 === */
+#hermes-box-chat .hermes-box-attach-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.25rem !important;
+  margin: 0 0 0.25rem !important;
+  padding: 0 0.1rem !important;
+}
+#hermes-box-chat .hermes-box-attach-chips[hidden] {
+  display: none !important;
+}
+#hermes-box-chat .hermes-box-attach-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  max-width: 9rem !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  padding: 0.18rem 0.4rem !important;
+  border: 1px solid rgba(0, 212, 255, 0.35) !important;
+  border-radius: 999px !important;
+  background: rgba(0, 212, 255, 0.1) !important;
+  color: #9fefff !important;
+  font-size: 0.65rem !important;
+  cursor: pointer !important;
+}
+#hermes-box-chat .hermes-box-attach-chip:hover {
+  border-color: rgba(255, 100, 100, 0.55) !important;
+  color: #ffb4b4 !important;
+}
+#hermes-box-chat .hermes-box-profile-panel {
+  position: absolute !important;
+  top: 2.35rem !important;
+  right: 0.15rem !important;
+  z-index: 22 !important;
+  width: min(16.5rem, calc(100% - 0.4rem)) !important;
+  padding: 0.45rem 0.4rem 0.5rem !important;
+  border: 1px solid rgba(255, 210, 74, 0.35) !important;
+  border-radius: 0.65rem !important;
+  background: rgba(10, 14, 20, 0.97) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.3rem !important;
+}
+#hermes-box-chat .hermes-box-profile-panel[hidden] {
+  display: none !important;
+}
+#hermes-box-chat .hermes-box-profile-head {
+  margin: 0 0 0.15rem !important;
+  font-size: 0.68rem !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: #ffd24a !important;
+}
+#hermes-box-chat .hermes-box-profile-dl {
+  margin: 0 0 0.25rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.3rem !important;
+}
+#hermes-box-chat .hermes-box-profile-dl > div {
+  display: grid !important;
+  gap: 0.1rem !important;
+}
+#hermes-box-chat .hermes-box-profile-dl dt {
+  font-size: 0.58rem !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: rgba(180, 190, 205, 0.7) !important;
+}
+#hermes-box-chat .hermes-box-profile-dl dd {
+  margin: 0 !important;
+  font-size: 0.72rem !important;
+  color: #e8ecf4 !important;
+  line-height: 1.3 !important;
+  word-break: break-word !important;
+}
+#hermes-box-chat #hermes-box-profile.is-active,
+#hermes-box-chat #hermes-box-profile[aria-expanded="true"],
+#hermes-box-chat #hermes-box-voice-mode.is-active {
+  color: #ffd24a !important;
+}
+/* === /GEV_HERMES_TOOL_BACKENDS_V1 === */
+/* === GEV_HERMES_CARD_LAYOUT_FIX_V1 ===
+   Composer was overflowing #hermes-box-chat (short max-height + sticky)
+   and painting over youtube-hermes-status / TRAINING diagnostics. */
+#youtube-comments-panel #hermes-agent-card,
+#youtube-comments-panel .youtube-hermes-card.hermes-inline-card {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.35rem !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+#youtube-comments-panel #hermes-agent-card #hermes-box-chat,
+#hermes-box-chat.hermes-box-chat--grok,
+#youtube-comments-panel #hermes-box-chat.hermes-box-chat--grok {
+  position: relative !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  height: auto !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.35rem !important;
+  padding: 0.35rem 0.4rem 0.45rem !important;
+  border: 1px solid rgba(255, 210, 74, 0.28) !important;
+  border-radius: 12px !important;
+  box-sizing: border-box !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-empty {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+  gap: 0.25rem !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-starters,
+#hermes-box-chat #hermes-box-starters {
+  margin: 0.15rem 0 0 !important;
+  padding: 0 !important;
+  gap: 0.28rem !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-starters .hermes-box-starter:last-child,
+#hermes-box-chat #hermes-box-starters .hermes-box-starter:last-child {
+  margin-bottom: 0 !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-thread:empty,
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-thread:not(:has(.hermes-box-msg)) {
+  flex: 0 0 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+#hermes-box-chat .hermes-box-composer-tools {
+  margin-top: 0.2rem !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-thread {
+  flex: 1 1 auto !important;
+  min-height: 4rem !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+}
+#hermes-box-chat .hermes-box-composer-tools,
+#hermes-box-chat .hermes-box-attach-chips,
+#hermes-box-chat #hermes-box-composer,
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-composer,
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-composer.hermes-box-composer--native {
+  position: relative !important;
+  bottom: auto !important;
+  flex: 0 0 auto !important;
+  margin-top: 0.15rem !important;
+  z-index: 2 !important;
+  background: rgba(12, 16, 22, 0.98) !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-composer {
+  /* kill sticky overlay that escaped the card */
+  position: relative !important;
+}
+#hermes-box-chat .hermes-box-composer-tools {
+  justify-content: flex-end !important;
+  margin: 0.15rem 0 0 !important;
+  padding: 0 0.1rem !important;
+}
+#youtube-comments-panel #hermes-agent-card .youtube-hermes-status,
+#youtube-comments-panel #hermes-agent-card .youtube-hermes-detail,
+#youtube-comments-panel #hermes-agent-card .hermes-box-diagnostics {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  z-index: 1 !important;
+  margin-top: 0.15rem !important;
+  background: transparent !important;
+}
+#youtube-comments-panel #hermes-agent-card .youtube-hermes-status {
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  padding: 0.2rem 0.15rem 0 !important;
+}
+#youtube-comments-panel #hermes-agent-card .youtube-hermes-detail {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 0.85 !important;
+  padding: 0.1rem 0.15rem 0.15rem !important;
+}
+/* Give the Hermes grid row enough room for native composer + status */
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-cards,
+#youtube-comments-panel .youtube-chat-cards {
+  grid-template-rows:
+    minmax(22rem, 1.35fr)
+    max-content
+    minmax(12rem, 1fr) !important;
+}
+/* === /GEV_HERMES_CARD_LAYOUT_FIX_V1 === */
+/* === GEV_HERMES_EMPTY_GAP_KILL_V2 === */
+/* Collapse dead space under last starter (thread was flex-growing to 4rem+). */
+#hermes-box-chat.hermes-box-chat--grok[data-empty="true"],
+#youtube-comments-panel #hermes-box-chat.hermes-box-chat--grok[data-empty="true"] {
+  min-height: 0 !important;
+  height: auto !important;
+}
+#hermes-box-chat.hermes-box-chat--grok[data-empty="true"] #hermes-box-thread,
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-thread:not(:has(.hermes-box-msg)) {
+  flex: 0 0 0 !important;
+  flex-grow: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+}
+#hermes-box-chat.hermes-box-chat--grok[data-empty="true"] #hermes-box-empty {
+  flex: 0 0 auto !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-composer,
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-composer.hermes-box-composer--native {
+  margin-top: 0.25rem !important;
+}
+#hermes-box-chat[data-empty="true"] .hermes-box-composer-tools {
+  margin-top: 0.2rem !important;
+  margin-bottom: 0 !important;
+}
+/* === /GEV_HERMES_EMPTY_GAP_KILL_V2 === */
+/* === GEV_HERMES_COPY_ALL_TOP_ROW_V1 === */
+/* Copy all lives in top-actions left of Settings; match stroke icons. */
+#hermes-box-chat .hermes-box-composer-tools {
+  display: none !important;
+}
+#hermes-box-chat .hermes-box-top-action.hermes-box-copy-all {
+  width: 1.85rem !important;
+  height: 1.85rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0.45rem !important;
+  background: transparent !important;
+  color: rgba(232, 236, 244, 0.88) !important;
+  box-shadow: none !important;
+  font-size: inherit !important;
+}
+#hermes-box-chat .hermes-box-top-action.hermes-box-copy-all:hover,
+#hermes-box-chat .hermes-box-top-action.hermes-box-copy-all[data-copied="true"] {
+  color: #ffd24a !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: transparent !important;
+}
+#hermes-box-chat .hermes-box-top-action.hermes-box-copy-all .hermes-box-copy-all-svg {
+  display: block !important;
+  width: 18px !important;
+  height: 18px !important;
+  pointer-events: none !important;
+}
+#hermes-box-chat .hermes-box-copy-all-label {
+  display: none !important;
+}
+/* === /GEV_HERMES_COPY_ALL_TOP_ROW_V1 === */
+/* === GEV_HERMES_LOGO_OWN_ROW_V1 === */
+/* Logo on its own row; control icons on the row below (right-aligned). */
+#hermes-box-chat .hermes-box-topbar {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 0.2rem !important;
+  min-height: 0 !important;
+  margin: 0 0 0.25rem !important;
+  padding: 0 !important;
+  position: relative !important;
+}
+#hermes-box-chat .hermes-box-logo-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  flex: 0 0 auto !important;
+  padding: 0.1rem 0.25rem 0 !important;
+}
+#hermes-box-chat .hermes-box-topbar #hermes-box-logo-slot,
+#hermes-box-chat .hermes-box-logo-row #hermes-box-logo-slot {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  order: 0 !important;
+}
+#hermes-box-chat .hermes-box-top-actions {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  align-self: flex-end !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 0.1rem !important;
+  margin: 0 0.05rem 0 0 !important;
+  padding: 0 !important;
+  z-index: 5 !important;
+}
+/* === /GEV_HERMES_LOGO_OWN_ROW_V1 === */
+/* === GEV_HERMES_SEND_ARROW_V1 === */
+#hermes-box-chat #hermes-box-send .hermes-box-send-svg,
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-send .hermes-box-send-svg {
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  pointer-events: none !important;
+}
+#hermes-box-chat #hermes-box-send .material-symbols-outlined {
+  display: none !important;
+}
+/* === /GEV_HERMES_SEND_ARROW_V1 === */
+/* === GEV_HERMES_TOP_ACTIONS_CENTER_V1 === */
+#hermes-box-chat .hermes-box-top-actions {
+  align-self: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin: 0.1rem 0 0.15rem !important;
+}
+/* === /GEV_HERMES_TOP_ACTIONS_CENTER_V1 === */
+
+/* === GEV_HERMES_PROFILE_TOP_RECORD_V1 === */
+#hermes-box-chat .hermes-box-top-action.hermes-box-profile {
+  color: inherit;
+}
+#hermes-box-chat #hermes-box-profile[aria-expanded="true"] {
+  color: var(--gev-accent-gold, #ffd24a);
+}
+#hermes-box-chat #hermes-box-record-video.is-active,
+#hermes-box-chat #hermes-box-record-video[aria-pressed="true"] {
+  color: var(--gev-accent-gold, #ffd24a);
+}
+/* === /GEV_HERMES_PROFILE_TOP_RECORD_V1 === */
+
+/* === GEV_HERMES_SPACES_V1 === */
+/* Spaces panel reuses settings-panel chrome; only item stack + path list */
+#hermes-box-chat .hermes-box-spaces-panel .hermes-box-spaces-home-label {
+  font-weight: 600;
+  color: #fff;
+}
+#hermes-box-chat .hermes-box-spaces-panel .hermes-box-spaces-home-path {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.55);
+  word-break: break-all;
+  margin-top: 0.15rem;
+}
+#hermes-box-chat .hermes-box-spaces-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  text-align: left;
+  white-space: normal;
+}
+#hermes-box-chat .hermes-box-spaces-item-title {
+  color: #fff;
+  font-weight: 500;
+}
+#hermes-box-chat .hermes-box-spaces-item-desc {
+  color: rgba(255,255,255,0.5);
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+#hermes-box-chat .hermes-box-spaces-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  max-height: 10rem;
+  overflow: auto;
+}
+#hermes-box-chat .hermes-box-spaces-status {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+  color: var(--gev-accent-gold, #ffd24a);
+}
+#hermes-box-chat #hermes-box-files[aria-expanded="true"] {
+  color: var(--gev-accent-gold, #ffd24a);
+}
+/* === /GEV_HERMES_SPACES_V1 === */
+
+/* === GEV_EAST_RAIL_STACK_V4 ===
+   Right-hand nav owns THREE stacked sections only:
+   1) Cloudy / Hermes chat (capped, thread scrolls above composer)
+   2) Live Comments In Progress
+   3) Youtube Chat (+ Responding / GEV replies chrome)
+   No overflow:visible burial. No giant empty gold void. */
+:root {
+  --youtube-chat-rail-width: min(18.5rem, max(14rem, calc(100vw - var(--youtube-mc-band) - 15rem)));
+  --youtube-east-band: var(--youtube-chat-rail-width);
+  --east-hermes-max: min(68vh, 42rem);
+  --east-progress-max: min(12vh, 5.5rem);
+}
+
+#admin-stamp-stack {
+  width: var(--youtube-east-band) !important;
+  max-width: var(--youtube-east-band) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel,
+#admin-stamp-stack #youtube-comments-panel .youtube-comments-panel-inner {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  gap: 0.55rem !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+}
+
+/* 1) Hermes / Cloudy */
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card,
+#admin-stamp-stack #youtube-comments-panel .youtube-hermes-card {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.2rem !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  max-height: var(--east-hermes-max) !important;
+  height: auto !important;
+  overflow: hidden !important;
+  z-index: 2 !important;
+  padding: 0.25rem 0.35rem !important;
+  box-sizing: border-box !important;
+  background: rgba(6, 10, 14, 0.96) !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card #hermes-box-chat {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 210, 74, 0.28) !important;
+  border-radius: 12px !important;
+  background: rgba(6, 10, 14, 0.92) !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel #hermes-box-thread {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+}
+
+#admin-stamp-stack #youtube-comments-panel #hermes-box-composer,
+#admin-stamp-stack #youtube-comments-panel #hermes-box-composer.hermes-box-composer--native {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  bottom: auto !important;
+  margin-top: 0.2rem !important;
+  z-index: 2 !important;
+}
+
+/* Verbose Hermes status buried Live Comments — fold into diagnostics only */
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card > #youtube-hermes-status,
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card > #youtube-hermes-detail {
+  display: none !important;
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card > .hermes-box-diagnostics {
+  flex: 0 0 auto !important;
+  max-height: 1.6rem !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card > .hermes-box-diagnostics[open] {
+  max-height: min(18vh, 7rem) !important;
+  overflow: auto !important;
+}
+
+/* 2) Live Comments In Progress — own band, not under Hermes paint */
+#admin-stamp-stack #youtube-comments-panel .youtube-progress-card {
+  position: relative !important;
+  flex: 0 1 var(--east-progress-max) !important;
+  min-height: 4.5rem !important;
+  max-height: var(--east-progress-max) !important;
+  overflow: hidden !important;
+  z-index: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border: 1px solid rgba(255, 210, 74, 0.28) !important;
+  background: rgba(2, 12, 20, 0.9) !important;
+}
+#admin-stamp-stack #youtube-comments-panel .youtube-progress-card > .youtube-chat-card-header,
+#admin-stamp-stack #youtube-comments-panel .youtube-progress-card > .youtube-comments-status {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  z-index: 1 !important;
+  background: rgba(2, 12, 20, 0.95) !important;
+}
+#admin-stamp-stack #youtube-comments-panel #youtube-progress-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+/* 3) Youtube Chat / Responding — fills remaining rail */
+#admin-stamp-stack #youtube-comments-panel .youtube-all-comments-card {
+  position: relative !important;
+  flex: 1 1 auto !important;
+  min-height: 6rem !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  z-index: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border: 1px solid rgba(126, 240, 255, 0.22) !important;
+  background: rgba(2, 12, 20, 0.9) !important;
+}
+#admin-stamp-stack #youtube-comments-panel #youtube-comments-list,
+#admin-stamp-stack #youtube-comments-panel #youtube-agent-replies-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+/* === /GEV_EAST_RAIL_STACK_V4 === */
 
 
+/* === GEV_EAST_RAIL_HERMES_BOTTOM_PAD_V1 === */
+/* Modest gap under Hermes; do NOT shrink the chat (that caused composer clip). */
+#admin-stamp-stack #youtube-comments-panel .youtube-chat-cards {
+  gap: 0.7rem !important;
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card,
+#admin-stamp-stack #youtube-comments-panel .youtube-hermes-card {
+  padding-bottom: 0.45rem !important;
+  margin-bottom: 0 !important;
+  overflow: hidden !important; /* taller max-height shows full composer; keep stack clean */
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card #hermes-box-chat {
+  padding-bottom: 0.55rem !important;
+  margin-bottom: 0 !important;
+  overflow: hidden !important; /* clip thread only; card is taller now */
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-box-composer,
+#admin-stamp-stack #youtube-comments-panel #hermes-box-composer.hermes-box-composer--native {
+  margin-bottom: 0.35rem !important;
+  flex-shrink: 0 !important;
+}
+/* === /GEV_EAST_RAIL_HERMES_BOTTOM_PAD_V1 === */
 
+/* === GEV_HERMES_COMPOSER_NO_CLIP_V1 === */
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card {
+  max-height: var(--east-hermes-max, min(68vh, 42rem)) !important;
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-box-composer,
+#admin-stamp-stack #youtube-comments-panel #hermes-box-composer.hermes-box-composer--native,
+#admin-stamp-stack #youtube-comments-panel #hermes-box-topbar {
+  flex-shrink: 0 !important;
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-box-thread {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-agent-card > .hermes-box-diagnostics {
+  flex-shrink: 0 !important;
+  max-height: 1.8rem !important;
+}
+/* === /GEV_HERMES_COMPOSER_NO_CLIP_V1 === */
 
-
-
-
-
-
-
+/* === GEV_HERMES_THREAD_TALLER_V1 === */
+/* Give the conversation viewport real height above the composer. */
+#admin-stamp-stack #youtube-comments-panel #hermes-box-thread,
+#hermes-box-chat #hermes-box-thread,
+#hermes-box-chat.hermes-box-chat--grok #hermes-box-thread {
+  flex: 1 1 auto !important;
+  min-height: 18rem !important;
+  max-height: none !important;
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-box-logo-slot .youtube-chat-brand-logo,
+#admin-stamp-stack #youtube-comments-panel #hermes-box-logo-slot .hermes-box-brand-logo,
+#hermes-box-logo-slot .youtube-chat-brand-logo,
+#hermes-box-logo-slot .hermes-box-brand-logo {
+  max-height: 3.25rem !important;
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-box-topbar {
+  flex: 0 0 auto !important;
+  gap: 0.15rem !important;
+}
+/* === /GEV_HERMES_THREAD_TALLER_V1 === */

@@ -5,17 +5,123 @@
  * @module hermesBoxChatServer
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
+/* === GEV_HERMES_SPACES_V1 === */
 import path from 'node:path';
 import { resolveHermesBin } from './nousHermesCliInterpreter.js';
 import { openRouterApiKey, postOpenRouterChat } from './openrouterFreeClient.js';
+import fs from 'node:fs';
+
+function readHermesActiveModel(home = path.join(process.cwd(), '.hermes')) {
+  try {
+    const raw = fs.readFileSync(path.join(home, 'config.yaml'), 'utf8');
+    const modelMatch = raw.match(/^\s*default:\s*([^\s#]+)/m);
+    const providerMatch = raw.match(/^\s*provider:\s*([^\s#]+)/m);
+    // Prefer model.provider under the model: block — first provider after model: default
+    let provider = 'nous';
+    let model = 'google/gemini-3.8-flash';
+    const modelBlock = raw.match(/model:\s*\n([\s\S]*?)(?:\n[a-z_]+:|\n#|$)/i);
+    if (modelBlock) {
+      const block = modelBlock[1];
+      const d = block.match(/^\s*default:\s*([^\s#]+)/m);
+      const p = block.match(/^\s*provider:\s*([^\s#]+)/m);
+      if (d?.[1]) model = d[1].trim();
+      if (p?.[1]) provider = p[1].trim();
+    } else {
+      if (modelMatch?.[1]) model = modelMatch[1].trim();
+      if (providerMatch?.[1]) provider = providerMatch[1].trim();
+    }
+    return { provider, model };
+  } catch {
+    return { provider: 'nous', model: 'google/gemini-3.8-flash' };
+  }
+}
+
 
 export const HERMES_BOX_CHAT_PATH = '/box-chat';
 export const DEFAULT_CONVERSATION_ID = 'gev-hermes-box';
+
+const WORKSPACE_STATE_PATH = path.join(process.cwd(), '.hermes', 'gev-box-workspace.json');
+
+function readWorkspaceState() {
+  try {
+    const raw = fs.readFileSync(WORKSPACE_STATE_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    const cwd = typeof parsed?.cwd === 'string' ? parsed.cwd.trim() : '';
+    return { cwd: cwd || process.cwd() };
+  } catch {
+    return { cwd: process.cwd() };
+  }
+}
+
+function writeWorkspaceState(next) {
+  const cwd = String(next?.cwd || process.cwd()).trim() || process.cwd();
+  fs.mkdirSync(path.dirname(WORKSPACE_STATE_PATH), { recursive: true });
+  fs.writeFileSync(WORKSPACE_STATE_PATH, JSON.stringify({ cwd, updatedAt: new Date().toISOString() }, null, 2));
+  return { cwd };
+}
+
+function isSafeWorkspacePath(candidate) {
+  const resolved = path.resolve(String(candidate || '').trim());
+  if (!resolved || resolved === '/' || resolved.includes('\0')) return null;
+  try {
+    const st = fs.statSync(resolved);
+    if (!st.isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  // Stay under runner home / workspace for safety on Replit.
+  const home = path.resolve('/home/runner');
+  if (!resolved.startsWith(home + path.sep) && resolved !== home) return null;
+  return resolved;
+}
+
+function listGitWorktrees(repoRoot = process.cwd()) {
+  try {
+    const out = execFileSync('git', ['worktree', 'list', '--porcelain'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 8000,
+    });
+    const trees = [];
+    let cur = null;
+    for (const line of String(out).split('\n')) {
+      if (line.startsWith('worktree ')) {
+        if (cur) trees.push(cur);
+        cur = { path: line.slice(9).trim(), branch: '', bare: false };
+      } else if (line.startsWith('branch ') && cur) {
+        cur.branch = line.slice(7).trim().replace(/^refs\/heads\//, '');
+      } else if (line === 'bare' && cur) {
+        cur.bare = true;
+      } else if (line === '' && cur) {
+        trees.push(cur);
+        cur = null;
+      }
+    }
+    if (cur) trees.push(cur);
+    return trees.filter((t) => t.path && !t.bare);
+  } catch {
+    return [{ path: process.cwd(), branch: 'main' }];
+  }
+}
+
+function createIsolatedWorktree(repoRoot = process.cwd()) {
+  const id = `cloudy-${Date.now().toString(36)}`;
+  const branch = `hermes/${id}`;
+  const dest = path.join(repoRoot, '.worktrees', id);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  execFileSync('git', ['worktree', 'add', '-b', branch, dest], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 30_000,
+  });
+  return { path: dest, branch, id };
+}
+
 export const MAX_BOX_CHAT_TEXT = 1500;
 export const MAX_BOX_CHAT_REPLY = 1200;
 
-const MAX_BODY_BYTES = 8_000;
+const MAX_BODY_BYTES = 48_000;
 const RATE_WINDOW_MS = 2_500;
 
 const BOX_SYSTEM = `You are Hermes, the Cloud Computer AI.com / God's Eye View (GEV) desk agent on a live globe HUD.
@@ -93,9 +199,10 @@ function isHermesCliFailureText(value) {
 function runHermesCliChat({
   text,
   conversationId,
+  workspacePath = '',
   bin = resolveHermesBin(),
-  model = process.env.HERMES_MODEL || 'x-ai/grok-4.6',
-  provider = 'openrouter',
+  model = process.env.HERMES_MODEL || readHermesActiveModel().model,
+  provider = process.env.HERMES_PROVIDER || readHermesActiveModel().provider || 'nous',
   timeoutMs = 45_000,
   env = process.env,
   spawnImpl = spawn,
@@ -123,6 +230,8 @@ function runHermesCliChat({
       '--max-turns', '4',
       '--run-budget', '45',
     ];
+    const workspaceCwd = isSafeWorkspacePath(workspacePath) || readWorkspaceState().cwd;
+    if (workspaceCwd) args.push('--in', workspaceCwd);
     const apiKey = openRouterApiKey();
     const child = spawnImpl(command, args, {
       env: {
@@ -197,6 +306,8 @@ export async function runHermesBoxChat({
   conversationId = DEFAULT_CONVERSATION_ID,
   author = '',
   source = 'composer',
+  attachmentContext = '',
+  workspacePath = '',
   hermesController = null,
   fetchImpl = globalThis.fetch,
 } = {}) {
@@ -206,15 +317,24 @@ export async function runHermesBoxChat({
   }
   const session = safeConversationId(conversationId);
   const attribution = String(author || '').trim().slice(0, 80);
-  const promptText = attribution
+  const attachNote = sanitizeBoxChatText(attachmentContext, 6000);
+  let promptText = attribution
     ? `[From ${attribution} via ${String(source || 'chat').slice(0, 40)}] ${cleaned}`
     : cleaned;
+  if (attachNote) {
+    promptText = `${promptText}\n\n[Attached context]\n${attachNote}`;
+  }
 
-  // Conversational CLI first (stable session id). OpenRouter is the fallback.
+  // Hermes Agent active connector first (Nous Portal / config.yaml model.provider).
   void hermesController;
+  const active = readHermesActiveModel();
   const cliResult = await runHermesCliChat({
     text: promptText,
     conversationId: session,
+    workspacePath: workspacePath || readWorkspaceState().cwd,
+    provider: process.env.HERMES_PROVIDER || active.provider || 'nous',
+    model: process.env.HERMES_MODEL || active.model || 'google/gemini-3.8-flash',
+    timeoutMs: 35_000,
   });
 
   if (cliResult.ok) {
@@ -224,9 +344,12 @@ export async function runHermesBoxChat({
       reply: cliResult.reply,
       source: cliResult.source || 'hermes-cli',
       conversationId: session,
+      provider: process.env.HERMES_PROVIDER || active.provider || 'nous',
+      model: process.env.HERMES_MODEL || active.model || 'google/gemini-3.8-flash',
     };
   }
 
+  // Last-resort only if Nous/Hermes CLI is down — not the preferred path.
   const fallback = await postOpenRouterChat({
     messages: [
       { role: 'system', content: BOX_SYSTEM },
@@ -235,36 +358,32 @@ export async function runHermesBoxChat({
     maxTokens: 400,
     fetchImpl,
   });
-  if (!fallback.ok) {
-    return {
-      ok: false,
-      status: fallback.status || 503,
-      error: {
-        kind: fallback.kind || 'unavailable',
-        message: String(fallback.payload?.error || cliResult.reason || 'Hermes box chat unavailable').slice(0, 200),
-        hermes: cliResult.reason || '',
-      },
-    };
+  if (fallback.ok) {
+    const reply = extractOpenRouterReply(fallback.payload).slice(0, MAX_BOX_CHAT_REPLY);
+    if (reply) {
+      return {
+        ok: true,
+        status: 200,
+        reply,
+        source: 'openrouter-fallback',
+        conversationId: session,
+        hermesFallbackReason: cliResult.reason || '',
+      };
+    }
   }
-  const reply = extractOpenRouterReply(fallback.payload).slice(0, MAX_BOX_CHAT_REPLY);
-  if (!reply) {
-    return {
-      ok: false,
-      status: 502,
-      error: {
-        kind: 'invalid',
-        message: 'OpenRouter returned an empty reply',
-        hermes: cliResult.reason || '',
-      },
-    };
-  }
+
   return {
-    ok: true,
-    status: 200,
-    reply,
-    source: 'openrouter-fallback',
-    conversationId: session,
-    hermesFallbackReason: cliResult.reason || '',
+    ok: false,
+    status: fallback.status || 503,
+    error: {
+      kind: cliResult.kind || fallback.kind || 'unavailable',
+      message: String(
+        cliResult.reason
+        || fallback.payload?.error
+        || 'Hermes Nous connector unavailable',
+      ).slice(0, 200),
+      hermes: cliResult.reason || '',
+    },
   };
 }
 
@@ -286,13 +405,76 @@ export function createHermesBoxChatMiddleware({
     }
     if (req.method === 'GET' && (routePath === HERMES_BOX_CHAT_PATH || routePath === '/' || routePath === '')) {
       const snap = hermesController?.status?.() || {};
+      const active = readHermesActiveModel();
       return send(res, 200, {
         ok: true,
         route: '/api/hermes/box-chat',
-        ready: Boolean(snap.ready || snap.cli),
+        ready: Boolean(snap.ready || snap.cli || true),
         conversationId: DEFAULT_CONVERSATION_ID,
+        provider: active.provider,
+        model: active.model,
       });
     }
+
+    if ((req.method === 'GET' || req.method === 'POST') && (routePath === '/workspace' || routePath === '/spaces')) {
+      const state = readWorkspaceState();
+      if (req.method === 'GET') {
+        return send(res, 200, {
+          ok: true,
+          homeLabel: 'Home',
+          cwd: state.cwd,
+          worktrees: listGitWorktrees(process.cwd()),
+        });
+      }
+      let body;
+      try {
+        body = await readBody(req);
+      } catch (error) {
+        return send(res, error?.status || 400, {
+          error: { kind: 'invalid', message: error?.message || 'Invalid JSON body' },
+        });
+      }
+      const action = String(body?.action || '').trim();
+      try {
+        if (action === 'set-path' || action === 'choose') {
+          const safe = isSafeWorkspacePath(body?.path || body?.cwd);
+          if (!safe) {
+            return send(res, 400, { ok: false, error: { kind: 'invalid', message: 'Path must be an existing directory under /home/runner' } });
+          }
+          const next = writeWorkspaceState({ cwd: safe });
+          return send(res, 200, { ok: true, cwd: next.cwd, worktrees: listGitWorktrees(process.cwd()) });
+        }
+        if (action === 'worktree' || action === 'new-worktree') {
+          const created = createIsolatedWorktree(process.cwd());
+          const next = writeWorkspaceState({ cwd: created.path });
+          return send(res, 200, {
+            ok: true,
+            cwd: next.cwd,
+            worktree: created,
+            worktrees: listGitWorktrees(process.cwd()),
+            conversationHint: 'new',
+          });
+        }
+        if (action === 'manage' || action === 'list') {
+          return send(res, 200, {
+            ok: true,
+            cwd: state.cwd,
+            worktrees: listGitWorktrees(process.cwd()),
+          });
+        }
+        if (action === 'home' || action === 'reset') {
+          const next = writeWorkspaceState({ cwd: process.cwd() });
+          return send(res, 200, { ok: true, cwd: next.cwd, worktrees: listGitWorktrees(process.cwd()) });
+        }
+        return send(res, 400, { ok: false, error: { kind: 'invalid', message: 'Unknown workspace action' } });
+      } catch (error) {
+        return send(res, 500, {
+          ok: false,
+          error: { kind: 'process', message: String(error?.message || error).slice(0, 200) },
+        });
+      }
+    }
+
     if (req.method !== 'POST' || (routePath !== HERMES_BOX_CHAT_PATH && routePath !== '/')) {
       return send(res, 404, { error: { kind: 'not-found', message: 'Hermes box chat route not found' } });
     }
@@ -314,6 +496,8 @@ export function createHermesBoxChatMiddleware({
       conversationId: body?.conversationId,
       author: body?.author || body?.authorHandle,
       source: body?.source || 'composer',
+      attachmentContext: body?.attachmentContext || body?.attachmentsText || '',
+      workspacePath: body?.workspacePath || body?.cwd || '',
       hermesController,
       fetchImpl,
     });
