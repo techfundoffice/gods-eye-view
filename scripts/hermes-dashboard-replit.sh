@@ -21,6 +21,10 @@ if [[ ! -x "$HERMES_HOME/hermes-agent/venv/bin/hermes" ]]; then
   exit 1
 fi
 
+"$HERMES_HOME/hermes-agent/venv/bin/python" \
+  "$PWD/scripts/configure-hermes-unrestricted.py" \
+  --config "$HERMES_HOME/config.yaml"
+
 # A Replit Preview requires a non-loopback bind. Hermes deliberately refuses
 # that bind unless an auth provider is configured, so fail before launch if
 # the existing workspace secrets are unavailable.

@@ -73,9 +73,9 @@ export async function maybeRunGlobeAction(prompt, windowRef, injectedRunner = nu
     }
   }
 
-  // 2. Navigation / Fly
+  // 2. Navigation / Fly (e.g. "fly to Tokyo", "Flying to Tokyo, Japan now!")
   const nav = raw.match(
-    /\b(?:navigate|fly|go|take\s+me|show|zoom|look)\s+(?:to\s+|me\s+to\s+|at\s+)?(.+?)(?:[.!?]|$)/i,
+    /\b(?:navigate|fly|flying|heading|go|take\s+me|show|zoom|look)\s+(?:to\s+|me\s+to\s+|at\s+|over\s+)?(.+?)(?:[.!?]|$)/i,
   );
   if (nav?.[1] && !raw.startsWith('/')) {
     const candidate = text(nav[1], 160).trim();
@@ -94,18 +94,21 @@ export async function maybeRunGlobeAction(prompt, windowRef, injectedRunner = nu
         return { ok: false, error: error?.message || 'zoom failed' };
       }
     }
-    if (candidate) {
+    // Clean trailing conversational noise from assistant replies
+    const targetQuery = candidate.replace(/\s+(?:now|here|today|right\s+now)$/i, '').trim();
+    if (targetQuery) {
       try {
-        return await runner('fly_to_location', { query: candidate, viewMode: 'overview', waitForArrival: true });
+        return await runner('fly_to_location', { query: targetQuery, viewMode: 'overview', waitForArrival: true });
       } catch (error) {
         return { ok: false, error: error?.message || 'fly failed' };
       }
     }
   }
 
-  // 3. Visual styles
+  // 3. Visual styles (e.g. "Switching globe HUD to thermal style", "switch to night vision")
   const styleMatch = raw.match(/\b(?:style|look|mode|theme)\s+(?:to\s+)?(normal|retro|surveillance|thermal|anime|noir|snow)\b/i)
-    || raw.match(/\b(thermal|surveillance|night\s+vision|retro|noir|anime|snow)\s+(?:style|look|mode)\b/i);
+    || raw.match(/\b(thermal|surveillance|night\s+vision|retro|noir|anime|snow)\s+(?:style|look|mode)\b/i)
+    || raw.match(/\bto\s+(thermal|surveillance|night\s+vision|retro|noir|anime|snow)\s+style\b/i);
   if (styleMatch?.[1]) {
     let style = styleMatch[1].toLowerCase();
     if (style === 'night vision') style = 'surveillance';
@@ -116,10 +119,11 @@ export async function maybeRunGlobeAction(prompt, windowRef, injectedRunner = nu
     }
   }
 
-  // 4. Layers
-  const layerToggle = raw.match(/\b(?:enable|show|turn\s+on|open|disable|hide|turn\s+off|close)\s+(earthquakes?|flights?|ships?|satellites?|traffic|cctv|weather|fires?|cables?|datacenters?|dams?)\b/i);
+  // 4. Layers (e.g. "Flight tracking layer toggled OFF", "enable earthquakes")
+  const layerToggle = raw.match(/\b(?:enable|show|turn\s+on|open|disable|hide|turn\s+off|close)\s+(earthquakes?|flights?|ships?|satellites?|traffic|cctv|weather|fires?|cables?|datacenters?|dams?)\b/i)
+    || raw.match(/\b(earthquakes?|flights?|ships?|satellites?|traffic|cctv|weather|fires?|cables?|datacenters?|dams?)(?:[a-z\s]+)?\s+(?:layer\s+)?(?:toggled\s+|is\s+|turned\s+)?(on|off)\b/i);
   if (layerToggle?.[1] && !raw.startsWith('/')) {
-    const isOff = /\b(?:disable|hide|turn\s+off|close)\b/i.test(layerToggle[0]);
+    const isOff = /\b(?:disable|hide|turn\s+off|close|off)\b/i.test(layerToggle[0]);
     const token = String(layerToggle[1]).toLowerCase();
     const layerId = (
       /^earthquake/.test(token) ? 'earthquakes'
@@ -621,6 +625,13 @@ export function initHermesBoxChat({
         return { ok: false, error: err };
       }
       let reply = text(payload.reply, 2000) || '…';
+      if (!actionResult?.ok) {
+        // If user prompt didn't trigger a client-side action, check if Hermes reply directs a globe action
+        const replyAction = await maybeRunGlobeAction(reply, windowRef, boundRunner);
+        if (replyAction?.ok) {
+          actionResult = replyAction;
+        }
+      }
       if (actionResult?.ok && !/navigat|flew|flying|los angeles|moved|showing/i.test(reply)) {
         // Light confirm if model didn't mention the action.
         reply = `${reply}`;

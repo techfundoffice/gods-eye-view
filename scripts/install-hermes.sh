@@ -7,8 +7,15 @@ INSTALL_DIR="$HERMES_HOME/hermes-agent"
 PINNED_COMMIT="29112bef099274229cadff79cdff7bf7b99c4b77"
 INSTALLER_URL="https://hermes-agent.nousresearch.com/install.sh"
 
+restore_provider_profile() {
+  "$INSTALL_DIR/venv/bin/python" \
+    "$ROOT/scripts/configure-hermes-unrestricted.py" \
+    --config "$HERMES_HOME/config.yaml"
+}
+
 if [[ -x "$INSTALL_DIR/venv/bin/hermes" ]] \
   && [[ "$(git -C "$INSTALL_DIR" rev-parse HEAD 2>/dev/null || true)" == "$PINNED_COMMIT" ]]; then
+  restore_provider_profile
   exec "$INSTALL_DIR/venv/bin/hermes" --version
 fi
 
@@ -29,6 +36,7 @@ HERMES_HOME="$HERMES_HOME" HERMES_INSTALL_DIR="$INSTALL_DIR" \
       [[ -x "$INSTALL_DIR/venv/bin/hermes" ]] || exit 1
     }
 
+restore_provider_profile
 "$INSTALL_DIR/venv/bin/hermes" --version
 # GEV_HERMES_PATH_SHIM_V1 — refresh universal hermes PATH shims after install
 ROOT_DIR="/nix/store/smkzrg2vvp3lng3hq7v9svfni5mnqjh2-bash-interactive-5.2p37"

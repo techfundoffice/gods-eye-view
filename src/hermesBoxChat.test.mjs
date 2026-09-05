@@ -40,6 +40,13 @@ test('maybeRunGlobeAction executes natural language navigation', async () => {
   assert.equal(globeResult?.ok, true);
   assert.equal(calls.length, 2);
   assert.equal(calls[1].name, 'zoom_to_globe');
+
+  // Verify assistant conversational patterns also trigger actions
+  const assistantNav = await maybeRunGlobeAction('Flying to Tokyo, Japan now! Where to next?', {}, runner);
+  assert.equal(assistantNav?.ok, true);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[2].name, 'fly_to_location');
+  assert.equal(calls[2].args.query, 'Tokyo, Japan');
 });
 
 test('maybeRunGlobeAction handles natural language layer toggling', async () => {
@@ -60,6 +67,84 @@ test('maybeRunGlobeAction handles natural language layer toggling', async () => 
   assert.equal(calls[1].name, 'set_layer_visibility');
   assert.equal(calls[1].args.layerId, 'flights');
   assert.equal(calls[1].args.enabled, false);
+
+  // Assistant affirmative reply
+  await maybeRunGlobeAction('Flight tracking layer toggled OFF. Air traffic vectors are hidden.', {}, runner);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[2].name, 'set_layer_visibility');
+  assert.equal(calls[2].args.layerId, 'flights');
+  assert.equal(calls[2].args.enabled, false);
+});
+
+test('ask executes globe action triggered by assistant response', async () => {
+  const calls = [];
+  const runner = async (name, args) => {
+    calls.push({ name, args });
+    return { ok: true, name };
+  };
+
+  const mockStorage = { getItem: () => null, setItem: () => {} };
+  const makeEl = (id = '') => ({
+    id,
+    dataset: {},
+    classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
+    setAttribute: () => {},
+    getAttribute: () => null,
+    append: () => {},
+    remove: () => {},
+    replaceChildren: () => {},
+    scrollIntoView: () => {},
+    focus: () => {},
+    addEventListener: () => {},
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    style: {},
+  });
+  const elements = {
+    'hermes-agent-card': makeEl('hermes-agent-card'),
+    'hermes-box-chat': makeEl('hermes-box-chat'),
+    'hermes-box-thread': makeEl('hermes-box-thread'),
+    'hermes-box-empty': makeEl('hermes-box-empty'),
+    'hermes-box-input': makeEl('hermes-box-input'),
+    'hermes-box-send': makeEl('hermes-box-send'),
+  };
+  const mockDoc = {
+    getElementById: (id) => elements[id] || makeEl(id),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    createElement: (tag) => makeEl(tag),
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+  const mockWindow = {
+    setTimeout: (fn) => setTimeout(fn, 0),
+    clearTimeout: (id) => clearTimeout(id),
+  };
+
+  const fakeFetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      ok: true,
+      reply: 'Flying to Tokyo, Japan now! Where to next?',
+      source: 'hermes-cli',
+    }),
+  });
+
+  const chat = initHermesBoxChat({
+    documentRef: mockDoc,
+    windowRef: mockWindow,
+    storage: mockStorage,
+    actionRunner: runner,
+    fetchImpl: fakeFetch,
+  });
+
+  // Prompt does not trigger a client action on its own:
+  const result = await chat.ask('Where are we heading?');
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'fly_to_location');
+  assert.equal(calls[0].args.query, 'Tokyo, Japan');
 });
 
 test('initHermesBoxChat binds runner and exposes setRunner when DOM elements exist', () => {
@@ -74,6 +159,10 @@ test('initHermesBoxChat binds runner and exposes setRunner when DOM elements exi
     setAttribute: () => {},
     getAttribute: () => null,
     append: () => {},
+    remove: () => {},
+    replaceChildren: () => {},
+    scrollIntoView: () => {},
+    focus: () => {},
     addEventListener: () => {},
     querySelector: () => null,
     querySelectorAll: () => [],

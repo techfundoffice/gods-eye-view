@@ -585,6 +585,53 @@ export function createAdminMiddleware({
         }
       }
 
+      if (first === 'composio') {
+        if (!composio) {
+          sendJson(res, 503, { error: { kind: 'unconfigured', message: 'Composio is not configured for this app.' } });
+          return;
+        }
+        if (segments.length === 2 && second === 'status' && req.method === 'GET') {
+          try {
+            sendJson(res, 200, { composio: await composio.status() });
+          } catch (error) {
+            sendJson(res, error?.status || 502, { error: publicComposioError(error), composio: {
+              configured: Boolean(composio.configured),
+              state: error?.kind === 'authentication' ? 'connection-error' : 'error',
+              health: 'error',
+              accounts: [],
+              tools: [],
+              capabilities: [],
+            } });
+          }
+          return;
+        }
+        if (segments.length === 2 && second === 'validate' && req.method === 'POST') {
+          const body = await readJsonBody(req);
+          try {
+            sendJson(res, 200, { result: await composio.validate({
+              capabilityId: body.capabilityId,
+              arguments: body.arguments,
+            }) });
+          } catch (error) {
+            sendJson(res, error?.status || 400, { error: publicComposioError(error) });
+          }
+          return;
+        }
+        if (segments.length === 3 && second === 'actions' && req.method === 'POST') {
+          const body = await readJsonBody(req);
+          try {
+            sendJson(res, 200, { result: await composio.execute({
+              capabilityId: body.capabilityId || third,
+              arguments: body.arguments,
+              connectedAccountId: body.connectedAccountId,
+            }) });
+          } catch (error) {
+            sendJson(res, error?.status || 400, { error: publicComposioError(error) });
+          }
+          return;
+        }
+      }
+
       if (first === 'live') {
         const authorization = typeof youtubeAuth?.authorizeRequest === 'function'
           ? await youtubeAuth.authorizeRequest(req)
