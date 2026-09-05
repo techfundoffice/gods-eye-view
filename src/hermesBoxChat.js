@@ -64,14 +64,23 @@ export async function maybeRunGlobeAction(prompt, windowRef, injectedRunner = nu
   }
 
   // Soft NL fallback (non-slash)
-  // 1. Navigation / Fly
+  // 1. Whole globe / reset
+  if (/\b(?:whole\s+globe|gods\s+eye\s+view|full\s+earth|zoom\s+out\s+all\s+the\s+way)\b/i.test(raw)) {
+    try {
+      return await runner('zoom_to_globe', {});
+    } catch (error) {
+      return { ok: false, error: error?.message || 'zoom to globe failed' };
+    }
+  }
+
+  // 2. Navigation / Fly
   const nav = raw.match(
     /\b(?:navigate|fly|go|take\s+me|show|zoom|look)\s+(?:to\s+|me\s+to\s+|at\s+)?(.+?)(?:[.!?]|$)/i,
   );
   if (nav?.[1] && !raw.startsWith('/')) {
     const candidate = text(nav[1], 160).trim();
-    if (/^(?:out|in|globe|earth|world)$/i.test(candidate)) {
-      if (/^(?:globe|earth|world)$/i.test(candidate)) {
+    if (/^(?:out|in|globe|earth|world|the\s+globe|the\s+earth|the\s+world)$/i.test(candidate)) {
+      if (/^(?:globe|earth|world|the\s+globe|the\s+earth|the\s+world)$/i.test(candidate)) {
         try {
           return await runner('zoom_to_globe', {});
         } catch (error) {
@@ -91,15 +100,6 @@ export async function maybeRunGlobeAction(prompt, windowRef, injectedRunner = nu
       } catch (error) {
         return { ok: false, error: error?.message || 'fly failed' };
       }
-    }
-  }
-
-  // 2. Whole globe / reset
-  if (/\b(?:whole\s+globe|gods\s+eye\s+view|full\s+earth|zoom\s+out\s+all\s+the\s+way)\b/i.test(raw)) {
-    try {
-      return await runner('zoom_to_globe', {});
-    } catch (error) {
-      return { ok: false, error: error?.message || 'zoom to globe failed' };
     }
   }
 

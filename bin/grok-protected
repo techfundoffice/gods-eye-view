@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+COMMAND="${GROK_BIN:-$(command -v grok || true)}"
+[[ -n "$COMMAND" ]] || { echo "grok-protected: grok executable not installed" >&2; exit 127; }
+exec "$ROOT/bin/agent-process" run --name grok -- "$COMMAND" "$@"

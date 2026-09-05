@@ -41,3 +41,40 @@ in a hardware-accelerated desktop browser for the full globe.
 npm run build
 npm test
 ```
+
+## Protected agent shells
+
+Workspace launchers register Hermes, Claude, and Grok process trees so local
+cleanup can refuse to terminate an agent or its owning shell:
+
+```bash
+hermes
+bin/claude-protected
+bin/grok-protected
+bin/agent-process status
+```
+
+For a detached process that should restart after an unexpected exit:
+
+```bash
+bin/agent-process start --name hermes -- bin/hermes chat
+bin/agent-process stop --name hermes
+```
+
+Use the guarded termination command for workspace cleanup:
+
+```bash
+bin/agent-process kill 1234
+bin/agent-process kill --signal SIGKILL 1234
+```
+
+It refuses a target that is a protected process, contains one in its descendant
+tree, or is an ancestor whose exit would also terminate one. The registry and
+supervisor logs are stored under `.local/agent-processes/` and do not persist
+command arguments, environment variables, or secret values. Foreground
+launches use an isolated process group and retry once after an unexpected
+nonzero exit. Detached sessions keep restarting until explicitly stopped.
+
+This protects against accidental local cleanup only. It cannot prevent Replit
+container replacement, host shutdown, out-of-memory termination, or a direct
+privileged signal that bypasses the guarded command.

@@ -20,4 +20,4 @@ if [[ ! -x "$BIN" ]]; then
   echo "Try: bash \"$ROOT/scripts/install-hermes.sh\"" >&2
   exit 127
 fi
-exec "$BIN" "$@"
+exec "$ROOT/bin/agent-process" run --name hermes -- "$BIN" "$@"

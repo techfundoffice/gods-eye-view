@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+COMMAND="${CLAUDE_BIN:-$(command -v claude || true)}"
+[[ -n "$COMMAND" ]] || { echo "claude-protected: claude executable not installed" >&2; exit 127; }
+exec "$ROOT/bin/agent-process" run --name claude -- "$COMMAND" "$@"
