@@ -84,8 +84,10 @@ export function createHermesTaskLogoController({
   let changedAt = 0;
   let pendingTimer = null;
   let transientTimer = null;
+  let listeningTimer = null;
   let sourceSvgPromise = null;
   const objectUrls = new Map();
+  const objectUrlPromises = new Map();
 
   const image = () => documentRef?.querySelector?.('#hermes-box-logo-slot img');
   const clearTimer = (kind) => {
@@ -94,18 +96,27 @@ export function createHermesTaskLogoController({
     if (kind === 'pending') pendingTimer = null;
     if (kind === 'transient') transientTimer = null;
   };
-  const ensureUrl = async (expression) => {
-    if (objectUrls.has(expression)) return objectUrls.get(expression);
-    sourceSvgPromise ||= fetchImpl(BASE_URL, { credentials: 'same-origin' })
-      .then((response) => {
-        if (!response?.ok) throw new Error(`Hermes expression asset unavailable (${response?.status || 0})`);
-        return response.text();
-      });
-    const source = await sourceSvgPromise;
-    const selected = source.replace('href="#f-neutral" />\n</svg>', `href="#f-${expression}" />\n</svg>`);
-    const url = windowRef?.URL?.createObjectURL?.(new Blob([selected], { type: 'image/svg+xml' })) || BASE_URL;
-    objectUrls.set(expression, url);
-    return url;
+  const ensureUrl = (expression) => {
+    if (objectUrls.has(expression)) return Promise.resolve(objectUrls.get(expression));
+    if (objectUrlPromises.has(expression)) return objectUrlPromises.get(expression);
+    const pending = (async () => {
+      sourceSvgPromise ||= fetchImpl(BASE_URL, { credentials: 'same-origin' })
+        .then((response) => {
+          if (!response?.ok) throw new Error(`Hermes expression asset unavailable (${response?.status || 0})`);
+          return response.text();
+        });
+      const source = await sourceSvgPromise;
+      const selected = source.replace('href="#f-neutral" />\n</svg>', `href="#f-${expression}" />\n</svg>`);
+      const url = windowRef?.URL?.createObjectURL?.(new Blob([selected], { type: 'image/svg+xml' })) || BASE_URL;
+      objectUrls.set(expression, url);
+      objectUrlPromises.delete(expression);
+      return url;
+    })().catch((error) => {
+      objectUrlPromises.delete(expression);
+      throw error;
+    });
+    objectUrlPromises.set(expression, pending);
+    return pending;
   };
   const paint = (expression) => {
     if (destroyed || expression === current) return;
@@ -124,7 +135,7 @@ export function createHermesTaskLogoController({
   };
   const render = ({ immediate = false } = {}) => {
     const next = resolveHermesExpression({ system, conversation, taskCategory });
-    if (next === current) return;
+    if (next === current) return 0;
     clearTimer('pending');
     const wait = immediate || !current || next === 'error' || next === 'offline'
       ? 0
@@ -134,24 +145,41 @@ export function createHermesTaskLogoController({
       pendingTimer = null;
       paint(resolveHermesExpression({ system, conversation, taskCategory }));
     }, wait);
+    return wait;
   };
   const setConversation = (state, { transientMs = 0 } = {}) => {
     clearTimer('transient');
     conversation = HERMES_EXPRESSIONS[state] ? state : '';
-    render();
+    const transitionWait = render();
     if (transientMs > 0) {
       transientTimer = windowRef?.setTimeout?.(() => {
         transientTimer = null;
         conversation = '';
         render();
-      }, transientMs);
+      }, transientMs + transitionWait);
     }
   };
   const setTask = (categoryOrText) => {
+    if (conversation === 'listening' || conversation === 'thinking') conversation = '';
     taskCategory = HERMES_EXPRESSIONS[categoryOrText]
       ? categoryOrText
       : classifyHermesTask(categoryOrText);
     render();
+  };
+  const beginTask = (taskText, listeningMs = 420) => {
+    if (listeningTimer != null) windowRef?.clearTimeout?.(listeningTimer);
+    listeningTimer = null;
+    setConversation('listening');
+    listeningTimer = windowRef?.setTimeout?.(() => {
+      listeningTimer = null;
+      setTask(taskText);
+    }, Math.max(0, listeningMs));
+  };
+  const finishTask = (state, transientMs) => {
+    if (listeningTimer != null) windowRef?.clearTimeout?.(listeningTimer);
+    listeningTimer = null;
+    taskCategory = '';
+    setConversation(state, { transientMs });
   };
   const onHarnessStatus = (event) => {
     const detail = event?.detail || {};
@@ -166,11 +194,14 @@ export function createHermesTaskLogoController({
   return {
     setConversation,
     setTask,
+    beginTask,
     listening() { setConversation('listening'); },
     replying() { setConversation('talking'); },
-    success() { setConversation('success', { transientMs: successHoldMs }); },
-    error() { setConversation('error', { transientMs: Math.max(successHoldMs, 1_600) }); },
+    success() { finishTask('success', successHoldMs); },
+    error() { finishTask('error', Math.max(successHoldMs, 1_600)); },
     clearConversation() {
+      if (listeningTimer != null) windowRef?.clearTimeout?.(listeningTimer);
+      listeningTimer = null;
       clearTimer('transient');
       conversation = '';
       taskCategory = '';
@@ -181,11 +212,14 @@ export function createHermesTaskLogoController({
       destroyed = true;
       clearTimer('pending');
       clearTimer('transient');
+      if (listeningTimer != null) windowRef?.clearTimeout?.(listeningTimer);
+      listeningTimer = null;
       documentRef?.removeEventListener?.(HERMES_TASK_LOGO_EVENT, onHarnessStatus);
       for (const url of objectUrls.values()) {
         if (url !== BASE_URL) windowRef?.URL?.revokeObjectURL?.(url);
       }
       objectUrls.clear();
+      objectUrlPromises.clear();
     },
   };
 }

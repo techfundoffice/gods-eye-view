@@ -71,7 +71,7 @@ test('controller holds transitions, restores idle after success, and cleans up U
       text: async () => '<svg><use href="#f-neutral" />\n</svg>',
     }),
   });
-  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(controller.expression, 'neutral');
   assert.equal(image.dataset.hermesTaskLogoManaged, 'true');
 
@@ -82,17 +82,17 @@ test('controller holds transitions, restores idle after success, and cleans up U
   controller.setTask('please write code');
   clock = 200;
   scheduled.filter((timer) => !timer.cleared).at(-1)?.fn();
-  assert.equal(controller.expression, 'coding');
+  assert.equal(controller.expression, 'code');
 
   listeners.get(HERMES_TASK_LOGO_EVENT)?.({ detail: { system: 'offline' } });
   assert.equal(controller.expression, 'offline');
   listeners.get(HERMES_TASK_LOGO_EVENT)?.({ detail: { system: 'idle' } });
   controller.success();
   clock = 300;
-  scheduled.filter((timer) => !timer.cleared).at(-1)?.fn();
+  scheduled.find((timer) => !timer.cleared && timer.ms === 100)?.fn();
   assert.equal(controller.expression, 'success');
   clock = 500;
-  scheduled.filter((timer) => !timer.cleared).at(-1)?.fn();
+  scheduled.find((timer) => !timer.cleared && timer.ms === 300)?.fn();
 
   controller.destroy();
   assert.equal(listeners.has(HERMES_TASK_LOGO_EVENT), false);

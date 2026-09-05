@@ -34,11 +34,6 @@ function saveThread(storage, rows) {
   try {
     storage?.setItem?.(HERMES_BOX_STORAGE_KEY, JSON.stringify((rows || []).slice(-40)));
   } catch { /* ignore */ }
-  const taskLogo = createHermesTaskLogoController({
-    documentRef,
-    windowRef,
-    fetchImpl,
-  });
 }
 
 /** Shared slash + best-effort natural language → GEV runner (humans + Hermes). */
@@ -350,6 +345,11 @@ export function initHermesBoxChat({
     }
     documentRef.querySelectorAll?.('.hermes-box-mark')?.forEach((el) => el.remove());
   } catch { /* ignore */ }
+  const taskLogo = createHermesTaskLogoController({
+    documentRef,
+    windowRef,
+    fetchImpl,
+  });
 
   let busy = false;
   let typingEl = null;
@@ -494,8 +494,7 @@ export function initHermesBoxChat({
       ? `${prompt}\n\n(attached: ${pendingAttachments.map((a) => a.name).join(', ')})`
       : prompt;
     appendBubble('user', bubbleText, { author, source });
-    taskLogo.listening();
-    windowRef.setTimeout?.(() => taskLogo.setTask(prompt), 420);
+    taskLogo.beginTask(prompt);
     setBusy(true);
     // Slash commands hit the shared GEV runner first (humans + Hermes).
     const isSlash = prompt.trim().startsWith('/');
@@ -507,6 +506,9 @@ export function initHermesBoxChat({
           if (actionResult.ok === false) {
             const err = text(actionResult.error || actionResult.reason || 'Command failed', 200);
             appendBubble('assistant', err, { source: 'slash-error' });
+            taskLogo.error();
+            setBusy(false);
+            syncEmpty();
             return { ok: false, error: err, actionResult };
           }
           const reply = text(
@@ -516,7 +518,10 @@ export function initHermesBoxChat({
           ) || 'Done.';
           appendBubble('assistant', reply, { source: 'slash' });
           clearAttachments();
-          speakReply(reply);
+          taskLogo.replying();
+          if (!speakReply(reply)) taskLogo.success();
+          setBusy(false);
+          syncEmpty();
           return { ok: true, reply, source: 'slash', actionResult };
         }
       } catch {
