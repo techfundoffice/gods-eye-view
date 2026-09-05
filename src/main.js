@@ -694,6 +694,7 @@ async function init() {
       adminConsole,
       extensionBridge,
       hermesAgentCard,
+      hermesBoxChat,
       getRenderGovernorDiagnostics,
       requestRender: governorRequestRender,
     };
@@ -703,6 +704,7 @@ async function init() {
     youtubeHomepageInteraction?.setRunner(window.__godsEyeView.voiceCommands.runner);
     extensionBridge?.setRunner(window.__godsEyeView.voiceCommands.runner);
     youtubePanel?.setActionRunner(window.__godsEyeView.voiceCommands.runner);
+    hermesBoxChat?.setRunner?.(window.__godsEyeView.voiceCommands.runner);
     clearStartupWatchdog();
     try { initLeftNavAutoscroll(document); } catch (err) { console.warn('[left-nav-autoscroll]', err); }
     try { initImageLibrary(document); } catch (err) { console.warn('[image-library]', err); }

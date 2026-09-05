@@ -37,8 +37,8 @@ function saveThread(storage, rows) {
 }
 
 /** Shared slash + best-effort natural language → GEV runner (humans + Hermes). */
-async function maybeRunGlobeAction(prompt, windowRef) {
-  const runner = windowRef?.__godsEyeView?.voiceCommands?.runner;
+async function maybeRunGlobeAction(prompt, windowRef, injectedRunner = null) {
+  const runner = injectedRunner || windowRef?.__godsEyeView?.voiceCommands?.runner;
   if (typeof runner !== 'function') return null;
   const raw = String(prompt || '').trim();
 
@@ -64,32 +64,76 @@ async function maybeRunGlobeAction(prompt, windowRef) {
   }
 
   // Soft NL fallback (non-slash)
+  // 1. Navigation / Fly
   const nav = raw.match(
     /\b(?:navigate|fly|go|take\s+me|show|zoom|look)\s+(?:to\s+|me\s+to\s+|at\s+)?(.+?)(?:[.!?]|$)/i,
   );
   if (nav?.[1] && !raw.startsWith('/')) {
-    const query = text(nav[1], 160);
-    if (query) {
+    const candidate = text(nav[1], 160).trim();
+    if (/^(?:out|in|globe|earth|world)$/i.test(candidate)) {
+      if (/^(?:globe|earth|world)$/i.test(candidate)) {
+        try {
+          return await runner('zoom_to_globe', {});
+        } catch (error) {
+          return { ok: false, error: error?.message || 'zoom to globe failed' };
+        }
+      }
       try {
-        return await runner('fly_to_location', { query, viewMode: 'overview', waitForArrival: true });
+        const direction = /out/i.test(candidate) ? 'out' : 'in';
+        return await runner('adjust_camera_zoom', { direction, amount: 'medium' });
+      } catch (error) {
+        return { ok: false, error: error?.message || 'zoom failed' };
+      }
+    }
+    if (candidate) {
+      try {
+        return await runner('fly_to_location', { query: candidate, viewMode: 'overview', waitForArrival: true });
       } catch (error) {
         return { ok: false, error: error?.message || 'fly failed' };
       }
     }
   }
-  const layerOn = raw.match(/\b(?:enable|show|turn on|open)\s+(earthquakes?|flights?|ships?|satellites?|traffic|cctv|weather|fires?)\b/i);
-  if (layerOn?.[1] && !raw.startsWith('/')) {
-    const token = String(layerOn[1]).toLowerCase();
+
+  // 2. Whole globe / reset
+  if (/\b(?:whole\s+globe|gods\s+eye\s+view|full\s+earth|zoom\s+out\s+all\s+the\s+way)\b/i.test(raw)) {
+    try {
+      return await runner('zoom_to_globe', {});
+    } catch (error) {
+      return { ok: false, error: error?.message || 'zoom to globe failed' };
+    }
+  }
+
+  // 3. Visual styles
+  const styleMatch = raw.match(/\b(?:style|look|mode|theme)\s+(?:to\s+)?(normal|retro|surveillance|thermal|anime|noir|snow)\b/i)
+    || raw.match(/\b(thermal|surveillance|night\s+vision|retro|noir|anime|snow)\s+(?:style|look|mode)\b/i);
+  if (styleMatch?.[1]) {
+    let style = styleMatch[1].toLowerCase();
+    if (style === 'night vision') style = 'surveillance';
+    try {
+      return await runner('set_visual_style', { style });
+    } catch (error) {
+      return { ok: false, error: error?.message || 'style failed' };
+    }
+  }
+
+  // 4. Layers
+  const layerToggle = raw.match(/\b(?:enable|show|turn\s+on|open|disable|hide|turn\s+off|close)\s+(earthquakes?|flights?|ships?|satellites?|traffic|cctv|weather|fires?|cables?|datacenters?|dams?)\b/i);
+  if (layerToggle?.[1] && !raw.startsWith('/')) {
+    const isOff = /\b(?:disable|hide|turn\s+off|close)\b/i.test(layerToggle[0]);
+    const token = String(layerToggle[1]).toLowerCase();
     const layerId = (
       /^earthquake/.test(token) ? 'earthquakes'
       : /^flight/.test(token) ? 'flights'
-      : /^ship/.test(token) ? 'ships'
+      : /^ship/.test(token) ? 'ais-live-vessels'
       : /^satellite/.test(token) ? 'satellites'
-      : /^fire/.test(token) ? 'fires'
+      : /^fire/.test(token) ? 'local-firms'
+      : /^cable/.test(token) ? 'telegeography-submarine-cables'
+      : /^datacenter/.test(token) ? 'local-datacenters'
+      : /^dam/.test(token) ? 'local-dams'
       : token
     );
     try {
-      return await runner('set_layer_visibility', { layerId, enabled: true });
+      return await runner('set_layer_visibility', { layerId, enabled: !isOff });
     } catch (error) {
       return { ok: false, error: error?.message || 'layer failed' };
     }
@@ -131,7 +175,9 @@ export function initHermesBoxChat({
   endpoint = HERMES_BOX_CHAT_ENDPOINT,
   conversationId = 'gev-hermes-box',
   storage = globalThis.sessionStorage,
+  actionRunner = null,
 } = {}) {
+  let boundRunner = actionRunner;
   const root = documentRef?.getElementById?.('hermes-agent-card');
   const chat = documentRef?.getElementById?.('hermes-box-chat');
   const thread = documentRef?.getElementById?.('hermes-box-thread');
@@ -498,7 +544,7 @@ export function initHermesBoxChat({
     setBusy(true);
     // Slash commands hit the shared GEV runner first (humans + Hermes).
     const isSlash = prompt.trim().startsWith('/');
-    const actionPromise = maybeRunGlobeAction(prompt, windowRef);
+    const actionPromise = maybeRunGlobeAction(prompt, windowRef, boundRunner);
     if (isSlash) {
       try {
         const actionResult = await actionPromise;
@@ -1182,6 +1228,9 @@ export function initHermesBoxChat({
     ask,
     isBusy: () => busy,
     conversationId,
+    setRunner(r) {
+      boundRunner = r;
+    },
     clear() {
       startNewTask();
     },
