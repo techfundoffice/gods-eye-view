@@ -600,3 +600,26 @@ test('findWritableAuthorization returns the first manage-scope session', async (
   assert.equal(found.canWrite, true);
   assert.equal(await found.getAccessToken(), 'tok');
 });
+
+test('findOwnerAuthorization selects only the ADMIN-designated Google identity', async () => {
+  const oauth = createYoutubeOAuthMiddleware({
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    sessionSecret: 'session-secret-long-enough',
+    fetchImpl: async () => { throw new Error('not expected'); },
+  });
+  const base = {
+    googleSub: 'sub',
+    accessToken: 'tok',
+    tokenExpiresAt: Date.now() + 10 * 60_000,
+    expiresAt: Date.now() + 60 * 60_000,
+    scopes: [],
+  };
+  oauth.sessions.set('visitor', { ...base, email: 'visitor@example.test' });
+  oauth.sessions.set('owner', { ...base, googleSub: 'owner-sub', accessToken: 'owner-token', email: 'owner@example.test' });
+
+  assert.equal(await oauth.findOwnerAuthorization({ emails: ['missing@example.test'] }), null);
+  const found = await oauth.findOwnerAuthorization({ emails: [' OWNER@example.test '] });
+  assert.equal(found.sessionId, 'owner');
+  assert.equal(await found.getAccessToken(), 'owner-token');
+});

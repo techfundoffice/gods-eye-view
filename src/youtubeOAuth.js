@@ -650,6 +650,40 @@ export function createYoutubeOAuthMiddleware({
     return null;
   }
 
+  /**
+   * Find a usable server-held YouTube session whose verified Google identity
+   * matches an ADMIN-designated owner email. Public callers must never fall
+   * back to whichever unrelated browser session happened to sign in first.
+   *
+   * @param {{emails?: string[]}} [owner]
+   * @returns {Promise<object|null>}
+   */
+  async function findOwnerAuthorization({ emails = [] } = {}) {
+    await restored;
+    cleanup();
+    const allowed = new Set(
+      (Array.isArray(emails) ? emails : [])
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+    if (!allowed.size) return null;
+    for (const [id, session] of sessions) {
+      if (!session?.googleSub || !allowed.has(String(session.email || '').trim().toLowerCase())) continue;
+      try {
+        await getAccessToken(session);
+      } catch {
+        continue;
+      }
+      return {
+        sessionId: id,
+        scopes: session.scopes || [],
+        canWrite: writeEnabled && hasYoutubeManageScope(session.scopes),
+        getAccessToken: () => getAccessToken(session),
+      };
+    }
+    return null;
+  }
+
   async function findWritableAuthorization() {
     const authorization = await findSignedInAuthorization();
     return authorization?.canWrite ? authorization : null;
@@ -884,6 +918,7 @@ export function createYoutubeOAuthMiddleware({
     middleware,
     authorizeRequest,
     findSignedInAuthorization,
+    findOwnerAuthorization,
     findWritableAuthorization,
     proxy,
     sessions,

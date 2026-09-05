@@ -54,6 +54,13 @@ test('unexpected shapes are normalized away', () => {
   assert.deepEqual(normalizeAdminState({ apiKeys: [null, 4, { id: 'a' }] }).apiKeys, [{ id: 'a' }]);
   assert.equal(normalizeAdminState({ mcpEnabled: 'yes' }).mcpEnabled, true);
   assert.equal(normalizeAdminState({ version: 'x' }).version, 1);
+  const trending = normalizeAdminState({
+    youtubeTrending: { enabled: true, regionCode: 'gb', refreshMinutes: 1, categoryIds: ['10', '20', '30', '40'] },
+  }).youtubeTrending;
+  assert.equal(trending.enabled, true);
+  assert.equal(trending.regionCode, 'GB');
+  assert.equal(trending.refreshMinutes, 15);
+  assert.deepEqual(trending.categoryIds, ['10', '20', '30']);
 });
 
 test('writes are atomic — a temp file is written, then renamed over the target', () => {

@@ -70,9 +70,11 @@ import { createLiveSessionController } from './src/liveSession.js';
 import { createAdminMiddleware } from './src/adminServer.js';
 import { createGevApiMiddleware } from './src/gevApiServer.js';
 import { createHomeVideoServer } from './src/homeVideoServer.js';
+import { createYoutubeTrendingCommentary } from './src/youtubeTrendingCommentary.js';
 import { createAdminAuth } from './src/adminAuth.js';
 import { createAdminStore } from './src/adminStore.js';
 import { createReplitAdminAuth } from './src/replitAdminAuth.js';
+import { normalizeHermesYoutubeAdmin } from './src/hermesYoutubeAdmin.js';
 import {
   createOwnerLiveDiscovery,
   createYoutubeApiCaller,
@@ -92,6 +94,22 @@ let youtubeOAuthSingleton = null;
 let liveSessionSingleton = null;
 let replitAdminAuthSingleton = null;
 let publicCommandRuntimeSingleton = null;
+let youtubeTrendingSingleton = null;
+
+function sharedYoutubeTrending() {
+  if (!youtubeTrendingSingleton) {
+    youtubeTrendingSingleton = createYoutubeTrendingCommentary({
+      readConfig: () => sharedAdminStore().read().youtubeTrending,
+      getOwnerCall: async () => {
+        const oauth = sharedYoutubeOAuth();
+        const owner = normalizeHermesYoutubeAdmin(sharedAdminStore().read().hermesYoutubeAdmin);
+        const authorization = await oauth.findOwnerAuthorization({ emails: owner.emails });
+        return authorization ? createYoutubeApiCaller(oauth.proxy, authorization) : null;
+      },
+    });
+  }
+  return youtubeTrendingSingleton;
+}
 
 let hermesTrainingControlSingleton = null;
 /**
@@ -7785,9 +7803,27 @@ export function youtubeProxy({
   // Home-page video player. Mounted on its own prefix so the `/api/youtube`
   // catch-all below never shadows it.
   const homeVideo = createHomeVideoServer();
+  const trending = sharedYoutubeTrending();
+  const trendingMiddleware = async (req, res, next) => {
+    const parsed = new URL(req.url || '/', 'http://localhost');
+    if (parsed.pathname !== '/api/youtube/trending-commentary') return next();
+    if (req.method !== 'GET') {
+      res.statusCode = 405; res.setHeader('content-type', 'application/json; charset=utf-8');
+      res.end(JSON.stringify({ error: { kind: 'method', message: 'Use GET' } })); return;
+    }
+    try {
+      const body = await trending.snapshot();
+      res.statusCode = 200; res.setHeader('content-type', 'application/json; charset=utf-8');
+      res.setHeader('cache-control', 'no-store'); res.end(JSON.stringify(body));
+    } catch {
+      res.statusCode = 503; res.setHeader('content-type', 'application/json; charset=utf-8');
+      res.end(JSON.stringify({ error: { kind: 'unavailable', message: 'Trending commentary unavailable' } }));
+    }
+  };
 
   function install(middlewares) {
     middlewares.use(homeVideo.middleware);
+    middlewares.use(trendingMiddleware);
     middlewares.use('/api/youtube/auth', oauth.middleware);
     middlewares.use('/api/youtube/live', liveMiddleware);
     middlewares.use('/api/youtube/live-chat', innerTubeChatMiddleware);
@@ -7842,6 +7878,7 @@ function adminConsoleApi() {
       void sharedHermesHarness().initializeMcpServer(mcp);
     },
     getGevBinding: sharedGevBinding,
+    youtubeTrending: sharedYoutubeTrending(),
   });
   const gevApi = createGevApiMiddleware({
     auth: sharedAdminAuth(),

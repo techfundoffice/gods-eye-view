@@ -127,7 +127,12 @@ function stubComposio() {
   };
 }
 
-function harness({ store = memoryStore(), builder = stubBuilder(), composio = stubComposio() } = {}) {
+function harness({
+  store = memoryStore(),
+  builder = stubBuilder(),
+  composio = stubComposio(),
+  youtubeTrending = null,
+} = {}) {
   const auth = createAdminAuth({
     credential: { hash: hashAdminPassword(PASSWORD), source: 'hash' },
     store,
@@ -136,7 +141,15 @@ function harness({ store = memoryStore(), builder = stubBuilder(), composio = st
     auth,
     store,
     builder,
-    middleware: createAdminMiddleware({ store, auth, builder, live: stubLive(), composio, version: '1.2.3' }),
+    middleware: createAdminMiddleware({
+      store,
+      auth,
+      builder,
+      live: stubLive(),
+      composio,
+      youtubeTrending,
+      version: '1.2.3',
+    }),
   };
 }
 
@@ -428,6 +441,44 @@ test('an unknown admin route is a 404', async () => {
   const { middleware } = harness();
   const cookie = await signIn(middleware);
   assert.equal((await call(middleware, { url: '/nowhere', cookie })).status, 404);
+});
+
+test('ADMIN can save normalized trending settings and force one service refresh', async () => {
+  const forceCalls = [];
+  const { middleware } = harness({
+    youtubeTrending: {
+      snapshot: async (options) => {
+        forceCalls.push(options);
+        return { enabled: true, status: 'ready', source: { videoId: 'aqz-KE-bpKQ' } };
+      },
+    },
+  });
+  const cookie = await signIn(middleware);
+  const saved = await call(middleware, {
+    method: 'POST',
+    url: '/youtube-trending',
+    headers: WRITE,
+    cookie,
+    body: { enabled: true, regionCode: 'gb', refreshMinutes: 1, categoryIds: ['10', '20'] },
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.body.enabled, true);
+  assert.equal(saved.body.regionCode, 'GB');
+  assert.equal(saved.body.refreshMinutes, 15);
+  assert.deepEqual(saved.body.categoryIds, ['10', '20']);
+
+  const loaded = await call(middleware, { url: '/youtube-trending', cookie });
+  assert.deepEqual(loaded.body, saved.body);
+
+  const refreshed = await call(middleware, {
+    method: 'POST',
+    url: '/youtube-trending/refresh',
+    headers: WRITE,
+    cookie,
+  });
+  assert.equal(refreshed.status, 200);
+  assert.equal(refreshed.body.status, 'ready');
+  assert.deepEqual(forceCalls, [{ force: true }]);
 });
 
 test('Composio routes are ADMIN-only, CSRF-protected, and never expose a credential', async () => {

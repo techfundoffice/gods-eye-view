@@ -37,9 +37,11 @@ import { resolveHermesBin } from './nousHermesCliInterpreter.js';
 import { createPluginBuilder, readPluginManifest } from './adminPluginBuilder.js';
 import { normalizePluginManifest } from './adminPluginRegistry.js';
 import { createAdminStore } from './adminStore.js';
+import { publicComposioError } from './composioAdminServer.js';
 import { createOpenRouterAdminSecret, resolveOpenRouterApiKey } from './openrouterAdminSecret.js';
 import { normalizeHermesYoutubeAdmin } from './hermesYoutubeAdmin.js';
 import { normalizeHomeVideoConfig } from './homeVideoModeration.js';
+import { normalizeYoutubeTrendingConfig } from './youtubeTrendingCommentary.js';
 import { postOpenRouterChat } from './openrouterFreeClient.js';
 import { createLiveSessionController } from './liveSession.js';
 import { splitYoutubeIngestPaste } from './liveStream.js';
@@ -191,6 +193,8 @@ export function createAdminMiddleware({
   getGevBinding = () => ({}),
   getHermesStatus = () => ({}),
   onMcpServer = null,
+  youtubeTrending = null,
+  composio = null,
 } = {}) {
   const mcp = createAdminMcpServer({
     builder,
@@ -733,6 +737,18 @@ export function createAdminMiddleware({
         }
         sendJson(res, 405, { error: { kind: 'method', message: 'Use GET or POST' } });
         return true;
+      }
+      if (first === 'youtube-trending') {
+        if (second === 'refresh' && req.method === 'POST') {
+          if (!youtubeTrending) { sendJson(res, 503, { error: { kind: 'unavailable', message: 'Trending service unavailable' } }); return true; }
+          sendJson(res, 200, await youtubeTrending.snapshot({ force: true })); return true;
+        }
+        if (req.method === 'GET') { sendJson(res, 200, normalizeYoutubeTrendingConfig(auth.youtubeTrending?.() || null)); return true; }
+        if (req.method === 'POST') {
+          const saved = normalizeYoutubeTrendingConfig(await readJsonBody(req).catch(() => ({})));
+          auth.setYoutubeTrending?.(saved); sendJson(res, 200, saved); return true;
+        }
+        sendJson(res, 405, { error: { kind: 'method', message: 'Use GET or POST' } }); return true;
       }
 
       if (first === 'hermes-youtube-admin') {

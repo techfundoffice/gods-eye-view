@@ -2,6 +2,26 @@
 
 Updated: September 4, 2026
 
+> **2026-09-04 — Player 2 is an ADMIN-controlled trending YouTube AI
+> commentator.** Player 1 keeps its existing default/playlist/recommendation
+> behavior. Player 2 independently reads the server-owned
+> `/api/youtube/trending-commentary` snapshot and builds only a validated
+> `youtube-nocookie.com` embed. When enabled, the server selects an embeddable
+> public video from YouTube Data API `videos.list` with `chart=mostPopular`
+> (region plus up to three categories), or a validated ADMIN manual video URL,
+> and caches/deduplicates refreshes. The OAuth caller must match an email in
+> ADMIN’s configured Hermes YouTube-owner list; it never falls back to an
+> arbitrary signed-in viewer. Optional Gemini analysis passes the public
+> YouTube URL as direct video input, keeps the key in a request header, and
+> returns only bounded original commentary. Without Gemini, the desk labels a
+> metadata-only, non-transcript fallback. Public errors are fixed typed
+> messages; upstream text, credentials, transcripts, and provider payloads
+> never cross the boundary. The desk is disabled by default and explicitly
+> labels loading, ready, stale, unavailable, voice, abstract-avatar, and
+> `AI-GENERATED COMMENTARY` states. ADMIN → Home Video owns enablement, region,
+> refresh cadence, category IDs, candidate count, provider/model, voice,
+> avatar, manual override, and force refresh.
+>
 > **2026-09-04 — the YouTube Chat rail is fixed geometry, not responsive.**
 > `.youtube-chat-cards` is a **four**-track grid — Hermes readout, LIVE
 > COMMENTS IN PROGRESS, ALL LIVE COMMENTS, Hermes diagnostics — sized

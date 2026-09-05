@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { normalizeHermesYoutubeAdmin } from './hermesYoutubeAdmin.js';
 import { normalizeHomeVideoConfig } from './homeVideoModeration.js';
+import { normalizeYoutubeTrendingConfig } from './youtubeTrendingCommentary.js';
 import { normalizeGevFunctionToggles, setGevFunctionToggles } from './gevFunctionToggles.js';
 
 /** Default on-disk location, relative to the repository root. */
@@ -22,7 +23,7 @@ export const ADMIN_STATE_FILE = '.gev-cache/admin-state.json';
 
 /** Shape returned when nothing has been persisted yet. */
 export function emptyAdminState() {
-  return { version: 1, apiKeys: [], mcpEnabled: false, plugins: [], hermesYoutubeAdmin: normalizeHermesYoutubeAdmin(null), gevFunctionToggles: normalizeGevFunctionToggles(null), homeVideo: normalizeHomeVideoConfig(null) };
+  return { version: 1, apiKeys: [], mcpEnabled: false, plugins: [], hermesYoutubeAdmin: normalizeHermesYoutubeAdmin(null), gevFunctionToggles: normalizeGevFunctionToggles(null), homeVideo: normalizeHomeVideoConfig(null), youtubeTrending: normalizeYoutubeTrendingConfig(null) };
 }
 
 /**
@@ -44,6 +45,7 @@ export function normalizeAdminState(raw) {
     hermesYoutubeAdmin: normalizeHermesYoutubeAdmin(raw.hermesYoutubeAdmin),
     gevFunctionToggles: normalizeGevFunctionToggles(raw.gevFunctionToggles),
     homeVideo: normalizeHomeVideoConfig(raw.homeVideo),
+    youtubeTrending: normalizeYoutubeTrendingConfig(raw.youtubeTrending),
   };
 }
 

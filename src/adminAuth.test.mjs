@@ -204,6 +204,19 @@ test('the MCP switch persists through the store', () => {
   assert.equal(auth.setMcpEnabled(false), false);
 });
 
+test('YouTube trending settings persist through the auth facade', () => {
+  const store = memoryStore();
+  const auth = createAdminAuth({
+    credential: { hash: hashAdminPassword('operator-password'), source: 'hash' },
+    store,
+  });
+  assert.equal(auth.youtubeTrending(), null);
+  const saved = { enabled: true, regionCode: 'GB', categoryIds: ['10'] };
+  assert.deepEqual(auth.setYoutubeTrending(saved), saved);
+  assert.deepEqual(auth.youtubeTrending(), saved);
+  assert.deepEqual(store.read().youtubeTrending, saved);
+});
+
 test('key labels are bounded and stripped of control characters', () => {
   assert.equal(normalizeApiKeyLabel('  build box  '), 'build box');
   assert.equal(normalizeApiKeyLabel(''), 'MCP client');

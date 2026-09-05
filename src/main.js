@@ -32,6 +32,7 @@ import { initLeftNavAutoscroll } from './leftNavAutoscroll.js';
 import { initLeftYtChrome } from './leftYtChrome.js';
 import { initImageLibrary } from './imageLibrary.js';
 import { initHomeVideo } from './homeVideo.js';
+import { initTrendingCommentator } from './trendingCommentator.js';
 import {
   googleEarthUnavailableReason,
   hasUsableGoogleMapsKey,
@@ -258,10 +259,7 @@ async function init() {
     try { initImageLibrary(document); } catch (err) { console.warn('[image-library]', err); }
     try { initLeftYtChrome(document); } catch (err) { console.warn('[left-yt-chrome]', err); }
     try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
-    // The split view behaves exactly like the first player. `primary: false`
-    // only decides which player control_video_player targets; it changes nothing
-    // the viewer sees.
-    try { initHomeVideo(document, { rootId: 'gev-split-view', primary: false }); }
+    try { initTrendingCommentator(document); }
     catch (err) { console.warn('[split-view]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
     try { viewer?.destroy?.(); } catch (destroyError) {
@@ -710,10 +708,7 @@ async function init() {
     try { initImageLibrary(document); } catch (err) { console.warn('[image-library]', err); }
     try { initLeftYtChrome(document); } catch (err) { console.warn('[left-yt-chrome]', err); }
     try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
-    // The split view behaves exactly like the first player. `primary: false`
-    // only decides which player control_video_player targets; it changes nothing
-    // the viewer sees.
-    try { initHomeVideo(document, { rootId: 'gev-split-view', primary: false }); }
+    try { initTrendingCommentator(document); }
     catch (err) { console.warn('[split-view]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
 

@@ -255,7 +255,7 @@ export function createAdminAuth({
   const sessions = new Map();
   /** @type {Map<string, {failures: number, nextAttemptAt: number}>} */
   const attempts = new Map();
-  const memoryState = { apiKeys: [], mcpEnabled: false, hermesYoutubeAdmin: null, gevFunctionToggles: null, homeVideo: null };
+  const memoryState = { apiKeys: [], mcpEnabled: false, hermesYoutubeAdmin: null, gevFunctionToggles: null, homeVideo: null, youtubeTrending: null };
 
   function readState() {
     if (store) return store.read();
@@ -270,6 +270,7 @@ export function createAdminAuth({
     memoryState.hermesYoutubeAdmin = next.hermesYoutubeAdmin;
     memoryState.gevFunctionToggles = next.gevFunctionToggles;
     memoryState.homeVideo = next.homeVideo;
+    memoryState.youtubeTrending = next.youtubeTrending;
     return memoryState;
   }
 
@@ -445,6 +446,11 @@ export function createAdminAuth({
     setHomeVideo: (value) => {
       updateState((state) => ({ ...state, homeVideo: value }));
       return readState().homeVideo;
+    },
+    youtubeTrending: () => readState().youtubeTrending || null,
+    setYoutubeTrending: (value) => {
+      updateState((state) => ({ ...state, youtubeTrending: value }));
+      return readState().youtubeTrending;
     },
     sessionCount: () => {
       pruneSessions();

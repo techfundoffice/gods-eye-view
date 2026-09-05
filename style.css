@@ -19619,6 +19619,73 @@ body.ui-clean-view .gev-home-video-rail {
 .admin-home-video-message.warn { color: #ff7272; }
 .admin-home-video-message[hidden] { display: none; }
 
+/* === GEV_TRENDING_COMMENTATOR_V1 ===
+   The split surface is an instrument panel, not a second queue player. */
+#gev-split-view.gev-trending-commentator {
+  min-width: 0;
+  background: rgba(7, 12, 20, 0.78);
+  border-color: rgba(126, 239, 255, 0.25);
+}
+.gev-trending-desk { display: grid; gap: 7px; min-width: 0; }
+.gev-trending-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--btn-radius);
+  background: #05080d;
+}
+.gev-trending-iframe { width: 100%; height: 100%; border: 0; display: block; }
+.gev-trending-copy { min-width: 0; position: relative; padding: 2px 2px 0 38px; }
+.gev-trending-copy h3, .gev-trending-copy p { margin: 0; }
+.gev-trending-eyebrow, .gev-trending-meta, .gev-trending-attribution,
+.gev-trending-segment, .gev-trending-status {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .45px;
+  line-height: 1.35;
+}
+.gev-trending-eyebrow { color: var(--accent); font-size: 8px; letter-spacing: 1px; }
+.gev-trending-copy h3 {
+  overflow: hidden;
+  color: #f1f1f1;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gev-trending-meta { color: var(--text-dim); }
+.gev-trending-attribution { color: #b7f5ff; margin-top: 3px !important; }
+.gev-trending-segment { color: #f1f1f1; margin-top: 5px !important; min-height: 2.6em; }
+.gev-trending-status { margin: 0; color: #b7f5ff; }
+.gev-trending-status[data-tone="warn"] { color: #ff8f8f; }
+.gev-trending-status[data-tone="muted"] { color: var(--text-dim); }
+.gev-trending-avatar {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(126, 239, 255, .45);
+  border-radius: 50%;
+  color: var(--accent);
+  background: radial-gradient(circle at 50% 35%, rgba(126,239,255,.22), rgba(8,13,21,.92) 62%);
+  font: 700 8px var(--font-mono);
+  letter-spacing: 1px;
+}
+.admin-home-video-section { margin: 10px 0 0; color: var(--accent); font: 10px var(--font-mono); letter-spacing: 1.5px; }
+@media (max-width: 700px) {
+  .gev-home-video-rail { max-width: calc(100vw - .6rem); gap: 6px; }
+  #gev-split-view.gev-trending-commentator { width: min(100%, 420px); }
+  .gev-trending-copy h3 { white-space: normal; }
+}
+@media (max-height: 650px) {
+  .gev-trending-copy { padding-top: 0; }
+  .gev-trending-segment { min-height: 1.35em; max-height: 2.7em; overflow: hidden; }
+}
+
 /* === GEV_YT_CHAT_BRAND_BELOW_SETTINGS_TICKER_V1 ===
    #youtube-chat-brand = Cloud Computer AI.com logo + LIVE CAMERA DESK /
    NOW TAKING REQUESTS / waiting detail. East rail was top:0 so COMMANDS +
