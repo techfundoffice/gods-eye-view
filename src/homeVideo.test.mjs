@@ -4,6 +4,7 @@ import {
   DEFAULT_SIZE,
   FLOAT_SIZES,
   PRIMARY_ROOT_ID,
+  SECONDARY_ROOT_ID,
   storageKeyFor,
   SIZES,
   STORAGE_KEY,
@@ -128,6 +129,10 @@ test('child ids derive from the root id, matching the shipped markup', () => {
   const second = lookupSpy();
   initHomeVideo(second.doc, { rootId: 'gev-split-view' });
   assert.deepEqual(second.asked, ['gev-split-view']);
+
+  const clone = lookupSpy();
+  initHomeVideo(clone.doc, { rootId: SECONDARY_ROOT_ID });
+  assert.deepEqual(clone.asked, [SECONDARY_ROOT_ID]);
 });
 
 test('a missing root is a no-op for any player, not just the primary', () => {
@@ -156,4 +161,5 @@ test('each player persists its own size', () => {
   // Resizing the second player must not move the first.
   assert.equal(readSize(storage, storageKeyFor()), DEFAULT_SIZE);
   assert.equal(readSize(storage, storageKeyFor('gev-split-view')), 'md');
+  assert.equal(storageKeyFor(SECONDARY_ROOT_ID), `${STORAGE_KEY}:${SECONDARY_ROOT_ID}`);
 });

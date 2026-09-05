@@ -19373,7 +19373,7 @@ nav.left-yt-chrome {
   flex-direction: row;
   align-items: flex-start;
   justify-content: center;
-  /* Two Medium players are ~1128px; wrapping beats overflowing a narrow window. */
+   /* Medium players wrap instead of overflowing a narrow window. */
   flex-wrap: wrap;
   gap: 8px;
   max-width: calc(100vw - 1.5rem);

@@ -83,6 +83,30 @@
         <ol id="gev-split-view-queue" class="gev-home-video-queue" aria-label="Up next" hidden></ol>
         <p class="gev-home-video-hint">or comment <code>/youtube-channel &lt;url&gt;</code> on the live stream</p>
       </section>
+
+      <section id="gev-video-player-2" class="gev-home-video" data-size="sm" aria-label="Video player 2 (clone)">
+        <div class="gev-home-video-frame">
+          <div id="gev-video-player-2-mount" class="gev-home-video-mount"></div>
+        </div>
+        <div class="gev-home-video-bar">
+          <select id="gev-video-player-2-source" class="gev-home-video-source" aria-label="ADMIN video sources" disabled></select>
+          <div class="gev-home-video-sizes" role="group" aria-label="Player size">
+            <button class="scene-btn" type="button" data-home-video-size="sm" aria-pressed="true" title="Small">S</button>
+            <button class="scene-btn" type="button" data-home-video-size="md" aria-pressed="false" title="Medium">M</button>
+            <button class="scene-btn" type="button" data-home-video-size="lg" aria-pressed="false" title="Fullscreen">L</button>
+          </div>
+        </div>
+        <form id="gev-video-player-2-recommend" class="gev-home-video-recommend">
+          <input id="gev-video-player-2-url" class="gev-home-video-url" type="url" inputmode="url"
+            maxlength="300" autocomplete="off" aria-label="Recommend a royalty-free YouTube video for player 2"
+            placeholder="Paste a royalty-free YouTube video URL…" />
+          <button class="scene-btn" type="submit">PLAY</button>
+        </form>
+        <p id="gev-video-player-2-status" class="gev-home-video-status" role="status" aria-live="polite"></p>
+        <p id="gev-video-player-2-now" class="gev-home-video-now"></p>
+        <ol id="gev-video-player-2-queue" class="gev-home-video-queue" aria-label="Player 2 up next" hidden></ol>
+        <p class="gev-home-video-hint">VIDEO PLAYER 2 · CLONE OF PLAYER 1</p>
+      </section>
     </div>
   </div>
 

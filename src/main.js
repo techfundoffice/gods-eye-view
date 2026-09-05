@@ -31,7 +31,7 @@ import { startSettingsSummaryTicker } from './settingsSummaryTicker.js';
 import { initLeftNavAutoscroll } from './leftNavAutoscroll.js';
 import { initLeftYtChrome } from './leftYtChrome.js';
 import { initImageLibrary } from './imageLibrary.js';
-import { initHomeVideo } from './homeVideo.js';
+import { initHomeVideo, SECONDARY_ROOT_ID } from './homeVideo.js';
 import { initTrendingCommentator } from './trendingCommentator.js';
 import {
   googleEarthUnavailableReason,
@@ -261,6 +261,8 @@ async function init() {
      try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
      try { initTrendingCommentator(document); }
      catch (err) { console.warn('[split-view]', err); }
+     try { initHomeVideo(document, { rootId: SECONDARY_ROOT_ID, muted: true, primary: false }); }
+     catch (err) { console.warn('[video-player-2]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
     try { viewer?.destroy?.(); } catch (destroyError) {
       console.warn('[Init] Partial viewer cleanup failed:', destroyError);
@@ -710,6 +712,8 @@ async function init() {
      try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
      try { initTrendingCommentator(document); }
      catch (err) { console.warn('[split-view]', err); }
+     try { initHomeVideo(document, { rootId: SECONDARY_ROOT_ID, muted: true, primary: false }); }
+     catch (err) { console.warn('[video-player-2]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
 
   } catch (error) {
