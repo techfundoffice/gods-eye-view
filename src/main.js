@@ -258,9 +258,9 @@ async function init() {
     try { initLeftNavAutoscroll(document); } catch (err) { console.warn('[left-nav-autoscroll]', err); }
     try { initImageLibrary(document); } catch (err) { console.warn('[image-library]', err); }
     try { initLeftYtChrome(document); } catch (err) { console.warn('[left-yt-chrome]', err); }
-    try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
-    try { initTrendingCommentator(document); }
-    catch (err) { console.warn('[split-view]', err); }
+     try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
+     try { initTrendingCommentator(document); }
+     catch (err) { console.warn('[split-view]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
     try { viewer?.destroy?.(); } catch (destroyError) {
       console.warn('[Init] Partial viewer cleanup failed:', destroyError);
@@ -707,9 +707,9 @@ async function init() {
     try { initLeftNavAutoscroll(document); } catch (err) { console.warn('[left-nav-autoscroll]', err); }
     try { initImageLibrary(document); } catch (err) { console.warn('[image-library]', err); }
     try { initLeftYtChrome(document); } catch (err) { console.warn('[left-yt-chrome]', err); }
-    try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
-    try { initTrendingCommentator(document); }
-    catch (err) { console.warn('[split-view]', err); }
+     try { initHomeVideo(document); } catch (err) { console.warn('[home-video]', err); }
+     try { initTrendingCommentator(document); }
+     catch (err) { console.warn('[split-view]', err); }
     try { startSettingsSummaryTicker(); } catch (err) { console.warn('[settings-summary-ticker]', err); }
 
   } catch (error) {

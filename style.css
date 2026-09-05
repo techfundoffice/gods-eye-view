@@ -21744,3 +21744,45 @@ body.ui-clean-view .gev-home-video-rail {
   gap: 0.15rem !important;
 }
 /* === /GEV_HERMES_THREAD_TALLER_V1 === */
+
+/* === GEV_HERMES_LOGO_BIGGER_V4 === */
+/* Cloudy mark — large, flush (no pad around logo). */
+#hermes-box-chat .hermes-box-logo-row,
+#admin-stamp-stack #youtube-comments-panel #hermes-box-chat .hermes-box-logo-row {
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+#hermes-box-chat .hermes-box-topbar,
+#admin-stamp-stack #youtube-comments-panel #hermes-box-topbar {
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+#hermes-box-chat .hermes-box-logo-row #hermes-box-logo-slot,
+#hermes-box-chat .hermes-box-topbar #hermes-box-logo-slot,
+#hermes-box-chat > #hermes-box-logo-slot,
+#admin-stamp-stack #youtube-comments-panel #hermes-box-logo-slot,
+#hermes-box-logo-slot {
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+#admin-stamp-stack #youtube-comments-panel #hermes-box-logo-slot .youtube-chat-brand-logo,
+#admin-stamp-stack #youtube-comments-panel #hermes-box-logo-slot .hermes-box-brand-logo,
+#hermes-box-chat #hermes-box-logo-slot .youtube-chat-brand-logo,
+#hermes-box-chat #hermes-box-logo-slot .hermes-box-brand-logo,
+#hermes-box-chat > #hermes-box-logo-slot .youtube-chat-brand-logo,
+#hermes-box-chat > #hermes-box-logo-slot img,
+#hermes-box-logo-slot .youtube-chat-brand-logo,
+#hermes-box-logo-slot .hermes-box-brand-logo {
+  width: min(100%, 20rem) !important;
+  max-width: 20rem !important;
+  max-height: 11rem !important;
+  height: auto !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  object-fit: contain !important;
+}
+/* === /GEV_HERMES_LOGO_BIGGER_V4 === */
